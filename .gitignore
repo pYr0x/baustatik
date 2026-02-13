@@ -1,0 +1,12 @@
+node_modules
+dist
+.turbo
+.vercel
+.output
+.nuxt
+.astro
+coverage
+playwright-report
+test-results
+*.log
+.DS_Store
