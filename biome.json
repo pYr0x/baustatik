@@ -1,6 +1,24 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.15/schema.json",
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "files": {
+    "includes": [
+      "packages/**",
+      "!packages/**/dist",
+      "!packages/**/build",
+      "!packages/**/coverage",
+      "!packages/**/test",
+      "!**/node_modules",
+      "!**/*.test.*",
+      "!**/*.browser.test.*"
+    ]
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {

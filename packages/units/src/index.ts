@@ -1,14 +1,14 @@
-export { convert } from './convert'
+export { convert } from './convert';
 // export { resolveUnit } from './parse'
 // export { smartRound } from './round'
 export {
-    InvalidValueError,
-    UnknownUnitError,
-    IncompatibleUnitsError
-} from './errors'
+  IncompatibleUnitsError,
+  InvalidValueError,
+  UnknownUnitError,
+} from './errors';
 export type {
-    UnitCategory,
-    UnitDefinition,
-    ConvertChain,
-    FromChain
-} from './types'
+  ConvertChain,
+  FromChain,
+  UnitCategory,
+  UnitDefinition,
+} from './types';
