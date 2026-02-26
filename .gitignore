@@ -5,6 +5,7 @@ dist
 .output
 .nuxt
 .astro
+.docs
 coverage
 playwright-report
 test-results

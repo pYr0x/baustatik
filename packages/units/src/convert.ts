@@ -1,6 +1,6 @@
+import { roundAtomic, roundSmart } from '@baustatik/round';
 import { IncompatibleUnitsError, InvalidValueError } from './errors';
 import { resolveUnit } from './parse';
-import { atomicRound, smartRound } from './round';
 import type { ConvertChain, FromChain, UnitCategory } from './types';
 import { ATOMIC_UNITS, GRAVITY, UNITS } from './units';
 
@@ -29,11 +29,11 @@ function roundResult(
   if (atomicKey) {
     const targetDef = UNITS[targetKey];
     const atomicDef = UNITS[atomicKey];
-    return atomicRound(result, targetDef.toBase, atomicDef.toBase);
+    return roundAtomic(result, targetDef.toBase, atomicDef.toBase);
   }
 
   // 3. Nein → smartRound
-  return smartRound(result);
+  return roundSmart(result);
 }
 
 export function convert(value: unknown): ConvertChain {
@@ -63,15 +63,15 @@ export function convert(value: unknown): ConvertChain {
 
           // Masse → Kraft: smartRound (× 9.81 ist sauber)
           if (sourceDef.category === 'mass' && targetDef.category === 'force') {
-            const grams = value * sourceDef.toBase;
+            const grams = (value as number) * sourceDef.toBase;
             const newtons = (grams * GRAVITY) / 1000;
             const result = newtons / targetDef.toBase;
-            return smartRound(result);
+            return roundSmart(result);
           }
 
           // Kraft → Masse: auf ganze Gramm runden (÷ 9.81 ist irrational)
           if (sourceDef.category === 'force' && targetDef.category === 'mass') {
-            const newtons = value * sourceDef.toBase;
+            const newtons = (value as number) * sourceDef.toBase;
             const grams = (newtons * 1000) / GRAVITY;
             const roundedGrams = Math.round(grams);
             const result = roundedGrams / targetDef.toBase;
@@ -79,7 +79,7 @@ export function convert(value: unknown): ConvertChain {
           }
 
           // Standard-Umrechnung
-          const baseValue = value * sourceDef.toBase;
+          const baseValue = (value as number) * sourceDef.toBase;
           const result = baseValue / targetDef.toBase;
           return roundResult(result, targetKey, targetDef.category);
         },

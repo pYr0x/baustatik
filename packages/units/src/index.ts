@@ -1,6 +1,5 @@
 export { convert } from './convert';
 // export { resolveUnit } from './parse'
-// export { smartRound } from './round'
 export {
   IncompatibleUnitsError,
   InvalidValueError,
