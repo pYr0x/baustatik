@@ -17,10 +17,12 @@ export default defineConfig({
   plugins: [
     dts({
       rollupTypes: false,
+      skipDiagnostics: true,
       compilerOptions: {
         declaration: true,
         declarationMap: true,
         sourceMap: true,
+        rootDir: '../..',
       },
     }),
   ],
@@ -28,3 +30,5 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
   },
 })
+
+
