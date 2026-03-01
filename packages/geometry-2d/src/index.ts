@@ -1,1 +1,1 @@
-// exports folgen in spaeteren Tasks
+export { Point } from './point'
