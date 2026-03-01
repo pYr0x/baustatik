@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ESNext"
+    ],
     "moduleResolution": "bundler",
     "strict": true,
     "skipLibCheck": true,
@@ -15,8 +19,21 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@baustatik/core": ["packages/core/src/index.ts"],
-      "@baustatik/units": ["packages/units/src/index.ts"]
+      "@baustatik/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@baustatik/errors": [
+        "packages/errors/src/index.ts"
+      ],
+      "@baustatik/round": [
+        "packages/round/src/index.ts"
+      ],
+      "@baustatik/units": [
+        "packages/units/src/index.ts"
+      ],
+      "@baustatik/geometry-2d": [
+        "packages/geometry-2d/src/index.ts"
+      ]
     }
   }
 }

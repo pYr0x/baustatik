@@ -1,6 +1,6 @@
-import { resolve } from 'node:path'
-import { defineConfig } from 'vitest/config'
-import dts from 'vite-plugin-dts'
+import { resolve } from 'node:path';
+import dts from 'vite-plugin-dts';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   build: {
@@ -16,19 +16,18 @@ export default defineConfig({
   },
   plugins: [
     dts({
+      // Für "Klick in Source" meist besser:
       rollupTypes: false,
-      skipDiagnostics: true,
+
+      // sicherstellen, dass TS-Optionen an sind (falls base tsconfig das nicht setzt)
       compilerOptions: {
         declaration: true,
         declarationMap: true,
         sourceMap: true,
-        rootDir: '../..',
       },
     }),
   ],
   test: {
     include: ['tests/**/*.test.ts'],
   },
-})
-
-
+});
