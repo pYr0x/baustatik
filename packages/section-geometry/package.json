@@ -1,0 +1,47 @@
+{
+    "name": "@baustatik/section-geometry",
+    "version": "0.1.0",
+    "private": false,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite build --watch",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "typecheck": "tsc --noEmit",
+        "lint": "biome check --fix ."
+    },
+    "devDependencies": {
+        "vite": "^7.3.1",
+        "vite-plugin-dts": "^4.5.4",
+        "vitest": "^4.0.18",
+        "konva": "^9.3.18",
+        "martinez-polygon-clipping": "^0.7.4"
+    },
+    "dependencies": {
+        "@baustatik/errors": "workspace:*"
+    },
+    "peerDependencies": {
+        "konva": "^9.3.18",
+        "martinez-polygon-clipping": "^0.7.4"
+    },
+    "peerDependenciesMeta": {
+        "konva": {
+            "optional": true
+        },
+        "martinez-polygon-clipping": {
+            "optional": true
+        }
+    }
+}
