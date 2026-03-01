@@ -17,7 +17,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
-    "test": "vitest run",
+    "test": "vitest run --project Unit",
+    "test:browser": "vitest run --project Browser",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "biome check --fix ."
