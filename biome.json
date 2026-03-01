@@ -6,7 +6,7 @@
       "!packages/**/dist",
       "!packages/**/build",
       "!packages/**/coverage",
-      "!packages/**/test",
+      "!packages/**/tests",
       "!**/node_modules",
       "!**/*.test.*",
       "!**/*.browser.test.*"
