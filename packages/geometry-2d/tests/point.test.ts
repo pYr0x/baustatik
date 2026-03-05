@@ -33,12 +33,12 @@ describe('Point.translate', () => {
 })
 
 describe('Point.rotate', () => {
-  it('90° around origin', () => {
+  it('90Â° around origin', () => {
     const r = Point.rotate(Point.make(1, 0), Math.PI / 2)
     expect(r.x).toBeCloseTo(0)
     expect(r.y).toBeCloseTo(1)
   })
-  it('90° around custom origin', () => {
+  it('90Â° around custom origin', () => {
     const r = Point.rotate(Point.make(2, 0), Math.PI / 2, Point.make(1, 0))
     expect(r.x).toBeCloseTo(1)
     expect(r.y).toBeCloseTo(1)
