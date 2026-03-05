@@ -54,7 +54,7 @@ describe('Polyline polygon conversion and sampling', () => {
     ]);
     const polygon = Polyline.toPolygon(closed);
     expect(polygon.points.length).toBe(3);
-    expect(Polygon.isClockwise(polygon)).toBe(true);
+    expect(Polygon.isClockwise(polygon)).toBe(false);
   });
 
   it('throws InvalidPolygonError for < 3 unique points', () => {

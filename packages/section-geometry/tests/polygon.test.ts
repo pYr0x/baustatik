@@ -34,17 +34,17 @@ describe('Polygon.make and signedArea', () => {
     expect(Polygon.signedArea(counterClockwise)).toBeLessThan(0);
   });
 
-  it('normalizes to YZ-clockwise and keeps input array immutable', () => {
-    const ccw = [
+  it('normalizes to YZ-counter-clockwise and keeps input array immutable', () => {
+    const cw = [
       Point.make(0, 0),
-      Point.make(0, 1),
-      Point.make(1, 1),
       Point.make(1, 0),
+      Point.make(1, 1),
+      Point.make(0, 1),
     ];
-    const snapshot = [...ccw];
-    const polygon = Polygon.make(ccw);
-    expect(Polygon.isClockwise(polygon)).toBe(true);
-    expect(ccw).toEqual(snapshot);
+    const snapshot = [...cw];
+    const polygon = Polygon.make(cw);
+    expect(Polygon.isClockwise(polygon)).toBe(false);
+    expect(cw).toEqual(snapshot);
   });
 });
 
@@ -68,13 +68,13 @@ describe('Polygon scalar and point operations', () => {
 
 describe('Polygon winding helpers', () => {
   it('toClockwise and toCounterClockwise behave as expected', () => {
-    const ccw = Polygon.make([
+    const poly = Polygon.make([
       Point.make(0, 0),
       Point.make(0, 3),
       Point.make(4, 3),
       Point.make(4, 0),
     ]);
-    const clockwise = Polygon.toClockwise(ccw);
+    const clockwise = Polygon.toClockwise(poly);
     expect(Polygon.isClockwise(clockwise)).toBe(true);
 
     const counterClockwise = Polygon.toCounterClockwise(clockwise);
@@ -103,7 +103,7 @@ describe('Polygon construction and boolean ops', () => {
     expect(() => Polygon.fromLines(disconnected)).toThrow(DiscontinuousLinesError);
   });
 
-  it('supports intersect/union/subtract and normalizes outputs to YZ-clockwise', () => {
+  it('supports intersect/union/subtract and normalizes outputs to YZ-counter-clockwise', () => {
     const a = Polygon.make([
       Point.make(0, 0),
       Point.make(4, 0),
@@ -119,15 +119,15 @@ describe('Polygon construction and boolean ops', () => {
 
     const intersection = Polygon.intersect(a, b);
     expect(intersection.length).toBeGreaterThan(0);
-    expect(intersection.every((polygon) => Polygon.isClockwise(polygon))).toBe(true);
+    expect(intersection.every((polygon) => Polygon.isClockwise(polygon))).toBe(false);
 
     const union = Polygon.union(a, b);
     expect(union.length).toBeGreaterThan(0);
-    expect(union.every((polygon) => Polygon.isClockwise(polygon))).toBe(true);
+    expect(union.every((polygon) => Polygon.isClockwise(polygon))).toBe(false);
 
     const subtraction = Polygon.subtract(a, b);
     expect(subtraction.length).toBeGreaterThan(0);
-    expect(subtraction.every((polygon) => Polygon.isClockwise(polygon))).toBe(true);
+    expect(subtraction.every((polygon) => Polygon.isClockwise(polygon))).toBe(false);
 
     expect(Polygon.intersect(a, Polygon.translate(b, Vector.make(100, 0)))).toEqual([]);
     expect(Polygon.subtract(a, a)).toEqual([]);
@@ -146,13 +146,13 @@ describe('Polygon transforms and bounding box', () => {
   it('translates, rotates and mirrors while preserving winding policy', () => {
     const polygon = Polygon.make(rect);
     const translated = Polygon.translate(polygon, Vector.make(1, 1));
-    expect(translated.points[0]).toEqual({ y: 1, z: 1 });
+    expect(translated.points[0]).toEqual({ y: 1, z: 4 });
 
     const rotated = Polygon.rotate(polygon, Math.PI / 2, Point.make(0, 0));
     expect(Polygon.area(rotated)).toBeCloseTo(12); // area is rotation-invariant
 
     const mirrored = Polygon.mirror(polygon, Point.make(0, 0), Point.make(1, 0));
-    expect(Polygon.isClockwise(mirrored)).toBe(true);
+    expect(Polygon.isClockwise(mirrored)).toBe(false);
     expect(Polygon.area(mirrored)).toBeCloseTo(12);
   });
 });

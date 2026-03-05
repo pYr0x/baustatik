@@ -52,7 +52,7 @@ export const Polygon: Transformable<SectionPolygon> & {
   make: (points) => {
     if (points.length < 3)
       throw new InvalidPolygonError('weniger als 3 Punkte');
-    return signedAreaYZ(points) < 0
+    return signedAreaYZ(points) > 0
       ? { points: [...points].reverse() }
       : { points };
   },
@@ -76,12 +76,12 @@ export const Polygon: Transformable<SectionPolygon> & {
 
   isClockwise: (polygon) => signedAreaYZ(polygon.points) > 0,
 
-  toClockwise: (polygon) => Polygon.make(polygon.points),
-
-  toCounterClockwise: (polygon) =>
-    Polygon.isClockwise(polygon)
+  toClockwise: (polygon) =>
+    !Polygon.isClockwise(polygon)
       ? { points: [...polygon.points].reverse() }
       : polygon,
+
+  toCounterClockwise: (polygon) => Polygon.make(polygon.points),
 
   intersect: (a, b) =>
     GeometryPolygon.intersect(toXYPolygon(a), toXYPolygon(b)).map((polygon) =>
