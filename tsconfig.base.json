@@ -36,6 +36,9 @@
       ],
       "@baustatik/section-geometry": [
         "packages/section-geometry/src/index.ts"
+      ],
+      "@baustatik/render-core": [
+        "packages/render-core/src/index.ts"
       ]
     }
   }
