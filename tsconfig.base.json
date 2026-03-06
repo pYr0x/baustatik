@@ -39,6 +39,9 @@
       ],
       "@baustatik/render-core": [
         "packages/render-core/src/index.ts"
+      ],
+      "@baustatik/konva-adapter": [
+        "packages/konva-adapter/src/index.ts"
       ]
     }
   }
