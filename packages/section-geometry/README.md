@@ -42,6 +42,8 @@ All geometry shapes implement a common `Transformable<T>` interface:
 
 ## Usage
 
+For detailed API documentation, see [docs/usage.md](docs/usage.md).
+
 ### Points and Vectors
 ```typescript
 import { Point, Vector } from '@baustatik/section-geometry';
