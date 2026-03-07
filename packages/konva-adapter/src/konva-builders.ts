@@ -1,33 +1,45 @@
-import type { ScreenPoint, Viewport, WorldPoint } from '@baustatik/render-core';
+import {
+  type ScreenPoint,
+  screenPoint,
+  type Viewport,
+  type WorldPoint,
+  worldToScreen,
+} from '@baustatik/render-core';
 
-export function worldToKonvaPoint(_p: WorldPoint, _vp: Viewport): ScreenPoint {
-  throw new Error('TODO: worldToKonvaPoint not implemented');
+export function worldToKonvaPoint(p: WorldPoint, vp: Viewport): ScreenPoint {
+  const s = worldToScreen(p, vp);
+  return screenPoint(s.x, s.y);
 }
 
 export function worldPolylineToKonvaPoints(
-  _points: readonly WorldPoint[],
-  _vp: Viewport,
+  points: readonly WorldPoint[],
+  vp: Viewport,
 ): number[] {
-  throw new Error('TODO: worldPolylineToKonvaPoints not implemented');
+  const flat: number[] = [];
+  for (const p of points) {
+    const s = worldToScreen(p, vp);
+    flat.push(s.x, s.y);
+  }
+  return flat;
 }
 
 export function worldPolygonToKonvaPoints(
-  _points: readonly WorldPoint[],
-  _vp: Viewport,
+  points: readonly WorldPoint[],
+  vp: Viewport,
 ): number[] {
-  throw new Error('TODO: worldPolygonToKonvaPoints not implemented');
+  return worldPolylineToKonvaPoints(points, vp);
 }
 
 export function worldPolylineToKonvaLineProps(
-  _points: readonly WorldPoint[],
-  _vp: Viewport,
+  points: readonly WorldPoint[],
+  vp: Viewport,
 ): { readonly points: number[] } {
-  throw new Error('TODO: worldPolylineToKonvaLineProps not implemented');
+  return { points: worldPolylineToKonvaPoints(points, vp) };
 }
 
 export function worldPolygonToKonvaLineProps(
-  _points: readonly WorldPoint[],
-  _vp: Viewport,
+  points: readonly WorldPoint[],
+  vp: Viewport,
 ): { readonly points: number[]; readonly closed: true } {
-  throw new Error('TODO: worldPolygonToKonvaLineProps not implemented');
+  return { points: worldPolygonToKonvaPoints(points, vp), closed: true };
 }

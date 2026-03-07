@@ -7,7 +7,13 @@ export type {
 
 export type { ArcSamplingOptions } from './arc-sampling';
 export { sampleSectionArcToWorldPoints } from './arc-sampling';
-export { InvalidSectionPointError, InvalidSectionShapeError } from './errors';
+export {
+  InvalidArcSamplingOptionsError,
+  InvalidGridSpacingError,
+  InvalidSectionPointError,
+  InvalidSectionShapeError,
+  InvalidZoomFactorError,
+} from './errors';
 export type { GridLine, VisibleWorldBounds } from './grid';
 export { buildAxisLines, buildGridLines, visibleWorldBounds } from './grid';
 export {
@@ -29,4 +35,16 @@ export {
   getStagePointerWorld,
   pointerScreenToWorld,
 } from './pointer';
+export type {
+  ArcRenderMode,
+  ArcWithThickness,
+  LineWithThickness,
+} from './thickness-rendering';
+export {
+  arcWithThicknessToKonvaLineProps,
+  arcWithThicknessToKonvaShapeSpec,
+  arcWithThicknessToNativeKonvaArcProps,
+  lineWithThicknessToKonvaLineProps,
+  lineWithThicknessToKonvaShapeSpec,
+} from './thickness-rendering';
 export { panViewport, zoomViewportAt } from './viewport-controls';

@@ -37,9 +37,20 @@ function mapSectionPointsToWorld(
   return mapped;
 }
 
+function normalizeSignedZero(value: number): number {
+  return Object.is(value, -0) ? 0 : value;
+}
+
+function normalizeTiny(value: number): number {
+  return Math.abs(value) < 1e-12 ? 0 : value;
+}
+
 export function sectionPointToWorld(p: SectionPoint): WorldPoint {
   validateSectionPoint(p);
-  return worldPoint(p.y, p.z);
+  return worldPoint(
+    normalizeTiny(normalizeSignedZero(p.y)),
+    normalizeTiny(normalizeSignedZero(p.z)),
+  );
 }
 
 export function sectionPolylineToWorldPoints(

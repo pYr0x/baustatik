@@ -1,6 +1,6 @@
 import Konva from 'konva';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { degToRad } from '@baustatik/core';
 import { screenPoint, viewport, worldPoint } from '@baustatik/render-core';
 import { Arc, Point } from '@baustatik/section-geometry';
 
@@ -38,9 +38,13 @@ describe('konva-adapter browser integration', () => {
     const vp = viewport(screenPoint(0, 0), 1);
     const props = worldPolylineToKonvaLineProps(
       [worldPoint(0, 0), worldPoint(10, 0), worldPoint(10, 10)],
-      vp,
+      vp
     );
-    const line = new Konva.Line(props);
+    const line = new Konva.Line({
+      ...props,
+      stroke: 'red',
+      strokeWidth: 15,
+    });
 
     layer.add(line);
     layer.draw();
@@ -77,10 +81,14 @@ describe('konva-adapter browser integration', () => {
     const layer = new Konva.Layer();
     harness.stage.add(layer);
 
-    const arc = Arc.fromCenter(Point.make(0, 0), 10, 0, Math.PI / 2);
+    const arc = Arc.fromCenter(Point.make(100, 100), 50, 0, degToRad(90));
     const sampled = sampleSectionArcToWorldPoints(arc, { segments: 8 });
     const vp = viewport(screenPoint(0, 0), 1);
-    const line = new Konva.Line(worldPolylineToKonvaLineProps(sampled, vp));
+    const line = new Konva.Line({
+      ...worldPolylineToKonvaLineProps(sampled, vp),
+      stroke: 'blue',
+      strokeWidth: 15,
+    });
 
     layer.add(line);
     layer.draw();

@@ -1,16 +1,27 @@
-import type { ScreenPoint, Viewport, WorldPoint } from '@baustatik/render-core';
+import {
+  type ScreenPoint,
+  screenPoint,
+  screenToWorld,
+  type Viewport,
+  type WorldPoint,
+} from '@baustatik/render-core';
 import type Konva from 'konva';
 
 export function pointerScreenToWorld(
-  _pointer: ScreenPoint,
-  _vp: Viewport,
+  pointer: ScreenPoint,
+  vp: Viewport,
 ): WorldPoint {
-  throw new Error('TODO: pointerScreenToWorld not implemented');
+  return screenToWorld(pointer, vp);
 }
 
 export function getStagePointerWorld(
-  _stage: Konva.Stage,
-  _vp: Viewport,
+  stage: Konva.Stage,
+  vp: Viewport,
 ): WorldPoint | null {
-  throw new Error('TODO: getStagePointerWorld not implemented');
+  const pointer = stage.getPointerPosition();
+  if (pointer === null) {
+    return null;
+  }
+
+  return pointerScreenToWorld(screenPoint(pointer.x, pointer.y), vp);
 }

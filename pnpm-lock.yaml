@@ -81,6 +81,9 @@ importers:
 
   packages/konva-adapter:
     dependencies:
+      '@baustatik/core':
+        specifier: workspace:*
+        version: link:../core
       '@baustatik/errors':
         specifier: workspace:*
         version: link:../errors

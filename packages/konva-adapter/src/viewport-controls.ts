@@ -1,17 +1,37 @@
-import type { ScreenPoint, Viewport } from '@baustatik/render-core';
+import {
+  type ScreenPoint,
+  type Viewport,
+  viewport,
+} from '@baustatik/render-core';
+
+import { InvalidZoomFactorError } from './errors';
 
 export function panViewport(
-  _vp: Viewport,
-  _deltaX: number,
-  _deltaY: number,
+  vp: Viewport,
+  deltaX: number,
+  deltaY: number,
 ): Viewport {
-  throw new Error('TODO: panViewport not implemented');
+  return viewport(
+    { x: vp.origin.x + deltaX, y: vp.origin.y + deltaY },
+    vp.scale,
+  );
 }
 
 export function zoomViewportAt(
-  _vp: Viewport,
-  _factor: number,
-  _anchor: ScreenPoint,
+  vp: Viewport,
+  factor: number,
+  anchor: ScreenPoint,
 ): Viewport {
-  throw new Error('TODO: zoomViewportAt not implemented');
+  if (!Number.isFinite(factor) || factor <= 0) {
+    throw new InvalidZoomFactorError('factor muss > 0 und endlich sein');
+  }
+
+  const nextScale = vp.scale * factor;
+  const worldAtAnchorU = (anchor.x - vp.origin.x) / vp.scale;
+  const worldAtAnchorV = (anchor.y - vp.origin.y) / vp.scale;
+
+  const nextOriginX = anchor.x - worldAtAnchorU * nextScale;
+  const nextOriginY = anchor.y - worldAtAnchorV * nextScale;
+
+  return viewport({ x: nextOriginX, y: nextOriginY }, nextScale);
 }
