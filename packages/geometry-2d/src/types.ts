@@ -39,14 +39,20 @@ export function angleInArc(
   sweep: number,
   tolerance = 1e-10,
 ): boolean {
-  if (sweep >= 2 * Math.PI - tolerance) return true;
-  const a = normalizeAngle(angle - startAngle);
-  return a <= sweep + tolerance;
+  if (Math.abs(sweep) >= 2 * Math.PI - tolerance) return true;
+  if (sweep >= 0) {
+    const a = normalizeAngle(angle - startAngle);
+    return a <= sweep + tolerance;
+  } else {
+    // CW: angle muss rückwärts von startAngle aus innerhalb |sweep| liegen
+    const a = normalizeAngle(startAngle - angle);
+    return a <= -sweep + tolerance;
+  }
 }
 
 export function sweepAngle(startAngle: number, endAngle: number): number {
   const diff = endAngle - startAngle;
   if (Math.abs(diff) < 1e-10) return 0;
-  const raw = ((diff % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const raw = normalizeAngle(diff);
   return raw < 1e-10 ? 2 * Math.PI : raw;
 }

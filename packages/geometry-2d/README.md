@@ -2,7 +2,13 @@
 
 Coordinate-system agnostic 2D geometry primitives and operations. Part of the `@baustatik` monorepo library.
 
-This package provides a robust foundation for 2D geometry calculations using standard mathematical conventions (x positive to the right, y positive upwards). It implements the Namespace Pattern with plain objects for maximum performance and immutability.
+This package provides a robust foundation for 2D geometry calculations using standard mathematical conventions (x positive to the right, y positive upwards). 
+
+## Design Philosophy
+
+- **Namespace Pattern**: Each geometric primitive (e.g., `Point`, `Line`, `Arc`) is defined as a plain object `type` and an accompanying `const` object (Namespace) containing static utility functions. This maximizes performance, ensures easy serialization, and avoids the complexities of class-based inheritance.
+- **Immutability**: All geometry objects are `readonly`. Static methods return new instances rather than modifying inputs.
+- **Functional API**: Methods are designed to be composable and predictable.
 
 ## Installation
 
@@ -14,79 +20,86 @@ pnpm add @baustatik/geometry-2d
 
 ## Primitives
 
-The package provides the following 2D primitives:
+The package provides the following 2D primitives as immutable plain objects:
 
-- **`Point`**: `{ x: number, y: number }`
-- **`Vector`**: `{ dx: number, dy: number }`
-- **`Line`**: `{ p1: Point, p2: Point }`
-- **`Arc`**: `{ center: Point, radius: number, startAngle: number, endAngle: number }`
+- **`Point`**: `{ x, y }`
+- **`Vector`**: `{ dx, dy }`
+- **`Line`**: `{ p1, p2 }`
+- **`Arc`**: `{ center, radius, startAngle, sweep }`
 - **`Polyline`**: `{ points: Point[] }` (open path)
-- **`Polygon`**: `{ points: Point[] }` (closed path, always counter-clockwise)
+- **`Polygon`**: `{ points: Point[] }` (closed path, always CCW)
 
-All geometry shapes (except `Vector`) implement a common `Transformable<T>` interface, providing standard methods for spatial manipulation:
+### Transformations
+All geometry shapes (except `Vector`) implement a common `Transformable<T>` interface:
 - `translate(shape, vector)`
 - `rotate(shape, angle, origin?)`
 - `mirror(shape, axisP1, axisP2)`
 
-## Usage
+## Usage Examples
 
-Geometries are created and manipulated using their respective namespace functions:
+For a complete API reference, see [docs/usage.md](docs/usage.md).
 
-### Points and Vectors
+### Arcs in Depth
+Arcs are defined by a `center`, `radius`, `startAngle`, and a signed `sweep`. Positive sweep is Counter-Clockwise (CCW), negative is Clockwise (CW).
+
 ```typescript
-import { Point, Vector } from '@baustatik/geometry-2d';
+import { Arc, Point } from '@baustatik/geometry-2d';
 
-const p1 = Point.make(0, 0);
-const p2 = Point.make(3, 4);
+// Primary creation: Center, Radius, Start angle, Sweep angle
+const arc = Arc.make(Point.make(0, 0), 5, 0, Math.PI / 2);
 
-// Distance between points
-const dist = Point.distance(p1, p2); // 5
+// Create CCW arc between two angles (utility)
+const fromAngles = Arc.fromCenter(Point.make(0, 0), 5, 0, Math.PI / 2);
 
-// Translate a point
-const v = Vector.make(1, 0);
-const moved = Point.translate(p1, v); // { x: 1, y: 0 }
+// Reverse direction (swaps start/end and negates sweep)
+const reversed = Arc.swap(arc); 
+
+// Create arc from 3 points
+const arc3p = Arc.fromPoints(Point.make(5,0), Point.make(0,5), Point.make(-5,0));
+
+const start = Arc.startPoint(arc); // { x: 5, y: 0 }
+const end = Arc.endPoint(arc);     // { x: 0, y: 5 }
 ```
 
-### Lines
+### Lines and Intersections
 ```typescript
-import { Line } from '@baustatik/geometry-2d';
+import { Line, Point, Arc } from '@baustatik/geometry-2d';
 
-const line = Line.make(Point.make(0, 0), Point.make(10, 0));
+const l1 = Line.make(Point.make(0, 0), Point.make(10, 0));
+const l2 = Line.make(Point.make(5, -5), Point.make(5, 5));
 
-const midpoint = Line.midpoint(line); // { x: 5, y: 0 }
-const length = Line.length(line);     // 10
+const p = Line.intersect(l1, l2); // { x: 5, y: 0 }
 
-// Intersection
-const otherLine = Line.make(Point.make(5, -5), Point.make(5, 5));
-const intersection = Line.intersect(line, otherLine); // { x: 5, y: 0 }
+// Arc-Line intersection
+const arc = Arc.make(Point.make(0, 0), 5, 0, Math.PI); // Semicircle
+const points = Arc.intersectLine(arc, l2); // [(0, 5)]
 ```
 
-### Polygons
-```typescript
-import { Polygon } from '@baustatik/geometry-2d';
-
-const p = Polygon.make([
-  Point.make(0, 0),
-  Point.make(10, 0),
-  Point.make(10, 10),
-  Point.make(0, 10)
-]);
-
-// Automatically normalized to counter-clockwise orientation
-const area = Polygon.area(p);       // 100
-const center = Polygon.centroid(p); // { x: 5, y: 5 }
-```
-
-### Polygon Clipping
-The library supports boolean operations (union, intersection, subtraction) on polygons via `martinez-polygon-clipping`:
+### Polygons and Clipping
+Polygons are automatically normalized to **CCW orientation** to ensure consistent area and boolean calculations.
 
 ```typescript
-// Returns an array of resulting Polygons
-const intersection = Polygon.intersect(polyA, polyB);
+import { Polygon, Point } from '@baustatik/geometry-2d';
+
+const poly = Polygon.make([...]);
+
+// Boolean operations via martinez-polygon-clipping
+const intersection = Polygon.intersect(polyA, polyB); // Returns Polygon[]
 const merged = Polygon.union(polyA, polyB);
 const difference = Polygon.subtract(polyA, polyB);
 ```
 
 ## Error Handling
 
-This package uses a strict error handling policy. Developer mistakes or invalid geometry configurations (e.g., collinear points for an arc, open polylines converted to polygons, or degenerate mirroring axes) will throw custom errors extending `BaustatikError` from `@baustatik/errors`. 
+Precondition violations throw specific errors extending `BaustatikError`:
+
+- **`CollinearPointsError`**: 3 points on a line provided for an arc.
+- **`DegenerateAxisError`**: Mirror axis points are identical.
+- **`DegenerateVectorError`**: Normalizing a zero vector.
+- **`DiscontinuousLinesError`**: Unconnected lines for path creation.
+- **`InvalidArcError` / `InvalidPolygonError` / `InvalidPolylineError`**: Scale or point count issues.
+- **`OpenPolylineError`**: Closing an open path incorrectly.
+
+## License
+
+This package is part of the `@baustatik` project. All rights reserved.
