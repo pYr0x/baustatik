@@ -17,6 +17,20 @@ describe('Arc factories', () => {
     );
   });
 
+  it('creates arc via make with positive sweep (CCW)', () => {
+    const arc = Arc.make(Point.make(0, 0), 3, 0, Math.PI / 2);
+    expect(arc.radius).toBe(3);
+    expect(arc.sweep).toBeCloseTo(Math.PI / 2);
+    expect(() => Arc.make(Point.make(0, 0), 0, 0, Math.PI)).toThrow(
+      InvalidArcError,
+    );
+  });
+
+  it('creates arc via make with negative sweep (CW)', () => {
+    const arc = Arc.make(Point.make(0, 0), 3, 0, -Math.PI / 2);
+    expect(arc.sweep).toBeCloseTo(-Math.PI / 2);
+  });
+
   it('creates arc from three points and rejects collinear points', () => {
     const arc = Arc.fromPoints(Point.make(1, 0), Point.make(0, -1), Point.make(-1, 0));
     expect(arc.center.y).toBeCloseTo(0);
@@ -26,6 +40,17 @@ describe('Arc factories', () => {
     expect(() =>
       Arc.fromPoints(Point.make(0, 0), Point.make(1, 0), Point.make(2, 0)),
     ).toThrow(CollinearPointsError);
+  });
+});
+
+describe('Arc swap', () => {
+  it('reverses start/end and negates sweep', () => {
+    const arc = Arc.make(Point.make(0, 0), 1, 0, Math.PI / 2);
+    const swapped = Arc.swap(arc);
+    expect(swapped.sweep).toBeCloseTo(-Math.PI / 2);
+    // start point of swapped == end point of original
+    expect(Arc.startPoint(swapped).y).toBeCloseTo(Arc.endPoint(arc).y);
+    expect(Arc.startPoint(swapped).z).toBeCloseTo(Arc.endPoint(arc).z);
   });
 });
 

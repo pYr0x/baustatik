@@ -4,7 +4,6 @@ import {
   fromXYPoint,
   fromXYPolyline,
   fromXYVector,
-  normalizeAngleYZ,
   toXYArc,
   toXYLine,
   toXYPoint,
@@ -22,6 +21,12 @@ import type {
 type ToPolylineOptions = { segments: number } | { tolerance: number };
 
 export const Arc: Transformable<SectionArc> & {
+  make(
+    center: Point,
+    radius: number,
+    startAngle: number,
+    sweep: number,
+  ): SectionArc;
   fromCenter(
     center: Point,
     radius: number,
@@ -29,6 +34,7 @@ export const Arc: Transformable<SectionArc> & {
     endAngle: number,
   ): SectionArc;
   fromPoints(p1: Point, p2: Point, p3: Point): SectionArc;
+  swap(arc: SectionArc): SectionArc;
   length(arc: SectionArc): number;
   midpoint(arc: SectionArc): Point;
   startPoint(arc: SectionArc): Point;
@@ -42,6 +48,9 @@ export const Arc: Transformable<SectionArc> & {
   intersectArc(a: SectionArc, b: SectionArc): Point[];
   intersectArcFull(a: SectionArc, b: SectionArc): Point[];
 } = {
+  make: (center, radius, startAngle, sweep) =>
+    fromXYArc(GeometryArc.make(toXYPoint(center), radius, startAngle, sweep)),
+
   fromCenter: (center, radius, startAngle, endAngle) =>
     fromXYArc(
       GeometryArc.fromCenter(
@@ -57,6 +66,8 @@ export const Arc: Transformable<SectionArc> & {
     fromXYArc(
       GeometryArc.fromPoints(toXYPoint(p1), toXYPoint(p2), toXYPoint(p3)),
     ),
+
+  swap: (arc) => fromXYArc(GeometryArc.swap(toXYArc(arc))),
 
   length: (arc) => GeometryArc.length(toXYArc(arc)),
 
@@ -77,7 +88,6 @@ export const Arc: Transformable<SectionArc> & {
 
   toPolyline: (arc, options = { tolerance: 0.1 }) =>
     fromXYPolyline(GeometryArc.toPolyline(toXYArc(arc), options)),
-
 
   intersectLine: (arc, line) =>
     GeometryArc.intersectLine(toXYArc(arc), toXYLine(line)).map(fromXYPoint),

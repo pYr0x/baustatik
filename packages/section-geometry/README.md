@@ -31,7 +31,7 @@ The package provides the following 2D primitives, all with `readonly` properties
 - **`Point`**: `{ y: number, z: number }`
 - **`Vector`**: `{ dy: number, dz: number }`
 - **`Line`**: `{ p1: Point, p2: Point }`
-- **`Arc`**: `{ center: Point, radius: number, startAngle: number, endAngle: number }`
+- **`Arc`**: `{ center: Point, radius: number, startAngle: number, sweep: number }`
 - **`Polyline`**: `{ points: Point[] }` (open path)
 - **`Polygon`**: `{ points: Point[] }` (closed path, normalized to YZ-CCW)
 
@@ -74,8 +74,12 @@ import { Line, Arc, Point } from '@baustatik/section-geometry';
 const line = Line.make(Point.make(0, 0), Point.make(100, 0));
 const length = Line.length(line); // 100
 
-// Create an arc from center, radius, and angles (in radians)
-const arc = Arc.fromCenter(Point.make(0, 0), 50, 0, Math.PI / 2);
+// Create an arc from center, radius, start angle, and end angle (in radians)
+const arc1 = Arc.fromCenter(Point.make(0, 0), 50, 0, Math.PI / 2);
+
+// Create an arc from center, radius, start angle, and sweep angle (in radians)
+const arcCCW = Arc.make(Point.make(0, 0), 50, 0, Math.PI / 2); // Sweep positive = CCW
+const arcCW = Arc.make(Point.make(0, 0), 50, 0, -Math.PI / 2); // Sweep negative = CW
 ```
 
 ### Polygons

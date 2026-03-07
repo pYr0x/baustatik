@@ -163,14 +163,14 @@ export const Arc: Transformable<Arc> & {
       'segments' in options
         ? options.segments
         : Math.max(
-            2,
-            Math.ceil(
-              absSweep /
-                Math.acos(
-                  Math.max(-1, Math.min(1, 1 - options.tolerance / arc.radius)),
-                ),
+          2,
+          Math.ceil(
+            absSweep /
+            Math.acos(
+              Math.max(-1, Math.min(1, 1 - options.tolerance / arc.radius)),
             ),
-          );
+          ),
+        );
 
     const points: Point[] = [];
     for (let i = 0; i <= segments; i++) {
@@ -271,11 +271,10 @@ export const Arc: Transformable<Arc> & {
 
   mirror: (arc, axisP1, axisP2) => {
     const axisAngle = Math.atan2(axisP2.y - axisP1.y, axisP2.x - axisP1.x);
-    const oldEnd = arc.startAngle + arc.sweep;
     return {
       ...arc,
       center: Point.mirror(arc.center, axisP1, axisP2),
-      startAngle: normalizeAngle(2 * axisAngle - oldEnd),
+      startAngle: normalizeAngle(2 * axisAngle - arc.startAngle),
       sweep: -arc.sweep,
     };
   },

@@ -11,7 +11,11 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: ['@baustatik/core', '@baustatik/errors', '@baustatik/geometry-2d'],
+      external: [
+        '@baustatik/core',
+        '@baustatik/errors',
+        '@baustatik/geometry-2d',
+      ],
     },
   },
   plugins: [
