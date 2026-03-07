@@ -19,7 +19,7 @@ export type XYArc = {
   readonly center: XYPoint;
   readonly radius: number;
   readonly startAngle: number;
-  readonly endAngle: number;
+  readonly sweep: number;
 };
 export type XYBoundingBox = { readonly min: XYPoint; readonly max: XYPoint };
 
@@ -70,23 +70,19 @@ export const toXYPolygon = (polygon: Polygon): XYPolygon => ({
   points: polygon.points.map(toXYPoint),
 });
 
-const fromXYPolygon = (polygon: XYPolygon): Polygon => ({
-  points: polygon.points.map(fromXYPoint),
-});
-
 export const toXYArc = (arc: Arc): XYArc => ({
   center: toXYPoint(arc.center),
   radius: arc.radius,
-  // CCW YZ ⇔ CCW XY: angleXY = angleYZ, no swap, no negation
+  // CCW YZ ⇔ CCW XY: angles map 1:1, no swap, no negation
   startAngle: arc.startAngle,
-  endAngle: arc.endAngle,
+  sweep: arc.sweep,
 });
 
 export const fromXYArc = (arc: XYArc): Arc => ({
   center: fromXYPoint(arc.center),
   radius: arc.radius,
-  startAngle: normalizeAngleYZ(arc.startAngle),
-  endAngle: normalizeAngleYZ(arc.endAngle),
+  startAngle: arc.startAngle,
+  sweep: arc.sweep,
 });
 
 export const toXYBoundingBox = (boundingBox: BoundingBox): XYBoundingBox => {

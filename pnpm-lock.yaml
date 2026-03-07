@@ -79,6 +79,49 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.31.1)(terser@5.46.0)
 
+  packages/konva-adapter:
+    dependencies:
+      '@baustatik/core':
+        specifier: workspace:*
+        version: link:../core
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/render-core':
+        specifier: workspace:*
+        version: link:../render-core
+      '@baustatik/section-geometry':
+        specifier: workspace:*
+        version: link:../section-geometry
+      konva:
+        specifier: ^9.3.20
+        version: 9.3.22
+    devDependencies:
+      '@biomejs/biome':
+        specifier: ^2.3.15
+        version: 2.3.15
+      '@vitest/browser':
+        specifier: ^4.0.18
+        version: 4.0.18(vite@7.3.1(@types/node@25.2.3)(lightningcss@1.31.1)(terser@5.46.0))(vitest@4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.31.1)(terser@5.46.0))
+      '@vitest/browser-playwright':
+        specifier: ^4.0.18
+        version: 4.0.18(playwright@1.58.2)(vite@7.3.1(@types/node@25.2.3)(lightningcss@1.31.1)(terser@5.46.0))(vitest@4.0.18)
+      '@vitest/coverage-istanbul':
+        specifier: ^4.0.18
+        version: 4.0.18(vitest@4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.31.1)(terser@5.46.0))
+      playwright:
+        specifier: ^1.58.2
+        version: 1.58.2
+      vite:
+        specifier: ^7.3.1
+        version: 7.3.1(@types/node@25.2.3)(lightningcss@1.31.1)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^4.5.4
+        version: 4.5.4(@types/node@25.2.3)(rollup@4.57.1)(typescript@5.9.3)(vite@7.3.1(@types/node@25.2.3)(lightningcss@1.31.1)(terser@5.46.0))
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.31.1)(terser@5.46.0)
+
   packages/render-core:
     dependencies:
       '@baustatik/errors':
@@ -1225,6 +1268,9 @@ packages:
 
   kolorist@1.8.0:
     resolution: {integrity: sha512-Y+60/zizpJ3HRH8DCss+q95yr6145JXZo46OTpFvDZWLfRCE4qChOyk1b26nMaNpfHHgxagk9dXT5OP0Tfe+dQ==}
+
+  konva@9.3.22:
+    resolution: {integrity: sha512-yQI5d1bmELlD/fowuyfOp9ff+oamg26WOCkyqUyc+nczD/lhRa3EvD2MZOoc4c1293TAubW9n34fSQLgSeEgSw==}
 
   lightningcss-android-arm64@1.31.1:
     resolution: {integrity: sha512-HXJF3x8w9nQ4jbXRiNppBCqeZPIAfUo8zE/kOEGbW5NZvGc/K7nMxbhIr+YlFlHW5mpbg/YFPdbnCh1wAXCKFg==}
@@ -2915,6 +2961,8 @@ snapshots:
       graceful-fs: 4.2.11
 
   kolorist@1.8.0: {}
+
+  konva@9.3.22: {}
 
   lightningcss-android-arm64@1.31.1:
     optional: true

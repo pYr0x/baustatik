@@ -54,15 +54,15 @@ describe('compound conversion', () => {
       center: { y: 0, z: 0 },
       radius: 2,
       startAngle: 0,
-      endAngle: Math.PI / 2,
+      sweep: Math.PI / 2,
     };
     const xyArc = toXYArc(arc);
-    // No swap, no negation: startXY = startYZ, endXY = endYZ
+    // No swap, no negation: startXY = startYZ, sweepXY = sweepYZ
     expect(xyArc.startAngle).toBeCloseTo(0);
-    expect(xyArc.endAngle).toBeCloseTo(Math.PI / 2);
+    expect(xyArc.sweep).toBeCloseTo(Math.PI / 2);
     // Round-trip
     expect(fromXYArc(xyArc).startAngle).toBeCloseTo(0);
-    expect(fromXYArc(xyArc).endAngle).toBeCloseTo(Math.PI / 2);
+    expect(fromXYArc(xyArc).sweep).toBeCloseTo(Math.PI / 2);
   });
 
   it('keeps bounding box min/max ordered after conversion', () => {

@@ -13,7 +13,8 @@ export type Arc = {
   readonly center: Point;
   readonly radius: number;
   readonly startAngle: number;
-  readonly endAngle: number;
+  /** Signed sweep angle in radians. Positive = CCW, negative = CW. */
+  readonly sweep: number;
 };
 
 type ToPolylineOptions = { segments: number } | { tolerance: number };
@@ -21,6 +22,7 @@ type ToPolylineOptions = { segments: number } | { tolerance: number };
 type PolylineLike = { readonly points: Point[] };
 
 export const Arc: Transformable<Arc> & {
+  make(center: Point, radius: number, startAngle: number, sweep: number): Arc;
   fromCenter(
     center: Point,
     radius: number,
@@ -28,6 +30,7 @@ export const Arc: Transformable<Arc> & {
     endAngle: number,
   ): Arc;
   fromPoints(p1: Point, p2: Point, p3: Point): Arc;
+  swap(arc: Arc): Arc;
   length(arc: Arc): number;
   midpoint(arc: Arc): Point;
   startPoint(arc: Arc): Point;
@@ -41,9 +44,25 @@ export const Arc: Transformable<Arc> & {
   intersectArc(a: Arc, b: Arc): Point[];
   intersectArcFull(a: Arc, b: Arc): Point[];
 } = {
+  make: (center, radius, startAngle, sweep) => {
+    if (radius <= 0) throw new InvalidArcError(`radius ${radius} <= 0`);
+    if (Math.abs(sweep) < 1e-10)
+      throw new InvalidArcError(`sweep ${sweep} ist 0`);
+    if (Math.abs(sweep) > 2 * Math.PI + 1e-10)
+      throw new InvalidArcError(
+        `sweep ${sweep} überschreitet einen vollen Kreis`,
+      );
+    return { center, radius, startAngle, sweep };
+  },
+
   fromCenter: (center, radius, startAngle, endAngle) => {
     if (radius <= 0) throw new InvalidArcError(`radius ${radius} <= 0`);
-    return { center, radius, startAngle, endAngle };
+    return {
+      center,
+      radius,
+      startAngle,
+      sweep: sweepAngle(startAngle, endAngle),
+    };
   },
 
   fromPoints: (p1, p2, p3) => {
@@ -79,13 +98,24 @@ export const Arc: Transformable<Arc> & {
       endAngle = tmp;
     }
 
-    return { center, radius: Point.distance(center, p1), startAngle, endAngle };
+    return {
+      center,
+      radius: Point.distance(center, p1),
+      startAngle,
+      sweep: sweepAngle(startAngle, endAngle),
+    };
   },
 
-  length: (arc) => sweepAngle(arc.startAngle, arc.endAngle) * arc.radius,
+  swap: (arc) => ({
+    ...arc,
+    startAngle: arc.startAngle + arc.sweep,
+    sweep: -arc.sweep,
+  }),
+
+  length: (arc) => Math.abs(arc.sweep) * arc.radius,
 
   midpoint: (arc) => {
-    const mid = arc.startAngle + sweepAngle(arc.startAngle, arc.endAngle) / 2;
+    const mid = arc.startAngle + arc.sweep / 2;
     return Point.make(
       arc.center.x + arc.radius * Math.cos(mid),
       arc.center.y + arc.radius * Math.sin(mid),
@@ -98,11 +128,13 @@ export const Arc: Transformable<Arc> & {
       arc.center.y + arc.radius * Math.sin(arc.startAngle),
     ),
 
-  endPoint: (arc) =>
-    Point.make(
-      arc.center.x + arc.radius * Math.cos(arc.endAngle),
-      arc.center.y + arc.radius * Math.sin(arc.endAngle),
-    ),
+  endPoint: (arc) => {
+    const endAngle = arc.startAngle + arc.sweep;
+    return Point.make(
+      arc.center.x + arc.radius * Math.cos(endAngle),
+      arc.center.y + arc.radius * Math.sin(endAngle),
+    );
+  },
 
   normalAt: (_, angle) => Vector.make(Math.cos(angle), Math.sin(angle)),
 
@@ -126,23 +158,23 @@ export const Arc: Transformable<Arc> & {
     if ('tolerance' in options && options.tolerance <= 0)
       throw new InvalidArcError(`tolerance ${options.tolerance} <= 0`);
 
-    const sweep = sweepAngle(arc.startAngle, arc.endAngle);
+    const absSweep = Math.abs(arc.sweep);
     const segments =
       'segments' in options
         ? options.segments
         : Math.max(
-            2,
-            Math.ceil(
-              sweep /
-                Math.acos(
-                  Math.max(-1, Math.min(1, 1 - options.tolerance / arc.radius)),
-                ),
+          2,
+          Math.ceil(
+            absSweep /
+            Math.acos(
+              Math.max(-1, Math.min(1, 1 - options.tolerance / arc.radius)),
             ),
-          );
+          ),
+        );
 
     const points: Point[] = [];
     for (let i = 0; i <= segments; i++) {
-      const angle = arc.startAngle + sweep * (i / segments);
+      const angle = arc.startAngle + arc.sweep * (i / segments);
       points.push(
         Point.make(
           arc.center.x + arc.radius * Math.cos(angle),
@@ -178,10 +210,9 @@ export const Arc: Transformable<Arc> & {
   },
 
   intersectLine: (arc, line) => {
-    const sweep = sweepAngle(arc.startAngle, arc.endAngle);
     return Arc.intersectLineFull(arc, line).filter((p) => {
       const angle = Math.atan2(p.y - arc.center.y, p.x - arc.center.x);
-      return angleInArc(angle, arc.startAngle, sweep);
+      return angleInArc(angle, arc.startAngle, arc.sweep);
     });
   },
 
@@ -219,14 +250,12 @@ export const Arc: Transformable<Arc> & {
   },
 
   intersectArc: (a, b) => {
-    const sweepA = sweepAngle(a.startAngle, a.endAngle);
-    const sweepB = sweepAngle(b.startAngle, b.endAngle);
     return Arc.intersectArcFull(a, b).filter((p) => {
       const angleA = Math.atan2(p.y - a.center.y, p.x - a.center.x);
       const angleB = Math.atan2(p.y - b.center.y, p.x - b.center.x);
       return (
-        angleInArc(angleA, a.startAngle, sweepA) &&
-        angleInArc(angleB, b.startAngle, sweepB)
+        angleInArc(angleA, a.startAngle, a.sweep) &&
+        angleInArc(angleB, b.startAngle, b.sweep)
       );
     });
   },
@@ -237,7 +266,7 @@ export const Arc: Transformable<Arc> & {
     ...arc,
     center: Point.rotate(arc.center, angle, origin),
     startAngle: arc.startAngle + angle,
-    endAngle: arc.endAngle + angle,
+    // sweep bleibt unverändert – Richtung und Länge ändern sich beim Rotieren nicht
   }),
 
   mirror: (arc, axisP1, axisP2) => {
@@ -245,8 +274,8 @@ export const Arc: Transformable<Arc> & {
     return {
       ...arc,
       center: Point.mirror(arc.center, axisP1, axisP2),
-      startAngle: normalizeAngle(2 * axisAngle - arc.endAngle),
-      endAngle: normalizeAngle(2 * axisAngle - arc.startAngle),
+      startAngle: normalizeAngle(2 * axisAngle - arc.startAngle),
+      sweep: -arc.sweep,
     };
   },
 };

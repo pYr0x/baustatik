@@ -69,18 +69,24 @@ const intersection = Line.intersect(
 ```
 
 ### Arc
-**Signature:** `const Arc: Transformable<ArcType> & { fromCenter, fromPoints, length, midpoint, startPoint, endPoint, normalAt, normalAtPoint, offset, toPolyline, intersectLine, intersectLineFull, intersectArc, intersectArcFull, ... }`
+**Signature:** `const Arc: Transformable<ArcType> & { make, fromCenter, fromPoints, swap, length, midpoint, startPoint, endPoint, normalAt, normalAtPoint, offset, toPolyline, intersectLine, intersectLineFull, intersectArc, intersectArcFull, ... }`
 **Description:** Represents a circular arc segment.
 **Example:**
 ```typescript
 import { Arc, Point } from '@baustatik/section-geometry';
 
-// Arc from center, radius, startAngle, endAngle (CCW)
-const arc = Arc.fromCenter(Point.make(0, 0), 5, 0, Math.PI);
+// Create an arc using a sweep angle (e.g., PI for a semi-circle)
+const arc = Arc.make(Point.make(0, 0), 5, 0, Math.PI);
+
+// Alternatively, create using an end angle
+// const arc2 = Arc.fromCenter(Point.make(0, 0), 5, 0, Math.PI);
 
 const len = Arc.length(arc); // 5 * PI
 const start = Arc.startPoint(arc); // { y: 5, z: 0 }
 const end = Arc.endPoint(arc); // { y: -5, z: 0 }
+
+// Swap arc direction (creates an arc targeting the same shape but drawn in the opposite direction)
+const reversed = Arc.swap(arc);
 
 const poly = Arc.toPolyline(arc, { segments: 8 });
 ```

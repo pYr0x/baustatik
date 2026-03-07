@@ -12,7 +12,8 @@ export type Arc = {
   readonly center: Point;
   readonly radius: number;
   readonly startAngle: number;
-  readonly endAngle: number;
+  /** Signed sweep angle in radians. Positive = CCW, negative = CW. */
+  readonly sweep: number;
 };
 
 export type BoundingBox = {
