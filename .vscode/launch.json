@@ -15,20 +15,34 @@
             "outFiles": [
                 "${workspaceFolder}/**/*.js"
             ]
-        }, 
+        },
         {
             "type": "node",
             "request": "launch",
             "name": "Run Vitest Browser",
             "program": "${workspaceRoot}/node_modules/vitest/vitest.mjs",
             "console": "integratedTerminal",
-            "args": ["--inspect-brk", "--browser", "--no-file-parallelism"]
+            "args": [
+                "--inspect-brk",
+                "--browser",
+                "--no-file-parallelism"
+            ]
         },
         {
             "type": "chrome",
             "request": "attach",
             "name": "Attach to Vitest Browser",
             "port": 9229
+        },
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Debug Vite Demo App",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}/apps/demo",
+            "sourceMapPathOverrides": {
+                "vite://modules/0/*": "${workspaceFolder}/*"
+            }
         }
     ]
 }

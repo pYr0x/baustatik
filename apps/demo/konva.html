@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + TS</title>
+</head>
+
+<body>
+    <div id='container'></div>
+
+    <script type="module">
+        import Konva from 'konva';
+        import { Point } from '@baustatik/section-geometry';
+
+        const stage = new Konva.Stage({
+            container: 'container',
+            width: window.innerWidth,
+            height: window.innerHeight
+        });
+
+        const layer1 = new Konva.Layer();
+        const layer2 = new Konva.Layer();
+        stage.add(layer1);
+        stage.add(layer2);
+
+        // x = nach rechts
+        // y = nach unten
+        const redLine = new Konva.Line({
+            points: [0, 5, 100, 100],
+            stroke: 'red',
+            strokeWidth: 15,
+            // lineCap: 'round',
+            // lineJoin: 'round'
+        });
+
+        const greenLine = new Konva.Line({
+            points: [5, 70, 140, 23, 250, 60, 300, 20],
+            stroke: 'green',
+            strokeWidth: 2,
+            lineJoin: 'round',
+            dash: [33, 10]
+        });
+
+        layer1.add(redLine);
+        //layer2.add(greenLine);
+
+
+    </script>
+</body>
+
+</html>

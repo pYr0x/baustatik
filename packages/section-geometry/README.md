@@ -17,7 +17,7 @@ pnpm add @baustatik/section-geometry
 Unlike standard mathematical 2D systems (XY), this package uses the following conventions:
 
 - **Axes**: `y` points to the right, `z` points downwards.
-- **Angles**: 
+- **Angles**:
   - `0` radians points along the **+y** axis (right).
   - Positive angles are **counter-clockwise (CCW)** in the YZ plane.
 - **Winding**:
@@ -36,6 +36,7 @@ The package provides the following 2D primitives, all with `readonly` properties
 - **`Polygon`**: `{ points: Point[] }` (closed path, normalized to YZ-CCW)
 
 All geometry shapes implement a common `Transformable<T>` interface:
+
 - `translate(shape, vector)`
 - `rotate(shape, angle, origin?)`
 - `mirror(shape, axisP1, axisP2)`
@@ -45,6 +46,7 @@ All geometry shapes implement a common `Transformable<T>` interface:
 For detailed API documentation, see [docs/usage.md](docs/usage.md).
 
 ### Points and Vectors
+
 ```typescript
 import { Point, Vector } from '@baustatik/section-geometry';
 
@@ -60,6 +62,7 @@ const moved = Point.translate(p1, v); // { y: 10, z: 0 }
 ```
 
 ### Utilities
+
 ```typescript
 import { normalizeAngleYZ } from '@baustatik/section-geometry';
 
@@ -68,6 +71,7 @@ const normalized = normalizeAngleYZ(5 * Math.PI); // Math.PI
 ```
 
 ### Lines and Arcs
+
 ```typescript
 import { Line, Arc, Point } from '@baustatik/section-geometry';
 
@@ -83,6 +87,7 @@ const arcCW = Arc.make(Point.make(0, 0), 50, 0, -Math.PI / 2); // Sweep negative
 ```
 
 ### Polygons
+
 ```typescript
 import { Polygon, Point } from '@baustatik/section-geometry';
 
@@ -90,7 +95,7 @@ const poly = Polygon.make([
   Point.make(0, 0),
   Point.make(100, 0),
   Point.make(100, 100),
-  Point.make(0, 100)
+  Point.make(0, 100),
 ]);
 
 // Automatically normalized to YZ-Counter-Clockwise orientation

@@ -40,9 +40,18 @@
       "@baustatik/render-core": [
         "packages/render-core/src/index.ts"
       ],
+      "@baustatik/viewport-2d": [
+        "packages/viewport-2d/src/index.ts"
+      ],
       "@baustatik/konva-adapter": [
         "packages/konva-adapter/src/index.ts"
-      ]
+      ],
+      "@baustatik/cross-section-viewer": [
+        "packages/cross-section-viewer/src/index.ts"
+      ],
+      "@baustatik/cross-section": [
+        "packages/cross-section/src/index.ts"
+      ],
     }
   }
 }

@@ -1,15 +1,10 @@
-export type { ScreenPoint, Viewport, WorldPoint } from './core';
+export type { Spec, LineSpec, CircleSpec, PolygonSpec } from './specs';
+export type { ViewIntent } from './intents/view';
+export type { RenderDriver } from './driver';
+export { assertNever } from './exhaustive';
 export {
-  screenPoint,
-  screenToWorld,
-  viewport,
-  worldPoint,
-  worldPointsToFlatArray,
-  worldToScreen,
-} from './core';
-
-export {
-  InvalidScreenPointError,
-  InvalidViewportError,
-  InvalidWorldPointError,
+  InvalidSpecError,
+  DuplicateSpecIdError,
+  UnreachableCaseError,
 } from './errors';
+export { validateSpec, validateSpecs } from './validation';

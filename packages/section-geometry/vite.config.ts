@@ -11,16 +11,12 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: [
-        '@baustatik/core',
-        '@baustatik/errors',
-        '@baustatik/geometry-2d',
-      ],
+      external: [/^@baustatik\//],
     },
   },
   plugins: [
     dts({
-      rollupTypes: false,
+      bundleTypes: false,
       compilerOptions: {
         declaration: true,
         declarationMap: true,

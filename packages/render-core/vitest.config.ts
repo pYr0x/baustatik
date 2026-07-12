@@ -2,11 +2,6 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    server: {
-      deps: {
-        inline: ['@baustatik/errors'],
-      },
-    },
     coverage: {
       enabled: true,
       provider: 'istanbul',
@@ -17,8 +12,8 @@ export default defineConfig({
       {
         test: {
           name: { label: 'Unit', color: 'green' },
-          include: ['**/*.test.ts'],
-          exclude: ['**/*.browser.test.ts'],
+          include: ['tests/**/*.test.ts'],
+          exclude: ['tests/**/*.browser.test.ts'],
           environment: 'node',
         },
       },

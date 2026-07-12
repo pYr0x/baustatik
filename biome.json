@@ -7,6 +7,7 @@
       "!packages/**/build",
       "!packages/**/coverage",
       "!packages/**/tests",
+      "!packages/section-geometry",
       "!**/node_modules",
       "!**/*.test.*",
       "!**/*.browser.test.*"

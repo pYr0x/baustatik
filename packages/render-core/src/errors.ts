@@ -1,19 +1,19 @@
 import { BaustatikError } from '@baustatik/errors';
 
-export class InvalidWorldPointError extends BaustatikError {
-  constructor(reason: string) {
-    super(`WorldPoint ungueltig: ${reason}`);
+export class InvalidSpecError extends BaustatikError {
+  constructor(specId: string, reason: string) {
+    super(`Spec[id="${specId}"] ist ungueltig: ${reason}`);
   }
 }
 
-export class InvalidScreenPointError extends BaustatikError {
-  constructor(reason: string) {
-    super(`ScreenPoint ungueltig: ${reason}`);
+export class DuplicateSpecIdError extends BaustatikError {
+  constructor(id: string) {
+    super(`Doppelte Spec ID gefunden: "${id}"`);
   }
 }
 
-export class InvalidViewportError extends BaustatikError {
-  constructor(reason: string) {
-    super(`Viewport ungueltig: ${reason}`);
+export class UnreachableCaseError extends BaustatikError {
+  constructor(value: never) {
+    super(`Unerwarteter Wert erreicht: ${JSON.stringify(value)}`);
   }
 }

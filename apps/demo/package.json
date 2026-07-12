@@ -1,0 +1,23 @@
+{
+  "name": "demo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@baustatik/cross-section-viewer": "workspace:*",
+    "@baustatik/cross-section": "workspace:*",
+    "@baustatik/section-geometry": "workspace:*",
+    "@baustatik/konva-adapter": "workspace:*",
+    "konva": "^10.3.0",
+    "pinia": "^3.0.4",
+    "vite": "^8.1.0"
+  }
+}

@@ -6,17 +6,17 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
-      name: 'BaustatikRenderCore',
+      name: 'BaustatikSectionGeometry',
       fileName: 'index',
       formats: ['es'],
     },
     rollupOptions: {
-      external: ['@baustatik/errors'],
+      external: [/^@baustatik\//],
     },
   },
   plugins: [
     dts({
-      rollupTypes: false,
+      bundleTypes: false,
       compilerOptions: {
         declaration: true,
         declarationMap: true,
