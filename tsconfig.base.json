@@ -34,6 +34,9 @@
       "@baustatik/geometry-2d": [
         "packages/geometry-2d/src/index.ts"
       ],
+      "@baustatik/material": [
+        "packages/material/src/index.ts"
+      ],
       "@baustatik/section-geometry": [
         "packages/section-geometry/src/index.ts"
       ],
