@@ -7,6 +7,7 @@ import {
 } from './data/reinforcement';
 import { lookupGrade } from './lookup';
 import type { NationalAnnexParams } from './national-annex';
+import type { Kgm3, KNm3, MPa, Percent } from './quantity';
 import type { DesignSituation } from './types';
 
 export interface ReinforcementDesignOptions {
@@ -16,7 +17,7 @@ export interface ReinforcementDesignOptions {
 
 export interface ReinforcementDesignValues {
   /** fyd = fyk / γs [MPa]. */
-  readonly fyd: number;
+  readonly fyd: MPa;
 }
 
 export interface Reinforcement {
@@ -24,19 +25,19 @@ export interface Reinforcement {
   /** Ductility class (A/B/C). */
   readonly ductility: DuctilityClass;
   /** fyk — characteristic yield strength [MPa]. */
-  readonly fyk: number;
+  readonly fyk: MPa;
   /** ftk — characteristic tensile strength [MPa]. */
-  readonly ftk: number;
+  readonly ftk: MPa;
   /** εuk — characteristic strain at maximum force [%]. */
-  readonly epsuk: number;
+  readonly epsuk: Percent;
   /** Es — modulus of elasticity [MPa]. */
-  readonly Es: number;
+  readonly Es: MPa;
   /** γ — unit weight (Wichte) [kN/m³]. */
-  readonly gamma: number;
+  readonly gamma: KNm3;
   /** ρ — density [kg/m³]. */
-  readonly density: number;
+  readonly density: Kgm3;
   /** fyd for the persistent/transient design situation [MPa]. */
-  readonly fyd: number;
+  readonly fyd: MPa;
   /** Design values for an explicit design situation. */
   designValues(options?: ReinforcementDesignOptions): ReinforcementDesignValues;
 }

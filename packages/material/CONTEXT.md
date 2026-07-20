@@ -46,8 +46,11 @@ is exported directly.
   instance via `createMaterials`; there is no global setter. This avoids
   order-of-import surprises and test leakage.
 - **Fixed units**: strengths and moduli in MPa, lengths in mm, areas in cm²,
-  unit weight (Wichte) in kN/m³, density in kg/m³. Values are plain `number`s
-  with the unit documented at the field; there is no branded-unit coupling.
+  unit weight (Wichte) in kN/m³, density in kg/m³. Values are plain `number`s at
+  runtime, but each numeric field carries a phantom-branded `Quantity<Unit>` type
+  (`MPa`, `KNm3`, `Kgm3`, …) so the unit is visible in the type at the call site.
+  The brand is optional — it documents units with zero runtime cost, it does not
+  enforce them; there is no coupling to `@baustatik/units`.
 - **Grade identifiers**: the public key is the Eurocode designation with slash
   (`"C30/37"`), not the JSON underscore form. Input is normalized tolerantly
   (trim, case) but String-Literal-Union types constrain valid grades at compile

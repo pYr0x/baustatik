@@ -27,6 +27,16 @@ export {
 } from './errors';
 
 export type {
+  Kgm3,
+  KNm3,
+  MPa,
+  PerK,
+  PerMille,
+  Percent,
+  Quantity,
+} from './quantity';
+
+export type {
   DesignSituation,
   LoadDuration,
   ServiceClass,

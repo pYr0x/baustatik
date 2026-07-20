@@ -3,21 +3,23 @@
 // C12/15 and C16/20 added from EN 1992-1-1 Table 3.1.
 // Units: strengths & moduli in MPa; strains εc2/εcu2 in ‰ (per mille).
 
+import type { Kgm3, KNm3, MPa, PerK, PerMille } from '../quantity';
+
 export interface ConcreteData {
   /** fck — characteristic cylinder compressive strength [MPa]. */
-  readonly fck: number;
+  readonly fck: MPa;
   /** fcm — mean compressive strength [MPa]. */
-  readonly fcm: number;
+  readonly fcm: MPa;
   /** fctm — mean axial tensile strength [MPa]. */
-  readonly fctm: number;
+  readonly fctm: MPa;
   /** fctk,0.05 — 5% fractile tensile strength [MPa]. */
-  readonly fctk05: number;
+  readonly fctk05: MPa;
   /** Ecm — secant modulus of elasticity [MPa]. */
-  readonly Ecm: number;
+  readonly Ecm: MPa;
   /** εc2 — strain at reaching maximum strength [‰]. */
-  readonly epsc2: number;
+  readonly epsc2: PerMille;
   /** εcu2 — ultimate strain [‰]. */
-  readonly epscu2: number;
+  readonly epscu2: PerMille;
   /** n — exponent of the parabola-rectangle diagram. */
   readonly n: number;
 }
@@ -169,14 +171,14 @@ export type ConcreteGrade = keyof typeof CONCRETE_DATA;
 
 // Grade-independent constants (EN 1991-1-1 / EN 1992-1-1).
 /** Unit weight (Wichte) of reinforced concrete [kN/m³] — EN 1991-1-1 Table A.1. */
-export const CONCRETE_UNIT_WEIGHT_REINFORCED = 25;
+export const CONCRETE_UNIT_WEIGHT_REINFORCED: KNm3 = 25;
 /** Unit weight (Wichte) of plain (unreinforced) concrete [kN/m³]. */
-export const CONCRETE_UNIT_WEIGHT_PLAIN = 24;
+export const CONCRETE_UNIT_WEIGHT_PLAIN: KNm3 = 24;
 /** Density of reinforced concrete [kg/m³] — EN 1991-1-1 Table A.1. */
-export const CONCRETE_DENSITY_REINFORCED = 2500;
+export const CONCRETE_DENSITY_REINFORCED: Kgm3 = 2500;
 /** Density of plain (unreinforced) concrete [kg/m³]. */
-export const CONCRETE_DENSITY_PLAIN = 2400;
+export const CONCRETE_DENSITY_PLAIN: Kgm3 = 2400;
 /** Poisson's ratio for uncracked concrete — EN 1992-1-1 §3.1.3(4). */
 export const CONCRETE_POISSON = 0.2;
 /** Coefficient of linear thermal expansion [1/K] — EN 1992-1-1 §3.1.3(5). */
-export const CONCRETE_THERMAL = 1e-5;
+export const CONCRETE_THERMAL: PerK = 1e-5;

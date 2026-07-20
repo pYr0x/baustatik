@@ -8,10 +8,11 @@ import {
 } from './data/steel';
 import { lookupGrade } from './lookup';
 import type { NationalAnnexParams } from './national-annex';
+import type { Kgm3, KNm3, MPa, PerK } from './quantity';
 import type { SteelResistance } from './types';
 
 /** Shear modulus of structural steel [MPa] — EN 1993-1-1 §3.2.6. */
-export const STEEL_SHEAR_MODULUS = 81000;
+export const STEEL_SHEAR_MODULUS: MPa = 81000;
 
 /** Nominal thickness [mm] above which the reduced (`*40`) strengths apply. */
 const THICKNESS_LIMIT = 40;
@@ -23,9 +24,9 @@ export interface SteelDesignOptions {
 
 export interface SteelDesignValues {
   /** fyd = fyk / γM(resistance) [MPa]. */
-  readonly fyd: number;
+  readonly fyd: MPa;
   /** fud = fuk / γM2 [MPa]. */
-  readonly fud: number;
+  readonly fud: MPa;
 }
 
 export interface SteelOptions {
@@ -36,23 +37,23 @@ export interface SteelOptions {
 export interface Steel {
   readonly grade: SteelGrade;
   /** fyk — characteristic yield strength for the selected thickness [MPa]. */
-  readonly fyk: number;
+  readonly fyk: MPa;
   /** fuk — characteristic ultimate strength for the selected thickness [MPa]. */
-  readonly fuk: number;
+  readonly fuk: MPa;
   /** Es — modulus of elasticity [MPa]. */
-  readonly Es: number;
+  readonly Es: MPa;
   /** G — shear modulus [MPa]. */
-  readonly G: number;
+  readonly G: MPa;
   /** ν — Poisson's ratio. */
   readonly nu: number;
   /** αT — thermal expansion coefficient [1/K]. */
-  readonly alphaT: number;
+  readonly alphaT: PerK;
   /** γ — unit weight (Wichte) [kN/m³]. */
-  readonly gamma: number;
+  readonly gamma: KNm3;
   /** ρ — density [kg/m³]. */
-  readonly density: number;
+  readonly density: Kgm3;
   /** fyd for cross-section resistance (γM0) [MPa]. */
-  readonly fyd: number;
+  readonly fyd: MPa;
   /** Design values for an explicit resistance/check type. */
   designValues(options?: SteelDesignOptions): SteelDesignValues;
 }

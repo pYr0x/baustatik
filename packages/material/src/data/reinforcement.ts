@@ -5,19 +5,21 @@
 // (e.g. B500A = 805); these are corrected here from Annex C.
 // Units: strengths in MPa; εuk in % (characteristic strain at maximum force).
 
+import type { Kgm3, KNm3, MPa, Percent } from '../quantity';
+
 export type DuctilityClass = 'A' | 'B' | 'C';
 
 export interface ReinforcementData {
   /** Ductility class (EN 1992-1-1 Annex C). */
   readonly ductility: DuctilityClass;
   /** fyk — characteristic yield strength [MPa]. */
-  readonly fyk: number;
+  readonly fyk: MPa;
   /** ftk — characteristic tensile strength [MPa]. */
-  readonly ftk: number;
+  readonly ftk: MPa;
   /** εuk — characteristic strain at maximum force [%]. */
-  readonly epsuk: number;
+  readonly epsuk: Percent;
   /** Es — modulus of elasticity [MPa]. */
-  readonly Es: number;
+  readonly Es: MPa;
 }
 
 export const REINFORCEMENT_DATA = {
@@ -33,6 +35,6 @@ export const REINFORCEMENT_DATA = {
 export type ReinforcementGrade = keyof typeof REINFORCEMENT_DATA;
 
 /** Unit weight (Wichte) of reinforcing steel [kN/m³] — EN 1991-1-1 Table A.4. */
-export const REINFORCEMENT_UNIT_WEIGHT = 77;
+export const REINFORCEMENT_UNIT_WEIGHT: KNm3 = 77;
 /** Density of reinforcing steel [kg/m³]. */
-export const REINFORCEMENT_DENSITY = 7850;
+export const REINFORCEMENT_DENSITY: Kgm3 = 7850;

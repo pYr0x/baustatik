@@ -4,17 +4,19 @@
 // Cross-checked against pcachim/eurocodepy `eurocodes.json`.
 // Units: strengths in MPa.
 
+import type { Kgm3, KNm3, MPa, PerK } from '../quantity';
+
 export interface StructuralSteelData {
   /** fyk — characteristic yield strength, t ≤ 40 mm [MPa]. */
-  readonly fyk: number;
+  readonly fyk: MPa;
   /** fuk — characteristic ultimate strength, t ≤ 40 mm [MPa]. */
-  readonly fuk: number;
+  readonly fuk: MPa;
   /** fyk for 40 mm < t ≤ 80 mm [MPa]. */
-  readonly fyk40: number;
+  readonly fyk40: MPa;
   /** fuk for 40 mm < t ≤ 80 mm [MPa]. */
-  readonly fuk40: number;
+  readonly fuk40: MPa;
   /** Es — modulus of elasticity [MPa]. */
-  readonly Es: number;
+  readonly Es: MPa;
 }
 
 export const STEEL_DATA = {
@@ -28,10 +30,10 @@ export const STEEL_DATA = {
 export type SteelGrade = keyof typeof STEEL_DATA;
 
 /** Unit weight (Wichte) of structural steel [kN/m³] — EN 1991-1-1 Table A.4. */
-export const STEEL_UNIT_WEIGHT = 77;
+export const STEEL_UNIT_WEIGHT: KNm3 = 77;
 /** Density of structural steel [kg/m³]. */
-export const STEEL_DENSITY = 7850;
+export const STEEL_DENSITY: Kgm3 = 7850;
 /** Poisson's ratio in the elastic range — EN 1993-1-1 §3.2.6. */
 export const STEEL_POISSON = 0.3;
 /** Coefficient of linear thermal expansion [1/K] — EN 1993-1-1 §3.2.6. */
-export const STEEL_THERMAL = 1.2e-5;
+export const STEEL_THERMAL: PerK = 1.2e-5;

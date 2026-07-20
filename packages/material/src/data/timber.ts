@@ -1,3 +1,4 @@
+import type { Kgm3, MPa } from '../quantity';
 import type { LoadDuration, ServiceClass, TimberProduct } from '../types';
 
 // Characteristic timber properties — EN 338:2016 (solid timber C/D classes)
@@ -11,29 +12,29 @@ export interface TimberData {
   /** Source standard for the characteristic values. */
   readonly standard: string;
   /** fm,k — bending strength [MPa]. */
-  readonly fmk: number;
+  readonly fmk: MPa;
   /** ft,0,k — tension parallel to grain [MPa]. */
-  readonly ft0k: number;
+  readonly ft0k: MPa;
   /** ft,90,k — tension perpendicular to grain [MPa]. */
-  readonly ft90k: number;
+  readonly ft90k: MPa;
   /** fc,0,k — compression parallel to grain [MPa]. */
-  readonly fc0k: number;
+  readonly fc0k: MPa;
   /** fc,90,k — compression perpendicular to grain [MPa]. */
-  readonly fc90k: number;
+  readonly fc90k: MPa;
   /** fv,k — shear strength [MPa]. */
-  readonly fvk: number;
+  readonly fvk: MPa;
   /** E0,mean — mean modulus parallel to grain [MPa]. */
-  readonly E0mean: number;
+  readonly E0mean: MPa;
   /** E0,05 — 5% fractile modulus parallel to grain [MPa]. */
-  readonly E0k: number;
+  readonly E0k: MPa;
   /** E90,mean — mean modulus perpendicular to grain [MPa]. */
-  readonly E90mean: number;
+  readonly E90mean: MPa;
   /** Gmean — mean shear modulus [MPa]. */
-  readonly Gmean: number;
+  readonly Gmean: MPa;
   /** ρk — characteristic density [kg/m³]. */
-  readonly rhok: number;
+  readonly rhok: Kgm3;
   /** ρmean — mean density [kg/m³]. */
-  readonly rhomean: number;
+  readonly rhomean: Kgm3;
 }
 
 export const TIMBER_DATA = {

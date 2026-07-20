@@ -10,6 +10,7 @@ import {
 } from './data/concrete';
 import { lookupGrade } from './lookup';
 import type { NationalAnnexParams } from './national-annex';
+import type { Kgm3, KNm3, MPa, PerK, PerMille } from './quantity';
 import type { DesignSituation } from './types';
 
 export interface ConcreteDesignOptions {
@@ -19,9 +20,9 @@ export interface ConcreteDesignOptions {
 
 export interface ConcreteDesignValues {
   /** fcd = αcc · fck / γc [MPa]. */
-  readonly fcd: number;
+  readonly fcd: MPa;
   /** fctd = αct · fctk,0.05 / γc [MPa]. */
-  readonly fctd: number;
+  readonly fctd: MPa;
 }
 
 export interface ConcreteOptions {
@@ -32,31 +33,31 @@ export interface ConcreteOptions {
 export interface Concrete {
   readonly grade: ConcreteGrade;
   /** fck — characteristic cylinder compressive strength [MPa]. */
-  readonly fck: number;
+  readonly fck: MPa;
   /** fcm — mean compressive strength [MPa]. */
-  readonly fcm: number;
+  readonly fcm: MPa;
   /** fctm — mean axial tensile strength [MPa]. */
-  readonly fctm: number;
+  readonly fctm: MPa;
   /** fctk,0.05 — 5% fractile tensile strength [MPa]. */
-  readonly fctk05: number;
+  readonly fctk05: MPa;
   /** Ecm — secant modulus of elasticity [MPa]. */
-  readonly Ecm: number;
+  readonly Ecm: MPa;
   /** εc2 — strain at maximum strength [‰]. */
-  readonly epsc2: number;
+  readonly epsc2: PerMille;
   /** εcu2 — ultimate strain [‰]. */
-  readonly epscu2: number;
+  readonly epscu2: PerMille;
   /** n — parabola-rectangle exponent. */
   readonly n: number;
   /** ν — Poisson's ratio. */
   readonly nu: number;
   /** αT — thermal expansion coefficient [1/K]. */
-  readonly alphaT: number;
+  readonly alphaT: PerK;
   /** γ — unit weight (Wichte) [kN/m³]. */
-  readonly gamma: number;
+  readonly gamma: KNm3;
   /** ρ — density [kg/m³]. */
-  readonly density: number;
+  readonly density: Kgm3;
   /** fcd for the persistent/transient design situation [MPa]. */
-  readonly fcd: number;
+  readonly fcd: MPa;
   /** Design values for an explicit design situation. */
   designValues(options?: ConcreteDesignOptions): ConcreteDesignValues;
 }
