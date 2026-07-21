@@ -13,6 +13,7 @@ export type {
   LineSpec,
   PolygonSpec,
   PrimitiveSpec,
+  RectangleSpec,
   Spec,
   TriangleSpec,
 } from './specs';

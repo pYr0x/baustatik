@@ -9,6 +9,7 @@ dist
 coverage
 playwright-report
 test-results
+.vitest-attachments
 *.log
 .DS_Store
 packages/konva-adapter-BAK
