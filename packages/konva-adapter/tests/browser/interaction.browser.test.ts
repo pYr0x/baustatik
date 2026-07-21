@@ -9,11 +9,17 @@ function stage(): Konva.Stage {
   return s;
 }
 
-function pointer(type: string, x: number, y: number): PointerEvent {
+function pointer(
+  type: string,
+  x: number,
+  y: number,
+  button = 0,
+): PointerEvent {
   return new PointerEvent(type, {
     pointerId: 1,
     clientX: x,
     clientY: y,
+    button,
     bubbles: true,
     cancelable: true,
   });
@@ -39,12 +45,12 @@ describe('interaction — pointer-driven view intents', () => {
     h.destroy();
   });
 
-  it('captures the pointer on the container so a drag survives leaving the canvas', () => {
+  it('captures the pointer on the konva content element so a drag survives leaving the canvas', () => {
     const h = createAdapterHarness();
     // setPointerCapture wirft bei synthetischen Events (kein aktiver Zeiger);
     // der Spy belegt, dass der Adapter das native Capture ueberhaupt anfordert.
     const capture = vi
-      .spyOn(h.container, 'setPointerCapture')
+      .spyOn(stage().content, 'setPointerCapture')
       .mockImplementation(() => undefined);
 
     stage().content.dispatchEvent(pointer('pointerdown', 100, 100));
@@ -54,13 +60,29 @@ describe('interaction — pointer-driven view intents', () => {
     h.destroy();
   });
 
+  it('never captures on the outer container — that would cut konvas listeners out of the event path', () => {
+    const h = createAdapterHarness();
+    const outer = vi
+      .spyOn(h.container, 'setPointerCapture')
+      .mockImplementation(() => undefined);
+    vi.spyOn(stage().content, 'setPointerCapture').mockImplementation(
+      () => undefined,
+    );
+
+    stage().content.dispatchEvent(pointer('pointerdown', 100, 100));
+
+    expect(outer).not.toHaveBeenCalled();
+
+    h.destroy();
+  });
+
   it('releases capture and stops panning once the pointer is up', () => {
     const h = createAdapterHarness();
-    vi.spyOn(h.container, 'setPointerCapture').mockImplementation(
+    vi.spyOn(stage().content, 'setPointerCapture').mockImplementation(
       () => undefined,
     );
     const release = vi
-      .spyOn(h.container, 'releasePointerCapture')
+      .spyOn(stage().content, 'releasePointerCapture')
       .mockImplementation(() => undefined);
     const intents: ViewIntent[] = [];
     h.driver.onViewIntent((i) => intents.push(i));
@@ -75,6 +97,45 @@ describe('interaction — pointer-driven view intents', () => {
 
     expect(release).toHaveBeenCalledWith(1);
     expect(intents).toEqual([{ type: 'pan', dx: 10, dy: 0 }]);
+
+    h.destroy();
+  });
+
+  it('ignores drags started with a non-primary button', () => {
+    const h = createAdapterHarness();
+    const intents: ViewIntent[] = [];
+    h.driver.onViewIntent((i) => intents.push(i));
+
+    const el = stage().content;
+    // button 2 = rechte Maustaste, button 1 = mittlere.
+    el.dispatchEvent(pointer('pointerdown', 100, 100, 2));
+    el.dispatchEvent(pointer('pointermove', 150, 130));
+
+    expect(intents).toEqual([]);
+    expect(el.style.cursor).toBe('');
+
+    h.destroy();
+  });
+
+  it('shows a grabbing cursor for the duration of the drag', () => {
+    const h = createAdapterHarness();
+    vi.spyOn(stage().content, 'setPointerCapture').mockImplementation(
+      () => undefined,
+    );
+    vi.spyOn(stage().content, 'releasePointerCapture').mockImplementation(
+      () => undefined,
+    );
+
+    const el = stage().content;
+    expect(el.style.cursor).toBe('');
+
+    el.dispatchEvent(pointer('pointerdown', 100, 100));
+    expect(el.style.cursor).toBe('grabbing');
+
+    el.dispatchEvent(pointer('pointerup', 120, 100));
+    // Zurueck auf leer, nicht auf 'default': so erbt der Canvas wieder den
+    // Cursor, den die Anwendung auf dem Container gesetzt hat.
+    expect(el.style.cursor).toBe('');
 
     h.destroy();
   });

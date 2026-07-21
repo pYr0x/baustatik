@@ -14,7 +14,7 @@ export default defineConfig({
         // Reine Config-/Geometrie-Logik. Kein Konva, laeuft in CI.
         test: {
           name: { label: 'Unit', color: 'green' },
-          include: ['test/node/**/*.test.ts', 'src/**/*.test.ts'],
+          include: ['tests/node/**/*.test.ts', 'src/**/*.test.ts'],
           exclude: ['**/*.browser.test.ts', '**/*.screenshot.test.ts'],
           environment: 'node',
         },
@@ -24,7 +24,7 @@ export default defineConfig({
         // plattformunabhaengig, deshalb in CI.
         test: {
           name: { label: 'Browser', color: 'blue' },
-          include: ['test/browser/**/*.browser.test.ts'],
+          include: ['tests/browser/**/*.browser.test.ts'],
           browser: {
             enabled: true,
             provider: playwright(),
@@ -38,7 +38,7 @@ export default defineConfig({
         // (Anti-Aliasing), daher NUR lokal via `test:screenshot`.
         test: {
           name: { label: 'Screenshot', color: 'magenta' },
-          include: ['test/screenshot/**/*.screenshot.test.ts'],
+          include: ['tests/screenshot/**/*.screenshot.test.ts'],
           browser: {
             enabled: true,
             provider: playwright(),

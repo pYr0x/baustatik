@@ -63,7 +63,7 @@ Important consumers:
   positively — the adapter negates it.
 - **`flush()` draws asynchronously**: it calls `layer.batchDraw()`, which schedules
   through `requestAnimationFrame`. Tests that inspect pixels must await a frame
-  (see `nextFrame()` in `test/browser/harness.ts`) before taking a screenshot.
+  (see `nextFrame()` in `tests/browser/harness.ts`) before taking a screenshot.
 - **Screenshots pin `Konva.pixelRatio = 1`**: otherwise Konva bakes
   `window.devicePixelRatio` into the canvas resolution and baselines become
   device-dependent (Windows display scaling in particular).
@@ -85,7 +85,7 @@ Test projects:
   Asserts behaviour, never pixels, so it is platform-independent and runs in CI.
 - **Screenshot** (chromium): `toMatchScreenshot` baselines per primitive. Canvas
   anti-aliasing is platform-dependent, so baselines live under
-  `test/screenshot/__screenshots__/chromium-<platform>/` and only the local
+  `tests/screenshot/__screenshots__/chromium-<platform>/` and only the local
   platform's set is maintained today. CI does not run this project.
 
 ## Known constraints

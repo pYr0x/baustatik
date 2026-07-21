@@ -24,7 +24,7 @@ dependencies change.
 | `@baustatik/cross-section` | Cross-section domain model and calculations. | — |
 | `@baustatik/cross-section-viewer` | Viewer-facing cross-section composition and visualization. | `cross-section`, `grid-2d`, `render-core`, `section-geometry`, `viewport-2d` |
 | `@baustatik/fem` | FEM frame model types (`Node`, `Beam`, `NodeSupport`). | — |
-| `@baustatik/fem-geometry` | 2D geometry primitives in structural x/z coordinates (z downwards). | `geometry-2d` |
+| `@baustatik/fem-geometry` | 2D geometry primitives in structural x/z coordinates (z downwards). | `core`, `errors`, `geometry-2d` |
 | `@baustatik/fem-viewer` | Viewer-facing FEM frame composition and visualization. | `errors`, `fem`, `grid-2d`, `render-core`, `viewport-2d` |
 
 The dependency direction is broadly: foundational utilities and errors →
