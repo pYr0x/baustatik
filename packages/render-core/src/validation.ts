@@ -1,8 +1,8 @@
 import { atOrThrow } from '@baustatik/core';
 import type { WorldPoint } from '@baustatik/viewport-2d';
 import { InvalidWorldPointError } from '@baustatik/viewport-2d';
-import { InvalidSpecError, DuplicateSpecIdError } from './errors';
-import type { Spec } from './specs';
+import { DuplicateSpecIdError, InvalidSpecError } from './errors';
+import type { PrimitiveSpec, Spec } from './specs';
 
 function checkWorldPoint(
   point: WorldPoint,
@@ -19,7 +19,14 @@ function checkWorldPoint(
   }
 }
 
-function checkStrokeAndFill(spec: Spec): void {
+function checkLayer(spec: Spec): void {
+  if (spec.layer === undefined) return;
+  if (typeof spec.layer !== 'string' || spec.layer.trim() === '') {
+    throw new InvalidSpecError(spec.id, 'layer darf kein leerer String sein');
+  }
+}
+
+function checkStrokeAndFill(spec: PrimitiveSpec): void {
   if (spec.strokeWidth !== undefined) {
     if (!Number.isFinite(spec.strokeWidth) || spec.strokeWidth < 0) {
       throw new InvalidSpecError(
@@ -57,15 +64,17 @@ export function validateSpec(spec: Spec): void {
     throw new InvalidSpecError('', 'Spec ID muss ein nicht-leerer String sein');
   }
 
-  checkStrokeAndFill(spec);
+  checkLayer(spec);
 
   switch (spec.kind) {
     case 'line':
+      checkStrokeAndFill(spec);
       checkWorldPoint(spec.from, spec.id, 'from');
       checkWorldPoint(spec.to, spec.id, 'to');
       break;
 
     case 'circle':
+      checkStrokeAndFill(spec);
       checkWorldPoint(spec.center, spec.id, 'center');
       if (!Number.isFinite(spec.radius) || spec.radius <= 0) {
         throw new InvalidSpecError(
@@ -76,6 +85,7 @@ export function validateSpec(spec: Spec): void {
       break;
 
     case 'polygon':
+      checkStrokeAndFill(spec);
       if (!Array.isArray(spec.points)) {
         throw new InvalidSpecError(spec.id, 'points muss ein Array sein');
       }
@@ -95,12 +105,48 @@ export function validateSpec(spec: Spec): void {
       break;
 
     case 'triangle':
+      checkStrokeAndFill(spec);
       checkWorldPoint(spec.center, spec.id, 'center');
       if (!Number.isFinite(spec.sideLength) || spec.sideLength <= 0) {
         throw new InvalidSpecError(
           spec.id,
           `sideLength muss eine positive endliche Zahl sein, erhalten: ${spec.sideLength}`,
         );
+      }
+      break;
+
+    case 'group':
+      checkWorldPoint(spec.position, spec.id, 'position');
+      checkWorldPoint(spec.translation, spec.id, 'translation');
+      if (
+        spec.rotationDeg !== undefined &&
+        !Number.isFinite(spec.rotationDeg)
+      ) {
+        throw new InvalidSpecError(
+          spec.id,
+          `rotationDeg muss endlich sein, erhalten: ${spec.rotationDeg}`,
+        );
+      }
+      if (!Array.isArray(spec.children) || spec.children.length === 0) {
+        throw new InvalidSpecError(
+          spec.id,
+          'children muss mindestens ein Primitive enthalten',
+        );
+      }
+      for (const child of spec.children) {
+        if ((child as Spec).kind === 'group') {
+          throw new InvalidSpecError(
+            spec.id,
+            'verschachtelte Gruppen werden nicht unterstuetzt',
+          );
+        }
+        if (child.layer !== undefined) {
+          throw new InvalidSpecError(
+            child.id,
+            'Kind-Primitives einer Gruppe duerfen kein layer tragen',
+          );
+        }
+        validateSpec(child);
       }
       break;
 
@@ -118,12 +164,20 @@ export function validateSpecs(specs: readonly Spec[]): void {
     throw new InvalidSpecError('', 'specs muss ein Array sein');
   }
   const seenIds = new Set<string>();
-  for (let i = 0; i < specs.length; i++) {
-    const spec = atOrThrow(specs as Spec[], i);
-    validateSpec(spec);
+
+  function checkUniqueIds(spec: Spec): void {
     if (seenIds.has(spec.id)) {
       throw new DuplicateSpecIdError(spec.id);
     }
     seenIds.add(spec.id);
+    if (spec.kind === 'group') {
+      for (const child of spec.children) checkUniqueIds(child);
+    }
+  }
+
+  for (let i = 0; i < specs.length; i++) {
+    const spec = atOrThrow(specs as Spec[], i);
+    validateSpec(spec);
+    checkUniqueIds(spec);
   }
 }

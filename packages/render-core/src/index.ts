@@ -1,10 +1,19 @@
-export type { Spec, LineSpec, CircleSpec, PolygonSpec } from './specs';
-export type { ViewIntent } from './intents/view';
 export type { RenderDriver } from './driver';
-export { assertNever } from './exhaustive';
 export {
-  InvalidSpecError,
   DuplicateSpecIdError,
+  InvalidSpecError,
+  UnknownLayerError,
   UnreachableCaseError,
 } from './errors';
+export { assertNever } from './exhaustive';
+export type { ViewIntent } from './intents/view';
+export type {
+  CircleSpec,
+  GroupSpec,
+  LineSpec,
+  PolygonSpec,
+  PrimitiveSpec,
+  Spec,
+  TriangleSpec,
+} from './specs';
 export { validateSpec, validateSpecs } from './validation';

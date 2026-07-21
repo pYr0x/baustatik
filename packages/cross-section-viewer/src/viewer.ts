@@ -1,13 +1,24 @@
-import { viewport, screenPoint, worldPoint, pan, zoomAround, type Viewport } from '@baustatik/viewport-2d';
-import { Arc } from '@baustatik/section-geometry';
-import type { Spec, RenderDriver } from '@baustatik/render-core';
 import type { Segment } from '@baustatik/cross-section';
+import { type GridOptions, gridSpecs } from '@baustatik/grid-2d';
+import type { RenderDriver, Spec } from '@baustatik/render-core';
+import { Arc } from '@baustatik/section-geometry';
+import {
+  pan,
+  type Size,
+  screenPoint,
+  type Viewport,
+  viewport,
+  worldPoint,
+  zoomAround,
+} from '@baustatik/viewport-2d';
 
 interface ViewerConfig {
-  driver: RenderDriver;                        // injiziert — kein Konva hier
-  getSegments: () => readonly Segment[];   // PULL der Rohdaten aus dem Store
+  driver: RenderDriver; // injiziert — kein Konva hier
+  getSegments: () => readonly Segment[]; // PULL der Rohdaten aus dem Store
+  getScreenSize: () => Size; // PULL wie getSegments — resize-faehig
+  grid?: GridOptions; // weggelassen = kein Grid
   initialViewport?: Viewport;
-  arcSegments?: number;                        // Aufloesung der Bogen-Diskretisierung
+  arcSegments?: number; // Aufloesung der Bogen-Diskretisierung
 }
 
 export function createCrossSectionViewer(config: ViewerConfig) {
@@ -23,6 +34,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
       return {
         kind: 'line',
         id: seg.id,
+        layer: 'section',
         // EINZIGE Stelle des y/z -> u/v Mappings.
         from: worldPoint(seg.start.y, seg.start.z),
         to: worldPoint(seg.end.y, seg.end.z),
@@ -46,11 +58,21 @@ export function createCrossSectionViewer(config: ViewerConfig) {
     //   strokeWidth: seg.thickness * vp.scale * STROKE_SCALE,
     //   strokeColor: '#000',
     // };
+    throw new Error(
+      `Segment-Geometrie noch nicht unterstuetzt: ${seg.geometry}`,
+    );
   }
 
   function draw() {
     driver.applyViewport(vp);
-    driver.reconcile(getSegments().map(toSpec));
+    // Grid zuerst im Array, damit die Reihenfolge lesbar der Bandreihenfolge
+    // folgt. Die z-Order GARANTIEREN aber die Baender aus CROSS_SECTION_LAYERS,
+    // die der Driver beim Aufbau bekommt — ohne sie landen beim Zoom-Out neu
+    // gebaute Gridlinien ueber dem Querschnitt.
+    const grid = config.grid
+      ? gridSpecs(vp, config.getScreenSize(), config.grid)
+      : [];
+    driver.reconcile([...grid, ...getSegments().map(toSpec)]);
     driver.flush();
   }
 

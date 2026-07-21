@@ -32,12 +32,24 @@ importers:
       '@baustatik/cross-section-viewer':
         specifier: workspace:*
         version: link:../../packages/cross-section-viewer
+      '@baustatik/fem':
+        specifier: workspace:*
+        version: link:../../packages/fem
+      '@baustatik/fem-geometry':
+        specifier: workspace:*
+        version: link:../../packages/fem-geometry
+      '@baustatik/fem-viewer':
+        specifier: workspace:*
+        version: link:../../packages/fem-viewer
       '@baustatik/konva-adapter':
         specifier: workspace:*
         version: link:../../packages/konva-adapter
       '@baustatik/section-geometry':
         specifier: workspace:*
         version: link:../../packages/section-geometry
+      '@baustatik/viewport-2d':
+        specifier: workspace:*
+        version: link:../../packages/viewport-2d
       konva:
         specifier: ^10.3.0
         version: 10.3.0
@@ -96,6 +108,9 @@ importers:
       '@baustatik/cross-section':
         specifier: workspace:*
         version: link:../cross-section
+      '@baustatik/grid-2d':
+        specifier: workspace:*
+        version: link:../grid-2d
       '@baustatik/render-core':
         specifier: workspace:*
         version: link:../render-core
@@ -132,6 +147,95 @@ importers:
         version: 4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.32.0)(terser@5.46.0)
 
   packages/errors: {}
+
+  packages/fem:
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.5
+        version: 4.1.10(vitest@4.1.10)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(@vue/language-core@2.2.0(typescript@5.9.3))(esbuild@0.27.3)(rolldown@1.1.5)(rollup@4.57.1)(typescript@5.9.3)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+
+  packages/fem-geometry:
+    dependencies:
+      '@baustatik/core':
+        specifier: workspace:*
+        version: link:../core
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/geometry-2d':
+        specifier: workspace:*
+        version: link:../geometry-2d
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.5
+        version: 4.1.10(vitest@4.1.10)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(@vue/language-core@2.2.0(typescript@5.9.3))(esbuild@0.27.3)(rolldown@1.1.5)(rollup@4.57.1)(typescript@5.9.3)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+
+  packages/fem-viewer:
+    dependencies:
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/fem':
+        specifier: workspace:*
+        version: link:../fem
+      '@baustatik/grid-2d':
+        specifier: workspace:*
+        version: link:../grid-2d
+      '@baustatik/render-core':
+        specifier: workspace:*
+        version: link:../render-core
+      '@baustatik/viewport-2d':
+        specifier: workspace:*
+        version: link:../viewport-2d
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.5
+        version: 4.1.10(vitest@4.1.10)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(@vue/language-core@2.2.0(typescript@5.9.3))(esbuild@0.27.3)(rolldown@1.1.5)(rollup@4.57.1)(typescript@5.9.3)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
 
   packages/geometry-2d:
     dependencies:
@@ -170,6 +274,37 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.32.0)(terser@5.46.0)
 
+  packages/grid-2d:
+    dependencies:
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/render-core':
+        specifier: workspace:*
+        version: link:../render-core
+      '@baustatik/viewport-2d':
+        specifier: workspace:*
+        version: link:../viewport-2d
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.5
+        version: 4.1.10(vitest@4.1.10)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(@vue/language-core@2.2.0(typescript@5.9.3))(esbuild@0.27.3)(rolldown@1.1.5)(rollup@4.57.1)(typescript@5.9.3)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+
   packages/konva-adapter:
     dependencies:
       '@baustatik/render-core':
@@ -182,30 +317,24 @@ importers:
         specifier: ^10.3.0
         version: 10.3.0
     devDependencies:
-      '@biomejs/biome':
-        specifier: ^2.3.15
-        version: 2.3.15
-      '@vitest/browser':
-        specifier: ^4.0.18
-        version: 4.0.18(vite@7.3.1(@types/node@25.2.3)(lightningcss@1.32.0)(terser@5.46.0))(vitest@4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.32.0)(terser@5.46.0))
-      '@vitest/browser-playwright':
-        specifier: ^4.0.18
-        version: 4.0.18(playwright@1.58.2)(vite@7.3.1(@types/node@25.2.3)(lightningcss@1.32.0)(terser@5.46.0))(vitest@4.0.18)
       '@vitest/coverage-istanbul':
-        specifier: ^4.0.18
-        version: 4.0.18(vitest@4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.32.0)(terser@5.46.0))
-      playwright:
-        specifier: ^1.58.2
-        version: 1.58.2
+        specifier: ^4.1.5
+        version: 4.1.10(vitest@4.1.10)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
       vite:
-        specifier: ^7.3.1
-        version: 7.3.1(@types/node@25.2.3)(lightningcss@1.32.0)(terser@5.46.0)
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
       vite-plugin-dts:
-        specifier: ^4.5.4
-        version: 4.5.4(@types/node@25.2.3)(rollup@4.57.1)(typescript@5.9.3)(vite@7.3.1(@types/node@25.2.3)(lightningcss@1.32.0)(terser@5.46.0))
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(@vue/language-core@2.2.0(typescript@5.9.3))(esbuild@0.27.3)(rolldown@1.1.5)(rollup@4.57.1)(typescript@5.9.3)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
       vitest:
-        specifier: ^4.0.18
-        version: 4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.32.0)(terser@5.46.0)
+        specifier: ^4.1.5
+        version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
 
   packages/konva-adapter-BAK:
     dependencies:
@@ -252,6 +381,31 @@ importers:
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.32.0)(terser@5.46.0)
+
+  packages/material:
+    dependencies:
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.5
+        version: 4.1.10(vitest@4.1.10)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(@vue/language-core@2.2.0(typescript@5.9.3))(esbuild@0.27.3)(rolldown@1.1.5)(rollup@4.57.1)(typescript@5.9.3)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
 
   packages/render-core:
     dependencies:

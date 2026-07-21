@@ -40,6 +40,9 @@
       "@baustatik/section-geometry": [
         "packages/section-geometry/src/index.ts"
       ],
+      "@baustatik/grid-2d": [
+        "packages/grid-2d/src/index.ts"
+      ],
       "@baustatik/render-core": [
         "packages/render-core/src/index.ts"
       ],
@@ -55,6 +58,15 @@
       "@baustatik/cross-section": [
         "packages/cross-section/src/index.ts"
       ],
+      "@baustatik/fem": [
+        "packages/fem/src/index.ts"
+      ],
+      "@baustatik/fem-geometry": [
+        "packages/fem-geometry/src/index.ts"
+      ],
+      "@baustatik/fem-viewer": [
+        "packages/fem-viewer/src/index.ts"
+      ]
     }
   }
 }

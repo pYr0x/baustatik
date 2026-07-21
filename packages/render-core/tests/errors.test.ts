@@ -46,6 +46,21 @@ describe('render-core errors and validation', () => {
       center: { u: 0, v: 0 },
       sideLength: 5
     })).not.toThrow();
+
+    // GroupSpec
+    expect(() => validateSpec({
+      id: 'g1',
+      kind: 'group',
+      position: { u: 100, v: 50 },
+      translation: { u: 0, v: 10 },
+      rotationDeg: 90,
+      children: [{
+        id: 'g1:c1',
+        kind: 'circle',
+        center: { u: 0, v: 0 },
+        radius: 5,
+      }],
+    })).not.toThrow();
   });
 
   it('throws InvalidSpecError for invalid IDs', () => {
@@ -145,6 +160,48 @@ describe('render-core errors and validation', () => {
       { id: '1', kind: 'circle' as const, center: { u: 2, v: 2 }, radius: 5 },
     ];
     expect(() => validateSpecs(specs)).toThrow(DuplicateSpecIdError);
+  });
+
+  it('checks IDs inside groups for global uniqueness', () => {
+    const specs = [{
+      id: 'group',
+      kind: 'group' as const,
+      position: { u: 0, v: 0 },
+      translation: { u: 0, v: 10 },
+      children: [
+        { id: 'child', kind: 'circle' as const, center: { u: 0, v: 0 }, radius: 5 },
+        { id: 'child', kind: 'circle' as const, center: { u: 0, v: 0 }, radius: 10 },
+      ],
+    }];
+
+    expect(() => validateSpecs(specs)).toThrow(DuplicateSpecIdError);
+  });
+
+  it('rejects invalid group transforms', () => {
+    expect(() => validateSpec({
+      id: 'group',
+      kind: 'group',
+      position: { u: 0, v: 0 },
+      translation: { u: 0, v: 10 },
+      rotationDeg: Number.NaN,
+      children: [{ id: 'child', kind: 'circle', center: { u: 0, v: 0 }, radius: 5 }],
+    })).toThrow(InvalidSpecError);
+  });
+
+  it('rejects layers on group children', () => {
+    expect(() => validateSpec({
+      id: 'group',
+      kind: 'group',
+      position: { u: 0, v: 0 },
+      translation: { u: 0, v: 10 },
+      children: [{
+        id: 'child',
+        kind: 'circle',
+        layer: 'nodes',
+        center: { u: 0, v: 0 },
+        radius: 5,
+      }],
+    })).toThrow(InvalidSpecError);
   });
 
   it('throws InvalidSpecError for non-array specs in validateSpecs', () => {

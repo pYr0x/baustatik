@@ -1,6 +1,6 @@
 import type { Viewport } from '@baustatik/viewport-2d';
-import type { Spec } from './specs';
 import type { ViewIntent } from './intents/view';
+import type { Spec } from './specs';
 
 export interface RenderDriver {
   applyViewport(vp: Viewport): void;

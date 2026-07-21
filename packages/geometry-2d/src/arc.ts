@@ -163,14 +163,14 @@ export const Arc: Transformable<Arc> & {
       'segments' in options
         ? options.segments
         : Math.max(
-          2,
-          Math.ceil(
-            absSweep /
-            Math.acos(
-              Math.max(-1, Math.min(1, 1 - options.tolerance / arc.radius)),
+            2,
+            Math.ceil(
+              absSweep /
+                Math.acos(
+                  Math.max(-1, Math.min(1, 1 - options.tolerance / arc.radius)),
+                ),
             ),
-          ),
-        );
+          );
 
     const points: Point[] = [];
     for (let i = 0; i <= segments; i++) {

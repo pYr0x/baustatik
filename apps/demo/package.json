@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "keywords": [],
@@ -14,6 +14,10 @@
   "dependencies": {
     "@baustatik/cross-section-viewer": "workspace:*",
     "@baustatik/cross-section": "workspace:*",
+    "@baustatik/fem-viewer": "workspace:*",
+    "@baustatik/fem-geometry": "workspace:*",
+    "@baustatik/fem": "workspace:*",
+    "@baustatik/viewport-2d": "workspace:*",
     "@baustatik/section-geometry": "workspace:*",
     "@baustatik/konva-adapter": "workspace:*",
     "konva": "^10.3.0",

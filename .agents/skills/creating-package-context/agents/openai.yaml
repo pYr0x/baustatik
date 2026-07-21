@@ -1,0 +1,4 @@
+interface:
+  display_name: "Creating Package Context"
+  short_description: "Create concise package context maps"
+  default_prompt: "Use $creating-package-context to create an evidence-backed CONTEXT.md for this package."

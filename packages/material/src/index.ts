@@ -9,41 +9,6 @@ export const steel = de.steel;
 export const reinforcement = de.reinforcement;
 export const timber = de.timber;
 
-export { createMaterials } from './factory';
-export type { CreateMaterialsConfig, Materials } from './factory';
-
-export {
-  DE,
-  EN,
-  type NationalAnnexId,
-  type NationalAnnexParams,
-  resolveNationalAnnex,
-} from './national-annex';
-
-export {
-  DesignValueRequiresContextError,
-  UnknownGradeError,
-  UnknownNationalAnnexError,
-} from './errors';
-
-export type {
-  Kgm3,
-  KNm3,
-  MPa,
-  PerK,
-  PerMille,
-  Percent,
-  Quantity,
-} from './quantity';
-
-export type {
-  DesignSituation,
-  LoadDuration,
-  ServiceClass,
-  SteelResistance,
-  TimberProduct,
-} from './types';
-
 export type {
   Concrete,
   ConcreteDesignOptions,
@@ -54,6 +19,29 @@ export type { ConcreteGrade } from './data/concrete';
 export type { DuctilityClass, ReinforcementGrade } from './data/reinforcement';
 export type { SteelGrade } from './data/steel';
 export type { TimberGrade } from './data/timber';
+export {
+  DesignValueRequiresContextError,
+  UnknownGradeError,
+  UnknownNationalAnnexError,
+} from './errors';
+export type { CreateMaterialsConfig, Materials } from './factory';
+export { createMaterials } from './factory';
+export {
+  DE,
+  EN,
+  type NationalAnnexId,
+  type NationalAnnexParams,
+  resolveNationalAnnex,
+} from './national-annex';
+export type {
+  Kgm3,
+  KNm3,
+  MPa,
+  Percent,
+  PerK,
+  PerMille,
+  Quantity,
+} from './quantity';
 export type {
   Reinforcement,
   ReinforcementDesignOptions,
@@ -66,3 +54,10 @@ export type {
   SteelOptions,
 } from './steel';
 export type { Timber, TimberDesignContext, TimberDesignValues } from './timber';
+export type {
+  DesignSituation,
+  LoadDuration,
+  ServiceClass,
+  SteelResistance,
+  TimberProduct,
+} from './types';

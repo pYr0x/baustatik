@@ -1,1 +1,1 @@
-export { type Segment } from './types';
+export type { Segment } from './types';

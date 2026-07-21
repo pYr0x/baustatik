@@ -12,3 +12,9 @@ test-results
 *.log
 .DS_Store
 packages/konva-adapter-BAK
+
+# TypeScript artefacts accidentally emitted alongside package sources
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map

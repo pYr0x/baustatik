@@ -17,3 +17,9 @@ export class InvalidViewportError extends BaustatikError {
     super(`Viewport ungueltig: ${reason}`);
   }
 }
+
+export class InvalidSizeError extends BaustatikError {
+  constructor(reason: string) {
+    super(`Size ungueltig: ${reason}`);
+  }
+}

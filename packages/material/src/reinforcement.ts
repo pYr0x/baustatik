@@ -1,8 +1,8 @@
 import {
+  type DuctilityClass,
   REINFORCEMENT_DATA,
   REINFORCEMENT_DENSITY,
   REINFORCEMENT_UNIT_WEIGHT,
-  type DuctilityClass,
   type ReinforcementGrade,
 } from './data/reinforcement';
 import { lookupGrade } from './lookup';

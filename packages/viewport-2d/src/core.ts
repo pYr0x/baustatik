@@ -1,10 +1,9 @@
-import type { Viewport, ScreenPoint, WorldPoint } from './types';
-
 import {
   InvalidScreenPointError,
   InvalidViewportError,
   InvalidWorldPointError,
 } from './errors';
+import type { ScreenPoint, Viewport, WorldPoint } from './types';
 
 function isFiniteNumber(value: number): boolean {
   return Number.isFinite(value);
