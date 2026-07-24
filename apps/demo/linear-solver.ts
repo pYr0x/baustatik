@@ -1,16 +1,15 @@
-// [2 0; 0 3] * d = [4; 9] -> d = [2; 3]
-const k = new Float64Array([2.0, 0.0, 0.0, 3.0]);
-const f = new Float64Array([4.0, 9.0]);
-
 type SolveResponse =
   | { readonly type: "solved"; readonly id: number; readonly d: Float64Array }
   | { readonly type: "failed"; readonly id: number; readonly message: string };
 
-const worker = new Worker(new URL("./linear-solver.worker.ts", import.meta.url), {
-  type: "module",
-});
+const solveButton = document.querySelector<HTMLButtonElement>("#solve");
+
+if (!solveButton) {
+  throw new Error("Der Button zum Lösen wurde nicht gefunden.");
+}
 
 let nextRequestId = 0;
+let worker: Worker | undefined;
 const pendingSolves = new Map<
   number,
   {
@@ -19,7 +18,7 @@ const pendingSolves = new Map<
   }
 >();
 
-worker.addEventListener("message", ({ data }: MessageEvent<SolveResponse>) => {
+function handleWorkerMessage({ data }: MessageEvent<SolveResponse>): void {
   const pending = pendingSolves.get(data.id);
   if (!pending) return;
 
@@ -30,7 +29,7 @@ worker.addEventListener("message", ({ data }: MessageEvent<SolveResponse>) => {
   } else {
     pending.reject(new Error(data.message));
   }
-});
+}
 
 function rejectPendingSolves(reason: Error): void {
   for (const { reject } of pendingSolves.values()) {
@@ -40,13 +39,25 @@ function rejectPendingSolves(reason: Error): void {
   pendingSolves.clear();
 }
 
-worker.addEventListener("error", ({ message }: ErrorEvent) => {
-  rejectPendingSolves(new Error(message || "Der Solver-Worker konnte nicht gestartet werden."));
-});
+function getWorker(): Worker {
+  if (worker) return worker;
 
-worker.addEventListener("messageerror", () => {
-  rejectPendingSolves(new Error("Die Nachricht des Solver-Workers ist ungültig."));
-});
+  worker = new Worker(new URL("./linear-solver.worker.ts", import.meta.url), {
+    type: "module",
+  });
+
+  worker.addEventListener("message", handleWorkerMessage);
+  worker.addEventListener("error", ({ message }: ErrorEvent) => {
+    rejectPendingSolves(
+      new Error(message || "Der Solver-Worker konnte nicht gestartet werden."),
+    );
+  });
+  worker.addEventListener("messageerror", () => {
+    rejectPendingSolves(new Error("Die Nachricht des Solver-Workers ist ungültig."));
+  });
+
+  return worker;
+}
 
 function solveInWorker(
   n: number,
@@ -54,17 +65,33 @@ function solveInWorker(
   load: Float64Array,
 ): Promise<Float64Array> {
   const id = nextRequestId++;
+  const solverWorker = getWorker();
 
   return new Promise((resolve, reject) => {
     pendingSolves.set(id, { resolve, reject });
     // Die Eingaben werden übertragen statt kopiert und sind danach im Hauptthread nicht mehr nutzbar.
-    worker.postMessage({ type: "solve", id, n, k: stiffness, f: load }, [
+    solverWorker.postMessage({ type: "solve", id, n, k: stiffness, f: load }, [
       stiffness.buffer as ArrayBuffer,
       load.buffer as ArrayBuffer,
     ]);
   });
 }
 
-const d = await solveInWorker(2, k, f);
+async function solve(button: HTMLButtonElement): Promise<void> {
+  // [2 0; 0 3] * d = [4; 9] -> d = [2; 3]
+  const stiffness = new Float64Array([2.0, 0.0, 0.0, 3.0]);
+  const load = new Float64Array([4.0, 9.0]);
 
-console.log("d =", d); // erwartet: [2, 3]
+  button.disabled = true;
+
+  try {
+    const d = await solveInWorker(2, stiffness, load);
+    console.log("d =", d); // erwartet: [2, 3]
+  } catch (error) {
+    console.error("Das Gleichungssystem konnte nicht gelöst werden.", error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+solveButton.addEventListener("click", () => void solve(solveButton));
