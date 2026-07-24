@@ -56,7 +56,7 @@ export const Arc: Transformable<SectionArc> & {
       GeometryArc.fromCenter(
         toXYPoint(center),
         radius,
-        // CCW YZ = CCW XY: angles map 1:1, no negation, no swap
+        // Winkel bilden 1:1 ab, weil convert.ts orientierungstreu ist.
         startAngle,
         endAngle,
       ),

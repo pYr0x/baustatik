@@ -5,10 +5,12 @@ Location: `packages/section-geometry`
 ## Overview
 
 A 2D geometry library for cross-section calculations in the YZ plane (ISO 80000-2). It follows standard European structural engineering conventions:
+
 - **Y-axis**: Horizontal (width)
 - **Z-axis**: Vertical (depth, positive downwards)
-- **Angles**: Counter-clockwise (CCW) from the positive Y-axis.
-- **Winding**: Polygons are normalized to CCW. In the YZ plane, `signedArea < 0` is CCW.
+- **Rotation sense**: A positive rotation takes **+y onto +z** — clockwise as drawn, since `z` points down. Same sense as `@baustatik/fem-geometry` (`+x → +z`). Angles are measured from the positive Y-axis, `Vector.angle` is `atan2(dz, dy)` normalized to `[0, 2π)`.
+- **Winding**: `signedArea > 0` means the ring runs in that positive sense (clockwise as drawn). `Polygon.make` normalizes to `signedArea >= 0`, so a constructed polygon's `signedArea` is directly its area. `isClockwise` reports the on-screen reading and is therefore `true` for a normalized polygon.
+- **Mapping**: `src/convert.ts` maps `x := y`, `y := z` with **no sign change**. Mirroring would conjugate every rotation into its inverse and silently invert `angle`/`rotate`/`perpendicular`/`normalVector`/`Arc.sweep`. See the header of `src/convert.ts`; pinned by `tests/direction.test.ts`.
 
 ## Types Reference
 
@@ -17,6 +19,7 @@ The package defines and exports the following core geometric types:
 ### PointType
 
 **Definition:**
+
 ```typescript
 export type PointType = {
   readonly y: number;
@@ -27,6 +30,7 @@ export type PointType = {
 ### VectorType
 
 **Definition:**
+
 ```typescript
 export type VectorType = {
   readonly dy: number;
@@ -37,6 +41,7 @@ export type VectorType = {
 ### LineType
 
 **Definition:**
+
 ```typescript
 export type LineType = {
   readonly p1: PointType;
@@ -47,12 +52,13 @@ export type LineType = {
 ### ArcType
 
 **Definition:**
+
 ```typescript
 export type ArcType = {
   readonly center: PointType;
   readonly radius: number;
   readonly startAngle: number;
-  /** Signed sweep angle in radians. Positive = CCW, negative = CW. */
+  /** Signed sweep angle in radians. Positive sweeps +y towards +z. */
   readonly sweep: number;
 };
 ```
@@ -60,6 +66,7 @@ export type ArcType = {
 ### PolylineType
 
 **Definition:**
+
 ```typescript
 export type PolylineType = {
   readonly points: PointType[];
@@ -69,6 +76,7 @@ export type PolylineType = {
 ### PolygonType
 
 **Definition:**
+
 ```typescript
 export type PolygonType = {
   readonly points: PointType[];
@@ -78,6 +86,7 @@ export type PolygonType = {
 ### BoundingBox
 
 **Definition:**
+
 ```typescript
 export type BoundingBox = {
   readonly min: PointType;
@@ -88,6 +97,7 @@ export type BoundingBox = {
 ### Transformable
 
 **Definition:**
+
 ```typescript
 export interface Transformable<T> {
   translate(shape: T, vector: VectorType): T;
@@ -103,15 +113,18 @@ export interface Transformable<T> {
 ### Point
 
 **Signature:**
+
 ```typescript
 const Point: Transformable<PointType> & {
   make(y: number, z: number): PointType;
   distance(a: PointType, b: PointType): number;
   equals(a: PointType, b: PointType, tolerance?: number): boolean;
-}
+};
 ```
+
 **Description:** Essential 2D point operations in the YZ plane.
 **Example:**
+
 ```typescript
 import { Point, Vector } from '@baustatik/section-geometry';
 
@@ -124,13 +137,14 @@ const isEqual = Point.equals(p1, Point.make(0, 0)); // true
 
 // Transforms
 const p3 = Point.translate(p1, Vector.make(1, 0)); // { y: 1, z: 0 }
-const p4 = Point.rotate(Point.make(1, 0), Math.PI / 2); // { y: 0, z: -1 } (CCW 90 deg)
+const p4 = Point.rotate(Point.make(1, 0), Math.PI / 2); // { y: 0, z: 1 } (+90 deg takes +y to +z)
 const p5 = Point.mirror(Point.make(1, 2), Point.make(0, 0), Point.make(1, 0)); // { y: 1, z: -2 }
 ```
 
 ### Vector
 
 **Signature:**
+
 ```typescript
 const Vector: {
   make(dy: number, dz: number): VectorType;
@@ -146,19 +160,21 @@ const Vector: {
   angle(vector: VectorType): number;
   rotate(vector: VectorType, angle: number): VectorType;
   perpendicular(vector: VectorType): VectorType;
-}
+};
 ```
+
 **Description:** Vector arithmetic and orientation in the YZ plane.
 **Example:**
+
 ```typescript
 import { Vector } from '@baustatik/section-geometry';
 
 const v1 = Vector.make(1, 0);
 const v2 = Vector.make(0, -1); // Upward (against +z)
 
-const cross = Vector.cross(v1, Vector.make(0, 1)); // 1
+const cross = Vector.cross(v1, Vector.make(0, 1)); // 1 (+y then +z is the positive sense)
 const angle = Vector.angle(v1); // 0
-const angle2 = Vector.angle(v2); // PI / 2 (CCW)
+const angle2 = Vector.angle(v2); // 3 * PI / 2 (upward is -z)
 
 const v3 = Vector.add(v1, v2); // { dy: 1, dz: -1 }
 const v4 = Vector.normalize(Vector.make(3, 4)); // { dy: 0.6, dz: 0.8 }
@@ -167,6 +183,7 @@ const v4 = Vector.normalize(Vector.make(3, 4)); // { dy: 0.6, dz: 0.8 }
 ### Line
 
 **Signature:**
+
 ```typescript
 const Line: Transformable<LineType> & {
   make(p1: PointType, p2: PointType): LineType;
@@ -184,10 +201,12 @@ const Line: Transformable<LineType> & {
   isParallel(a: LineType, b: LineType, tolerance?: number): boolean;
   isPerpendicular(a: LineType, b: LineType, tolerance?: number): boolean;
   angle(a: LineType, b: LineType): number;
-}
+};
 ```
+
 **Description:** Represents a finite line segment between two points.
 **Example:**
+
 ```typescript
 import { Line, Point } from '@baustatik/section-geometry';
 
@@ -195,9 +214,9 @@ const l1 = Line.make(Point.make(0, 0), Point.make(3, 0));
 
 const len = Line.length(l1); // 3
 const mid = Line.midpoint(l1); // { y: 1.5, z: 0 }
-const normal = Line.normalVector(l1); // { dy: 0, dz: -1 } (CCW normal points upward)
+const normal = Line.normalVector(l1); // { dy: 0, dz: 1 } (+90 deg from direction, points down)
 
-const l2 = Line.parallel(l1, 2); // Line offset by 2 along normal (z = -2)
+const l2 = Line.parallel(l1, 2); // Line offset by 2 along normal (z = 2)
 const intersection = Line.intersect(
   Line.make(Point.make(0, 0), Point.make(2, 2)),
   Line.make(Point.make(0, 2), Point.make(2, 0)),
@@ -207,10 +226,21 @@ const intersection = Line.intersect(
 ### Arc
 
 **Signature:**
+
 ```typescript
 const Arc: Transformable<ArcType> & {
-  make(center: PointType, radius: number, startAngle: number, sweep: number): ArcType;
-  fromCenter(center: PointType, radius: number, startAngle: number, endAngle: number): ArcType;
+  make(
+    center: PointType,
+    radius: number,
+    startAngle: number,
+    sweep: number,
+  ): ArcType;
+  fromCenter(
+    center: PointType,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+  ): ArcType;
   fromPoints(p1: PointType, p2: PointType, p3: PointType): ArcType;
   swap(arc: ArcType): ArcType;
   length(arc: ArcType): number;
@@ -220,15 +250,20 @@ const Arc: Transformable<ArcType> & {
   normalAt(arc: ArcType, angle: number): VectorType;
   normalAtPoint(arc: ArcType, point: PointType): VectorType;
   offset(arc: ArcType, distance: number): ArcType;
-  toPolyline(arc: ArcType, options?: { segments: number } | { tolerance: number }): PolylineType;
+  toPolyline(
+    arc: ArcType,
+    options?: { segments: number } | { tolerance: number },
+  ): PolylineType;
   intersectLine(arc: ArcType, line: LineType): PointType[];
   intersectLineFull(arc: ArcType, line: LineType): PointType[];
   intersectArc(a: ArcType, b: ArcType): PointType[];
   intersectArcFull(a: ArcType, b: ArcType): PointType[];
-}
+};
 ```
+
 **Description:** Represents a circular arc segment.
 **Example:**
+
 ```typescript
 import { Arc, Point } from '@baustatik/section-geometry';
 
@@ -239,7 +274,11 @@ const arc = Arc.make(Point.make(0, 0), 5, 0, Math.PI);
 const arc2 = Arc.fromCenter(Point.make(0, 0), 5, 0, Math.PI);
 
 // Create an arc passing through three points
-const arc3 = Arc.fromPoints(Point.make(1, 0), Point.make(0, -1), Point.make(-1, 0));
+const arc3 = Arc.fromPoints(
+  Point.make(1, 0),
+  Point.make(0, -1),
+  Point.make(-1, 0),
+);
 
 const len = Arc.length(arc); // 5 * PI
 const start = Arc.startPoint(arc); // { y: 5, z: 0 }
@@ -255,6 +294,7 @@ const poly = Arc.toPolyline(arc, { segments: 8 });
 ### Polyline
 
 **Signature:**
+
 ```typescript
 const Polyline: Transformable<PolylineType> & {
   make(points: PointType[]): PolylineType;
@@ -265,10 +305,12 @@ const Polyline: Transformable<PolylineType> & {
   pointAt(polyline: PolylineType, t: number): PointType;
   closestPoint(polyline: PolylineType, point: PointType): PointType;
   split(polyline: PolylineType, point: PointType): [PolylineType, PolylineType];
-}
+};
 ```
+
 **Description:** A sequence of connected line segments.
 **Example:**
+
 ```typescript
 import { Polyline, Point } from '@baustatik/section-geometry';
 
@@ -294,6 +336,7 @@ const polygon = Polyline.toPolygon(closedPl);
 ### Polygon
 
 **Signature:**
+
 ```typescript
 const Polygon: Transformable<PolygonType> & {
   make(points: PointType[]): PolygonType;
@@ -310,10 +353,12 @@ const Polygon: Transformable<PolygonType> & {
   union(a: PolygonType, b: PolygonType): PolygonType[];
   subtract(a: PolygonType, b: PolygonType): PolygonType[];
   boundingBox(polygon: PolygonType): BoundingBox;
-}
+};
 ```
-**Description:** A closed shape normalized to counter-clockwise winding (where `signedArea < 0` is CCW in YZ).
+
+**Description:** A closed shape normalized to `signedArea >= 0`, i.e. running in the positive `+y → +z` sense (clockwise as drawn, since `z` points down).
 **Example:**
+
 ```typescript
 import { Polygon, Point } from '@baustatik/section-geometry';
 
@@ -336,11 +381,14 @@ const intersection = Polygon.intersect(poly, poly2);
 ### normalizeAngleYZ
 
 **Signature:**
+
 ```typescript
-function normalizeAngleYZ(angle: number): number
+function normalizeAngleYZ(angle: number): number;
 ```
+
 **Description:** Normalizes an angle in radians into the range `[0, 2π)`.
 **Example:**
+
 ```typescript
 import { normalizeAngleYZ } from '@baustatik/section-geometry';
 

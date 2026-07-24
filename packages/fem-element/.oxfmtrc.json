@@ -1,0 +1,14 @@
+{
+  "singleQuote": true,
+  "tabWidth": 2,
+  "useTabs": false,
+  "printWidth": 80,
+  "ignorePatterns": [
+    "dist",
+    "build",
+    "coverage",
+    "tests",
+    "**/*.test.*",
+    "**/*.browser.test.*"
+  ]
+}

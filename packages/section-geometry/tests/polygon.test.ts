@@ -34,17 +34,30 @@ describe('Polygon.make and signedArea', () => {
     expect(Polygon.signedArea(counterClockwise)).toBeLessThan(0);
   });
 
-  it('normalizes to YZ-counter-clockwise and keeps input array immutable', () => {
-    const cw = [
+  // Normalisiert auf den positiven Drehsinn (+y → +z), passend zu
+  // Vector.angle/cross/Arc.sweep. Im Bild ist das rechtsdrehend.
+  it('normalizes to signedArea >= 0 and keeps input array immutable', () => {
+    const counterClockwise = [
+      Point.make(0, 1),
+      Point.make(1, 1),
+      Point.make(1, 0),
+      Point.make(0, 0),
+    ];
+    const snapshot = [...counterClockwise];
+    const polygon = Polygon.make(counterClockwise);
+    expect(Polygon.signedArea(polygon.points)).toBeGreaterThan(0);
+    expect(Polygon.isClockwise(polygon)).toBe(true);
+    expect(counterClockwise).toEqual(snapshot);
+  });
+
+  it('leaves an already positively wound ring untouched', () => {
+    const positive = [
       Point.make(0, 0),
       Point.make(1, 0),
       Point.make(1, 1),
       Point.make(0, 1),
     ];
-    const snapshot = [...cw];
-    const polygon = Polygon.make(cw);
-    expect(Polygon.isClockwise(polygon)).toBe(false);
-    expect(cw).toEqual(snapshot);
+    expect(Polygon.make(positive).points).toEqual(positive);
   });
 });
 
@@ -117,17 +130,22 @@ describe('Polygon construction and boolean ops', () => {
       Point.make(2, 4),
     ]);
 
+    // Alle Ausgaben laufen durch Polygon.make und tragen daher den positiven
+    // Drehsinn (signedArea >= 0).
+    const positivelyWound = (polygon: { points: Point[] }) =>
+      Polygon.signedArea(polygon.points) >= 0;
+
     const intersection = Polygon.intersect(a, b);
     expect(intersection.length).toBeGreaterThan(0);
-    expect(intersection.every((polygon) => Polygon.isClockwise(polygon))).toBe(false);
+    expect(intersection.every(positivelyWound)).toBe(true);
 
     const union = Polygon.union(a, b);
     expect(union.length).toBeGreaterThan(0);
-    expect(union.every((polygon) => Polygon.isClockwise(polygon))).toBe(false);
+    expect(union.every(positivelyWound)).toBe(true);
 
     const subtraction = Polygon.subtract(a, b);
     expect(subtraction.length).toBeGreaterThan(0);
-    expect(subtraction.every((polygon) => Polygon.isClockwise(polygon))).toBe(false);
+    expect(subtraction.every(positivelyWound)).toBe(true);
 
     expect(Polygon.intersect(a, Polygon.translate(b, Vector.make(100, 0)))).toEqual([]);
     expect(Polygon.subtract(a, a)).toEqual([]);
@@ -145,14 +163,19 @@ describe('Polygon transforms and bounding box', () => {
 
   it('translates, rotates and mirrors while preserving winding policy', () => {
     const polygon = Polygon.make(rect);
+    // Ueber die Bounding-Box geprueft statt ueber points[0]: welche Ecke der
+    // Ring zuerst nennt, haengt an der Normalisierung und ist keine Zusage.
     const translated = Polygon.translate(polygon, Vector.make(1, 1));
-    expect(translated.points[0]).toEqual({ y: 1, z: 4 });
+    const box = Polygon.boundingBox(translated);
+    expect(box.min).toEqual({ y: 1, z: 1 });
+    expect(box.max).toEqual({ y: 5, z: 4 });
 
     const rotated = Polygon.rotate(polygon, Math.PI / 2, Point.make(0, 0));
     expect(Polygon.area(rotated)).toBeCloseTo(12); // area is rotation-invariant
 
+    // Spiegeln dreht die Windung um, Polygon.make normalisiert sie zurueck.
     const mirrored = Polygon.mirror(polygon, Point.make(0, 0), Point.make(1, 0));
-    expect(Polygon.isClockwise(mirrored)).toBe(false);
+    expect(Polygon.signedArea(mirrored.points)).toBeGreaterThanOrEqual(0);
     expect(Polygon.area(mirrored)).toBeCloseTo(12);
   });
 });

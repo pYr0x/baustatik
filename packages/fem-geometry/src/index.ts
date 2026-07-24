@@ -1,4 +1,5 @@
 export { normalizeAngleYZ } from './convert';
+export type { LineFrame } from './line';
 // export {
 //   CollinearPointsError,
 //   DegenerateAxisError,

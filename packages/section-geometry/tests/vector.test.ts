@@ -47,25 +47,38 @@ describe('Vector orientation and angles', () => {
     );
   });
 
-  it('returns angle in [0, 2pi)', () => {
+  it('returns angle in [0, 2pi), measured from +y towards +z', () => {
     // (dy=1, dz=0) points along +y → angle 0
     expect(Vector.angle(Vector.make(1, 0))).toBeCloseTo(0);
-    // (dy=0, dz=-1) points against +z (upward) → angle π/2 (CCW from +y)
-    expect(Vector.angle(Vector.make(0, -1))).toBeCloseTo(Math.PI / 2);
-    // (dy=0, dz=1) points along +z (downward) → angle 3π/2 (CW from +y)
+    // (dy=0, dz=1) points along +z (downward) → angle π/2
     const angle = Vector.angle(Vector.make(0, 1));
     expect(angle).toBeGreaterThanOrEqual(0);
     expect(angle).toBeLessThan(2 * Math.PI);
-    expect(angle).toBeCloseTo(3 * Math.PI / 2);
+    expect(angle).toBeCloseTo(Math.PI / 2);
+    // (dy=0, dz=-1) points against +z (upward) → angle 3π/2
+    expect(Vector.angle(Vector.make(0, -1))).toBeCloseTo((3 * Math.PI) / 2);
+  });
+
+  // Der Drehsinn von `angle` muss zu `cross` passen: beide zaehlen +y → +z.
+  // Frueher liefen sie gegeneinander, weil `cross` nativ und `angle` delegiert
+  // gerechnet wurde und `convert.ts` spiegelte.
+  it('cross agrees with the rotation sense of angle', () => {
+    const right = Vector.make(1, 0);
+    expect(Vector.cross(right, Vector.rotate(right, Math.PI / 2))).toBeCloseTo(
+      1,
+    );
   });
 
   it('rotates and computes perpendicular vector', () => {
-    // CCW rotation: (1,0) rotated +90° → (0,-1) (upward, since z is down)
+    // +90° führt +y auf +z, im Bild also nach unten.
     const rotated = Vector.rotate(Vector.make(1, 0), Math.PI / 2);
     expect(rotated.dy).toBeCloseTo(0);
-    expect(rotated.dz).toBeCloseTo(-1);
+    expect(rotated.dz).toBeCloseTo(1);
 
+    // perpendicular normalisiert nicht, die Länge bleibt erhalten.
     const perpendicular = Vector.perpendicular(Vector.make(2, 0));
+    expect(perpendicular.dy).toBeCloseTo(0);
+    expect(perpendicular.dz).toBeCloseTo(2);
     expect(Vector.dot(perpendicular, Vector.make(2, 0))).toBeCloseTo(0);
   });
 });

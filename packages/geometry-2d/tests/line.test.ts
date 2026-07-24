@@ -33,6 +33,54 @@ describe('Line.normalVector', () => {
   })
 })
 
+describe('Line.frame', () => {
+  it('horizontal line: ex = +x, ey = +y', () => {
+    const { ex, ey } = Line.frame(Line.make(p00, p30))
+    expect(ex.dx).toBeCloseTo(1)
+    expect(ex.dy).toBeCloseTo(0)
+    expect(ey.dx).toBeCloseTo(0)
+    expect(ey.dy).toBeCloseTo(1)
+  })
+  it('45 deg line: ey is +90 deg from ex', () => {
+    const { ex, ey } = Line.frame(Line.make(p00, Point.make(1, 1)))
+    const s = Math.SQRT1_2
+    expect(ex.dx).toBeCloseTo(s)
+    expect(ex.dy).toBeCloseTo(s)
+    expect(ey.dx).toBeCloseTo(-s)
+    expect(ey.dy).toBeCloseTo(s)
+  })
+  it('ey equals normalVector', () => {
+    const line = Line.make(p00, p34)
+    expect(Line.frame(line).ey).toEqual(Line.normalVector(line))
+  })
+})
+
+describe('Line.toLocal / toGlobal', () => {
+  const diagonal = Line.make(p00, Point.make(1, 1))
+  const s = Math.SQRT1_2
+
+  it('global +y decomposes on a 45 deg line', () => {
+    const local = Line.toLocal(diagonal, Vector.make(0, 1))
+    expect(local.dx).toBeCloseTo(s)
+    expect(local.dy).toBeCloseTo(s)
+  })
+  it('negative slope flips the local y component', () => {
+    const local = Line.toLocal(Line.make(p00, Point.make(1, -1)), Vector.make(0, 1))
+    expect(local.dx).toBeCloseTo(-s)
+    expect(local.dy).toBeCloseTo(s)
+  })
+  it('toGlobal is the inverse of toLocal', () => {
+    const v = Vector.make(2, -5)
+    const back = Line.toGlobal(diagonal, Line.toLocal(diagonal, v))
+    expect(back.dx).toBeCloseTo(v.dx)
+    expect(back.dy).toBeCloseTo(v.dy)
+  })
+  it('preserves length', () => {
+    const v = Vector.make(3, 4)
+    expect(Vector.length(Line.toLocal(diagonal, v))).toBeCloseTo(5)
+  })
+})
+
 describe('Line.extend', () => {
   it('extends both ends', () => {
     const ext = Line.extend(Line.make(p00, p30), 1, 1)

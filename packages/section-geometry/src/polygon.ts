@@ -18,6 +18,17 @@ import type {
   Transformable,
 } from './types';
 
+/**
+ * Schleifenflaeche nach der Gauss'schen Trapezformel, direkt in y/z gerechnet.
+ *
+ * Vorzeichen: **positiv, wenn der Ring im positiven Drehsinn (+y → +z)
+ * umlaeuft** — im Bild rechtsdrehend, weil z nach unten zeigt. Damit zaehlt sie
+ * im selben Sinn wie `Vector.angle`, `Vector.cross` und `Arc.sweep`.
+ *
+ * Bleibt bewusst nativ statt an geometry-2d zu delegieren: seit `convert.ts`
+ * orientierungstreu abbildet, ist die dortige Formel rechnerisch dieselbe, und
+ * die Windungsregel dieses Packages soll an einer Stelle stehen.
+ */
 const signedAreaYZ = (points: Point[]): number => {
   let area = 0;
   const n = points.length;
@@ -49,10 +60,14 @@ export const Polygon: Transformable<SectionPolygon> & {
   subtract(a: SectionPolygon, b: SectionPolygon): SectionPolygon[];
   boundingBox(polygon: SectionPolygon): BoundingBox;
 } = {
+  // Normalisiert auf den positiven Drehsinn (`signedArea >= 0`), passend zu
+  // `Vector.angle`/`cross`/`Arc.sweep`. Dadurch ist `signedArea` eines
+  // normalisierten Polygons unmittelbar die Flaeche, und spaetere
+  // Flaechenmomente kommen ohne Vorzeichenkorrektur heraus.
   make: (points) => {
     if (points.length < 3)
       throw new InvalidPolygonError('weniger als 3 Punkte');
-    return signedAreaYZ(points) > 0
+    return signedAreaYZ(points) < 0
       ? { points: [...points].reverse() }
       : { points };
   },
@@ -74,14 +89,22 @@ export const Polygon: Transformable<SectionPolygon> & {
   contains: (polygon, point) =>
     GeometryPolygon.contains(toXYPolygon(polygon), toXYPoint(point)),
 
+  // "Im Uhrzeigersinn" ist hier die Lesart im Bild (y rechts, z runter) — und
+  // die faellt mit dem positiven Drehsinn +y → +z zusammen.
   isClockwise: (polygon) => signedAreaYZ(polygon.points) > 0,
 
+  // Beide setzen eine bestimmte Windung und gehen deshalb bewusst NICHT ueber
+  // `Polygon.make`: das normalisiert auf den positiven Drehsinn und wuerde
+  // `toCounterClockwise` sofort wieder zurueckdrehen.
   toClockwise: (polygon) =>
-    !Polygon.isClockwise(polygon)
+    Polygon.isClockwise(polygon)
+      ? polygon
+      : { points: [...polygon.points].reverse() },
+
+  toCounterClockwise: (polygon) =>
+    Polygon.isClockwise(polygon)
       ? { points: [...polygon.points].reverse() }
       : polygon,
-
-  toCounterClockwise: (polygon) => Polygon.make(polygon.points),
 
   intersect: (a, b) =>
     GeometryPolygon.intersect(toXYPolygon(a), toXYPolygon(b)).map((polygon) =>

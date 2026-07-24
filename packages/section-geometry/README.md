@@ -17,12 +17,38 @@ pnpm add @baustatik/section-geometry
 Unlike standard mathematical 2D systems (XY), this package uses the following conventions:
 
 - **Axes**: `y` points to the right, `z` points downwards.
+- **Rotation sense**: a positive rotation takes **+y onto +z**. Drawn on screen
+  with `z` downwards this is _clockwise_. This is the same sense
+  `@baustatik/fem-geometry` uses for the beam plane (`+x → +z`), and it is the
+  sense in which a rotation about the member axis `+x` acts on the section in a
+  right-handed `(x, y, z)` system.
 - **Angles**:
   - `0` radians points along the **+y** axis (right).
-  - Positive angles are **counter-clockwise (CCW)** in the YZ plane.
+  - `Vector.angle` is `atan2(dz, dy)`, normalised to `[0, 2π)`. So `+z` (down)
+    is `π/2` and `−z` (up) is `3π/2`.
+  - `Arc.sweep` follows the same sense: positive sweeps from `+y` towards `+z`.
 - **Winding**:
-  - Polygons are normalized to **Counter-Clockwise (CCW)** orientation in the YZ plane.
-  - `signedArea > 0` indicates a Clockwise orientation.
+  - `signedArea > 0` means the ring runs in the positive rotation sense above —
+    _clockwise as drawn_.
+  - `Polygon.make` normalises rings to `signedArea >= 0`, i.e. to that same
+    positive sense. So `Polygon.signedArea` of a constructed polygon is directly
+    its area, and area moments derived later come out signed correctly without a
+    correction factor.
+  - `Polygon.isClockwise` reports the on-screen reading and is therefore `true`
+    for a normalised polygon. `toClockwise` / `toCounterClockwise` force a
+    specific winding and deliberately bypass the normalisation.
+
+> **Note on the mapping.** Internally this package delegates to
+> `@baustatik/geometry-2d` via `src/convert.ts`, which maps `x := y`, `y := z`
+> **without a sign change**. That looks wrong at first — geometry-2d's `y` is
+> conventionally "up" — but geometry-2d never renders, so it encodes only a
+> rotation sense, not a direction of "up". Mirroring (`y = −z`, the package's
+> earlier design) would conjugate every rotation into its inverse
+> (`M·P·M = P⁻¹`) and silently invert `angle`, `rotate`, `perpendicular`,
+> `normalVector`, `parallel` and `Arc.sweep`, while leaving `dot`, `distance`,
+> `cross` and `signedArea` correct — an inconsistency the package used to carry.
+> The full rationale is in the header of `src/convert.ts`; the sense is pinned
+> by `tests/direction.test.ts`.
 
 ## Primitives
 
@@ -33,7 +59,7 @@ The package provides the following 2D primitives, all with `readonly` properties
 - **`Line`**: `{ p1: Point, p2: Point }`
 - **`Arc`**: `{ center: Point, radius: number, startAngle: number, sweep: number }`
 - **`Polyline`**: `{ points: Point[] }` (open path)
-- **`Polygon`**: `{ points: Point[] }` (closed path, normalized to YZ-CCW)
+- **`Polygon`**: `{ points: Point[] }` (closed path, normalized to `signedArea >= 0`)
 
 All geometry shapes implement a common `Transformable<T>` interface:
 
@@ -82,8 +108,9 @@ const length = Line.length(line); // 100
 const arc1 = Arc.fromCenter(Point.make(0, 0), 50, 0, Math.PI / 2);
 
 // Create an arc from center, radius, start angle, and sweep angle (in radians)
-const arcCCW = Arc.make(Point.make(0, 0), 50, 0, Math.PI / 2); // Sweep positive = CCW
-const arcCW = Arc.make(Point.make(0, 0), 50, 0, -Math.PI / 2); // Sweep negative = CW
+// Positive sweep runs +y -> +z (clockwise as drawn); negative runs the other way.
+const arcDown = Arc.make(Point.make(0, 0), 50, 0, Math.PI / 2); // ends at (0, 50)
+const arcUp = Arc.make(Point.make(0, 0), 50, 0, -Math.PI / 2); // ends at (0, -50)
 ```
 
 ### Polygons
@@ -98,9 +125,10 @@ const poly = Polygon.make([
   Point.make(0, 100),
 ]);
 
-// Automatically normalized to YZ-Counter-Clockwise orientation
+// Automatically normalized to signedArea >= 0 (the positive +y -> +z sense)
 const area = Polygon.area(poly); // 10000
-const isCw = Polygon.isClockwise(poly); // false
+const signed = Polygon.signedArea(poly.points); // 10000, same value
+const isCw = Polygon.isClockwise(poly); // true (clockwise as drawn)
 ```
 
 ## Error Handling

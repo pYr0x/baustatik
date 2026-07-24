@@ -12,7 +12,10 @@ export type Arc = {
   readonly center: Point;
   readonly radius: number;
   readonly startAngle: number;
-  /** Signed sweep angle in radians. Positive = CCW, negative = CW. */
+  /**
+   * Signed sweep angle in radians. Positive sweeps from `+y` towards `+z`,
+   * which is clockwise as drawn (`z` points down); negative runs the other way.
+   */
   readonly sweep: number;
 };
 

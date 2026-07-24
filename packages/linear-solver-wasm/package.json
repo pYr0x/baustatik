@@ -1,0 +1,21 @@
+{
+  "name": "@baustatik/linear-solver-wasm",
+  "version": "0.0.1",
+  "private": false,
+  "type": "module",
+  "main": "./pkg/linear_solver_wasm.js",
+  "types": "./pkg/linear_solver_wasm.d.ts",
+  "exports": {
+    ".": {
+      "types": "./pkg/linear_solver_wasm.d.ts",
+      "import": "./pkg/linear_solver_wasm.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "wasm-pack build rust --target web --out-dir pkg",
+    "test": "cargo test --manifest-path rust/Cargo.toml"
+  }
+}

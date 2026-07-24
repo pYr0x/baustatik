@@ -42,7 +42,7 @@ const fromPoints = Vector.fromPoints(Point.make(0,0), Point.make(1,1)); // { dx:
 **Description:** A line segment between two points. Provides intersection, projection, and offset logic.
 **Example:**
 ```typescript
-import { Line, Point } from '@baustatik/geometry-2d';
+import { Line, Point, Vector } from '@baustatik/geometry-2d';
 
 const l1 = Line.make(Point.make(0, 0), Point.make(10, 0));
 const l2 = Line.make(Point.make(5, -5), Point.make(5, 5));
@@ -50,6 +50,11 @@ const l2 = Line.make(Point.make(5, -5), Point.make(5, 5));
 const intersection = Line.intersect(l1, l2); // { x: 5, y: 0 }
 const length = Line.length(l1); // 10
 const parallel = Line.parallel(l1, 2); // Line at y=2
+
+// Local coordinate system: ex along p1 -> p2, ey rotated +90 degrees
+const { ex, ey } = Line.frame(l2); // { dx: 0, dy: 1 }, { dx: -1, dy: 0 }
+const local = Line.toLocal(l2, Vector.make(1, 0)); // { dx: 0, dy: -1 }
+const global = Line.toGlobal(l2, local); // { dx: 1, dy: 0 }
 ```
 
 ### Arc

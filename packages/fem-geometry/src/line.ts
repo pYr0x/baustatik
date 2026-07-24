@@ -13,8 +13,20 @@ import type {
   Transformable,
   Vector,
 } from './types';
+import { Vector as VectorMath } from './vector';
 
 export type Line = FEMLine;
+
+/**
+ * Lokales Stab-Koordinatensystem: `ex` zeigt vom Anfangs- zum Endknoten,
+ * `ez` steht senkrecht darauf und entsteht aus `ex` durch dieselbe Drehung,
+ * die global `x` nach `z` überführt (z abwärts). Beide Achsen sind normiert
+ * und in globalen x/z-Koordinaten ausgedrückt.
+ *
+ * Für `ex = (cosα, sinα)` gilt `ez = (−sinα, cosα)`, identisch mit
+ * `Line.normalVector`.
+ */
+export type LineFrame = { readonly ex: Vector; readonly ez: Vector };
 
 export const Line: Transformable<FEMLine> & {
   make(p1: FEMPoint, p2: FEMPoint): FEMLine;
@@ -22,6 +34,9 @@ export const Line: Transformable<FEMLine> & {
   midpoint(line: FEMLine): FEMPoint;
   direction(line: FEMLine): Vector;
   normalVector(line: FEMLine): Vector;
+  frame(line: FEMLine): LineFrame;
+  toLocal(line: FEMLine, vector: Vector): Vector;
+  toGlobal(line: FEMLine, vector: Vector): Vector;
   extend(line: FEMLine, startDelta: number, endDelta: number): FEMLine;
   parallel(line: FEMLine, distance: number): FEMLine;
   split(line: FEMLine, point: FEMPoint): [FEMLine, FEMLine];
@@ -43,6 +58,37 @@ export const Line: Transformable<FEMLine> & {
 
   normalVector: (line) =>
     fromXYVector(GeometryLine.normalVector(toXYLine(line))),
+
+  // Seit `convert.ts` orientierungstreu ist, faellt `ez` mit `normalVector`
+  // zusammen. Trotzdem steht die Drehung hier bewusst direkt in x/z
+  // ((dx, dz) → (−dz, dx)) statt an geometry-2d zu delegieren: das ist die
+  // massgebliche Definition der lokalen Stabachse, und der Test
+  // `ez === normalVector` in `tests/line.test.ts` vergleicht sie gegen den
+  // delegierten Weg. Wuerde `frame` selbst delegieren, gaebe es nichts mehr zu
+  // vergleichen — eine wieder eingefuehrte Spiegelung in `convert.ts` wuerde
+  // beide Seiten gleichzeitig kippen und unbemerkt durchgehen.
+  frame: (line) => {
+    const ex = Line.direction(line);
+    return { ex, ez: VectorMath.make(-ex.dz, ex.dx) };
+  },
+
+  // Zerlegung in Achsanteile: die Basis ist orthonormal, deshalb genügen
+  // Skalarprodukte — kein Winkel, keine Drehmatrix, keine Vorzeichenherleitung.
+  toLocal: (line, vector) => {
+    const { ex, ez } = Line.frame(line);
+    return VectorMath.make(
+      VectorMath.dot(vector, ex),
+      VectorMath.dot(vector, ez),
+    );
+  },
+
+  toGlobal: (line, vector) => {
+    const { ex, ez } = Line.frame(line);
+    return VectorMath.add(
+      VectorMath.scale(ex, vector.dx),
+      VectorMath.scale(ez, vector.dz),
+    );
+  },
 
   extend: (line, startDelta, endDelta) =>
     fromXYLine(GeometryLine.extend(toXYLine(line), startDelta, endDelta)),

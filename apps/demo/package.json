@@ -20,6 +20,7 @@
     "@baustatik/viewport-2d": "workspace:*",
     "@baustatik/section-geometry": "workspace:*",
     "@baustatik/konva-adapter": "workspace:*",
+    "@baustatik/linear-solver-wasm": "workspace:*",
     "konva": "^10.3.0",
     "pinia": "^3.0.4",
     "vite": "^8.1.0"

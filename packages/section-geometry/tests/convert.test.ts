@@ -37,9 +37,13 @@ describe('point and vector conversion', () => {
     expect(fromXYVector(toXYVector(vector))).toEqual(vector);
   });
 
-  it('flips z sign when mapped to xy', () => {
+  // Der Wächter über die Orientierung: kein Vorzeichenwechsel. Eine
+  // Spiegelung hier würde jede Drehung in ihre Umkehrung konjugieren
+  // (M·P·M = P⁻¹) und angle/rotate/perpendicular/Arc still invertieren.
+  it('maps z to y without flipping the sign', () => {
     const point = { y: 3, z: 2 };
-    expect(toXYPoint(point)).toEqual({ x: 3, y: -2 });
+    expect(toXYPoint(point)).toEqual({ x: 3, y: 2 });
+    expect(toXYVector({ dy: 3, dz: 2 })).toEqual({ dx: 3, dy: 2 });
   });
 });
 
@@ -49,7 +53,7 @@ describe('compound conversion', () => {
     expect(fromXYLine(toXYLine(line))).toEqual(line);
   });
 
-  it('maps arc angles 1:1 (CCW YZ = CCW XY, no swap, no negation)', () => {
+  it('maps arc angles 1:1 (orientation-preserving, no swap, no negation)', () => {
     const arc = {
       center: { y: 0, z: 0 },
       radius: 2,

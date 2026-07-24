@@ -59,9 +59,10 @@ describe('Arc geometry helpers', () => {
     const arc = Arc.fromCenter(Point.make(0, 0), 1, 0, Math.PI / 2);
     expect(Arc.length(arc)).toBeCloseTo(Math.PI / 2);
     const midpoint = Arc.midpoint(arc);
-    // CCW from +y toward -z: midpoint at 45° CCW, so z is negative (upward)
+    // Positiver Sweep läuft von +y nach +z: der Mittelpunkt liegt bei 45°
+    // unterhalb der y-Achse.
     expect(midpoint.y).toBeCloseTo(Math.cos(Math.PI / 4));
-    expect(midpoint.z).toBeCloseTo(-Math.sin(Math.PI / 4));
+    expect(midpoint.z).toBeCloseTo(Math.sin(Math.PI / 4));
   });
 
   it('applies start/end swap rule for point accessors', () => {
@@ -69,9 +70,9 @@ describe('Arc geometry helpers', () => {
     // startAngle=0 → start point at (y=1, z=0)
     expect(Arc.startPoint(arc).y).toBeCloseTo(1);
     expect(Arc.startPoint(arc).z).toBeCloseTo(0);
-    // endAngle=π/2 CCW from +y → end point at (y=0, z=-1) (upward)
+    // endAngle=π/2 von +y nach +z → Endpunkt bei (y=0, z=1), im Bild unten
     expect(Arc.endPoint(arc).y).toBeCloseTo(0);
-    expect(Arc.endPoint(arc).z).toBeCloseTo(-1);
+    expect(Arc.endPoint(arc).z).toBeCloseTo(1);
   });
 
   it('computes outward normals', () => {

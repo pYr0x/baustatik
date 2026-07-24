@@ -64,6 +64,15 @@
       "@baustatik/fem-geometry": [
         "packages/fem-geometry/src/index.ts"
       ],
+      "@baustatik/fem-element": [
+        "packages/fem-element/src/index.ts"
+      ],
+      "@baustatik/fem-loads": [
+        "packages/fem-loads/src/index.ts"
+      ],
+      "@baustatik/fem-load-resolve": [
+        "packages/fem-load-resolve/src/index.ts"
+      ],
       "@baustatik/fem-viewer": [
         "packages/fem-viewer/src/index.ts"
       ]

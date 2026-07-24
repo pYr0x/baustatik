@@ -4,12 +4,22 @@ import { Vector } from './vector';
 
 export type Line = { readonly p1: Point; readonly p2: Point };
 
+/**
+ * Lokales Koordinatensystem einer Linie: `ex` zeigt von `p1` nach `p2`,
+ * `ey` ist `ex` um +90° gedreht. Beide Achsen sind normiert und in globalen
+ * Koordinaten ausgedrückt.
+ */
+export type LineFrame = { readonly ex: Vector; readonly ey: Vector };
+
 export const Line: Transformable<Line> & {
   make(p1: Point, p2: Point): Line;
   length(line: Line): number;
   midpoint(line: Line): Point;
   direction(line: Line): Vector;
   normalVector(line: Line): Vector;
+  frame(line: Line): LineFrame;
+  toLocal(line: Line, vector: Vector): Vector;
+  toGlobal(line: Line, vector: Vector): Vector;
   extend(line: Line, startDelta: number, endDelta: number): Line;
   parallel(line: Line, distance: number): Line;
   split(line: Line, point: Point): [Line, Line];
@@ -27,6 +37,20 @@ export const Line: Transformable<Line> & {
     Point.make((line.p1.x + line.p2.x) / 2, (line.p1.y + line.p2.y) / 2),
   direction: (line) => Vector.normalize(Vector.fromPoints(line.p1, line.p2)),
   normalVector: (line) => Vector.perpendicular(Line.direction(line)),
+  frame: (line) => {
+    const ex = Line.direction(line);
+    return { ex, ey: Vector.perpendicular(ex) };
+  },
+  // Zerlegung in Achsanteile: die Basis ist orthonormal, deshalb genügen
+  // Skalarprodukte — kein Winkel, keine Drehmatrix, keine Vorzeichenherleitung.
+  toLocal: (line, vector) => {
+    const { ex, ey } = Line.frame(line);
+    return Vector.make(Vector.dot(vector, ex), Vector.dot(vector, ey));
+  },
+  toGlobal: (line, vector) => {
+    const { ex, ey } = Line.frame(line);
+    return Vector.add(Vector.scale(ex, vector.dx), Vector.scale(ey, vector.dy));
+  },
   extend: (line, startDelta, endDelta) => {
     const dir = Line.direction(line);
     return {

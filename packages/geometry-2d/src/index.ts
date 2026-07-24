@@ -9,6 +9,7 @@ export {
   InvalidPolylineError,
   OpenPolylineError,
 } from './errors';
+export type { LineFrame } from './line';
 export { Line } from './line';
 export { Point } from './point';
 export { Polygon } from './polygon';

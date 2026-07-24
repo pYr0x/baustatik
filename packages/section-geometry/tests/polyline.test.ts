@@ -54,7 +54,8 @@ describe('Polyline polygon conversion and sampling', () => {
     ]);
     const polygon = Polyline.toPolygon(closed);
     expect(polygon.points.length).toBe(3);
-    expect(Polygon.isClockwise(polygon)).toBe(false);
+    // Polygon.make normalisiert auf den positiven Drehsinn (signedArea >= 0).
+    expect(Polygon.signedArea(polygon.points)).toBeGreaterThanOrEqual(0);
   });
 
   it('throws InvalidPolygonError for < 3 unique points', () => {
@@ -96,9 +97,10 @@ describe('Polyline transforms and error paths', () => {
     const translated = Polyline.translate(Polyline.make(points), Vector.make(0, 5));
     expect(translated.points[0]).toEqual({ y: 0, z: 5 });
 
+    // +90° führt +y auf +z.
     const rotated = Polyline.rotate(Polyline.make([Point.make(1, 0)]), Math.PI / 2);
     expect(rotated.points[0]?.y).toBeCloseTo(0);
-    expect(rotated.points[0]?.z).toBeCloseTo(-1);
+    expect(rotated.points[0]?.z).toBeCloseTo(1);
 
     const mirrored = Polyline.mirror(
       Polyline.make([Point.make(1, 2)]),

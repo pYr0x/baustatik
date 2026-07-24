@@ -25,6 +25,11 @@ dependencies change.
 | `@baustatik/cross-section-viewer` | Viewer-facing cross-section composition and visualization. | `cross-section`, `grid-2d`, `render-core`, `section-geometry`, `viewport-2d` |
 | `@baustatik/fem` | FEM frame model types (`Node`, `Beam`, `NodeSupport`). | — |
 | `@baustatik/fem-geometry` | 2D geometry primitives in structural x/z coordinates (z downwards). | `core`, `errors`, `geometry-2d` |
+| `@baustatik/fem-element` | Element formulation for plane frames: local 6x6 stiffness, consistent nodal load vector, shape functions. | `errors` |
+| `@baustatik/fem-loads` | Load input model for plane frames (node and beam loads) plus its validation gate. | `errors`, `fem-geometry` |
+| `@baustatik/fem-load-resolve` | Resolves abstract loads onto beams: frame rotation, reference length, positions, merge per beam. | `fem-element`, `fem-geometry`, `fem-loads` |
+| `@baustatik/fem-solver` | Assembly, transformation, boundary conditions and reactions. Scaffolded, not yet implemented. | — |
+| `@baustatik/linear-solver-wasm` | Rust/faer WASM binding for the linear solve `K d = F`. Scaffolded. | — |
 | `@baustatik/fem-viewer` | Viewer-facing FEM frame composition and visualization. | `errors`, `fem`, `grid-2d`, `render-core`, `viewport-2d` |
 
 The dependency direction is broadly: foundational utilities and errors →
@@ -77,6 +82,8 @@ or filter the app when a package-specific development server is needed.
   scripts). Do not edit generated versions manually.
 - Prefer package exports and existing domain abstractions over importing
   implementation files from another package.
+- Comments in existing code are written in German and explain *why* the code
+  exists or behaves as it does, rather than restating *what* it does.
 - Keep architecture and domain explanations in focused documentation or
   package READMEs; do not turn this file into API documentation.
 

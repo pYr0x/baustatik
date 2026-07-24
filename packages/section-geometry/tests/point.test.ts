@@ -27,16 +27,17 @@ describe('Point transforms', () => {
     });
   });
 
+  // +90° führt +y auf +z, im Bild also nach unten. Siehe tests/vector.test.ts.
   it('rotates 90 degrees around origin', () => {
     const rotated = Point.rotate(Point.make(1, 0), Math.PI / 2);
     expect(rotated.y).toBeCloseTo(0);
-    expect(rotated.z).toBeCloseTo(-1);
+    expect(rotated.z).toBeCloseTo(1);
   });
 
   it('rotates with custom origin', () => {
     const rotated = Point.rotate(Point.make(2, 0), Math.PI / 2, Point.make(1, 0));
     expect(rotated.y).toBeCloseTo(1);
-    expect(rotated.z).toBeCloseTo(-1);
+    expect(rotated.z).toBeCloseTo(1);
   });
 
   it('mirrors across z=0 axis', () => {

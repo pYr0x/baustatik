@@ -2,3 +2,5 @@ packages:
   - "packages/*"
   - "!packages/konva-adapter-BAK"
   - "apps/*"
+allowBuilds:
+  esbuild: true

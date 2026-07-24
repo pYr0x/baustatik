@@ -15,10 +15,11 @@ describe('Line scalar and point methods', () => {
     const direction = Line.direction(Line.make(p00, p30));
     expect(direction.dy).toBeCloseTo(1);
     expect(direction.dz).toBeCloseTo(0);
-    // CCW perpendicular to +y direction points toward -z (upward in YZ drawing)
+    // +90° führt +y auf +z: die Normale einer waagrechten Linie zeigt nach
+    // unten (+z).
     const normal = Line.normalVector(Line.make(p00, p30));
     expect(normal.dy).toBeCloseTo(0);
-    expect(normal.dz).toBeCloseTo(-1);
+    expect(normal.dz).toBeCloseTo(1);
   });
 });
 
@@ -28,10 +29,10 @@ describe('Line geometry operations', () => {
     expect(extended.p1.y).toBeCloseTo(-1);
     expect(extended.p2.y).toBeCloseTo(4);
 
-    // Parallel offset: normal of +y line = -z (upward), so distance=2 offsets upward
+    // Parallelversatz folgt der Normalen (+z), verschiebt also nach unten.
     const parallel = Line.parallel(Line.make(p00, p30), 2);
-    expect(parallel.p1.z).toBeCloseTo(-2);
-    expect(parallel.p2.z).toBeCloseTo(-2);
+    expect(parallel.p1.z).toBeCloseTo(2);
+    expect(parallel.p2.z).toBeCloseTo(2);
   });
 
   it('finds closest point and distance to point', () => {
@@ -82,9 +83,10 @@ describe('Line transforms and relation checks', () => {
     const translated = Line.translate(Line.make(p00, p30), Vector.make(0, 1));
     expect(translated.p1).toEqual({ y: 0, z: 1 });
 
+    // +90° führt +y auf +z: der Endpunkt landet unterhalb des Ursprungs.
     const rotated = Line.rotate(Line.make(p00, p30), Math.PI / 2);
     expect(rotated.p2.y).toBeCloseTo(0);
-    expect(rotated.p2.z).toBeCloseTo(-3);
+    expect(rotated.p2.z).toBeCloseTo(3);
 
     const mirrored = Line.mirror(
       Line.make(Point.make(0, 1), Point.make(3, 1)),
