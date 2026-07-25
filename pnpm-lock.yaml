@@ -35,9 +35,18 @@ importers:
       '@baustatik/fem':
         specifier: workspace:*
         version: link:../../packages/fem
+      '@baustatik/fem-element':
+        specifier: workspace:*
+        version: link:../../packages/fem-element
       '@baustatik/fem-geometry':
         specifier: workspace:*
         version: link:../../packages/fem-geometry
+      '@baustatik/fem-loads':
+        specifier: workspace:*
+        version: link:../../packages/fem-loads
+      '@baustatik/fem-solver':
+        specifier: workspace:*
+        version: link:../../packages/fem-solver
       '@baustatik/fem-viewer':
         specifier: workspace:*
         version: link:../../packages/fem-viewer
@@ -50,6 +59,9 @@ importers:
       '@baustatik/section-geometry':
         specifier: workspace:*
         version: link:../../packages/section-geometry
+      '@baustatik/units':
+        specifier: workspace:*
+        version: link:../../packages/units
       '@baustatik/viewport-2d':
         specifier: workspace:*
         version: link:../../packages/viewport-2d
@@ -152,6 +164,10 @@ importers:
   packages/errors: {}
 
   packages/fem:
+    dependencies:
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
     devDependencies:
       '@vitest/coverage-istanbul':
         specifier: ^4.1.5
@@ -264,6 +280,9 @@ importers:
       '@baustatik/errors':
         specifier: workspace:*
         version: link:../errors
+      '@baustatik/fem':
+        specifier: workspace:*
+        version: link:../fem
       '@baustatik/fem-geometry':
         specifier: workspace:*
         version: link:../fem-geometry
@@ -288,6 +307,25 @@ importers:
         version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
 
   packages/fem-solver:
+    dependencies:
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/fem':
+        specifier: workspace:*
+        version: link:../fem
+      '@baustatik/fem-element':
+        specifier: workspace:*
+        version: link:../fem-element
+      '@baustatik/fem-geometry':
+        specifier: workspace:*
+        version: link:../fem-geometry
+      '@baustatik/fem-load-resolve':
+        specifier: workspace:*
+        version: link:../fem-load-resolve
+      '@baustatik/fem-loads':
+        specifier: workspace:*
+        version: link:../fem-loads
     devDependencies:
       '@vitest/coverage-istanbul':
         specifier: ^4.1.5

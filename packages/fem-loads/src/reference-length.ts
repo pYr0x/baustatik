@@ -42,6 +42,15 @@ import type { ReferenceLength } from './types';
  * Der Faktor ist ueber den geraden Stab KONSTANT (`Δx/L` aendert sich entlang
  * einer Geraden nicht), deshalb bleibt eine lineare Last linear und ein
  * Teilabschnitt bekommt denselben Faktor wie der ganze Stab.
+ *
+ * ACHTUNG, der Faktor ist HOECHSTENS 1: eine Bezugslaenge macht die gerechnete
+ * Last kleiner, nie groesser. Bei fast entartetem Stab wird sie fast Null —
+ * ein 0,57° geneigter Stab mit `'verticalProjection'` gibt 0,01, aus `q: 5`
+ * werden gerechnete `0,05`. Genau 0 lehnt `validate.ts` ab; alles darueber
+ * geht still durch, auch wenn es nach einem Vertipper aussieht. Die
+ * vollstaendige Begruendung samt Wertetabelle und der Frage, wo eine Schranke
+ * hingehoerte, steht unter „Die Bezugslaenge und die leise verschwindende
+ * Last" in der CONTEXT.md dieses Packages.
  */
 export function referenceFactor(
   reference: ReferenceLength,

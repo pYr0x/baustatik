@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@baustatik/errors": "workspace:*",
+    "@baustatik/fem": "workspace:*",
     "@baustatik/fem-geometry": "workspace:*"
   },
   "devDependencies": {

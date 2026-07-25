@@ -19,6 +19,15 @@
  */
 export type Node = {
   id: string;
+  /**
+   * Koordinaten in METERN.
+   *
+   * Solange nur gezeichnet wurde, war die Einheit folgenlos — der Viewer
+   * skaliert ohnehin. Ab `solve()` geht die Stablaenge als `L`, `L^2` und `L^3`
+   * in die Steifigkeit ein und muss zu `EA` in kN und `EI` in kNm^2 passen
+   * (@baustatik/fem-element). Eine Koordinate in Zentimetern verschiebt jedes
+   * Ergebnis um sechs Groessenordnungen, ohne dass irgendetwas auffaellt.
+   */
   position: { x: number; z: number };
 };
 

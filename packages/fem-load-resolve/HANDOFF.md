@@ -205,18 +205,19 @@ Empfehlung: **nicht normalisieren** (YAGNI), aber als bekannte Einschränkung in
 `CONTEXT.md` festhalten, damit `internalForces` später bewusst entscheidet, ob
 es selbst zusammenfasst oder hier eine Normalform anfordert.
 
-### 6. `referenceLength` an der Einzellast — ignorieren oder aus dem Typ werfen?
+### 6. `referenceLength` an der Einzellast — **ERLEDIGT**
 
-`BeamForcePointLoad` erbt `BeamForceDirection` inklusive `referenceLength`
-(`fem-loads/src/types.ts:138`). Eine Einzellast in kN hat keine Bezugslänge; das
-Feld hat dort keine Wirkung.
-
-Empfehlung: aus dem Typ entfernen (`BeamForceDirection` in Richtung + Bezugslänge
-aufspalten) — nach derselben Begründung, mit der die Momentlast `frame`/`axis`
-verloren hat: ein Feld ohne Wirkung ist Zustand, den alle mitschleppen und
-ignorieren müssen. Das ist eine Änderung an `fem-loads` und braucht die
-Zustimmung des Nutzers, weil es ein RFEM-Abgleich sein könnte, den ich nicht
-kenne. Fallback: hier stillschweigend ignorieren und den Grund kommentieren.
+> **Ergebnis (2026-07-25):** Aus dem Typ entfernt, wie hier empfohlen.
+> `BeamForceDirection` (`frame` + `axis`) und `BeamForceReference`
+> (`referenceLength`) sind zwei getrennte Mixins in `fem-loads/src/types.ts`;
+> `BeamForcePointLoad` bekommt nur das erste. Die befürchtete Rückfrage — ob
+> das ein RFEM-Abgleich sei, den man nicht kennt — beantworten die Dialoge
+> selbst: `Stablast2.png` führt `P` in **[kN]**, `Stablast3.png` `p` in
+> **[kN/m]**. An einer Gesamtkraft gibt es nichts zu skalieren.
+>
+> Für `resolve` heißt das: nichts zu tun. `referenceFactor` wird nur im
+> Streckenlastzweig gerufen, die Einzellast kommt gar nicht erst dorthin.
+> Niederschrift in `fem-loads/TODO-check.md`, Punkt 3.
 
 ### 7. Wie viel Validierung liegt hier, wie viel in `fem-loads/validate.ts`? — **ERLEDIGT**
 

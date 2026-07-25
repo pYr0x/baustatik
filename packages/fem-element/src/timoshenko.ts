@@ -45,10 +45,13 @@ import type {
  * Die Toleranz faengt die ab, ohne echte Bereichsfehler durchzulassen.
  *
  * RELATIV zu `L` angewandt (siehe `requireOnElement`), weil der Fehler den sie
- * abfangen soll relativ ist — das steht schon im Satz darueber. Absolut
- * angewandt waere sie ab `L > 1` schaerfer als das Tor davor
- * (`fem-loads/src/validate.ts` prueft `value > length * (1 + 1e-9)`), und es
- * gaebe ein Band, das die Validierung passiert und hier wirft. `Math.max(1, L)`
+ * abfangen soll relativ ist — das steht schon im Satz darueber. Dieselbe FORM
+ * hat das Tor davor: `fem-loads/src/validate.ts` prueft
+ * `value > length * (1 + stationRelativeTolerance)`. Die ZAHL dort ist seit der
+ * Lastvalidierungs-Policy nicht mehr fest, dieser Wert hier bleibt fest — und
+ * das ist folgenlos, weil `fem-load-resolve` jede Station ohnehin auf `[0, L]`
+ * klemmt (`resolve.ts:257`). Diese Toleranz ist Doppelsicherung, nicht tragend;
+ * genau deshalb wird sie NICHT konfigurierbar (ADR 0011). `Math.max(1, L)`
  * verhindert zugleich, dass die Schranke am sehr kurzen Stab unbrauchbar klein
  * wird.
  */

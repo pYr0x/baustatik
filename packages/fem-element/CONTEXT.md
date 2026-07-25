@@ -128,11 +128,15 @@ spaetere Inkremente.
   Ersatzknotenvektor. Weil `phi` nur an der einen Normalisierungsstelle
   entsteht, steht dort auch der eine Check. `consistentLoad` verlangt
   Lastabschnitte und Einzellasten in `[0, L]` (Toleranz `1e-9 * max(1, L)`,
-  also RELATIV zur Stablaenge — dieselbe Form wie das Tor davor in
-  `fem-loads/src/validate.ts`; absolut waere sie ab `L > 1` schaerfer und liesse
-  ein Band entstehen, das die Validierung passiert und hier wirft. Die Reste
-  stammen aus `fem-load-resolve`, das seine Ausgabe zusaetzlich auf `[0, L]`
-  klemmt — die Toleranz ist damit Doppelsicherung, nicht tragend).
+  also RELATIV zur Stablaenge — dieselbe FORM wie das Tor davor in
+  `fem-loads/src/validate.ts`, dessen Zahl dort seit der
+  Lastvalidierungs-Policy einstellbar ist; absolut waere sie ab `L > 1`
+  schaerfer und liesse ein Band entstehen, das die Validierung passiert und
+  hier wirft. Die Reste stammen aus `fem-load-resolve`, das seine Ausgabe
+  zusaetzlich auf `[0, L]` klemmt — die Toleranz ist damit Doppelsicherung,
+  nicht tragend, und bleibt genau deshalb eine private Konstante ohne
+  Policy-Feld, siehe
+  [ADR 0011](../../docs/adr/0011-analysis-settings-split-into-versioned-policy-and-ports.md)).
   Ungeprueft landeten NaN/Infinity sonst still in der
   globalen Matrix, weit weg von der Ursache. Alle Fehler sind benannte Klassen
   aus `src/errors.ts`, abgeleitet von `BaustatikError` — Aufrufer sollen per

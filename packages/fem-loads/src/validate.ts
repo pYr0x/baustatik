@@ -18,13 +18,23 @@
  *                         nach der Regel aus `error-handling-in-libraries.md`
  *                         laut und frueh scheitern soll.
  *
- * WARUM KEIN IMPORT AUS `@baustatik/fem`: das Package soll nach seinem eigenen
- * Handoff nicht das gesamte Modell mitziehen. Gebraucht werden nur zwei
+ * EINE POLICY, EINMAL GEBUNDEN: die Zahlen, gegen die geprueft wird, stehen in
+ * `src/policy.ts` und kommen ueber `createLoadValidator` herein — nicht als
+ * drittes Argument an jeder Signatur. Die drei freien Exporte sind die
+ * Ausgaenge des Default-Validators und bleiben zweiargumentig. Begruendung am
+ * Typ `LoadValidator` weiter unten.
+ *
+ * WARUM DIE REGELN DAS MODELL NICHT KENNEN: gebraucht werden nur zwei
  * Auskuenfte ueber die Geometrie — gibt es den Knoten, und wo liegt die
- * Stabachse. Die stecken in `LoadModelGeometry`; die Abbildung `Beam -> Line`
- * leistet der Aufrufer, der `@baustatik/fem` ohnehin kennt. Einzige neue
- * Abhaengigkeit ist `fem-geometry`, damit die x/z-Konvention (z abwaerts) an
- * genau einer Stelle definiert bleibt.
+ * Stabachse. Die stecken in `LoadModelGeometry`. Diese Datei importiert
+ * deshalb nichts aus `@baustatik/fem`: eine Regel wie `from <= to <= L` haengt
+ * an einer Laenge, nicht an einem Querschnitt oder einem Gelenk.
+ *
+ * Das PACKAGE haengt seit `model-geometry.ts` sehr wohl an `@baustatik/fem` —
+ * irgendwer muss die Auskunft ja geben, und die mitgelieferte Implementierung
+ * tut es. Die Kopplung ist bewusst auf jene eine Datei begrenzt; siehe dort
+ * und ADR 0006. Die Abhaengigkeit auf `fem-geometry` haelt die x/z-Konvention
+ * (z abwaerts) an genau einer Stelle.
  */
 
 import { Line } from '@baustatik/fem-geometry';
@@ -34,12 +44,20 @@ import {
   DistanceOutOfRangeError,
   EmptyLoadTargetError,
   type LoadValidationError,
+  type LoadValidationWarning,
+  NearlyDegenerateReferenceLengthWarning,
   NegativeDistanceError,
   NonFiniteLoadValueError,
+  ReferenceFactorBelowMinimumError,
   UnknownLoadTargetError,
+  ZeroBeamLoadError,
+  ZeroExtentLoadSegmentWarning,
   ZeroNodeLoadError,
-  ZeroProjectedLengthError,
 } from './errors';
+import {
+  DEFAULT_LOAD_VALIDATION_POLICY,
+  type LoadValidationPolicy,
+} from './policy';
 import { referenceFactor } from './reference-length';
 import type { BeamLoad, FEMLoad, NodeLoad } from './types';
 
@@ -55,18 +73,14 @@ export type LoadModelGeometry = {
   beamAxis(beamId: string): Line | undefined;
 };
 
-/** Obergrenze der Abstaende bei `relativeDistances: true`. */
-const PERCENT = 100;
-
 /**
- * Relative Toleranz fuer die Laengenvergleiche.
+ * Obergrenze der Abstaende bei `relativeDistances: true`.
  *
- * Absolute Abstaende werden gegen eine gerechnete Stablaenge geprueft, die
- * praktisch nie glatt ist (`Math.hypot`). Ein Abstand exakt am Stabende soll
- * nicht an der letzten Binaerstelle scheitern. Gleiche Groessenordnung wie die
- * Toleranz in `fem-element` (1e-9), dort fuer Rundungsreste aus `resolve`.
+ * Bleibt eine private Konstante und wird KEINE Einstellung: „relativ" heisst
+ * definitionsgemaess „in Prozent der Stablaenge". Wer daran dreht, aendert
+ * nicht die Pruefung, sondern die Bedeutung des Feldes.
  */
-const RELATIVE_TOLERANCE = 1e-9;
+const PERCENT = 100;
 
 /** Ein Abstand entlang der Stabachse, mit dem Feldnamen aus `types.ts`. */
 type Station = {
@@ -86,44 +100,132 @@ type Placement = {
 };
 
 /**
- * Prueft eine einzelne Last und gibt alle Beanstandungen zurueck.
- * Leeres Array = die Last ist in Ordnung.
+ * Das Ergebnis einer Lastpruefung. Zwei Sorten Befund, weil der Ablauf drei
+ * Ausgaenge hat: `errors` halten die Rechnung auf, `warnings` nicht.
+ */
+export type LoadValidationResult = {
+  errors: LoadValidationError[];
+  warnings: LoadValidationWarning[];
+};
+
+/**
+ * Die drei Ausgaenge der Lastpruefung, an EINE Policy gebunden.
+ *
+ * WARUM GEBUNDEN UND NICHT EIN DRITTES ARGUMENT: der realistische Fehler ist
+ * nicht, dass jemand absichtlich zwei verschiedene Policies benutzt, sondern
+ * dass jemand das dritte Argument VERGISST. Der Eingabedialog riefe
+ * `validateLoad(geom, draft)` mit der Default-Policy, waehrend der Solver mit
+ * einer ueberschriebenen rechnet — der Dialog akzeptierte dann, was der
+ * Rechnen-Knopf ablehnt, und nichts zeigte es an. Wer eine abweichende Policy
+ * will, muss deshalb durch die Fabrik; ein vergessbares Argument gibt es
+ * nicht. Dasselbe Muster wie die gebundene Formulierung in ADR 0003.
+ */
+export type LoadValidator = {
+  validateLoad(model: LoadModelGeometry, load: FEMLoad): LoadValidationResult;
+  validateLoads(
+    model: LoadModelGeometry,
+    loads: readonly FEMLoad[],
+  ): LoadValidationResult;
+  assertValidLoads(
+    model: LoadModelGeometry,
+    loads: readonly FEMLoad[],
+  ): void;
+};
+
+/**
+ * Bindet eine vollstaendige Policy an die drei Ausgaenge.
+ *
+ * Ohne Argument entsteht der Default-Validator — genau der, dessen Methoden die
+ * freien Exporte `validateLoad`, `validateLoads` und `assertValidLoads` sind.
+ */
+export function createLoadValidator(
+  policy: LoadValidationPolicy = DEFAULT_LOAD_VALIDATION_POLICY,
+): LoadValidator {
+  function validateLoad(
+    model: LoadModelGeometry,
+    load: FEMLoad,
+  ): LoadValidationResult {
+    return load.target === 'node'
+      ? validateNodeLoad(model, load)
+      : validateBeamLoad(model, load, policy);
+  }
+
+  function validateLoads(
+    model: LoadModelGeometry,
+    loads: readonly FEMLoad[],
+  ): LoadValidationResult {
+    const errors: LoadValidationError[] = [];
+    const warnings: LoadValidationWarning[] = [];
+    // Die gebundene Policy wird an JEDE Einzelpruefung durchgereicht — sonst
+    // gaebe es zwei Ergebnisse fuer dieselbe Last.
+    for (const load of loads) {
+      const result = validateLoad(model, load);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    return { errors, warnings };
+  }
+
+  function assertValidLoads(
+    model: LoadModelGeometry,
+    loads: readonly FEMLoad[],
+  ): void {
+    const [firstError] = validateLoads(model, loads).errors;
+    if (firstError) {
+      throw firstError;
+    }
+  }
+
+  return { validateLoad, validateLoads, assertValidLoads };
+}
+
+const defaultValidator = createLoadValidator();
+
+/**
+ * Prueft eine einzelne Last gegen die Default-Policy. Leeres `errors` = die
+ * Last ist zulaessig.
+ *
+ * Der Ausgang fuer den Eingabedialog: er prueft einen Entwurf waehrend des
+ * Tippens, den der Store noch gar nicht kennt. Rechnet die Anwendung mit einer
+ * abweichenden Policy, nimmt der Dialog statt dessen
+ * `createLoadValidator(policy).validateLoad`.
  */
 export function validateLoad(
   model: LoadModelGeometry,
   load: FEMLoad,
-): LoadValidationError[] {
-  return load.target === 'node'
-    ? validateNodeLoad(model, load)
-    : validateBeamLoad(model, load);
+): LoadValidationResult {
+  return defaultValidator.validateLoad(model, load);
 }
 
-/** Prueft alle Lasten eines Modells. Reihenfolge = Eingabereihenfolge. */
+/**
+ * Prueft alle Lasten eines Modells gegen die Default-Policy. Reihenfolge =
+ * Eingabereihenfolge.
+ */
 export function validateLoads(
   model: LoadModelGeometry,
   loads: readonly FEMLoad[],
-): LoadValidationError[] {
-  return loads.flatMap((load) => validateLoad(model, load));
+): LoadValidationResult {
+  return defaultValidator.validateLoads(model, loads);
 }
 
 /**
  * Wirft den ersten Fehler, wenn irgendeine Last unzulaessig ist. Das Tor fuer
  * die Rechenkette; die Oberflaeche nimmt statt dessen `validateLoads`.
+ *
+ * Ignoriert Warnungen: sie melden zulaessige Eingaben und duerfen nichts
+ * aufhalten.
  */
 export function assertValidLoads(
   model: LoadModelGeometry,
   loads: readonly FEMLoad[],
 ): void {
-  const [firstError] = validateLoads(model, loads);
-  if (firstError) {
-    throw firstError;
-  }
+  defaultValidator.assertValidLoads(model, loads);
 }
 
 function validateNodeLoad(
   model: LoadModelGeometry,
   load: NodeLoad,
-): LoadValidationError[] {
+): LoadValidationResult {
   const errors: LoadValidationError[] = [];
 
   if (load.nodeIds.length === 0) {
@@ -154,22 +256,46 @@ function validateNodeLoad(
     errors.push(new ZeroNodeLoadError(load.id));
   }
 
-  return errors;
+  // Die Knotenlast auf einem Knoten OHNE Stab waere hier der naheliegende
+  // dritte Hinweis. Sie steht bewusst nicht hier: „haengt an diesem Knoten ein
+  // Stab" ist eine Modell-, keine Lastfrage, und sie waere eine dritte Auskunft
+  // an `LoadModelGeometry`. Sie entsteht im `fem-solver`, der Modell und Lasten
+  // ohnehin beide sieht, aus `isolatedNodeIds` in `@baustatik/fem`.
+  return { errors, warnings: [] };
 }
 
 function validateBeamLoad(
   model: LoadModelGeometry,
   load: BeamLoad,
-): LoadValidationError[] {
+  policy: LoadValidationPolicy,
+): LoadValidationResult {
   const errors: LoadValidationError[] = [];
+  const warnings: LoadValidationWarning[] = [];
 
   if (load.beamIds.length === 0) {
     errors.push(new EmptyLoadTargetError(load.id, 'beam'));
   }
-  for (const { field, value } of valuesOf(load)) {
+
+  const values = valuesOf(load);
+  for (const { field, value } of values) {
     if (!Number.isFinite(value)) {
       errors.push(new NonFiniteLoadValueError(load.id, field, value));
     }
+  }
+
+  // Symmetrisch zur Knotenlast: eine Last, die nichts eintraegt, ist keine
+  // Last. Die Dreieckslast (`q1: 0, q2: 8`) bleibt zulaessig — es muss nur
+  // IRGENDEIN Wert wirken, nicht jeder.
+  const acts = values.some(
+    ({ value }) => Number.isFinite(value) && value !== 0,
+  );
+  if (!acts) {
+    errors.push(
+      new ZeroBeamLoadError(
+        load.id,
+        values.map(({ field }) => field),
+      ),
+    );
   }
 
   const placement = placementOf(load);
@@ -197,6 +323,21 @@ function validateBeamLoad(
         load.id,
         placement.first.value,
         placement.second.value,
+      ),
+    );
+  }
+  // Rueckwaerts ist ein Fehler, gleich nur ein Hinweis: die Angabe ist
+  // widerspruchsfrei, sie traegt bloss nichts ein.
+  if (
+    placement?.second !== undefined &&
+    Number.isFinite(placement.first.value) &&
+    placement.second.value === placement.first.value
+  ) {
+    warnings.push(
+      new ZeroExtentLoadSegmentWarning(
+        load.id,
+        placement.first.value,
+        placement.relative,
       ),
     );
   }
@@ -237,7 +378,7 @@ function validateBeamLoad(
       for (const { field, value } of stations) {
         if (
           Number.isFinite(value) &&
-          value > length * (1 + RELATIVE_TOLERANCE)
+          value > length * (1 + policy.stationRelativeTolerance)
         ) {
           errors.push(
             new DistanceOutOfRangeError(load.id, field, value, length, beamId),
@@ -246,19 +387,51 @@ function validateBeamLoad(
       }
     }
 
-    // Der Faktor ist dimensionslos, deshalb ist die Schranke direkt die
-    // relative Toleranz — dieselbe Zahl, die `fem-load-resolve` gleich mit
-    // `q * faktor` weiterrechnet.
+    // Zwei UNABHAENGIGE Schranken auf demselben dimensionslosen Faktor: bis
+    // `minimumReferenceFactor` wird abgelehnt, bis `suspiciousReferenceFactor`
+    // gewarnt. Frueher war die untere Schranke dieselbe Zahl wie die
+    // Stationstoleranz; das war ein Zufall der Groessenordnung, keine Regel.
+    //
+    // DAS `<=` IST DIE INVARIANTE: auch bei `minimumReferenceFactor: 0` bleibt
+    // der EXAKTE Faktor 0 abgelehnt — eine Last, deren Bezugslaenge am Stab
+    // exakt 0 misst, traegt nichts ein und ist immer ein Fehler. Nicht zu
+    // einem `<` „aufraeumen".
     const reference = referenceLengthOf(load);
-    if (
-      reference !== undefined &&
-      referenceFactor(reference, axis) <= RELATIVE_TOLERANCE
-    ) {
-      errors.push(new ZeroProjectedLengthError(load.id, beamId, reference));
+    if (reference !== undefined) {
+      const factor = referenceFactor(reference, axis);
+      if (factor <= policy.minimumReferenceFactor) {
+        errors.push(
+          new ReferenceFactorBelowMinimumError(
+            load.id,
+            beamId,
+            reference,
+            factor,
+            policy.minimumReferenceFactor,
+          ),
+        );
+      } else if (factor < policy.suspiciousReferenceFactor) {
+        // Kein Fehler: die Eingabe ist zulaessig und soll durchgehen. Sie sieht
+        // nur nach einem Versehen aus — und faellt sonst nirgends auf, weil die
+        // Zeichnung die Last unveraendert zeigt.
+        warnings.push(
+          new NearlyDegenerateReferenceLengthWarning(
+            load.id,
+            beamId,
+            reference,
+            factor,
+            policy.suspiciousReferenceFactor,
+            values.map(({ field, value }) => ({
+              field,
+              value,
+              effective: value * factor,
+            })),
+          ),
+        );
+      }
     }
   }
 
-  return errors;
+  return { errors, warnings };
 }
 
 /** Die Lastwerte mit ihren Feldnamen — je Variante ein oder zwei. */

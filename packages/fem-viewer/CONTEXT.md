@@ -46,7 +46,7 @@ lines, nodes as small red circles, and node supports as grouped symbols.
   are therefore zoom-dependent local values that remain screen-constant.
 - **Paint bands guarantee z-order, array order does not**: renderers append newly
   built shapes, so a beam added after the nodes exist would otherwise draw over
-  them. `FEM_LAYERS` (`['grid','beams','nodes','supports']`, last = topmost) is passed to the
+  them. `FEM_LAYERS` (`['grid','supports','beams','nodes']`, last = topmost) is passed to the
   driver at construction. The tuple is simultaneously the name list, the type
   source and the z-order — one declaration, one truth. Bands coarsen array order
   rather than competing with it: band order wins between bands, array order still

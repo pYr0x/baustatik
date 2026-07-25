@@ -5,19 +5,48 @@ import {
   DegenerateBeamError,
   DistanceOutOfRangeError,
   EmptyLoadTargetError,
+  type LoadValidationError,
+  NearlyDegenerateReferenceLengthWarning,
   NegativeDistanceError,
   NonFiniteLoadValueError,
+  ReferenceFactorBelowMinimumError,
   UnknownLoadTargetError,
+  ZeroBeamLoadError,
+  ZeroExtentLoadSegmentWarning,
   ZeroNodeLoadError,
-  ZeroProjectedLengthError,
 } from '../src/errors';
-import type { BeamLoad, NodeLoad } from '../src/types';
+import type {
+  BeamForceConstantLoad,
+  BeamForcePointLoad,
+  BeamLoad,
+  FEMLoad,
+  NodeLoad,
+} from '../src/types';
+import { createLoadValidationPolicy } from '../src/policy';
 import {
   assertValidLoads,
+  createLoadValidator,
   type LoadModelGeometry,
-  validateLoad,
-  validateLoads,
+  validateLoad as checkLoad,
+  validateLoads as checkLoads,
 } from '../src/validate';
+
+// Die Bloecke bis „Hinweise" pruefen das HARTE Tor. Sie lesen deshalb nur
+// `errors`; die Hinweise haben ihren eigenen Block am Ende, samt der Zusage,
+// dass die Regelfaelle keinen davon auslesen.
+function validateLoad(
+  m: LoadModelGeometry,
+  load: FEMLoad,
+): LoadValidationError[] {
+  return checkLoad(m, load).errors;
+}
+
+function validateLoads(
+  m: LoadModelGeometry,
+  loads: readonly FEMLoad[],
+): LoadValidationError[] {
+  return checkLoads(m, loads).errors;
+}
 
 // Dasselbe Modell wie in apps/demo/fem-viewer.ts: ein waagrechter Stab der
 // Laenge 100 und ein schraeger Stab nach oben (z zeigt abwaerts). Dazu ein
@@ -44,7 +73,9 @@ function nodeLoad(load: Partial<NodeLoad> = {}): NodeLoad {
 }
 
 /** D1 aus dem Pseudocode: Gleichlast global nach unten. */
-function uniformLoad(load: Partial<BeamLoad> = {}): BeamLoad {
+function uniformLoad(
+  load: Partial<BeamForceConstantLoad> = {},
+): BeamForceConstantLoad {
   return {
     id: 'load-1',
     target: 'beam',
@@ -56,11 +87,18 @@ function uniformLoad(load: Partial<BeamLoad> = {}): BeamLoad {
     referenceLength: 'trueLength',
     q: 5,
     ...load,
-  } as BeamLoad;
+  };
 }
 
-/** C1: Einzellast, absoluter Abstand vom Stabanfang. */
-function pointLoad(load: Record<string, unknown> = {}): BeamLoad {
+/**
+ * C1: Einzellast, absoluter Abstand vom Stabanfang.
+ *
+ * Kein `referenceLength`: `p` ist in kN, da gibt es nichts zu skalieren — der
+ * Typ traegt das Feld gar nicht erst (`types.ts`, `BeamForceReference`).
+ */
+function pointLoad(
+  load: Partial<BeamForcePointLoad> = {},
+): BeamForcePointLoad {
   return {
     id: 'load-1',
     target: 'beam',
@@ -69,14 +107,21 @@ function pointLoad(load: Record<string, unknown> = {}): BeamLoad {
     distribution: 'point',
     frame: 'global',
     axis: 'z',
-    // Kein `referenceLength`: `p` ist in kN, da gibt es nichts zu skalieren.
     p: 10,
     distanceFromStart: 50,
     ...load,
-  } as BeamLoad;
+  };
 }
 
-/** E3: Trapez auf einem Teilabschnitt. */
+/**
+ * E3: Trapez auf einem Teilabschnitt.
+ *
+ * Bleibt bewusst ungetypt, anders als `uniformLoad` und `pointLoad`: die Tests
+ * schalten hier zwischen den beiden Varianten von `TrapezoidalExtent` hin und
+ * her (`{from, to}` gegen `{fullLength: true}`, siehe den Test zu fullLength).
+ * Ein Spread kann eine Union-Variante nicht wechseln — `Partial<...>` waere
+ * hier eine Verrenkung, die den Test schlechter lesbar macht als der Cast.
+ */
 function trapezoidalLoad(load: Record<string, unknown> = {}): BeamLoad {
   return {
     id: 'load-1',
@@ -160,6 +205,54 @@ describe('validateLoad — Stablast, Ziele und Werte', () => {
     expect(
       validateLoad(model, uniformLoad({ beamIds: ['degenerate'] }))[0],
     ).toBeInstanceOf(DegenerateBeamError);
+  });
+
+  it('lehnt eine Stablast ab, deren Werte alle 0 sind', () => {
+    // Symmetrisch zu ZeroNodeLoadError: eine Last, die nichts eintraegt, ist
+    // keine Last. Vorher ging das still durch — nur am Knoten war es ein
+    // Fehler.
+    const zeroLoads: [BeamLoad, string[]][] = [
+      [pointLoad({ p: 0 }), ['p']],
+      [uniformLoad({ q: 0 }), ['q']],
+      [trapezoidalLoad({ q1: 0, q2: 0 }), ['q1', 'q2']],
+      [
+        {
+          id: 'load-1',
+          target: 'beam',
+          beamIds: ['horizontal'],
+          kind: 'moment',
+          distribution: 'constant',
+          m: 0,
+        },
+        ['m'],
+      ],
+      [
+        {
+          id: 'load-1',
+          target: 'beam',
+          beamIds: ['horizontal'],
+          kind: 'moment',
+          distribution: 'trapezoidal',
+          m1: 0,
+          m2: 0,
+          fullLength: true,
+        },
+        ['m1', 'm2'],
+      ],
+    ];
+
+    for (const [load, fields] of zeroLoads) {
+      const [error] = validateLoad(model, load);
+      expect(error).toBeInstanceOf(ZeroBeamLoadError);
+      expect((error as ZeroBeamLoadError).fields).toEqual(fields);
+    }
+  });
+
+  it('laesst die Dreieckslast zu — ein Wert 0 genuegt nicht (E2)', () => {
+    // Der Verlauf mit einer Null an einem Ende ist ein vorgesehener Fall.
+    // Beanstandet wird nur, wenn KEIN Wert wirkt.
+    expect(validateLoad(model, trapezoidalLoad({ q1: 0, q2: 8 }))).toEqual([]);
+    expect(validateLoad(model, trapezoidalLoad({ q1: 8, q2: 0 }))).toEqual([]);
   });
 
   it('prueft die Lastwerte jeder Variante auf Endlichkeit', () => {
@@ -318,8 +411,8 @@ describe('validateLoad — Bezugslaenge', () => {
       model,
       uniformLoad({ referenceLength: 'verticalProjection' }),
     );
-    expect(errors[0]).toBeInstanceOf(ZeroProjectedLengthError);
-    expect((errors[0] as ZeroProjectedLengthError).beamId).toBe('horizontal');
+    expect(errors[0]).toBeInstanceOf(ReferenceFactorBelowMinimumError);
+    expect((errors[0] as ReferenceFactorBelowMinimumError).beamId).toBe('horizontal');
   });
 
   it('lehnt horizontalProjection am senkrechten Stab ab', () => {
@@ -330,7 +423,7 @@ describe('validateLoad — Bezugslaenge', () => {
         referenceLength: 'horizontalProjection',
       }),
     );
-    expect(errors[0]).toBeInstanceOf(ZeroProjectedLengthError);
+    expect(errors[0]).toBeInstanceOf(ReferenceFactorBelowMinimumError);
   });
 
   it('nimmt die jeweils andere Projektion am selben Stab an', () => {
@@ -357,15 +450,7 @@ describe('validateLoad — Bezugslaenge', () => {
         model,
         trapezoidalLoad({ referenceLength: 'verticalProjection' })
       )[0],
-    ).toBeInstanceOf(ZeroProjectedLengthError);
-  });
-
-  it('laesst die wirkungslose Bezugslaenge der Einzellast unbeanstandet', () => {
-    // p ist in kN angegeben, nicht je Laenge — referenceLength hat dort keine
-    // Wirkung und darf deshalb auch nicht zum Fehler fuehren.
-    expect(
-      validateLoad(model, pointLoad({ referenceLength: 'verticalProjection' })),
-    ).toEqual([]);
+    ).toBeInstanceOf(ReferenceFactorBelowMinimumError);
   });
 
   it('kennt bei der Momentlast gar keine Bezugslaenge (F3)', () => {
@@ -379,6 +464,235 @@ describe('validateLoad — Bezugslaenge', () => {
         m: 2,
       }),
     ).toEqual([]);
+  });
+});
+
+describe('Hinweise', () => {
+  it('gibt fuer die Regelfaelle keine Hinweise aus', () => {
+    // Der wichtigste Test des Blocks: eine Warnung, die aus Versehen bei jeder
+    // gesunden Last anschlaegt, wird weggeklickt und schuetzt danach nichts.
+    for (const load of [
+      nodeLoad(),
+      pointLoad(),
+      uniformLoad(),
+      trapezoidalLoad(),
+    ]) {
+      expect(checkLoad(model, load).warnings).toEqual([]);
+    }
+  });
+
+  describe('fast entartete Bezugslaenge', () => {
+    /** Ein Stab mit gegebener Neigung, Laenge rund 100. */
+    function slopedBy(dz: number): LoadModelGeometry {
+      return {
+        ...model,
+        beamAxis: () => Line.make(Point.make(0, 0), Point.make(100, dz)),
+      };
+    }
+
+    it('warnt beim 0,57-Grad-Stab und nennt den gerechneten Wert', () => {
+      // Der namentlich dokumentierte Vertipper: aus q = 5 werden 0,05.
+      const { errors, warnings } = checkLoad(
+        slopedBy(1),
+        uniformLoad({ referenceLength: 'verticalProjection', q: 5 }),
+      );
+
+      expect(errors).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      const warning = warnings[0] as NearlyDegenerateReferenceLengthWarning;
+      expect(warning).toBeInstanceOf(NearlyDegenerateReferenceLengthWarning);
+      expect(warning.factor).toBeCloseTo(0.01, 4);
+      expect(warning.values).toEqual([
+        { field: 'q', value: 5, effective: expect.closeTo(0.05, 4) },
+      ]);
+      // Die Meldung nennt die FOLGE, nicht nur den Faktor.
+      expect(warning.message).toContain('5 ->');
+    });
+
+    it('warnt bei der Stuetze 1 Grad aus dem Lot', () => {
+      const vertical: LoadModelGeometry = {
+        ...model,
+        beamAxis: () =>
+          Line.make(Point.make(0, 0), Point.make(Math.tan(Math.PI / 180) * 50, 50)),
+      };
+
+      const { warnings } = checkLoad(
+        vertical,
+        uniformLoad({ referenceLength: 'horizontalProjection' }),
+      );
+
+      expect(warnings[0]).toBeInstanceOf(NearlyDegenerateReferenceLengthWarning);
+    });
+
+    it('warnt NICHT beim 5-Grad-Flachdach — das ist ein Realfall', () => {
+      // Winddruck auf eine flach geneigte Flaeche, bezogen auf die
+      // Ansichtsflaeche. Faktor 0,087, ueber der Schranke von 0,05.
+      const { warnings } = checkLoad(
+        slopedBy(Math.tan((5 * Math.PI) / 180) * 100),
+        uniformLoad({ referenceLength: 'verticalProjection' }),
+      );
+
+      expect(warnings).toEqual([]);
+    });
+
+    it('warnt nicht zusaetzlich, wo der Faktor bereits ein FEHLER ist', () => {
+      const { errors, warnings } = checkLoad(
+        model,
+        uniformLoad({ referenceLength: 'verticalProjection' }),
+      );
+
+      expect(errors[0]).toBeInstanceOf(ReferenceFactorBelowMinimumError);
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  describe('Lastabschnitt ohne Ausdehnung', () => {
+    it('warnt bei from === to', () => {
+      const { errors, warnings } = checkLoad(
+        model,
+        trapezoidalLoad({ from: 30, to: 30 }),
+      );
+
+      expect(errors).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toBeInstanceOf(ZeroExtentLoadSegmentWarning);
+      expect(warnings[0]).toMatchObject({ at: 30, relative: false });
+    });
+
+    it('nennt bei relativen Abstaenden die Prozentangabe', () => {
+      const { warnings } = checkLoad(
+        model,
+        trapezoidalLoad({ from: 40, to: 40, relativeDistances: true }),
+      );
+
+      expect(warnings[0]).toMatchObject({ at: 40, relative: true });
+      expect(warnings[0]?.message).toContain('40 %');
+    });
+
+    it('warnt nicht zusaetzlich, wenn der Abschnitt rueckwaerts laeuft', () => {
+      const { errors, warnings } = checkLoad(
+        model,
+        trapezoidalLoad({ from: 60, to: 20 }),
+      );
+
+      expect(errors[0]).toBeInstanceOf(BackwardsLoadExtentError);
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  it('haelt assertValidLoads nicht auf', () => {
+    // Der ganze Sinn der zweiten Hierarchie: die Eingabe ist zulaessig.
+    expect(() =>
+      assertValidLoads(model, [trapezoidalLoad({ from: 30, to: 30 })]),
+    ).not.toThrow();
+  });
+});
+
+describe('validateLoad — die Schranken der Policy', () => {
+  /** Ein 3-4-5-Stab: der Faktor ist exakt 0,6 bzw. 0,8, ohne Rundungsrest. */
+  const exact: LoadModelGeometry = {
+    ...model,
+    beamAxis: () => Line.make(Point.make(0, 0), Point.make(3, 4)),
+  };
+
+  it('haelt den EXAKTEN Faktor 0 auch bei minimumReferenceFactor 0 fest', () => {
+    // Die Invariante, die keine Policy wegdrehen darf: sie haengt allein am
+    // `<=` in validate.ts. Eine Last, deren Bezugslaenge am Stab exakt 0 misst,
+    // traegt nichts ein — das bleibt ein Fehler, egal wie die Schranke steht.
+    const validator = createLoadValidator(
+      createLoadValidationPolicy({ minimumReferenceFactor: 0 }),
+    );
+
+    const { errors } = validator.validateLoad(
+      model,
+      uniformLoad({ referenceLength: 'verticalProjection' }),
+    );
+
+    expect(errors[0]).toBeInstanceOf(ReferenceFactorBelowMinimumError);
+    expect(errors[0]).toMatchObject({ factor: 0, minimumReferenceFactor: 0 });
+  });
+
+  it('lehnt genau AUF der Mindestschranke ab und knapp darueber nicht', () => {
+    const load = uniformLoad({ referenceLength: 'horizontalProjection' });
+
+    // factor === 0.6 === minimumReferenceFactor -> `<=` schlaegt an.
+    expect(
+      createLoadValidator(
+        createLoadValidationPolicy({
+          minimumReferenceFactor: 0.6,
+          suspiciousReferenceFactor: 0.7,
+        }),
+      ).validateLoad(exact, load).errors[0],
+    ).toBeInstanceOf(ReferenceFactorBelowMinimumError);
+
+    expect(
+      createLoadValidator(
+        createLoadValidationPolicy({
+          minimumReferenceFactor: 0.5,
+          suspiciousReferenceFactor: 0.6,
+        }),
+      ).validateLoad(exact, load).errors,
+    ).toEqual([]);
+  });
+
+  it('warnt unterhalb der Warnschwelle, nicht auf ihr', () => {
+    const load = uniformLoad({ referenceLength: 'horizontalProjection' });
+
+    // factor === 0.6 === suspiciousReferenceFactor -> `<` schlaegt NICHT an.
+    expect(
+      createLoadValidator(
+        createLoadValidationPolicy({ suspiciousReferenceFactor: 0.6 }),
+      ).validateLoad(exact, load).warnings,
+    ).toEqual([]);
+
+    const { warnings } = createLoadValidator(
+      createLoadValidationPolicy({ suspiciousReferenceFactor: 0.7 }),
+    ).validateLoad(exact, load);
+
+    expect(warnings[0]).toBeInstanceOf(NearlyDegenerateReferenceLengthWarning);
+    // Der Befund nennt die AKTIVE Schranke — sonst liesse sich bei
+    // abweichender Policy nicht sagen, wogegen der Faktor gemessen wurde.
+    expect(warnings[0]).toMatchObject({
+      factor: 0.6,
+      suspiciousReferenceFactor: 0.7,
+    });
+  });
+
+  it('vergleicht Stationen gegen die Stablaenge mit der eingestellten Toleranz', () => {
+    // Genau an der Default-Toleranz: geht durch, weil `>` und nicht `>=`.
+    const atTolerance = pointLoad({ distanceFromStart: 100 * (1 + 1e-9) });
+
+    expect(validateLoad(model, atTolerance)).toEqual([]);
+
+    // Ohne Toleranz ist derselbe Abstand zu weit.
+    expect(
+      createLoadValidator(
+        createLoadValidationPolicy({ stationRelativeTolerance: 0 }),
+      ).validateLoad(model, atTolerance).errors[0],
+    ).toBeInstanceOf(DistanceOutOfRangeError);
+
+    // Und mit einer grosszuegigen Toleranz auch ein deutlich groesserer.
+    expect(
+      createLoadValidator(
+        createLoadValidationPolicy({ stationRelativeTolerance: 0.1 }),
+      ).validateLoad(model, pointLoad({ distanceFromStart: 105 })).errors,
+    ).toEqual([]);
+    expect(
+      validateLoad(model, pointLoad({ distanceFromStart: 105 }))[0],
+    ).toBeInstanceOf(DistanceOutOfRangeError);
+  });
+
+  it('laesst die Stationstoleranz die relative Obergrenze unberuehrt', () => {
+    // 100 % ist die DEFINITION von „relativ", keine gerechnete Stablaenge —
+    // an dieser Grenze hat die Policy nichts zu suchen.
+    expect(
+      createLoadValidator(
+        createLoadValidationPolicy({ stationRelativeTolerance: 0.5 }),
+      ).validateLoad(
+        model,
+        pointLoad({ distanceFromStart: 120, relativeDistances: true }),
+      ).errors[0],
+    ).toBeInstanceOf(DistanceOutOfRangeError);
   });
 });
 

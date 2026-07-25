@@ -13,11 +13,17 @@ Fertig:
 - `src/types.ts` — das vollständige Lastmodell. `tsc --noEmit` läuft sauber.
 - `src/index.ts` — Re-Export von Typen, Fehlern und Validierung (Schritt 1).
 - `src/validate.ts` + `src/errors.ts` + `tests/validate.test.ts` — Schritt 3,
-  28 Tests, 100 % Coverage. Zwei Ausgänge: `validateLoads` sammelt alle
-  Beanstandungen (für den Dialog), `assertValidLoads` wirft die erste (für die
-  Rechenkette). Das Modell kommt über das schmale `LoadModelGeometry`
-  (`hasNode`, `beamAxis`) herein — dadurch bleibt `@baustatik/fem` draußen und
-  es gibt genau zwei Dependencies: `errors` und `fem-geometry`.
+  100 % Coverage. Zwei Ausgänge: `validateLoads` sammelt alle Beanstandungen
+  (für den Dialog), `assertValidLoads` wirft die erste (für die Rechenkette).
+  Das Modell kommt über das schmale `LoadModelGeometry` (`hasNode`, `beamAxis`)
+  herein.
+- `src/model-geometry.ts` + `tests/model-geometry.test.ts` —
+  `modelGeometry(nodes, beams)`, die mitgelieferte Implementierung. **Damit hat
+  das Package drei Dependencies:** `errors`, `fem-geometry` und `fem`. Der
+  `fem`-Import steht in genau dieser einen Datei; die Regeln in `validate.ts`
+  kennen das Modell weiterhin nicht. Begründung in
+  [ADR 0006](../../docs/adr/0006-fem-loads-depends-on-fem.md).
+- `CONTEXT.md` — steht.
 - `apps/demo/fem-viewer.ts:41` — Pseudocode v4 aller Eingabefälle als
   auskommentierte Store-Aufrufe. Das ist die Quelle, aus der `types.ts`
   abgeleitet wurde; beide zusammen lesen.
@@ -25,7 +31,13 @@ Fertig:
   das Modell stammt. Nicht wegwerfen, sie beantworten die meisten Rückfragen
   schneller als jede Diskussion.
 
-Noch nicht da: `CONTEXT.md`, Zeile in `AGENTS.md`, alles im Viewer.
+- `@baustatik/fem-solver` — `createFEMSolver` steht als Einstiegspunkt der
+  Rechnung (`validate()` läuft, `solve()` ist ein werfender Stub). Siehe
+  [ADR 0007](../../docs/adr/0007-fem-solver-as-calculation-entry-point.md).
+- `apps/demo/fem-viewer.ts` — Store hält `loads`, die Fälle A1, C1 und D4 sind
+  aktiv, der Rechenkopf prüft sie beim Start.
+
+Noch nicht da: alles im Viewer (Darstellung der Lasten).
 
 ## Die Erkenntnis, die alles andere trägt
 
@@ -108,24 +120,19 @@ denken.
 1. ~~**`src/index.ts`**~~ — erledigt.
 2. ~~**`pnpm install` im Root**~~ — erledigt; `lint`, `format`, `build`, `test`
    und `typecheck` laufen alle sauber.
-3. ~~**`src/validate.ts`**~~ — erledigt, siehe „Wo wir stehen". Drei
-   Entscheidungen, die dort getroffen wurden und Widerspruch vertragen —
-   ausführlich mit Alternativen und Umkehraufwand in
-   [`TODO-check.md`](TODO-check.md), hier nur der Kern:
-   - **Fehler werden gesammelt UND geworfen.** `validateLoads` gibt eine Liste
-     benannter `LoadValidationError`-Instanzen zurück (Dialog: alle Fehler auf
-     einmal, `loadId`/`field` als Felder, damit die UI das richtige
-     Eingabefeld markieren kann); `assertValidLoads` wirft die erste. Ohne die
-     Liste hätte der Dialog nur „ein Fehler nach dem anderen".
-   - **Kein Import aus `@baustatik/fem`.** Gebraucht werden nur `hasNode` und
-     `beamAxis` — das ist `LoadModelGeometry`. Die Abbildung `Beam → Line`
-     leistet der Aufrufer, der `fem` ohnehin kennt.
-   - **Die wirkungslose `referenceLength` der Einzellast wird nicht
-     beanstandet** (`p` ist kN, nicht kN/m). Ändert sich, sobald offene Frage 6
-     aus `fem-load-resolve/HANDOFF.md` das Feld aus dem Typ wirft.
-4. **`CONTEXT.md`** nach dem Muster von `packages/fem-viewer/CONTEXT.md`
-   (Purpose / Boundaries / Dependencies / Navigation / Invariants / Validation /
-   Known constraints), Zeile in der Tabelle in `AGENTS.md:29` ergänzen.
+3. ~~**`src/validate.ts`**~~ — erledigt. Die drei Entscheidungen, die dort
+   getroffen wurden, sind inzwischen durchgesprochen; Niederschrift in
+   [`TODO-check.md`](TODO-check.md). Kurz:
+   - **Fehler werden gesammelt UND geworfen** — bestätigt, unverändert. Beide
+     Ausgänge haben jetzt ein Haus: `createFEMSolver` gibt `validate()` und
+     `solve()`.
+   - **Kein Import aus `@baustatik/fem`** — gekippt. `modelGeometry` in
+     `src/model-geometry.ts` importiert `Node`/`Beam`, sonst niemand.
+     [ADR 0006](../../docs/adr/0006-fem-loads-depends-on-fem.md).
+   - **Die `referenceLength` der Einzellast** — hat sich selbst erledigt: das
+     Feld ist aus dem Typ verschwunden, `BeamForceReference` ist ein eigenes
+     Mixin. Der Test dazu ist gelöscht.
+4. ~~**`CONTEXT.md`**~~ — erledigt, samt Zeile in `AGENTS.md`.
 5. **Darstellung** im `fem-viewer`, in dieser Reihenfolge:
    - `src/load-geometry.ts` — reine Weltgeometrie (Ankerpunkt, Richtungsvektor,
      Basislinie). Importiert **weder** `render-core` **noch** `viewport-2d`,
@@ -142,10 +149,12 @@ denken.
      `LoadOutOfBeamRangeError`. Prinzip: „Dangling references throw".
    - Spec-IDs: `load:{id}`, Kinder `load:{id}:arrow:{i}`; bei der Knotenlast
      `load:{id}:fx` / `:fz` / `:my`, weil eine Last bis zu drei Symbole hat.
-6. **Demo** — `addNodeLoad` / `addBeamLoad` im Store, den auskommentierten
-   Pseudocode fallweise aktivieren. Der schräge Stab steht bereits
-   (`apps/demo/fem-viewer.ts:38`, Knoten bei `(160, -40)`, also nach _oben_, da
-   z abwärts zeigt).
+6. ~~**Demo**~~ — erledigt: `addNodeLoad` / `addBeamLoad` stehen im Store, die
+   Fälle A1, C1 und D4 sind aktiv. Der schräge Stab steht bei
+   `Point.make(160, 40)` (`apps/demo/fem-viewer.ts`), also nach _unten_, da z
+   abwärts zeigt — frühere Fassungen dieses Handoffs behaupteten `(160, -40)`
+   und „nach oben". Für die Sichttests zur Bezugslänge ist beides gleichwertig;
+   wer das Dach lieber steigen sieht, ändert das Vorzeichen dort.
 
 ## Der eigentliche technische Knackpunkt
 
