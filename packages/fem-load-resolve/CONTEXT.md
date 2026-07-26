@@ -42,10 +42,13 @@ eigenen Fehler, siehe Invariants).
 
 ## Navigation
 
-- [`src/resolve.ts`](src/resolve.ts): `resolveLoads`, der einzige Einstiegspunkt,
-  samt Fan-out, Drehung, Bezugslaenge, Lage und Merge.
+- [`src/resolve.ts`](src/resolve.ts): `resolveLoads`, der Einstiegspunkt der
+  Rechenkette, samt Fan-out, Drehung, Bezugslaenge, Lage und Merge.
+- [`src/load-geometry.ts`](src/load-geometry.ts): `loadStation` und
+  `loadDirection` — Lage und Richtung einer Last, ohne Lastwert.
 - [`src/types.ts`](src/types.ts): `GlobalNodeLoad`, `ResolvedLoads`.
-- [`src/index.ts`](src/index.ts): `resolveLoads` und die zwei Typen, sonst nichts.
+- [`src/index.ts`](src/index.ts): `resolveLoads`, `loadStation`,
+  `loadDirection` und die zwei Typen, sonst nichts.
 
 ## Domain language
 
@@ -72,6 +75,17 @@ eigenen Fehler, siehe Invariants).
   Knotenlasten NICHT** — eine Knotenlast laeuft nie durch ein Element. Das
   Gegenstueck sitzt in der 6x6-Transformation des Solvers; beide Vorzeichenwechsel
   heben sich auf. Herleitung: `docs/adr/0005-…`.
+- **Lage und Richtung sind auch fuer Nicht-Solver-Aufrufer offen**: `loadStation`
+  (Prozentregel plus Klemmen auf `[0, L]`) und `loadDirection` (globaler
+  Einheitsvektor einer Kraftrichtung) sind exportiert, weil der Viewer beim
+  Zeichnen eines Lastpfeils dieselben zwei Fragen stellt wie der Solver.
+  Zweimal hergeleitet driften Bild und Rechnung genau in dem Paar auseinander,
+  fuer das man das Bild ueberhaupt anschaut. Der Export-Kopf bleibt trotzdem
+  schmal: **keine** Lastwerte, keine Bezugslaenge, keine Balkentheorie.
+  `toLocalComponents` bleibt bewusst eine eigene Herleitung statt
+  `Line.toLocal(loadDirection(...))` — der Rundlauf `toGlobal` nach `toLocal`
+  wuerde dem Solverpfad Fließkommarauschen zufuegen. Dass beide Wege dasselbe
+  sagen, sichert ein Test ueber alle vier `frame`/`axis`-Kombinationen.
 - **Die Drehung laeuft ueber `Line.toLocal`, nie ueber `cosα/sinα`**: die
   Definition der lokalen Stabachse lebt an einer Stelle (`fem-geometry`), und die
   Zerlegung ist dort ein Skalarprodukt gegen eine orthonormale Basis — kein

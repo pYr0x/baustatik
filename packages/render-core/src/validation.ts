@@ -2,7 +2,7 @@ import { atOrThrow } from '@baustatik/core';
 import type { WorldPoint } from '@baustatik/viewport-2d';
 import { InvalidWorldPointError } from '@baustatik/viewport-2d';
 import { DuplicateSpecIdError, InvalidSpecError } from './errors';
-import type { PrimitiveSpec, Spec } from './specs';
+import type { LabelSpec, ShapeSpec, Spec } from './specs';
 
 function checkWorldPoint(
   point: WorldPoint,
@@ -26,33 +26,81 @@ function checkLayer(spec: Spec): void {
   }
 }
 
-function checkStrokeAndFill(spec: PrimitiveSpec): void {
+function checkColor(
+  value: string | undefined,
+  specId: string,
+  field: string,
+): void {
+  if (value === undefined) return;
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new InvalidSpecError(specId, `${field} darf kein leerer String sein`);
+  }
+}
+
+function checkNumber(
+  value: number,
+  specId: string,
+  field: string,
+  { positive }: { positive: boolean },
+): void {
+  const ok = Number.isFinite(value) && (positive ? value > 0 : value >= 0);
+  if (!ok) {
+    throw new InvalidSpecError(
+      specId,
+      `${field} muss eine ${positive ? 'positive' : 'nicht-negative'} endliche Zahl sein, erhalten: ${value}`,
+    );
+  }
+}
+
+function checkStrokeAndFill(spec: ShapeSpec): void {
   if (spec.strokeWidth !== undefined) {
-    if (!Number.isFinite(spec.strokeWidth) || spec.strokeWidth < 0) {
-      throw new InvalidSpecError(
-        spec.id,
-        `strokeWidth muss eine nicht-negative endliche Zahl sein, erhalten: ${spec.strokeWidth}`,
-      );
-    }
+    checkNumber(spec.strokeWidth, spec.id, 'strokeWidth', { positive: false });
   }
-  if (spec.strokeColor !== undefined) {
-    if (
-      typeof spec.strokeColor !== 'string' ||
-      spec.strokeColor.trim() === ''
-    ) {
-      throw new InvalidSpecError(
-        spec.id,
-        'strokeColor darf kein leerer String sein',
-      );
-    }
+  checkColor(spec.strokeColor, spec.id, 'strokeColor');
+  if ('fillColor' in spec) {
+    checkColor(spec.fillColor, spec.id, 'fillColor');
   }
-  if ('fillColor' in spec && spec.fillColor !== undefined) {
-    if (typeof spec.fillColor !== 'string' || spec.fillColor.trim() === '') {
-      throw new InvalidSpecError(
-        spec.id,
-        'fillColor darf kein leerer String sein',
-      );
-    }
+}
+
+function checkRequiredString(
+  value: string,
+  specId: string,
+  field: string,
+): void {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new InvalidSpecError(
+      specId,
+      `${field} muss ein nicht-leerer String sein`,
+    );
+  }
+}
+
+function checkLabel(spec: LabelSpec): void {
+  checkRequiredString(spec.text, spec.id, 'text');
+  checkWorldPoint(spec.anchor, spec.id, 'anchor');
+  checkWorldPoint(spec.direction, spec.id, 'direction');
+  // Eine Richtung der Laenge 0 waehlt keine Seite — der Adapter koennte die Box
+  // nirgendwo hinlegen, und der Fehler faende sich erst im Bild wieder.
+  if (spec.direction.u === 0 && spec.direction.v === 0) {
+    throw new InvalidSpecError(
+      spec.id,
+      'direction darf nicht der Nullvektor sein',
+    );
+  }
+  checkNumber(spec.gap, spec.id, 'gap', { positive: false });
+  checkNumber(spec.fontSize, spec.id, 'fontSize', { positive: true });
+  checkNumber(spec.padding, spec.id, 'padding', { positive: false });
+  checkRequiredString(spec.fontFamily, spec.id, 'fontFamily');
+  checkRequiredString(spec.textColor, spec.id, 'textColor');
+  checkRequiredString(spec.backgroundColor, spec.id, 'backgroundColor');
+  checkColor(spec.borderColor, spec.id, 'borderColor');
+  if (spec.borderWidth !== undefined) {
+    checkNumber(spec.borderWidth, spec.id, 'borderWidth', { positive: false });
+  }
+  if (spec.cornerRadius !== undefined) {
+    checkNumber(spec.cornerRadius, spec.id, 'cornerRadius', {
+      positive: false,
+    });
   }
 }
 
@@ -115,6 +163,22 @@ export function validateSpec(spec: Spec): void {
       }
       break;
 
+    case 'arrow':
+      checkStrokeAndFill(spec);
+      checkWorldPoint(spec.tail, spec.id, 'tail');
+      checkWorldPoint(spec.tip, spec.id, 'tip');
+      checkNumber(spec.pointerLength, spec.id, 'pointerLength', {
+        positive: true,
+      });
+      checkNumber(spec.pointerWidth, spec.id, 'pointerWidth', {
+        positive: true,
+      });
+      break;
+
+    case 'label':
+      checkLabel(spec);
+      break;
+
     case 'group':
       checkWorldPoint(spec.position, spec.id, 'position');
       checkWorldPoint(spec.translation, spec.id, 'translation');
@@ -134,10 +198,14 @@ export function validateSpec(spec: Spec): void {
         );
       }
       for (const child of spec.children) {
-        if ((child as Spec).kind === 'group') {
+        // Dieselbe Begruendung fuer beide: ein Label ist im Renderer eine
+        // Gruppe aus Box und Text. Als Kind entstuende also eine verschachtelte
+        // Gruppe, und genau die sagt der Konva-Adapter ab.
+        const childKind = (child as Spec).kind;
+        if (childKind === 'group' || childKind === 'label') {
           throw new InvalidSpecError(
             spec.id,
-            'verschachtelte Gruppen werden nicht unterstuetzt',
+            'verschachtelte Gruppen werden nicht unterstuetzt (auch nicht als label)',
           );
         }
         if (child.layer !== undefined) {

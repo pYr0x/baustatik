@@ -354,12 +354,24 @@ importers:
       '@baustatik/fem':
         specifier: workspace:*
         version: link:../fem
+      '@baustatik/fem-geometry':
+        specifier: workspace:*
+        version: link:../fem-geometry
+      '@baustatik/fem-load-resolve':
+        specifier: workspace:*
+        version: link:../fem-load-resolve
+      '@baustatik/fem-loads':
+        specifier: workspace:*
+        version: link:../fem-loads
       '@baustatik/grid-2d':
         specifier: workspace:*
         version: link:../grid-2d
       '@baustatik/render-core':
         specifier: workspace:*
         version: link:../render-core
+      '@baustatik/round':
+        specifier: workspace:*
+        version: link:../round
       '@baustatik/viewport-2d':
         specifier: workspace:*
         version: link:../viewport-2d

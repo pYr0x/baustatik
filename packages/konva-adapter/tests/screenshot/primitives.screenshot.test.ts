@@ -107,6 +107,26 @@ describe('primitive shapes — screenshot baselines', () => {
     ]);
   });
 
+  // Fuer `label` gibt es BEWUSST keine Baseline: Text haengt deutlich staerker
+  // von der Maschine ab als das ohnehin plattformabhaengige Antialiasing
+  // (Fontverfuegbarkeit, Hinting). Die Zusage ueber die Boxgeometrie steht
+  // stattdessen im Browser-Test, siehe CONTEXT.md.
+  it('renders an arrow', async () => {
+    await snapshot('primitive-arrow', [
+      {
+        id: 'arrow',
+        kind: 'arrow',
+        tail: { u: 0, v: -3 },
+        tip: { u: 0, v: 3 },
+        pointerLength: 1,
+        pointerWidth: 0.8,
+        strokeColor: '#1d4ed8',
+        strokeWidth: 3,
+        fillColor: '#1d4ed8',
+      },
+    ]);
+  });
+
   it('renders a dashed stroke', async () => {
     await snapshot('stroke-dashed', [
       {

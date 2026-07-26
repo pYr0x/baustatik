@@ -13,10 +13,25 @@ A core library defining data structures, validation rules, error types, and driv
 **Signature:**
 
 ```typescript
-type Spec = LineSpec | CircleSpec | PolygonSpec | TriangleSpec;
+type ShapeSpec =
+  | LineSpec
+  | CircleSpec
+  | PolygonSpec
+  | RectangleSpec
+  | TriangleSpec
+  | ArrowSpec;
+
+type PrimitiveSpec = ShapeSpec | LabelSpec;
+
+type Spec = PrimitiveSpec | GroupSpec;
 ```
 
 **Description:** A union type representing all renderable graphic specifications in the 2D workspace. Each spec has a unique `id` for reconciliation and rendering.
+
+`ShapeSpec` is the subset that maps to a single drawn shape. `GroupSpec.children`
+accepts only those: a `LabelSpec` is a composed box-plus-text in the renderer, so
+allowing it as a child would produce the nested group that adapters do not
+support.
 
 ---
 
@@ -123,6 +138,118 @@ const polygon: PolygonSpec = {
   closed: true,
   strokeWidth: 1,
   strokeColor: 'black',
+};
+```
+
+---
+
+### ArrowSpec
+
+**Signature:**
+
+```typescript
+interface ArrowSpec {
+  readonly id: string;
+  readonly kind: 'arrow';
+  readonly tail: WorldPoint;
+  readonly tip: WorldPoint;
+  readonly pointerLength: number;
+  readonly pointerWidth: number;
+  readonly strokeColor?: string;
+  readonly strokeWidth?: number;
+  readonly strokeStyle?: 'solid' | 'dashed' | 'dotted';
+  readonly fillColor?: string;
+}
+```
+
+**Description:** A directed segment with a head at `tip`. The order `tail → tip`
+_is_ the direction of action, which is why the points are not called `from`/`to`
+like on a line — swapping them silently reverses the arrow. `pointerLength` and
+`pointerWidth` are world quantities and scale with zoom (like `CircleSpec.radius`),
+while `strokeWidth` stays in screen pixels as everywhere else.
+
+**Example:**
+
+```typescript
+import type { ArrowSpec } from '@baustatik/render-core';
+
+const arrow: ArrowSpec = {
+  id: 'load-1:arrow',
+  kind: 'arrow',
+  tail: { u: 0, v: -3 },
+  tip: { u: 0, v: 0 },
+  pointerLength: 0.6,
+  pointerWidth: 0.5,
+  strokeColor: '#1d4ed8',
+  strokeWidth: 2,
+  fillColor: '#1d4ed8',
+};
+```
+
+---
+
+### LabelSpec
+
+**Signature:**
+
+```typescript
+interface LabelSpec {
+  readonly id: string;
+  readonly kind: 'label';
+  readonly text: string;
+  readonly anchor: WorldPoint;
+  readonly direction: WorldPoint; // read as a u/v direction, not a point
+  readonly gap: number;
+  readonly fontSize: number;
+  readonly fontFamily: string;
+  readonly textColor: string;
+  readonly padding: number;
+  readonly backgroundColor: string;
+  readonly borderColor?: string;
+  readonly borderWidth?: number;
+  readonly cornerRadius?: number;
+}
+```
+
+**Description:** A horizontal caption inside a box — the first spec carrying text,
+and the first whose **final geometry is known only to the adapter**. How wide
+`text` renders at a given `fontSize`/`fontFamily` can only be answered by
+something that can measure text; a producer without a canvas cannot. The spec
+therefore describes the placement as an _anchor plus direction_ rather than a box
+position:
+
+> The adapter puts the box edge at distance `gap` on the ray starting at `anchor`
+> in direction `direction`, and centres the box on that ray. Concretely, with the
+> normalised direction `d`, half sizes `hw`/`hh` and
+> `t = min(hw / |d.u|, hh / |d.v|)` over the non-zero components only, the box
+> centre sits at `anchor + d * (gap + t)`. For axis-parallel directions `t` is
+> exactly the half width or half height.
+
+The box itself stays axis-aligned; `direction` picks a side, it does not rotate
+anything. `fontFamily` is mandatory rather than falling back to the renderer's
+default, so appearance and screenshot baselines do not depend on the font list of
+the machine.
+
+**Example:**
+
+```typescript
+import type { LabelSpec } from '@baustatik/render-core';
+
+const label: LabelSpec = {
+  id: 'load-1:label',
+  kind: 'label',
+  text: '10 kN',
+  anchor: { u: 0, v: -3 },
+  direction: { u: 0, v: -1 },
+  gap: 0.3,
+  fontSize: 0.6,
+  fontFamily: 'sans-serif',
+  textColor: '#1d4ed8',
+  padding: 0.15,
+  backgroundColor: '#dbeafe',
+  borderColor: '#1d4ed8',
+  borderWidth: 1,
+  cornerRadius: 0.15,
 };
 ```
 
@@ -237,6 +364,12 @@ function draw(spec: Spec) {
       break;
     case 'triangle':
       // draw triangle
+      break;
+    case 'arrow':
+      // draw arrow
+      break;
+    case 'label':
+      // draw label
       break;
     default:
       assertNever(spec);

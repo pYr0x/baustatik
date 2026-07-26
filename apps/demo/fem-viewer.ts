@@ -94,6 +94,7 @@ const viewer = createFEMViewer({
     getNodes: () => store.nodes,
     getBeams: () => store.beams,
     getSupports: () => store.supports,
+    getLoads: () => store.loads,
     getScreenSize: () => stageSize,
     grid: { spacing: 10 }, // Weltkoordinaten; Segmente sind 60–100 Einheiten gross
 });

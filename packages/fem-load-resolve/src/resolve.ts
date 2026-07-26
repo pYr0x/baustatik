@@ -33,10 +33,8 @@ import {
   referenceFactor,
   UnknownLoadTargetError,
 } from '@baustatik/fem-loads';
+import { loadStation } from './load-geometry';
 import type { GlobalNodeLoad, ResolvedLoads } from './types';
-
-/** Obergrenze relativer Abstaende — `relativeDistances` misst in Prozent. */
-const PERCENT = 100;
 
 /** Die Lastarten mit Ausdehnung. Die Einzellast hat keine. */
 type DistributedLoad = Extract<
@@ -129,8 +127,14 @@ function resolveBeamLoad(
  * lokalen Stabachse soll an EINER Stelle leben (`fem-geometry/src/line.ts`),
  * und die Zerlegung ist dort ein Skalarprodukt gegen eine orthonormale Basis —
  * kein Winkel, keine Drehmatrix, keine Vorzeichenherleitung.
+ *
+ * NICHT ueber `loadDirection` gebaut, obwohl das die Gegenrichtung derselben
+ * Frage ist: im lokalen Fall entstuende ein `toGlobal`-nach-`toLocal`-Rundlauf,
+ * der dem Solverpfad Fließkommarauschen zufuegt. Dass beide Wege dasselbe
+ * sagen, sichert `tests/load-geometry.test.ts` — deshalb ist die Funktion
+ * modulweit exportiert, aber nicht im Package-Index.
  */
-function toLocalComponents(
+export function toLocalComponents(
   frame: LoadFrame,
   axis: LoadAxis,
   value: number,
@@ -151,7 +155,11 @@ function appendForce(
     // Keine Bezugslaenge: `p` ist eine Gesamtkraft in kN, nicht je Laenge.
     const p = toLocalComponents(load.frame, load.axis, load.p, line);
     target.points.push({
-      a: station(load.distanceFromStart, load.relativeDistances === true, L),
+      a: loadStation(
+        load.distanceFromStart,
+        load.relativeDistances === true,
+        L,
+      ),
       px: p.dx,
       pz: p.dz,
       my: 0,
@@ -200,7 +208,11 @@ function appendMoment(
 ): void {
   if (load.distribution === 'point') {
     target.points.push({
-      a: station(load.distanceFromStart, load.relativeDistances === true, L),
+      a: loadStation(
+        load.distanceFromStart,
+        load.relativeDistances === true,
+        L,
+      ),
       px: 0,
       pz: 0,
       my: -load.m,
@@ -236,23 +248,8 @@ function extentOf(load: DistributedLoad, L: number): [number, number] {
     return [0, L];
   }
   const relative = load.relativeDistances === true;
-  return [station(load.from, relative, L), station(load.to, relative, L)];
-}
-
-/**
- * Ein Abstand entlang der Stabachse, in Metern.
- *
- * Abstaende sind laut `fem-loads/src/types.ts` IMMER entlang der Stabachse
- * gemessen, unabhaengig von `referenceLength` — die skaliert nur den Lastwert,
- * nie die Lage.
- *
- * Das Klemmen faengt reines Fließkommarauschen ab (`pct * L / 100` trifft `L`
- * nicht zwingend exakt) und macht damit die in
- * `fem-element/src/types.ts` dokumentierte Invariante `0 <= from <= to <= L`
- * woertlich wahr statt nur bis auf eine Toleranz. Echte Bereichsfehler
- * versteckt es nicht: die hat `validate.ts` schon geworfen.
- */
-function station(value: number, relative: boolean, L: number): number {
-  const absolute = relative ? (value * L) / PERCENT : value;
-  return Math.min(Math.max(absolute, 0), L);
+  return [
+    loadStation(load.from, relative, L),
+    loadStation(load.to, relative, L),
+  ];
 }

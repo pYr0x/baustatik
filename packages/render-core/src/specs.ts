@@ -52,12 +52,72 @@ export interface TriangleSpec extends SpecBase, Stroke, Filled {
   readonly sideLength: number;
 }
 
+/**
+ * Gerichtete Strecke mit Kopf am Ende. `tail -> tip` IST die Wirkrichtung:
+ * vertauscht zeigt der Pfeil rueckwaerts, und das faellt in keiner Validierung
+ * auf. Deshalb heissen die Punkte nicht `from`/`to` wie bei der Linie.
+ *
+ * `pointerLength`/`pointerWidth` sind Weltgroessen und skalieren mit dem Zoom
+ * (wie `CircleSpec.radius`), `strokeWidth` bleibt wie ueberall Screen-Pixel.
+ */
+export interface ArrowSpec extends SpecBase, Stroke, Filled {
+  readonly kind: 'arrow';
+  readonly tail: WorldPoint;
+  readonly tip: WorldPoint;
+  readonly pointerLength: number;
+  readonly pointerWidth: number;
+}
+
+/**
+ * Waagerechte Beschriftung in einer Box — das erste Primitive mit Text.
+ *
+ * BESONDERHEIT: seine endgueltige Geometrie kennt erst der Adapter. Wie breit
+ * `text` in `fontSize`/`fontFamily` wird, weiss nur, wer messen kann; ein
+ * Erzeuger ohne Canvas kann es nicht. Deshalb beschreibt die Spec die Lage
+ * nicht als Boxposition, sondern als ANKER plus RICHTUNG: Der Adapter legt den
+ * Boxrand im Abstand `gap` auf den Strahl, der bei `anchor` in Richtung
+ * `direction` startet, und zentriert die Box auf diesem Strahl.
+ *
+ * Die Box selbst bleibt achsparallel — `direction` dreht nichts, sie waehlt nur
+ * die Seite.
+ */
+export interface LabelSpec extends SpecBase {
+  readonly kind: 'label';
+  readonly text: string;
+  readonly anchor: WorldPoint;
+  /** Richtungsvektor in u/v, kein Punkt. Nur die Richtung zaehlt, nicht die Laenge. */
+  readonly direction: WorldPoint;
+  /** Weltabstand zwischen `anchor` und dem naechsten Boxrand. */
+  readonly gap: number;
+  readonly fontSize: number;
+  /**
+   * Pflichtfeld, KEIN Rueckfall auf die Voreinstellung des Renderers: sonst
+   * haengen Aussehen und Screenshot-Baseline an der Fontliste der Maschine.
+   */
+  readonly fontFamily: string;
+  readonly textColor: string;
+  readonly padding: number;
+  readonly backgroundColor: string;
+  readonly borderColor?: string;
+  readonly borderWidth?: number;
+  readonly cornerRadius?: number;
+}
+
 export type PrimitiveSpec =
   | LineSpec
   | CircleSpec
   | PolygonSpec
   | RectangleSpec
-  | TriangleSpec;
+  | TriangleSpec
+  | ArrowSpec
+  | LabelSpec;
+
+/**
+ * Die Primitives, die auf eine einzelne Zeichenform abbilden. `LabelSpec` faellt
+ * heraus: es ist ein Text in einer Box und damit im Renderer zusammengesetzt.
+ * Ein `GroupSpec` nimmt deshalb nur diese (siehe `validateSpec`).
+ */
+export type ShapeSpec = Exclude<PrimitiveSpec, LabelSpec>;
 
 export interface GroupSpec extends SpecBase {
   readonly kind: 'group';
@@ -67,7 +127,7 @@ export interface GroupSpec extends SpecBase {
   // auf die inverse offsetX/offsetY-Semantik von Konva.
   readonly translation: WorldPoint;
   readonly rotationDeg?: number;
-  readonly children: readonly PrimitiveSpec[];
+  readonly children: readonly ShapeSpec[];
 }
 
 export type Spec = PrimitiveSpec | GroupSpec;

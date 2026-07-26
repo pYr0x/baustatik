@@ -8,12 +8,15 @@ export {
 export { assertNever } from './exhaustive';
 export type { ViewIntent } from './intents/view';
 export type {
+  ArrowSpec,
   CircleSpec,
   GroupSpec,
+  LabelSpec,
   LineSpec,
   PolygonSpec,
   PrimitiveSpec,
   RectangleSpec,
+  ShapeSpec,
   Spec,
   TriangleSpec,
 } from './specs';

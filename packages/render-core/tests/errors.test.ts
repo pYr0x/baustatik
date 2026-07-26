@@ -63,6 +63,118 @@ describe('render-core errors and validation', () => {
     })).not.toThrow();
   });
 
+  it('passes validation for a valid arrow and label', () => {
+    expect(() => validateSpec({
+      id: 'a1',
+      kind: 'arrow',
+      tail: { u: 0, v: 0 },
+      tip: { u: 0, v: 10 },
+      pointerLength: 4,
+      pointerWidth: 3,
+      strokeColor: '#1d4ed8',
+      strokeWidth: 2,
+      fillColor: '#1d4ed8',
+    })).not.toThrow();
+
+    expect(() => validateSpec({
+      id: 'lb1',
+      kind: 'label',
+      text: '10 kN',
+      anchor: { u: 0, v: 0 },
+      direction: { u: 0, v: -1 },
+      gap: 6,
+      fontSize: 12,
+      fontFamily: 'sans-serif',
+      textColor: '#1d4ed8',
+      padding: 3,
+      backgroundColor: '#dbeafe',
+      borderColor: '#1d4ed8',
+      borderWidth: 1,
+      cornerRadius: 3,
+    })).not.toThrow();
+  });
+
+  it('throws InvalidSpecError for non-positive arrow pointer dimensions', () => {
+    const arrow = {
+      id: 'a1',
+      kind: 'arrow' as const,
+      tail: { u: 0, v: 0 },
+      tip: { u: 0, v: 10 },
+      pointerLength: 4,
+      pointerWidth: 3,
+    };
+
+    expect(() => validateSpec({ ...arrow, pointerLength: 0 })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...arrow, pointerWidth: -1 })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...arrow, pointerLength: NaN })).toThrow(InvalidSpecError);
+  });
+
+  it('throws InvalidWorldPointError for a non-finite arrow tip', () => {
+    expect(() => validateSpec({
+      id: 'a1',
+      kind: 'arrow',
+      tail: { u: 0, v: 0 },
+      tip: { u: NaN, v: 10 },
+      pointerLength: 4,
+      pointerWidth: 3,
+    })).toThrow(InvalidWorldPointError);
+  });
+
+  it('throws InvalidSpecError for invalid label fields', () => {
+    const label = {
+      id: 'lb1',
+      kind: 'label' as const,
+      text: '10 kN',
+      anchor: { u: 0, v: 0 },
+      direction: { u: 0, v: -1 },
+      gap: 6,
+      fontSize: 12,
+      fontFamily: 'sans-serif',
+      textColor: '#000',
+      padding: 3,
+      backgroundColor: '#fff',
+    };
+
+    expect(() => validateSpec({ ...label, text: '  ' })).toThrow(InvalidSpecError);
+    // Der Nullvektor waehlt keine Seite — der Adapter koennte die Box
+    // nirgendwo hinlegen.
+    expect(() => validateSpec({ ...label, direction: { u: 0, v: 0 } })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, gap: -1 })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, fontSize: 0 })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, padding: NaN })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, fontFamily: '' })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, textColor: '' })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, backgroundColor: '   ' })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, borderColor: '' })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, borderWidth: -1 })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, cornerRadius: NaN })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...label, anchor: { u: Infinity, v: 0 } })).toThrow(InvalidWorldPointError);
+  });
+
+  it('rejects a label inside a group, like a nested group', () => {
+    // Konva.Label IST eine Group: als Kind entstuende der verschachtelte Baum,
+    // den der Adapter ausdruecklich nicht unterstuetzt.
+    expect(() => validateSpec({
+      id: 'group',
+      kind: 'group',
+      position: { u: 0, v: 0 },
+      translation: { u: 0, v: 0 },
+      children: [{
+        id: 'child',
+        kind: 'label',
+        text: '10 kN',
+        anchor: { u: 0, v: 0 },
+        direction: { u: 0, v: -1 },
+        gap: 6,
+        fontSize: 12,
+        fontFamily: 'sans-serif',
+        textColor: '#000',
+        padding: 3,
+        backgroundColor: '#fff',
+      } as any],
+    })).toThrow(InvalidSpecError);
+  });
+
   it('throws InvalidSpecError for invalid IDs', () => {
     expect(() => validateSpec(undefined as any)).toThrow(InvalidSpecError);
     expect(() => validateSpec({ id: '', kind: 'line', from: { u: 0, v: 0 }, to: { u: 1, v: 1 } })).toThrow(InvalidSpecError);
@@ -202,6 +314,35 @@ describe('render-core errors and validation', () => {
         radius: 5,
       }],
     })).toThrow(InvalidSpecError);
+  });
+
+  it('checks arrow and label ids for uniqueness alongside the other kinds', () => {
+    const specs = [
+      {
+        id: 'x',
+        kind: 'arrow' as const,
+        tail: { u: 0, v: 0 },
+        tip: { u: 0, v: 10 },
+        pointerLength: 4,
+        pointerWidth: 3,
+      },
+      {
+        id: 'x',
+        kind: 'label' as const,
+        text: '10 kN',
+        anchor: { u: 0, v: 0 },
+        direction: { u: 0, v: -1 },
+        gap: 6,
+        fontSize: 12,
+        fontFamily: 'sans-serif',
+        textColor: '#000',
+        padding: 3,
+        backgroundColor: '#fff',
+      },
+    ];
+
+    expect(() => validateSpecs(specs)).toThrow(DuplicateSpecIdError);
+    expect(() => validateSpecs([specs[0], { ...specs[1], id: 'y' }])).not.toThrow();
   });
 
   it('throws InvalidSpecError for non-array specs in validateSpecs', () => {

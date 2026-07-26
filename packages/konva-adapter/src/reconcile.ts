@@ -1,11 +1,14 @@
 import type { GroupSpec, PrimitiveSpec, Spec } from '@baustatik/render-core';
 import Konva from 'konva';
 import type { Bands } from './bands';
-import { buildPrimitive, patchPrimitive } from './primitives';
+import { buildPrimitive, type LeafNode, patchPrimitive } from './primitives';
 
+// `shape` ist nicht zwingend eine `Konva.Shape`: ein Label ist eine Gruppe aus
+// Tag und Text. Fuer den Abgleich zaehlt nur, dass es ein Blatt ist — es hat
+// keine vom Reconciler verwalteten Kinder.
 interface LivePrimitive {
   readonly kind: PrimitiveSpec['kind'];
-  readonly shape: Konva.Shape;
+  readonly shape: LeafNode;
 }
 
 interface LiveGroup {
@@ -74,7 +77,7 @@ function destroyLive(entry: LiveSpec): void {
   else entry.shape.destroy();
 }
 
-function nodeOf(entry: LiveSpec): Konva.Shape | Konva.Group {
+function nodeOf(entry: LiveSpec): LeafNode | Konva.Group {
   return entry.kind === 'group' ? entry.group : entry.shape;
 }
 

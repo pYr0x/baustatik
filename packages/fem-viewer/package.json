@@ -28,8 +28,12 @@
     "@baustatik/errors": "workspace:*",
     "@baustatik/grid-2d": "workspace:*",
     "@baustatik/render-core": "workspace:*",
+    "@baustatik/round": "workspace:*",
     "@baustatik/viewport-2d": "workspace:*",
-    "@baustatik/fem": "workspace:*"
+    "@baustatik/fem": "workspace:*",
+    "@baustatik/fem-geometry": "workspace:*",
+    "@baustatik/fem-load-resolve": "workspace:*",
+    "@baustatik/fem-loads": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-istanbul": "^4.1.5",

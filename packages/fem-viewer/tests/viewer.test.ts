@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
+import type { FEMLoad } from '@baustatik/fem-loads';
 import type { RenderDriver, Spec, ViewIntent } from '@baustatik/render-core';
 import { screenPoint, size, viewport } from '@baustatik/viewport-2d';
 
@@ -54,7 +55,12 @@ const beamAB: Beam = {
 
 function makeViewer(
   driver: FakeDriver,
-  model: { nodes: readonly Node[]; beams: readonly Beam[]; supports?: readonly NodeSupport[] },
+  model: {
+    nodes: readonly Node[];
+    beams: readonly Beam[];
+    supports?: readonly NodeSupport[];
+    loads?: readonly FEMLoad[];
+  },
   options: {
     initialViewport?: ReturnType<typeof viewport>;
     grid?: { spacing: number; showAxes?: boolean };
@@ -66,6 +72,7 @@ function makeViewer(
     getNodes: () => model.nodes,
     getBeams: () => model.beams,
     getSupports: () => model.supports ?? [],
+    getLoads: () => model.loads ?? [],
     getScreenSize: options.getScreenSize ?? (() => size(200, 100)),
     initialViewport: options.initialViewport,
     grid: options.grid,
@@ -103,6 +110,31 @@ describe('createFEMViewer', () => {
     expect(driver.scenes[0].map((spec) => spec.id)).toContain('grid:v:2');
     expect(driver.scenes[1].map((spec) => spec.id)).toContain('grid:v:4');
     expect(driver.scenes[1].map((spec) => spec.id)).toContain('node:b');
+  });
+
+  it('pulls the current loads for every render, like the rest of the model', () => {
+    const driver = new FakeDriver();
+    const model: { nodes: Node[]; beams: Beam[]; loads: FEMLoad[] } = {
+      nodes: [nodeA, nodeB],
+      beams: [beamAB],
+      loads: [],
+    };
+    const viewer = makeViewer(driver, model);
+
+    viewer.requestRender();
+    model.loads.push({ id: 'nl', target: 'node', nodeIds: ['b'], fz: 10 });
+    viewer.requestRender();
+
+    expect(driver.scenes[0].map((spec) => spec.id)).not.toContain(
+      'load:nl:b:fz:arrow',
+    );
+    expect(driver.scenes[1].map((spec) => spec.id)).toEqual([
+      'beam:ab',
+      'node:a',
+      'node:b',
+      'load:nl:b:fz:arrow',
+      'load:nl:b:fz:label',
+    ]);
   });
 
   it('places grid specs before FEM specs when a grid is configured', () => {

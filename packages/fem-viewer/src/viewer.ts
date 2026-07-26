@@ -1,4 +1,5 @@
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
+import type { FEMLoad } from '@baustatik/fem-loads';
 import { type GridOptions, gridSpecs } from '@baustatik/grid-2d';
 import type { RenderDriver } from '@baustatik/render-core';
 import {
@@ -17,6 +18,7 @@ interface ViewerConfig {
   getNodes: () => readonly Node[]; // PULL der Rohdaten aus dem Store
   getBeams: () => readonly Beam[]; // PULL der Rohdaten aus dem Store
   getSupports: () => readonly NodeSupport[]; // PULL der Rohdaten aus dem Store
+  getLoads: () => readonly FEMLoad[]; // PULL der Rohdaten aus dem Store
   getScreenSize: () => Size; // PULL wie die Rohdaten — resize-faehig
   grid?: GridOptions; // weggelassen = kein Grid
   initialViewport?: Viewport;
@@ -24,7 +26,7 @@ interface ViewerConfig {
 }
 
 export function createFEMViewer(config: ViewerConfig) {
-  const { driver, getNodes, getBeams, getSupports } = config;
+  const { driver, getNodes, getBeams, getSupports, getLoads } = config;
 
   let vp: Viewport = config.initialViewport ?? viewport(screenPoint(0, 0), 1);
 
@@ -38,7 +40,14 @@ export function createFEMViewer(config: ViewerConfig) {
       : [];
     driver.reconcile([
       ...grid,
-      ...femSpecs(getNodes(), getBeams(), getSupports(), vp, config.style),
+      ...femSpecs({
+        nodes: getNodes(),
+        beams: getBeams(),
+        supports: getSupports(),
+        loads: getLoads(),
+        viewport: vp,
+        style: config.style,
+      }),
     ]);
     driver.flush();
   }

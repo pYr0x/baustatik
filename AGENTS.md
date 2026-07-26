@@ -27,10 +27,10 @@ dependencies change.
 | `@baustatik/fem-geometry` | 2D geometry primitives in structural x/z coordinates (z downwards). | `core`, `errors`, `geometry-2d` |
 | `@baustatik/fem-element` | Element formulation for plane frames: local 6x6 stiffness, consistent nodal load vector, shape functions. | `errors` |
 | `@baustatik/fem-loads` | Load input model for plane frames (node and beam loads) plus its validation gate. | `errors`, `fem`, `fem-geometry` |
-| `@baustatik/fem-load-resolve` | Resolves abstract loads onto beams: frame rotation, reference length, positions, merge per beam. | `fem-element`, `fem-geometry`, `fem-loads` |
+| `@baustatik/fem-load-resolve` | Resolves abstract loads onto beams: frame rotation, reference length, positions, merge per beam. Also exports the position and direction of a load (`loadStation`, `loadDirection`) for non-solver callers such as the viewer. | `fem-element`, `fem-geometry`, `fem-loads` |
 | `@baustatik/fem-solver` | Entry point of the calculation (`createFEMSolver`). `check()` reports a workflow state; `solve()` does DOF numbering, release condensation, assembly, transformation, boundary conditions, reactions and element end forces. The linear solver, the stiffness catalogue and the element formulation arrive as ports. Also the composition root for the versioned `AnalysisPolicy`: it assembles the policy slices the other packages own with its own analysis decisions ([ADR 0011](docs/adr/0011-analysis-settings-split-into-versioned-policy-and-ports.md)). | `errors`, `fem`, `fem-element`, `fem-geometry`, `fem-load-resolve`, `fem-loads` |
 | `@baustatik/linear-solver-wasm` | Rust/faer WASM binding for the linear solve `K d = F`. Scaffolded. | — |
-| `@baustatik/fem-viewer` | Viewer-facing FEM frame composition and visualization. | `errors`, `fem`, `grid-2d`, `render-core`, `viewport-2d` |
+| `@baustatik/fem-viewer` | Viewer-facing FEM frame composition and visualization, including concentrated forces as arrows with labelled magnitudes. | `errors`, `fem`, `fem-geometry`, `fem-load-resolve`, `fem-loads`, `grid-2d`, `render-core`, `round`, `viewport-2d` |
 
 The dependency direction is broadly: foundational utilities and errors →
 geometry/domain packages → rendering abstractions → adapters and viewers.

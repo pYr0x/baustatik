@@ -8,6 +8,14 @@
 // Knoten stehen hinter Staeben, damit sie IMMER darueber liegen — auch wenn ein
 // Stab erst nach den Knoten ins Modell kommt. Ueber die Array-Reihenfolge allein
 // waere das nicht garantiert, weil der Renderer neue Shapes sonst obenauf haengt.
-export const FEM_LAYERS = ['grid', 'supports', 'beams', 'nodes'] as const;
+// Lasten liegen ganz oben: sie sind die Aussage des Bildes, und ein Pfeil, den
+// ein Stab verdeckt, ist keiner.
+export const FEM_LAYERS = [
+  'grid',
+  'supports',
+  'beams',
+  'nodes',
+  'loads',
+] as const;
 
 export type FEMLayer = (typeof FEM_LAYERS)[number];

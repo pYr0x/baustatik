@@ -11,9 +11,26 @@ import {
   UnsupportedSupportError,
 } from '../src/errors';
 import { FEM_LAYERS } from '../src/layers';
-import { femSpecs } from '../src/scene';
+import { type FEMSceneOptions, type FEMStyle, femSpecs } from '../src/scene';
 
 const vp1 = viewport(screenPoint(0, 0), 1);
+
+// femSpecs nimmt ein Optionsobjekt; die Tests interessieren sich meist nur fuer
+// Knoten und Staebe, der Rest bleibt leer.
+function scene(
+  nodes: readonly Node[],
+  beams: readonly Beam[],
+  rest: Partial<Omit<FEMSceneOptions, 'nodes' | 'beams'>> = {},
+): FEMSceneOptions {
+  return {
+    nodes,
+    beams,
+    supports: [],
+    loads: [],
+    viewport: vp1,
+    ...rest,
+  };
+}
 
 const nodeA: Node = { id: 'a', position: { x: 0, z: 0 } };
 const nodeB: Node = { id: 'b', position: { x: 100, z: 0 } };
@@ -37,7 +54,7 @@ const supportA: NodeSupport = {
 
 describe('femSpecs: Abbildung Modell -> Specs', () => {
   it('maps a beam between two nodes to a line with resolved endpoints', () => {
-    const specs = femSpecs([nodeA, nodeB], [beamAB], [], vp1);
+    const specs = femSpecs(scene([nodeA, nodeB], [beamAB]));
     const beam = specs.find((s) => s.id === 'beam:ab');
 
     expect(beam).toBeDefined();
@@ -51,14 +68,14 @@ describe('femSpecs: Abbildung Modell -> Specs', () => {
   it('maps z downwards onto v without flipping the sign', () => {
     // In fem-geometry zeigt z nach unten, auf dem Schirm zeigt v nach unten.
     // Ein Knoten bei z=100 gehoert also UNTER den Ursprung, nicht darueber.
-    const specs = femSpecs([nodeC], [], [], vp1);
+    const specs = femSpecs(scene([nodeC], []));
     const node = specs.find((s) => s.id === 'node:c');
 
     expect(node).toMatchObject({ center: { u: 100, v: 100 } });
   });
 
   it('emits one circle per node and one line per beam', () => {
-    const specs = femSpecs([nodeA, nodeB, nodeC], [beamAB], [], vp1);
+    const specs = femSpecs(scene([nodeA, nodeB, nodeC], [beamAB]));
 
     expect(specs.filter((s) => s.kind === 'circle')).toHaveLength(3);
     expect(specs.filter((s) => s.kind === 'line')).toHaveLength(1);
@@ -68,7 +85,7 @@ describe('femSpecs: Abbildung Modell -> Specs', () => {
     // Ein Knoten und ein Stab duerfen dieselbe Roh-ID tragen; validateSpecs
     // verlangt aber Eindeutigkeit ueber alle Baender hinweg.
     const sameId: Node = { id: 'ab', position: { x: 0, z: 0 } };
-    const specs = femSpecs([nodeA, nodeB, sameId], [beamAB], [], vp1);
+    const specs = femSpecs(scene([nodeA, nodeB, sameId], [beamAB]));
 
     expect(specs.map((s) => s.id)).toContain('beam:ab');
     expect(specs.map((s) => s.id)).toContain('node:ab');
@@ -76,7 +93,7 @@ describe('femSpecs: Abbildung Modell -> Specs', () => {
   });
 
   it('produces specs that pass render-core validation', () => {
-    const specs = femSpecs([nodeA, nodeB, nodeC], [beamAB], [], vp1);
+    const specs = femSpecs(scene([nodeA, nodeB, nodeC], [beamAB]));
 
     expect(() => validateSpecs(specs)).not.toThrow();
   });
@@ -84,7 +101,7 @@ describe('femSpecs: Abbildung Modell -> Specs', () => {
 
 describe('femSpecs: Baender', () => {
   it('assigns beams and nodes to their own paint bands', () => {
-    const specs = femSpecs([nodeA, nodeB], [beamAB], [], vp1);
+    const specs = femSpecs(scene([nodeA, nodeB], [beamAB]));
 
     expect(specs.filter((s) => s.kind === 'line').every((s) => s.layer === 'beams'))
       .toBe(true);
@@ -100,7 +117,12 @@ describe('Szene und Baender passen zusammen', () => {
     // Frame ab. gridSpecs stampft 'grid' per Vorgabe — das muss im Tupel stehen.
     const specs = [
       ...gridSpecs(vp1, size(200, 200), { spacing: 10 }),
-      ...femSpecs([nodeA, nodeB, nodeC], [beamAB], [], vp1),
+      ...femSpecs(
+        scene([nodeA, nodeB, nodeC], [beamAB], {
+          supports: [supportA],
+          loads: [{ id: 'nl', target: 'node', nodeIds: ['b'], fz: 10 }],
+        }),
+      ),
     ];
 
     expect(specs.length).toBeGreaterThan(3);
@@ -116,8 +138,8 @@ describe('femSpecs: Schema statt Abbild', () => {
   it('halves the node radius when the scale doubles', () => {
     // Konva.Circle.radius liegt in lokalen Koordinaten und skaliert mit der
     // Stage — geteilt durch scale bleibt der Punkt am Schirm gleich gross.
-    const at1 = femSpecs([nodeA], [], [], viewport(screenPoint(0, 0), 1));
-    const at2 = femSpecs([nodeA], [], [], viewport(screenPoint(0, 0), 2));
+    const at1 = femSpecs(scene([nodeA], [], { viewport: viewport(screenPoint(0, 0), 1) }));
+    const at2 = femSpecs(scene([nodeA], [], { viewport: viewport(screenPoint(0, 0), 2) }));
 
     expect(at1[0]).toMatchObject({ radius: 4 });
     expect(at2[0]).toMatchObject({ radius: 2 });
@@ -126,17 +148,17 @@ describe('femSpecs: Schema statt Abbild', () => {
   it('keeps the beam stroke width constant across zoom', () => {
     // strokeScaleEnabled:false im Adapter — der Wert IST bereits Screen-px und
     // darf deshalb NICHT mit vp.scale verrechnet werden.
-    const at1 = femSpecs([nodeA, nodeB], [beamAB], [], viewport(screenPoint(0, 0), 1));
-    const at8 = femSpecs([nodeA, nodeB], [beamAB], [], viewport(screenPoint(0, 0), 8));
+    const at1 = femSpecs(scene([nodeA, nodeB], [beamAB], { viewport: viewport(screenPoint(0, 0), 1) }));
+    const at8 = femSpecs(scene([nodeA, nodeB], [beamAB], { viewport: viewport(screenPoint(0, 0), 8) }));
 
     expect(at1.find((s) => s.id === 'beam:ab')).toMatchObject({ strokeWidth: 2 });
     expect(at8.find((s) => s.id === 'beam:ab')).toMatchObject({ strokeWidth: 2 });
   });
 
   it('keeps ids stable across pan and zoom so the renderer patches', () => {
-    const before = femSpecs([nodeA, nodeB], [beamAB], [], vp1);
-    const panned = femSpecs([nodeA, nodeB], [beamAB], [], pan(vp1, 3, 7));
-    const zoomed = femSpecs([nodeA, nodeB], [beamAB], [], viewport(screenPoint(0, 0), 4));
+    const before = femSpecs(scene([nodeA, nodeB], [beamAB]));
+    const panned = femSpecs(scene([nodeA, nodeB], [beamAB], { viewport: pan(vp1, 3, 7) }));
+    const zoomed = femSpecs(scene([nodeA, nodeB], [beamAB], { viewport: viewport(screenPoint(0, 0), 4) }));
 
     expect(panned.map((s) => s.id)).toEqual(before.map((s) => s.id));
     expect(zoomed.map((s) => s.id)).toEqual(before.map((s) => s.id));
@@ -144,16 +166,16 @@ describe('femSpecs: Schema statt Abbild', () => {
 
   it('anchors a support group at its node and keeps its relative gap on zoom', () => {
     const at1 = femSpecs(
-      [nodeA],
-      [],
-      [supportA],
-      viewport(screenPoint(0, 0), 1),
+      scene([nodeA], [], {
+        supports: [supportA],
+        viewport: viewport(screenPoint(0, 0), 1),
+      }),
     );
     const at2 = femSpecs(
-      [nodeA],
-      [],
-      [supportA],
-      viewport(screenPoint(0, 0), 2),
+      scene([nodeA], [], {
+        supports: [supportA],
+        viewport: viewport(screenPoint(0, 0), 2),
+      }),
     );
     const group1 = at1.find((spec) => spec.kind === 'group') as GroupSpec;
     const group2 = at2.find((spec) => spec.kind === 'group') as GroupSpec;
@@ -181,7 +203,7 @@ describe('femSpecs: Schema statt Abbild', () => {
 
 describe('femSpecs: Styling', () => {
   it('defaults to thin black beams and small red nodes', () => {
-    const specs = femSpecs([nodeA, nodeB], [beamAB], [], vp1);
+    const specs = femSpecs(scene([nodeA, nodeB], [beamAB]));
 
     expect(specs.find((s) => s.id === 'beam:ab')).toMatchObject({
       strokeColor: '#000',
@@ -194,10 +216,8 @@ describe('femSpecs: Styling', () => {
   });
 
   it('lets callers override individual style fields', () => {
-    const specs = femSpecs([nodeA, nodeB], [beamAB], [], vp1, {
-      nodeColor: '#00f',
-      nodeRadiusPx: 10,
-    });
+    const style: FEMStyle = { nodeColor: '#00f', nodeRadiusPx: 10 };
+    const specs = femSpecs(scene([nodeA, nodeB], [beamAB], { style }));
 
     expect(specs.find((s) => s.id === 'node:a')).toMatchObject({
       fillColor: '#00f',
@@ -214,7 +234,7 @@ describe('femSpecs: kaputte Referenzen', () => {
   it('throws when a beam references an unknown start node', () => {
     const orphan: Beam = { ...beamAB, startNodeId: 'missing' };
 
-    expect(() => femSpecs([nodeA, nodeB], [orphan], [], vp1)).toThrow(
+    expect(() => femSpecs(scene([nodeA, nodeB], [orphan]))).toThrow(
       UnknownNodeReferenceError,
     );
   });
@@ -222,7 +242,7 @@ describe('femSpecs: kaputte Referenzen', () => {
   it('throws when a beam references an unknown end node', () => {
     const orphan: Beam = { ...beamAB, endNodeId: 'missing' };
 
-    expect(() => femSpecs([nodeA, nodeB], [orphan], [], vp1)).toThrow(
+    expect(() => femSpecs(scene([nodeA, nodeB], [orphan]))).toThrow(
       UnknownNodeReferenceError,
     );
   });
@@ -230,7 +250,7 @@ describe('femSpecs: kaputte Referenzen', () => {
   it('names the beam and the missing node in the message', () => {
     const orphan: Beam = { ...beamAB, endNodeId: 'missing' };
 
-    expect(() => femSpecs([nodeA, nodeB], [orphan], [], vp1)).toThrow(/"ab".*"missing"/);
+    expect(() => femSpecs(scene([nodeA, nodeB], [orphan]))).toThrow(/"ab".*"missing"/);
   });
 });
 
@@ -242,7 +262,7 @@ describe('femSpecs: nicht implementierte Auflagersymbole', () => {
       phiY: '300deg', // noch nicht implementiert
     };
 
-    expect(() => femSpecs([nodeA], [], [fixedSupport], vp1)).toThrow(
+    expect(() => femSpecs(scene([nodeA], [], { supports: [fixedSupport] }))).toThrow(
       UnsupportedSupportError,
     );
   });

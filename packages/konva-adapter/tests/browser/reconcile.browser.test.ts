@@ -1,4 +1,9 @@
-import type { GroupSpec, LineSpec, Spec } from '@baustatik/render-core';
+import type {
+  GroupSpec,
+  LabelSpec,
+  LineSpec,
+  Spec,
+} from '@baustatik/render-core';
 import Konva from 'konva';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createAdapterHarness } from './harness';
@@ -140,6 +145,166 @@ describe('reconcile — diffing against the live Konva tree', () => {
     // Regression: patch hatte keinen rectangle-Case und warf ab Frame 2.
     expect(() => h.driver.reconcile([rect(20)])).not.toThrow();
     expect((currentStage().findOne('#r') as Konva.Rect).width()).toBe(20);
+
+    h.destroy();
+  });
+});
+
+describe('reconcile — arrow and label', () => {
+  const label = (overrides: Partial<LabelSpec> = {}): LabelSpec => ({
+    id: 'lb',
+    kind: 'label',
+    text: '10 kN',
+    anchor: { u: 0, v: 0 },
+    direction: { u: 0, v: -1 },
+    gap: 6,
+    fontSize: 12,
+    fontFamily: 'sans-serif',
+    textColor: '#1d4ed8',
+    padding: 3,
+    backgroundColor: '#dbeafe',
+    borderColor: '#1d4ed8',
+    borderWidth: 1,
+    cornerRadius: 3,
+    ...overrides,
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('builds an arrow as a real Konva.Arrow with the head at the tip', () => {
+    const h = createAdapterHarness();
+    h.driver.reconcile([
+      {
+        id: 'a',
+        kind: 'arrow',
+        tail: { u: 0, v: -30 },
+        tip: { u: 0, v: 0 },
+        pointerLength: 8,
+        pointerWidth: 6,
+        strokeColor: '#1d4ed8',
+        strokeWidth: 2,
+        fillColor: '#1d4ed8',
+      },
+    ]);
+
+    const arrow = currentStage().findOne('#a') as Konva.Arrow;
+    expect(arrow).toBeInstanceOf(Konva.Arrow);
+    expect(arrow.points()).toEqual([0, -30, 0, 0]);
+    expect(arrow.pointerLength()).toBe(8);
+
+    h.destroy();
+  });
+
+  it('builds a label as a Konva.Label holding exactly one tag and one text', () => {
+    const h = createAdapterHarness();
+    h.driver.reconcile([label()]);
+
+    const node = currentStage().findOne('#lb') as Konva.Label;
+    expect(node).toBeInstanceOf(Konva.Label);
+    expect(node.getChildren()).toHaveLength(2);
+    expect(node.getTag()).toBeInstanceOf(Konva.Tag);
+    expect(node.getText().text()).toBe('10 kN');
+    // Waagerecht, ohne Zeiger: die Box liegt neben dem Anker, sie haengt nicht
+    // daran.
+    expect(node.rotation()).toBe(0);
+    expect((node.getTag() as Konva.Tag).pointerDirection()).toBe('none');
+
+    h.destroy();
+  });
+
+  it('patches a label in place and re-measures its box for the new text', () => {
+    const h = createAdapterHarness();
+    h.driver.reconcile([label()]);
+    const first = currentStage().findOne('#lb') as Konva.Label;
+    const narrow = first.getText().width();
+
+    h.driver.reconcile([label({ text: '1234.56 kN' })]);
+    const second = currentStage().findOne('#lb') as Konva.Label;
+
+    expect(second).toBe(first);
+    expect(second.getText().text()).toBe('1234.56 kN');
+    expect(second.getText().width()).toBeGreaterThan(narrow);
+
+    h.destroy();
+  });
+
+  it('resets dropped label fields on patch (build/patch parity)', () => {
+    // Der Label-Patch geht NICHT durch das eine setAttrs der uebrigen
+    // Primitives, kann also eigenstaendig vom Neubau abweichen. Ein
+    // weggefallener Rand muss auch hier verschwinden statt einzufrieren.
+    const h = createAdapterHarness();
+    h.driver.reconcile([label()]);
+    h.driver.reconcile([
+      label({
+        borderColor: undefined,
+        borderWidth: undefined,
+        cornerRadius: undefined,
+      }),
+    ]);
+    const patched = (currentStage().findOne('#lb') as Konva.Label).getTag();
+
+    h.driver.reconcile([]);
+    h.driver.reconcile([
+      label({
+        borderColor: undefined,
+        borderWidth: undefined,
+        cornerRadius: undefined,
+      }),
+    ]);
+    const built = (currentStage().findOne('#lb') as Konva.Label).getTag();
+
+    expect(patched.stroke()).toBeUndefined();
+    expect(patched.stroke()).toBe(built.stroke());
+    expect(patched.strokeWidth()).toBe(built.strokeWidth());
+    expect(patched.cornerRadius()).toBe(built.cornerRadius());
+
+    h.destroy();
+  });
+
+  it('places the box so the ray from the anchor meets its edge at gap — axis-parallel', () => {
+    const h = createAdapterHarness();
+    h.driver.reconcile([label()]);
+
+    const node = currentStage().findOne('#lb') as Konva.Label;
+    const width = node.getText().width();
+    const height = node.getText().height();
+
+    // Richtung (0,-1): der untere Rand liegt 6 ueber dem Anker, waagerecht
+    // zentriert.
+    expect(node.x() + width / 2).toBeCloseTo(0, 6);
+    expect(node.y() + height).toBeCloseTo(-6, 6);
+
+    h.destroy();
+  });
+
+  it('places the box by ray-rectangle intersection for a skewed direction', () => {
+    const h = createAdapterHarness();
+    h.driver.reconcile([label({ direction: { u: 1, v: -1 } })]);
+
+    const node = currentStage().findOne('#lb') as Konva.Label;
+    const width = node.getText().width();
+    const height = node.getText().height();
+
+    // d = (1,-1)/sqrt(2), t = min(hw, hh) * sqrt(2) — bei einer breiten Box
+    // also ueber die Hoehe bestimmt.
+    const reach = Math.min(width / 2, height / 2) * Math.SQRT2;
+    const distance = 6 + reach;
+
+    expect(node.x() + width / 2).toBeCloseTo(Math.SQRT1_2 * distance, 6);
+    expect(node.y() + height / 2).toBeCloseTo(-Math.SQRT1_2 * distance, 6);
+
+    h.destroy();
+  });
+
+  it('replaces the node when a label id turns into a shape', () => {
+    const h = createAdapterHarness();
+    h.driver.reconcile([label({ id: 'x' })]);
+    expect(currentStage().findOne('#x')).toBeInstanceOf(Konva.Label);
+
+    h.driver.reconcile([line('x')]);
+    expect(currentStage().findOne('#x')).toBeInstanceOf(Konva.Line);
 
     h.destroy();
   });

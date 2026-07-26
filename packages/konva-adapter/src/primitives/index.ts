@@ -1,18 +1,41 @@
-import { assertNever, type PrimitiveSpec } from '@baustatik/render-core';
+import {
+  assertNever,
+  type PrimitiveSpec,
+  type ShapeSpec,
+} from '@baustatik/render-core';
 import Konva from 'konva';
+import { arrowConfig } from './arrow';
 import { circleConfig } from './circle';
+import {
+  buildLabel,
+  labelTagConfig,
+  labelTextConfig,
+  labelTopLeft,
+  patchLabel,
+} from './label';
 import { lineConfig } from './line';
 import { polygonConfig } from './polygon';
 import { rectangleConfig } from './rectangle';
 import { triangleConfig } from './triangle';
 
 export {
+  arrowConfig,
   circleConfig,
+  labelTagConfig,
+  labelTextConfig,
+  labelTopLeft,
   lineConfig,
   polygonConfig,
   rectangleConfig,
   triangleConfig,
 };
+
+/**
+ * Die Knoten, die ein Primitive erzeugen kann. `Konva.Label` ist als einziges
+ * KEINE `Konva.Shape`, sondern eine Gruppe aus Tag und Text — deshalb steht hier
+ * eine Union statt `Konva.Shape`.
+ */
+export type LeafNode = Konva.Shape | Konva.Label;
 
 // configFor und buildPrimitive schalten bewusst BEIDE ueber spec.kind: nur so
 // bekommt jeder Konva-Konstruktor seinen passend typisierten Config-Typ, ohne
@@ -20,8 +43,9 @@ export {
 // neues Spec-Kind erzeugt deshalb in beiden Schaltern einen Compile-Fehler.
 
 // Einzige Quelle fuer die Konva-Felder eines Primitives. build UND patch lesen
-// dieselbe Config, deshalb koennen sie nicht auseinanderlaufen.
-function configFor(spec: PrimitiveSpec): Konva.ShapeConfig {
+// dieselbe Config, deshalb koennen sie nicht auseinanderlaufen. Das Label faellt
+// heraus: es ist zusammengesetzt und hat seine eigenen zwei Configs.
+function configFor(spec: ShapeSpec): Konva.ShapeConfig {
   switch (spec.kind) {
     case 'line':
       return lineConfig(spec);
@@ -33,13 +57,16 @@ function configFor(spec: PrimitiveSpec): Konva.ShapeConfig {
       return rectangleConfig(spec);
     case 'triangle':
       return triangleConfig(spec);
+    case 'arrow':
+      return arrowConfig(spec);
     default:
       return assertNever(spec);
   }
 }
 
-// Einzige Stelle im Package mit `new Konva.X`.
-export function buildPrimitive(spec: PrimitiveSpec): Konva.Shape {
+// Einzige Stelle im Package mit `new Konva.X` — ausser `label.ts`, das seine
+// drei Knoten (Label, Tag, Text) selbst baut, weil sie zusammengehoeren.
+export function buildPrimitive(spec: PrimitiveSpec): LeafNode {
   switch (spec.kind) {
     case 'line':
       return new Konva.Line(lineConfig(spec));
@@ -51,6 +78,10 @@ export function buildPrimitive(spec: PrimitiveSpec): Konva.Shape {
       return new Konva.Rect(rectangleConfig(spec));
     case 'triangle':
       return new Konva.RegularPolygon(triangleConfig(spec));
+    case 'arrow':
+      return new Konva.Arrow(arrowConfig(spec));
+    case 'label':
+      return buildLabel(spec);
     default:
       return assertNever(spec);
   }
@@ -59,6 +90,14 @@ export function buildPrimitive(spec: PrimitiveSpec): Konva.Shape {
 // setAttrs setzt jedes Config-Feld — auch undefined. Damit gleicht der Patch
 // exakt dem Neubau, und ein weggefallener Wert (z.B. dashed -> solid) wird
 // zurueckgesetzt statt eingefroren.
-export function patchPrimitive(shape: Konva.Shape, spec: PrimitiveSpec): void {
-  shape.setAttrs(configFor(spec));
+//
+// Das Label braucht einen eigenen Pfad: Tag und Text tragen die Felder, und die
+// Box muss nach dem Textwechsel neu vermessen und versetzt werden. Der Cast ist
+// sicher, weil der Reconciler nur bei GLEICHEM `kind` patcht.
+export function patchPrimitive(node: LeafNode, spec: PrimitiveSpec): void {
+  if (spec.kind === 'label') {
+    patchLabel(node as Konva.Label, spec);
+    return;
+  }
+  (node as Konva.Shape).setAttrs(configFor(spec));
 }

@@ -32,6 +32,8 @@ Important consumers:
 - [`src/primitives/`](src/primitives): one pure `*Config(spec)` function per
   primitive plus the single `new Konva.X` / `setAttrs` dispatch in
   `primitives/index.ts` (the package's top-level `src/index.ts` is re-exports only).
+  [`primitives/label.ts`](src/primitives/label.ts) is the exception that also owns
+  its build/patch pair and the placement rule.
 - [`src/stroke.ts`](src/stroke.ts): `DASH_PATTERNS` and the shared `strokeConfig()`.
 - [`src/reconcile.ts`](src/reconcile.ts): id-based diffing of the live tree.
 - [`src/bands.ts`](src/bands.ts): paint bands and `containerFor()`.
@@ -44,6 +46,23 @@ Important consumers:
   Build and patch therefore cannot diverge, and an `undefined` field **resets** the
   value rather than being skipped (e.g. `dashed` → `solid` clears `dash`). Adding a
   field to a `*Config` function automatically covers both paths.
+- **`label` is the one composed primitive, with its own patch path**: `Konva.Label`
+  is a group holding exactly one `Konva.Tag` and one `Konva.Text`, so it is not a
+  `Konva.Shape` and one `setAttrs` cannot serve it. Build and patch still read the
+  same two pure configs (`labelTagConfig`, `labelTextConfig`); the patch then
+  updates tag and text, **re-measures** the text and moves the box. Leaf nodes are
+  therefore typed `Konva.Shape | Konva.Label` (`LeafNode`) in both places that
+  touch them — the top-level reconciler and `reconcileGroupChildren`.
+- **The label placement rule**: anchor `A`, normalised direction `d`, gap `g`, box
+  half sizes `hw`/`hh`. The box centre sits at `A + d * (g + t)` with
+  `t = min(hw / |d.u|, hh / |d.v|)` over the non-zero components only, so the ray
+  from `A` meets the box edge at exactly `g`. For axis-parallel directions `t` is
+  exactly the half width or height. Without this rule "nearest edge" is ambiguous
+  for skewed directions (projecting the half size and intersecting the ray give
+  different answers) and the gap is not testable. The label itself is never
+  rotated.
+- **`fontFamily` is a spec field, not a Konva default**: otherwise appearance and
+  screenshot baselines would depend on the font list of the machine.
 - **Screen-pixel strokes**: every primitive sets `strokeScaleEnabled: false`. Konva
   resets the canvas transform to identity _before_ applying `lineWidth` and
   `setLineDash`, so both `strokeWidth` and `dash` are screen pixels and are
@@ -79,10 +98,12 @@ pnpm --filter @baustatik/konva-adapter build
 
 Test projects:
 
-- **Unit** (node): pure `*Config` functions, `DASH_PATTERNS`, triangle geometry.
-  No Konva needed.
-- **Browser** (chromium): reconciler, bands and interaction against real Konva.
-  Asserts behaviour, never pixels, so it is platform-independent and runs in CI.
+- **Unit** (node): pure `*Config` functions, `DASH_PATTERNS`, triangle geometry and
+  `labelTopLeft` against given box sizes. No Konva needed.
+- **Browser** (chromium): reconciler, bands and interaction against real Konva,
+  plus the label box _measured_ by Konva and its position for an axis-parallel and
+  a skewed direction. Asserts behaviour, never pixels, so it is
+  platform-independent and runs in CI.
 - **Screenshot** (chromium): `toMatchScreenshot` baselines per primitive. Canvas
   anti-aliasing is platform-dependent, so baselines live under
   `tests/screenshot/__screenshots__/chromium-<platform>/` and only the local
@@ -92,5 +113,10 @@ Test projects:
 
 - Only `chromium-win32` screenshot baselines exist. The path resolver is already
   platform-scoped, so a Linux set can be added later without restructuring.
-- Nested groups are not supported (enforced upstream by `render-core`'s
-  `validateSpec`).
+- **No pixel baseline for `label`**, deliberately: text depends on the machine far
+  more strongly than the already platform-dependent anti-aliasing (font
+  availability, hinting). The promise worth pinning is the box geometry, and that
+  is asserted in the browser test instead.
+- Nested `GroupSpec`s are not supported, and neither is a `LabelSpec` inside a
+  group — a label _is_ a group in Konva, so it would produce exactly the nested
+  tree. Both are enforced upstream by `render-core`'s `validateSpec`.

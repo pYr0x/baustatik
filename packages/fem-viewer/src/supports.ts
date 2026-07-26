@@ -1,5 +1,5 @@
 import type { NodeSupport } from '@baustatik/fem';
-import type { GroupSpec, PrimitiveSpec } from '@baustatik/render-core';
+import type { GroupSpec, ShapeSpec } from '@baustatik/render-core';
 import { worldPoint } from '@baustatik/viewport-2d';
 
 import { UnsupportedSupportError } from './errors';
@@ -72,7 +72,7 @@ export function supportSpec({
   const halfWidth = (30 * SYMBOL_SCALE) / scale;
   const triangleHeight = (30 * SYMBOL_SCALE) / scale;
   const groundOffset = (40 * SYMBOL_SCALE) / scale;
-  const children: PrimitiveSpec[] = [];
+  const children: ShapeSpec[] = [];
 
   const isFullyFree = support.ux === 'free' && support.uz === 'free';
   const isSingleFree = support.ux !== support.uz;
