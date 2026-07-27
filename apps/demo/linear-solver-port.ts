@@ -11,12 +11,20 @@
  * Verdrahtung benutzt statt einer zweiten Kopie.
  */
 
+import type { LinearSolveOutcome } from '@baustatik/fem-solver';
+
 type SolveResponse =
   | { readonly type: 'solved'; readonly id: number; readonly d: Float64Array }
+  | {
+      readonly type: 'singular';
+      readonly id: number;
+      readonly index: number;
+      readonly pivotRatio: number;
+    }
   | { readonly type: 'failed'; readonly id: number; readonly message: string };
 
 type Pending = {
-  resolve: (d: Float64Array) => void;
+  resolve: (outcome: LinearSolveOutcome) => void;
   reject: (reason: Error) => void;
 };
 
@@ -31,7 +39,16 @@ function handleWorkerMessage({ data }: MessageEvent<SolveResponse>): void {
   pendingSolves.delete(data.id);
 
   if (data.type === 'solved') {
-    pending.resolve(data.d);
+    pending.resolve({ kind: 'solved', d: data.d });
+  } else if (data.type === 'singular') {
+    // Ein Befund ueber das Modell, kein Fehler des Ports — deshalb `resolve`.
+    // `fem-solver` macht daraus den `SingularStiffnessMatrixError`, weil nur
+    // dort bekannt ist, welcher Knoten hinter der Zeile steckt.
+    pending.resolve({
+      kind: 'singular',
+      index: data.index,
+      pivotRatio: data.pivotRatio,
+    });
   } else {
     pending.reject(new Error(data.message));
   }
@@ -76,7 +93,7 @@ export function solveLinearSystem(
   n: number,
   K: Float64Array,
   F: Float64Array,
-): Promise<Float64Array> {
+): Promise<LinearSolveOutcome> {
   const id = nextRequestId++;
   const solverWorker = getWorker();
 

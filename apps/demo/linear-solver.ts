@@ -18,8 +18,15 @@ async function solve(button: HTMLButtonElement): Promise<void> {
   button.disabled = true;
 
   try {
-    const d = await solveLinearSystem(2, stiffness, load);
-    console.log('d =', d); // erwartet: [2, 3]
+    const outcome = await solveLinearSystem(2, stiffness, load);
+    if (outcome.kind === 'singular') {
+      console.error(
+        `Das System ist kinematisch — aufgefallen in Zeile ${outcome.index}, ` +
+          `kleinstes Pivot ${outcome.pivotRatio}.`,
+      );
+      return;
+    }
+    console.log('d =', outcome.d); // erwartet: [2, 3]
   } catch (error) {
     console.error('Das Gleichungssystem konnte nicht gelöst werden.', error);
   } finally {

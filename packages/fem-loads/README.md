@@ -21,7 +21,10 @@ pnpm add @baustatik/fem-loads
 - `validateLoad()` und `validateLoads()` für die Eingabeoberfläche,
 - `assertValidLoads()` als Tor vor der Rechenkette,
 - die `LoadValidationPolicy` — die Stellschrauben dieser Regeln samt Default,
-  Factory und striktem Parser.
+  Factory und striktem Parser,
+- den **Lastfall** (`LoadCase`, `assertValidLoadCase()`, `effectiveLoads()`): eine
+  benannte Gruppe, die ihre Lasten besitzt, mit optionalem Faktor zum Ableiten
+  eines Falls aus einem anderen.
 
 Das Package löst abstrakte Lasten noch nicht in lokale Elementlasten auf. Diese
 Aufgabe gehört zu `@baustatik/fem-load-resolve`; Assemblierung und Rechnung
@@ -78,7 +81,10 @@ Mindest-Projektionsrate und Warnschwelle — stehen in der
 Aufruf zu hängen:
 
 ```typescript
-import { createLoadValidationPolicy, createLoadValidator } from '@baustatik/fem-loads';
+import {
+  createLoadValidationPolicy,
+  createLoadValidator,
+} from '@baustatik/fem-loads';
 
 const policy = createLoadValidationPolicy({ suspiciousReferenceFactor: 0.1 });
 const validator = createLoadValidator(policy);
@@ -98,7 +104,9 @@ beide Seiten bekommen dasselbe Objekt:
 ```typescript
 import { createAnalysisPolicy, createFEMSolver } from '@baustatik/fem-solver';
 
-const analysis = createAnalysisPolicy({ loads: { suspiciousReferenceFactor: 0.1 } });
+const analysis = createAnalysisPolicy({
+  loads: { suspiciousReferenceFactor: 0.1 },
+});
 
 const solver = createFEMSolver({ ...ports, analysisPolicy: analysis });
 const dialogValidator = createLoadValidator(analysis.loads);

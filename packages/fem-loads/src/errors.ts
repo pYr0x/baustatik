@@ -382,3 +382,27 @@ export class InvalidLoadValidationPolicyError extends BaustatikError {
     this.field = field;
   }
 }
+
+/**
+ * Der Lastfall selbst ist unbrauchbar (`src/load-case.ts`).
+ *
+ * ERBT BEWUSST NICHT von `LoadValidationError`, aus demselben Grund wie der
+ * Policy-Fehler darueber: dessen abstrakte Basis erzwingt eine `loadId`, und
+ * ein Befund ueber den Lastfall hat keine. Er wird immer GEWORFEN, nie
+ * zurueckgegeben — anders als bei den Lasten selbst gibt es hier nichts zu
+ * sammeln, weil `assertValidLoadCase` genau eine Regel prueft.
+ *
+ * WARUM WERFEN UND NICHT BERICHTEN: ein Faktor von 0 ist kein halbfertiger
+ * Zustand, den der Anwender noch ausfuellt (dafuer gibt es den Berichtszustand
+ * `unloaded`), sondern ein abgewiesener Wert — dieselbe Sorte Befund wie eine
+ * unbrauchbare Policy. Die Meldung erreicht den Anwender dort, wo er den Wert
+ * setzt, statt in einem Bericht.
+ */
+export class InvalidLoadCaseError extends BaustatikError {
+  readonly loadCaseId: string;
+
+  constructor(loadCaseId: string, reason: string) {
+    super(`Lastfall "${loadCaseId}": ${reason}`);
+    this.loadCaseId = loadCaseId;
+  }
+}

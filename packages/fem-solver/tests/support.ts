@@ -14,8 +14,8 @@ import type {
   SectionProperties,
   Vector6,
 } from '@baustatik/fem-element';
-import type { FEMLoad } from '@baustatik/fem-loads';
-import type { SolverConfig } from '../src/config';
+import type { FEMLoad, LoadCase } from '@baustatik/fem-loads';
+import type { LinearSolveOutcome, SolverConfig } from '../src/config';
 import { createAnalysisPolicy } from '../src/policy';
 
 export const STIFF: SectionProperties = { EA: 1e6, EI: 1000, GAs: 500 };
@@ -50,36 +50,85 @@ export function support(
   return { id, nodeId, ux, uz, phiY };
 }
 
+/**
+ * Der Testspeicher haelt die Lasten FLACH und nicht als Lastfall.
+ *
+ * Fast jeder Test hier prueft Assemblierung, Randbedingungen oder Vorzeichen —
+ * der Lastfall ist dabei Beiwerk. `configOver` verpackt die flache Menge in
+ * genau einen Lastfall, damit die Tests sagen, worum es ihnen geht. Wer den
+ * Fallfaktor prueft, setzt `factor`; wer mehrere Faelle braucht, gibt
+ * `getLoadCases` als Override mit.
+ */
 export type Store = {
   nodes: Node[];
   beams: Beam[];
   supports: NodeSupport[];
   loads: FEMLoad[];
+  /** Faktor des einen Lastfalls. Fehlt er, wirkt 1. */
+  factor?: number;
 };
 
+/** Die id des Lastfalls, den `configOver` aus dem Store baut. */
+export const TEST_LOAD_CASE_ID = 'lf-test';
+
 /**
- * Gauss-Elimination mit Spaltenpivotierung — die Testfassung des Ports.
- *
- * WIRFT BEI SINGULAERER MATRIX NICHT, sondern teilt durch 0 und laesst
- * `Infinity`/`NaN` durchlaufen. Genau das tut `faer`s `PartialPivLu` auch: es
- * meldet keinen Rangabfall. Eine Testfassung, die stattdessen wuerfe, wuerde
- * dem Solver eine Absicherung vortaeuschen, die er in Wahrheit selbst leisten
- * muss.
+ * Dieselbe Schwelle wie `SINGULAR_PIVOT_TOLERANCE` in
+ * `linear-solver-wasm/rust/src/lib.rs`. Bewusst dupliziert: die beiden Fassungen
+ * teilen keinen Code, nur einen Vertrag.
  */
-export function gaussSolve(n: number, K: Float64Array, F: Float64Array): Float64Array {
+const SINGULAR_PIVOT_TOLERANCE = 1e-12;
+
+/**
+ * Gauss-Elimination — die Testfassung des Ports.
+ *
+ * MELDET KINEMATIK GENAUSO WIE DIE RUST-FASSUNG, mit derselben
+ * Jacobi-Skalierung und derselben Pivot-Schwelle. Frueher tat sie das Gegenteil
+ * (sie liess `Infinity`/`NaN` durchlaufen, weil `PartialPivLu` es auch tat) —
+ * seit der Port das Ergebnis als `LinearSolveOutcome` liefert, waere eine
+ * Testfassung ohne Erkennung schlicht vertragswidrig.
+ *
+ * EHRLICHE GRENZE: dass die Erkennung hier nachgebaut ist, heisst, dass diese
+ * Tests NICHT beweisen, dass `faer` sie leistet. Das ist jedem Port eigen.
+ * Dafuer stehen die `cargo test` in `linear-solver-wasm` und die Handrechnung
+ * in `apps/demo/fem-cantilever.ts`.
+ *
+ * Ohne Spaltenpivotierung, anders als frueher: nach der Skalierung ist die
+ * Matrix symmetrisch positiv definit mit Einsdiagonale, da ist Gauss ohne
+ * Zeilentausch stabil — und nur ohne Zeilentausch sind die Pivots dieselbe
+ * Groesse wie die Quadrate der Cholesky-Diagonale.
+ */
+export function gaussSolve(
+  n: number,
+  K: Float64Array,
+  F: Float64Array,
+): LinearSolveOutcome {
+  if (n === 0) return { kind: 'solved', d: new Float64Array(0) };
+
+  const s = new Float64Array(n);
+  for (let i = 0; i < n; i += 1) {
+    const diagonal = K[i * n + i];
+    if (!(diagonal > 0) || !Number.isFinite(diagonal)) {
+      return { kind: 'singular', index: i, pivotRatio: 0 };
+    }
+    s[i] = 1 / Math.sqrt(diagonal);
+  }
+
   const a = Array.from({ length: n }, (_, r) =>
-    Array.from({ length: n + 1 }, (_, c) => (c === n ? F[r] : K[r * n + c])),
+    Array.from({ length: n + 1 }, (_, c) =>
+      c === n ? F[r] * s[r] : K[r * n + c] * s[r] * s[c],
+    ),
   );
 
+  let minPivot = Infinity;
   for (let col = 0; col < n; col += 1) {
-    let pivot = col;
-    for (let row = col + 1; row < n; row += 1) {
-      if (Math.abs(a[row][col]) > Math.abs(a[pivot][col])) pivot = row;
+    const pivot = a[col][col];
+    if (pivot <= SINGULAR_PIVOT_TOLERANCE) {
+      return { kind: 'singular', index: col, pivotRatio: Math.max(pivot, 0) };
     }
-    [a[col], a[pivot]] = [a[pivot], a[col]];
+    if (pivot < minPivot) minPivot = pivot;
 
     for (let row = col + 1; row < n; row += 1) {
-      const factor = a[row][col] / a[col][col];
+      const factor = a[row][col] / pivot;
       if (factor === 0) continue;
       for (let c = col; c <= n; c += 1) {
         a[row][c] -= factor * a[col][c];
@@ -87,15 +136,21 @@ export function gaussSolve(n: number, K: Float64Array, F: Float64Array): Float64
     }
   }
 
-  const d = new Float64Array(n);
+  const y = new Float64Array(n);
   for (let row = n - 1; row >= 0; row -= 1) {
     let sum = a[row][n];
     for (let c = row + 1; c < n; c += 1) {
-      sum -= a[row][c] * d[c];
+      sum -= a[row][c] * y[c];
     }
-    d[row] = sum / a[row][row];
+    y[row] = sum / a[row][row];
   }
-  return d;
+
+  // Zurueckskalieren: `d = S y`.
+  const d = new Float64Array(n);
+  for (let i = 0; i < n; i += 1) {
+    d[i] = s[i] * y[i];
+  }
+  return { kind: 'solved', d };
 }
 
 /**
@@ -138,7 +193,18 @@ export function configOver(
     getNodes: () => store.nodes,
     getBeams: () => store.beams,
     getSupports: () => store.supports,
-    getLoads: () => store.loads,
+    // Je Aufruf neu gebaut, damit der PULL erhalten bleibt: ein einmal
+    // erzeugter Lastfall haette eine Momentaufnahme von `store.loads`
+    // festgehalten, und Tests, die nach der Verdrahtung Lasten nachschieben,
+    // saehen sie nicht.
+    getLoadCases: (): LoadCase[] => [
+      {
+        id: TEST_LOAD_CASE_ID,
+        name: 'Testlastfall',
+        loads: store.loads,
+        ...(store.factor === undefined ? {} : { factor: store.factor }),
+      },
+    ],
     getSectionProperties: () => STIFF,
     solveLinearSystem: gaussSolve,
     analysisPolicy: createAnalysisPolicy({ shearDeformation: false }),

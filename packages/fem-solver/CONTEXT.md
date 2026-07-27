@@ -31,8 +31,12 @@ fehlen — siehe _Known constraints_.
   sie nur zusammen —, die Aufloesung in lokale Elementlasten
   (`@baustatik/fem-load-resolve`), die Elementformulierung samt
   Ersatzknotenvektor (`@baustatik/fem-element`), den eigentlichen linearen
-  Loeser `K d = F` (`@baustatik/linear-solver-wasm`, per PORT) und jede
-  Darstellung.
+  Loeser `K d = F` **samt der Erkennung, dass es keine Loesung gibt**
+  (`@baustatik/linear-solver-wasm`, per PORT) und jede Darstellung. Von der
+  Kinematik gehoert diesem Package die DEUTUNG — aus einer Zeilennummer Knoten
+  und Richtung zu machen, weil nur hier die Abbildung `free[i]` liegt — und die
+  Beurteilung des ERGEBNISSES: ob das, was herauskam, eine Verformung ist oder
+  eine Bewegung. Der Loeser kann das nicht wissen; er sieht nur Zahlen.
 - Haelt **keinen** Zustand ueber das Modell — und auch keinen ueber das
   Ergebnis. Die Config traegt Getter, keine Arrays; es gibt keinen zweiten
   Datenbestand neben dem Store und keinen aufgehobenen Bericht.
@@ -43,7 +47,8 @@ fehlen — siehe _Known constraints_.
 - `@baustatik/fem` — `Node`, `Beam`, `NodeSupport`, `validateModel`,
   `assertValidModel`, `isolatedNodeIds` und `ModelValidationError` als
   Erweiterungsstelle.
-- `@baustatik/fem-loads` — `FEMLoad`, `modelGeometry`, `validateLoads`,
+- `@baustatik/fem-loads` — `LoadCase`, `effectiveLoads` und
+  `assertValidLoadCase`, dazu `modelGeometry`, `validateLoads`,
   `assertValidLoads`, `LoadValidationWarning` als Erweiterungsstelle, und die
   Fehlerklassen, die unveraendert durchgereicht werden.
 - `@baustatik/fem-load-resolve` — `resolveLoads`.
@@ -62,14 +67,19 @@ fehlen — siehe _Known constraints_.
   persistierbare Analyse-Einstellung samt Factory und striktem Parser.
 - [`src/analysis.ts`](src/analysis.ts): `ResolvedAnalysis` — die Config einmal
   zu Ende gedacht: effektive Policy, gebundener Lastvalidator, Formulierung.
+- [`src/resolve-load-case.ts`](src/resolve-load-case.ts): von der id zum
+  Lastfall. Package-intern und von `check()` und `solve()` geteilt, damit der
+  Bericht nie einen anderen Fall beurteilt als die Rechnung nimmt.
 - [`src/check.ts`](src/check.ts): `CheckReport`, die fuenf Zustaende, die
   Reihenfolge und der Kurzschluss.
 - [`src/solve.ts`](src/solve.ts): die Rechenkette von den Rohdaten bis zu den
   Stabendkraeften.
 - [`src/element-matrix.ts`](src/element-matrix.ts): Kondensation und
   Transformation auf der lokalen 6x6 — theoriefrei.
-- [`src/errors.ts`](src/errors.ts): zwei Erweiterungen fremder Hierarchien und
-  zwei eigene Rechenfehler.
+- [`src/errors.ts`](src/errors.ts): zwei Erweiterungen fremder Hierarchien, die
+  eigenen Rechenfehler, `UnknownLoadCaseError` fuer eine Lastfall-id, die es
+  nicht gibt, und `SolveWarning` als eigene schmale Wurzel fuer Befunde am
+  ERGEBNIS.
 - [`src/solver.ts`](src/solver.ts): `createFEMSolver`.
 
 ## Domain language
@@ -83,6 +93,11 @@ fehlen — siehe _Known constraints_.
   `getSectionProperties`, `solveLinearSystem`, `formulation`. Alle drei
   existieren aus EINEM Grund — Isolierbarkeit. Ohne sie waere ausgerechnet das
   Package, das die ganze Kette verdrahtet, nicht allein pruefbar.
+- **Lastfall** — die Einheit, die dieses Package rechnet: genau einer je
+  `solve()`. Er kommt aus `@baustatik/fem-loads` und besitzt seine Lasten.
+- **Auswahl** — welcher Lastfall gerechnet wird. Sie ist ein ARGUMENT und kein
+  Getter: Daten liefert der Store per PULL, was mit ihnen geschehen soll, sagt
+  der Aufrufer.
 - **Analyse-Einstellung** — alles, was die Rechnung steuert, ohne das Modell zu
   aendern. Der Querschnitt einer Stuetze gehoert zum Modell; ob ihre
   Schubverformung beruecksichtigt wird, ist eine Einstellung.
@@ -95,8 +110,9 @@ fehlen — siehe _Known constraints_.
   Immer vollstaendig; „nicht gesetzt" gibt es innerhalb der Policy nicht.
 - **Bericht** (`CheckReport`) — die eine Auskunft vor dem Rechnen. Traegt einen
   ZUSTAND, keine Fehlerliste.
-- **Tor** — `assertValidModel`, dann `assertValidLoads`, vor jeder Rechnung. Der
-  Bericht ist eine Auskunft, kein Schluessel.
+- **Tor** — `assertValidModel`, dann `assertValidLoadCase`, dann
+  `assertValidLoads`, vor jeder Rechnung. Der Bericht ist eine Auskunft, kein
+  Schluessel.
 - **Kondensation** — das Herausrechnen eines freigesetzten Freiheitsgrads aus
   der lokalen 6x6. Reine Matrixalgebra, ohne Balkentheorie.
 
@@ -124,10 +140,10 @@ Fehlerliste kann das nicht sagen. Ausfuehrlich in
 Analyse-Einstellungen zerfallen in zwei Sorten, und die Trennlinie ist der ganze
 Entwurf:
 
-| Sorte | Beispiele | Wohnt in | Persistiert |
-| --- | --- | --- | --- |
-| **Daten** — schreibbar als JSON | Toleranzen, Warnschwellen, `shearDeformation` | `AnalysisPolicy` | ja, versioniert |
-| **Faehigkeit** — ist Code | `formulation`, `solveLinearSystem`, `getSectionProperties` | Ports in `SolverConfig` | nein |
+| Sorte                           | Beispiele                                                  | Wohnt in                | Persistiert     |
+| ------------------------------- | ---------------------------------------------------------- | ----------------------- | --------------- |
+| **Daten** — schreibbar als JSON | Toleranzen, Warnschwellen, `shearDeformation`              | `AnalysisPolicy`        | ja, versioniert |
+| **Faehigkeit** — ist Code       | `formulation`, `solveLinearSystem`, `getSectionProperties` | Ports in `SolverConfig` | nein            |
 
 `formulation` ist begrifflich sehr wohl eine Analyse-Einstellung — sie laesst
 sich nur nicht schreiben. Ein Funktionsobjekt hat keine JSON-Form. Dieselbe
@@ -136,11 +152,19 @@ persistierbare Einstellung, „diese Solver-Implementierung" ist ein Port.
 
 ```text
 AnalysisPolicy = {
-  schemaVersion:     1                       Eigentuemer: fem-solver
-  loads:             LoadValidationPolicy    Eigentuemer: fem-loads
-  shearDeformation:  boolean (Default true)  Eigentuemer: fem-solver
+  schemaVersion:      2                       Eigentuemer: fem-solver
+  loads:              LoadValidationPolicy    Eigentuemer: fem-loads
+  shearDeformation:   boolean (Default true)  Eigentuemer: fem-solver
+  deformationLimits:  warn/fail x rotation/   Eigentuemer: fem-solver
+                      relativeDisplacement
 }
 ```
+
+**Version 2 hat keinen Migrationspfad.** Ein v1-Dokument kennt
+`deformationLimits` nicht und scheitert am strikten Parser. Das ist zulaessig,
+weil `parseAnalysisPolicy` zum Zeitpunkt des Sprungs keinen produktiven Aufrufer
+hatte — es liegt nichts Persistiertes herum. Ein stillschweigend ergaenzter
+Default waere ausserdem eine Einstellung, die der Anwender nie gewaehlt hat.
 
 **Jedes Package bringt seine eigene Scheibe mit** — samt Default und
 Werteprueferei. Dieses Package setzt sie zusammen: `createAnalysisPolicy`
@@ -161,8 +185,8 @@ Objekt weiter:
 ```typescript
 const analysis = createAnalysisPolicy({ shearDeformation: false });
 
-createFEMSolver({ ...ports, analysisPolicy: analysis });   // rechnet
-createLoadValidator(analysis.loads);                        // Eingabedialog
+createFEMSolver({ ...ports, analysisPolicy: analysis }); // rechnet
+createLoadValidator(analysis.loads); // Eingabedialog
 ```
 
 Der Eingabedialog geht nicht ueber dieses Package (ADR 0007) — genau deshalb
@@ -177,8 +201,20 @@ und der strikte Parser sind die Naht dafuer. Ausfuehrlich in
 
 ## Invariants and conventions
 
+- **Daten kommen per PULL, die AUSWAHL als Parameter.** `getLoadCases()` liefert
+  alle Lastfaelle; welcher gerechnet wird, sagt das Argument von
+  `check(loadCaseId)` / `solve(loadCaseId)`. „Welcher Lastfall ist aktiv" ist
+  Zustand der Anwendung, und ein Rechenkopf, der ihn liest, rechnet je nach
+  Bedienung etwas anderes. Unbekannte id wirft `UnknownLoadCaseError` — kein
+  sechster Berichtszustand, denn das Modell ist in Ordnung, die Frage war falsch
+  gestellt. Siehe
+  [ADR 0014](../../docs/adr/0014-load-case-selection-is-a-parameter-not-a-port.md).
+- **Das Tor sieht die EINGEGEBENEN Lastwerte, die Rechnung die gefakterten.**
+  `assertValidLoads` bekommt `loadCase.loads`, `resolveLoads` bekommt
+  `effectiveLoads(loadCase)`. Beide Wege gehen durch dieselbe Funktion, die auch
+  der Viewer benutzt ([ADR 0013](../../docs/adr/0013-load-case-factor.md)).
 - **Der Eingabedialog geht NICHT ueber dieses Package.** Er prueft Entwuerfe
-  direkt gegen `@baustatik/fem-loads`, weil `getLoads()` eine noch nicht
+  direkt gegen `@baustatik/fem-loads`, weil `getLoadCases()` eine noch nicht
   gespeicherte Last nicht sieht. Siehe
   [ADR 0007](../../docs/adr/0007-fem-solver-as-calculation-entry-point.md).
 - **Modell zuerst, Lasten nur wenn es traegt.** Reihenfolge und Kurzschluss
@@ -226,6 +262,45 @@ und der strikte Parser sind die Naht dafuer. Ausfuehrlich in
 - **Randbedingungen per Elimination**, nicht per Strafverfahren: ein grosser
   Diagonalwert verschmutzt die Kondition und liefert die Auflagerkraft nur als
   Produkt aus erfundener Steifigkeit und Restverschiebung.
+- **Ein Ergebnis verlaesst dieses Package nur, wenn es eine VERFORMUNG ist und
+  keine Bewegung.** `assessDisplacements` prueft `|phiY|` je Knoten und `|u|/L`
+  je Stabende gegen zwei Stufen aus der `AnalysisPolicy`: ueber `warn` (0.1) eine
+  `SmallRotationAssumptionWarning` in `SolveResult.warnings`, ueber `fail`
+  (1e3 rad / 1e4) ein `ImplausibleDisplacementError`. Beide Groessen sind
+  dimensionslos, die Grenzen deshalb einheitenfrei und modellunabhaengig. Die
+  Pruefung laeuft VOR der Rueckrechnung — aus unbrauchbaren Verschiebungen sollen
+  keine unbrauchbaren Schnittgroessen entstehen. Siehe
+  [ADR 0016](../../docs/adr/0016-kinematics-shows-in-the-displacement-not-in-the-pivot.md).
+- **Vier gestaffelte Netze gegen Kinematik**, in dieser Reihenfolge:
+  1. `assertHeld` — leere Diagonale eines freien Freiheitsgrads. Billig, laeuft
+     vor dem Port, und der EINZIGE Fall, der sich exakt benennen laesst
+     (Pendelstab).
+  2. Der Port meldet `kind: 'singular'` — der allgemeine Fall, aus der
+     Cholesky-Zerlegung in `@baustatik/linear-solver-wasm`. Faengt auch die
+     FAST singulaere Matrix, die frueher grosse, aber endliche Zahlen lieferte.
+  3. `Number.isFinite` auf dem Ergebnis — die Absicherung gegen eine
+     Port-Fassung, die den Vertrag nicht erfuellt. Sollte nie greifen.
+  4. `assessDisplacements` am ERGEBNIS. Netz 2 ist EINSEITIG: ein Pivot unter der
+     Schwelle ist sicher ein Mechanismus, die Gegenrichtung beweist nichts. Ein
+     schraeger Stab mischt `EA/L` und `12EI/L^3` in dieselbe Zeile, und nach der
+     Ausloeschung steht in `K` die exakte Matrix eines geringfuegig anderen,
+     tragfaehigen Modells — ein Rueckwaertsfehler, den keine Zerlegung
+     zurueckholt. Der Mechanismus zerstoert das Pivot in der zwoelften Stelle,
+     blueht in der Loesung aber um zehn Groessenordnungen auf.
+     EHRLICHE GRENZE: Netz 4 sieht den Mechanismus nur, wenn die Last ihn ANREGT.
+     Eine Last, deren Resultierende durch den Drehpunkt zeigt, erzeugt keine
+     Bewegung — deshalb ein viertes Netz und kein Ersatz fuer das dritte.
+- **Kinematik ist ein ERGEBNIS des Ports, kein Wurf.** Ein Mechanismus ist eine
+  Aussage ueber das Modell, kein Fehler des Ports; der Wurf bleibt dem echten
+  Scheitern vorbehalten (kaputter Worker, gebrochener Vertrag). Nur so sind die
+  beiden hinterher noch zu trennen. Siehe ADR 0012.
+- **`check()` kann Kinematik grundsaetzlich nicht wissen.** Sie ist keine
+  Eigenschaft eines einzelnen Knotens, Stabs oder Auflagers, sondern ihres
+  Zusammenspiels, und wird erst in der Zerlegung sichtbar. `canSolve` heisst
+  „keine Regelverletzung gefunden", NIE „wird gelingen" — der Zustandsautomat
+  bekommt dafuer keinen sechsten Zustand. Ein topologischer Vorabtest
+  (Abzaehlkriterium) waere notwendig, aber nicht hinreichend: er haelt einen
+  verschieblichen Rahmen mit der richtigen Auflagerzahl fuer stabil.
 
 ## Validation
 
@@ -251,11 +326,23 @@ PULL-Verhalten, und fuer `solve()` in dieser Reihenfolge:
    MITkondensierte Last.
 7. **Gleichgewichtsprobe** ueber alle Modelle — der einzige Test, der die ganze
    Kette auf einmal prueft.
-8. **Kinematik**: Pendelstab ohne Verspannung, und der Starrkoerpermodus mit
-   besetzter Diagonale.
+8. **Kinematik**: Pendelstab ohne Verspannung (Netz 1), der Starrkoerpermodus
+   mit besetzter Diagonale (Netz 2, exakter Fehlschlag), und das FAST
+   kinematische System (Netz 2, Pivot unter der Schwelle) — beide letzteren
+   samt Knoten und Richtung.
+9. **Verformungspruefung** (Netz 4): der Mechanismus, den der Port fuer geloest
+   haelt, die grosse aber legitime Verformung, die Staffelung warn/fail, die
+   Bezugslaenge der Verschiebung — und die ehrliche Grenze als Test, dass eine
+   Last, die den Mechanismus nicht anregt, unentdeckt bleibt.
 
 Die Handrechnung gegen den ECHTEN Rust-Loeser steht in
 `apps/demo/fem-cantilever.ts`.
+
+`tests/kinematics-margin.test.ts` ist KEIN Test, sondern ein **Messgeraet**: es
+faehrt rund 250 Systeme mit echter `Timoshenko2D`-Formulierung und echten
+Walzprofilen durch und schreibt `docs/messungen/kinematik-abstand.md` — das
+Beleg-Artefakt zu ADR 0016. Es laeuft mit ABGESCHALTETER Verformungspruefung;
+mit den Grenzen, die aus ihm hervorgegangen sind, bewiese es nur sich selbst.
 
 ## Known constraints
 
@@ -265,16 +352,28 @@ Die Handrechnung gegen den ECHTEN Rust-Loeser steht in
 - **Die Verdrehung am freigesetzten Stabende geht verloren.** Fuer Verformungen,
   Auflager- und Stabendkraefte folgenlos; fuer spaetere Verlaeufe muss sie
   zurueckgerechnet werden.
-- **Fast singulaere Systeme werden NICHT erkannt.** `SingularStiffnessMatrixError`
-  faellt erst bei `NaN`/`Infinity`; eine fast singulaere Matrix liefert grosse,
-  aber endliche Zahlen. Eine Residuenprobe hilft dagegen ausdruecklich NICHT: LU
-  mit Spaltenpivotierung hat auch dort einen winzigen Rueckwaertsfehler. Noetig
-  waere eine Konditionsschaetzung aus `faer`, also die Rust-Seite von
-  `@baustatik/linear-solver-wasm`.
+- **Der genannte Knoten bei `SingularStiffnessMatrixError` ist ein Hinweis, kein
+  Beweis.** Genannt wird die Stelle, an der der Rangabfall in der Zerlegung
+  sichtbar wird; der Mechanismus kann anderswo sitzen und mehrere Knoten
+  umfassen. Ein Beweis waere der Eigenvektor zum kleinsten Eigenwert und kostet
+  ein Vielfaches der Rechnung. `UnrestrainedDegreeOfFreedomError` ist dagegen
+  exakt.
+- **Das Ergebnis ist nicht bitgenau.** Der Port skaliert vor dem Loesen
+  (`S K S`) und wieder zurueck; das kostet die letzte Stelle. Tests vergleichen
+  deshalb auf 12 Stellen, nicht mit `toEqual`.
 - **Der Port wird nicht auf Vertragstreue geprueft.** Eine Fassung, die `K`
-  spaltenweise statt zeilenweise liest, liefert still falsche Verformungen.
-- **Keine Lastfaelle und Kombinationen.** Der Bericht kennt genau EINEN Satz
-  Lasten; mit Lastfaellen wuerde aus `canSolve` ein `canSolve(caseId)`.
+  spaltenweise statt zeilenweise liest, liefert still falsche Verformungen —
+  und weil `K` symmetrisch ist, faellt gerade dieser Fehler nicht auf.
+- **Keine Kombinationen.** Es gibt genau zwei Rechenoperationen:
+  `solve(loadCaseId)` fuer einen bestimmten Fall und `solveAll()` fuer alle. Beide
+  rechnen die Faelle NEBENEINANDER. Sie zu einer Kombination zu UEBERLAGERN ist
+  etwas anderes und kommt spaeter; solange die Rechnung linear ist, kann der
+  Aufrufer die Ergebnisse auch selbst summieren.
+- **Ergebnisse werden nicht aufgehoben.** `SolveResult` sagt ueber
+  `loadCaseId`, WOVON es das Ergebnis ist, aber nicht, gegen welchen Stand des
+  Modells oder welchen Faktor gerechnet wurde. Ein Ergebnis veraltet still,
+  sobald sich irgendetwas aendert — dasselbe gilt fuer den Bericht, und es zu
+  bemerken ist Sache der Anwendung.
 - **Ein Stab = ein Element.** Kein Meshing; das Element ist fuer den geraden,
   prismatischen Stab exakt.
 - **Kein Querschnitts- und Materialkatalog.** `getSectionProperties` ist die

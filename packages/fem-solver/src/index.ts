@@ -1,15 +1,19 @@
 export {
-  check,
   type CheckReport,
   type CheckState,
+  check,
   type LoadAssessment,
 } from './check';
-export type { LinearSolve, SolverConfig } from './config';
+export type { LinearSolve, LinearSolveOutcome, SolverConfig } from './config';
 export {
   type DegreeOfFreedom,
+  ImplausibleDisplacementError,
   InvalidAnalysisPolicyError,
   LoadOnIsolatedNodeWarning,
   SingularStiffnessMatrixError,
+  SmallRotationAssumptionWarning,
+  SolveWarning,
+  UnknownLoadCaseError,
   UnknownSectionPropertiesError,
   UnrestrainedDegreeOfFreedomError,
   UnsupportedAnalysisPolicySchemaVersionError,
@@ -20,6 +24,9 @@ export {
   type AnalysisPolicyOverrides,
   createAnalysisPolicy,
   DEFAULT_ANALYSIS_POLICY,
+  DEFAULT_DEFORMATION_LIMITS,
+  type DeformationLimit,
+  type DeformationLimits,
   parseAnalysisPolicy,
 } from './policy';
 export type { NodeDisplacement, SolveResult, SupportReaction } from './solve';

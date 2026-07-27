@@ -5,19 +5,29 @@ import {
 } from '@baustatik/fem';
 import {
   createLoadValidator,
+  type LoadCase,
   modelGeometry,
   ReferenceFactorBelowMinimumError,
   UnknownLoadTargetError,
   ZeroNodeLoadError,
 } from '@baustatik/fem-loads';
 import { describe, expect, it } from 'vitest';
+import { check } from '../src/check';
 import {
   LoadOnIsolatedNodeWarning,
+  UnknownLoadCaseError,
   UnknownSectionPropertiesError,
 } from '../src/errors';
 import { createAnalysisPolicy } from '../src/policy';
 import { createFEMSolver } from '../src/solver';
-import { beam, configOver, node, type Store, support } from './support';
+import {
+  beam,
+  configOver,
+  node,
+  type Store,
+  support,
+  TEST_LOAD_CASE_ID,
+} from './support';
 
 /** Ein Stab, gelagert, mit einer Last. Der Zustand `ready`. */
 function readyStore(): Store {
@@ -30,7 +40,7 @@ function readyStore(): Store {
 }
 
 function reportOver(store: Store, overrides = {}) {
-  return createFEMSolver(configOver(store, overrides)).check();
+  return createFEMSolver(configOver(store, overrides)).check(TEST_LOAD_CASE_ID);
 }
 
 describe('check — die fuenf Zustaende', () => {
@@ -300,8 +310,8 @@ describe('check — die Analyse-Einstellung', () => {
 
     // Der Bericht sagt „nicht rechenbar", und das Tor in solve() haelt
     // denselben Fall auf — nicht einen anderen.
-    expect(solver.check().canSolve).toBe(false);
-    await expect(solver.solve()).rejects.toBeInstanceOf(
+    expect(solver.check(TEST_LOAD_CASE_ID).canSolve).toBe(false);
+    await expect(solver.solve(TEST_LOAD_CASE_ID)).rejects.toBeInstanceOf(
       ReferenceFactorBelowMinimumError,
     );
   });
@@ -312,12 +322,12 @@ describe('check — PULL', () => {
     const store = readyStore();
     const solver = createFEMSolver(configOver(store));
 
-    expect(solver.check().state).toBe('ready');
+    expect(solver.check(TEST_LOAD_CASE_ID).state).toBe('ready');
 
     store.supports = [];
 
-    expect(solver.check().state).toBe('invalid');
-    expect(solver.check().model.errors[0]).toBeInstanceOf(
+    expect(solver.check(TEST_LOAD_CASE_ID).state).toBe('invalid');
+    expect(solver.check(TEST_LOAD_CASE_ID).model.errors[0]).toBeInstanceOf(
       UnsupportedComponentError,
     );
   });
@@ -325,12 +335,36 @@ describe('check — PULL', () => {
   it('haelt keinen Bericht fest', () => {
     const store = readyStore();
     const solver = createFEMSolver(configOver(store));
-    const first = solver.check();
+    const first = solver.check(TEST_LOAD_CASE_ID);
 
     store.loads = [];
 
-    expect(solver.check().state).toBe('unloaded');
+    expect(solver.check(TEST_LOAD_CASE_ID).state).toBe('unloaded');
     // Der alte Bericht bleibt, was er war — er ist nur von gestern.
     expect(first.state).toBe('ready');
+  });
+});
+
+describe('check — Lastfallauswahl', () => {
+  it('wirft bei einer id, die es nicht gibt', () => {
+    // KEIN sechster Zustand: das Modell ist in Ordnung, die Frage war falsch
+    // gestellt. Ein Zustand beschreibt, wie weit das Modell ist.
+    expect(() => check(configOver(readyStore()), 'geloescht')).toThrow(
+      UnknownLoadCaseError,
+    );
+  });
+
+  it('beurteilt den GENANNTEN Fall, nicht den ersten', () => {
+    const store = readyStore();
+    const cases: LoadCase[] = [
+      { id: 'lf-1', name: 'Belastet', loads: store.loads },
+      { id: 'lf-2', name: 'Noch leer', loads: [] },
+    ];
+    const config = configOver(store, { getLoadCases: () => cases });
+
+    expect(check(config, 'lf-1').state).toBe('ready');
+    // Ein leerer Lastfall ist nicht FALSCH, nur nicht rechenbar.
+    expect(check(config, 'lf-2').state).toBe('unloaded');
+    expect(check(config, 'lf-2').canSolve).toBe(false);
   });
 });

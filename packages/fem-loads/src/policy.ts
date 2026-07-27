@@ -169,8 +169,11 @@ function asRecord(input: unknown): Record<string, unknown> {
 
 /** Die Werteregeln — dieselben fuer beide Eingaenge. */
 function assertValidValues(policy: LoadValidationPolicy): void {
-  const { stationRelativeTolerance, minimumReferenceFactor, suspiciousReferenceFactor } =
-    policy;
+  const {
+    stationRelativeTolerance,
+    minimumReferenceFactor,
+    suspiciousReferenceFactor,
+  } = policy;
 
   if (
     !Number.isFinite(stationRelativeTolerance) ||

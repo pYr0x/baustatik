@@ -3,6 +3,7 @@ export {
   DegenerateBeamError,
   DistanceOutOfRangeError,
   EmptyLoadTargetError,
+  InvalidLoadCaseError,
   InvalidLoadValidationPolicyError,
   type LoadTargetKind,
   LoadValidationError,
@@ -17,6 +18,11 @@ export {
   ZeroExtentLoadSegmentWarning,
   ZeroNodeLoadError,
 } from './errors';
+export {
+  assertValidLoadCase,
+  effectiveLoads,
+  type LoadCase,
+} from './load-case';
 export { modelGeometry } from './model-geometry';
 export {
   createLoadValidationPolicy,

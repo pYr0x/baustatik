@@ -1,9 +1,14 @@
 /**
  * Fachliches Lastmodell fuer das ebene Stabwerk.
  *
- * Reine Typen: keine Aufloesung auf Weltkoordinaten, keine Ersatzknotenlasten,
- * keine Lastfaelle. Ziele werden ueber ids referenziert, deshalb braucht diese
- * Datei keinen Import aus @baustatik/fem.
+ * Reine Typen: keine Aufloesung auf Weltkoordinaten, keine Ersatzknotenlasten.
+ * Ziele werden ueber ids referenziert, deshalb braucht diese Datei keinen
+ * Import aus @baustatik/fem.
+ *
+ * AUCH KEIN LASTFALL, und das ist Absicht: der Lastfall steht eine Schicht
+ * darueber in `src/load-case.ts`. Er besitzt Lasten, aber keine Lastart weiss
+ * von ihm — es gibt kein `loadCaseId` an der Last, sonst gaebe es zwei Orte
+ * fuer dieselbe Zugehoerigkeit.
  *
  * VORZEICHEN: z zeigt nach unten (Baustatik-Konvention, wie in fem-geometry).
  * Eine nach unten wirkende Last ist damit POSITIV.

@@ -20,9 +20,9 @@
  */
 
 import { resolveAnalysis } from './analysis';
-import { checkWith, type CheckReport } from './check';
+import { type CheckReport, checkWith } from './check';
 import type { SolverConfig } from './config';
-import { solveWith, type SolveResult } from './solve';
+import { type SolveResult, solveAllWith, solveWith } from './solve';
 
 export type FEMSolver = {
   /**
@@ -34,11 +34,15 @@ export type FEMSolver = {
    * sagt, sind genau die Zweideutigkeit, gegen die der Bericht gebaut ist.
    *
    * Ein Lasten-ENTWURF, der noch nicht im Store liegt, geht hier bewusst NICHT
-   * durch — `getLoads()` sieht ihn nicht. Der Eingabedialog prueft waehrend des
-   * Tippens direkt gegen `@baustatik/fem-loads` (`validateLoad` mit einem
+   * durch — `getLoadCases()` sieht ihn nicht. Der Eingabedialog prueft waehrend
+   * des Tippens direkt gegen `@baustatik/fem-loads` (`validateLoad` mit einem
    * `modelGeometry(...)`). Er braucht fuer einen Tippfehler keinen Solver.
+   *
+   * `loadCaseId` benennt den zu beurteilenden Lastfall. Er wird UEBERGEBEN und
+   * nicht aus einem „aktiven Lastfall" gelesen: sonst haengte das Urteil an der
+   * Bedienung. Unbekannte id wirft `UnknownLoadCaseError` (ADR 0014).
    */
-  check: () => CheckReport;
+  check: (loadCaseId: string) => CheckReport;
 
   /**
    * Rechnet. Wirft den ersten Modell- oder Lastfehler, bevor irgendetwas
@@ -48,8 +52,24 @@ export type FEMSolver = {
    * bedienen koennen muss. Der Fehler aus dem Tor kommt deshalb als abgelehnte
    * Promise; fuer jeden Aufrufer mit `await` im `try` ist das nicht
    * unterscheidbar.
+   *
+   * Rechnet GENAU EINEN Lastfall — den genannten. Ueberlagerung mehrerer Faelle
+   * zu einer Kombination kommt spaeter; das ist etwas anderes als sie
+   * nebeneinander zu rechnen, siehe `solveAll`.
    */
-  solve: () => Promise<SolveResult>;
+  solve: (loadCaseId: string) => Promise<SolveResult>;
+
+  /**
+   * Rechnet ALLE Lastfaelle, in der Reihenfolge von `getLoadCases()`.
+   *
+   * Zusammen mit `solve` sind das die genau ZWEI Rechenoperationen: alle, oder
+   * ein bestimmter. Bricht beim ersten Fehler ab, wie `solve` — wer wissen will,
+   * welcher Fall klemmt, fragt vorher `check(id)` je Fall.
+   *
+   * Jedes Ergebnis nennt ueber `loadCaseId` seinen Lastfall, das Array braucht
+   * also keine Zuordnung daneben.
+   */
+  solveAll: () => Promise<SolveResult[]>;
 };
 
 /**
@@ -70,7 +90,8 @@ export function createFEMSolver(config: SolverConfig): FEMSolver {
   const analysis = resolveAnalysis(config);
 
   return {
-    check: () => checkWith(config, analysis),
-    solve: () => solveWith(config, analysis),
+    check: (loadCaseId) => checkWith(config, analysis, loadCaseId),
+    solve: (loadCaseId) => solveWith(config, analysis, loadCaseId),
+    solveAll: () => solveAllWith(config, analysis),
   };
 }

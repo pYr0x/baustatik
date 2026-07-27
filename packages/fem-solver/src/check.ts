@@ -36,6 +36,7 @@ import {
   LoadOnIsolatedNodeWarning,
   UnknownSectionPropertiesError,
 } from './errors';
+import { resolveLoadCase } from './resolve-load-case';
 
 /**
  * Die fuenf Zustaende, in Rangfolge — der erste zutreffende gewinnt.
@@ -100,9 +101,14 @@ export type CheckReport = {
  *
  * KEIN CACHE. Je Aufruf neu, wie `geometry()`. Der Bericht veraltet, sobald der
  * Store sich aendert — das zu bemerken ist Sache der Anwendung.
+ *
+ * `loadCaseId` sagt, WELCHER Lastfall beurteilt wird. Der Bericht traegt die id
+ * bewusst nicht: er ist fluechtig, wird nie abgelegt, und der Aufrufer hat sie
+ * gerade selbst uebergeben. Beim Ergebnis ist es umgekehrt — siehe
+ * `SolveResult.loadCaseId`.
  */
-export function check(config: SolverConfig): CheckReport {
-  return checkWith(config, resolveAnalysis(config));
+export function check(config: SolverConfig, loadCaseId: string): CheckReport {
+  return checkWith(config, resolveAnalysis(config), loadCaseId);
 }
 
 /**
@@ -115,11 +121,16 @@ export function check(config: SolverConfig): CheckReport {
 export function checkWith(
   config: SolverConfig,
   analysis: ResolvedAnalysis,
+  loadCaseId: string,
 ): CheckReport {
   const nodes = config.getNodes();
   const beams = config.getBeams();
   const supports = config.getSupports();
-  const loads = config.getLoads();
+  // Die EINGEGEBENEN Werte, nicht die gefakterten: eine Meldung soll die Zahl
+  // nennen, die der Anwender getippt hat. Der Fallfaktor aendert an keinem
+  // heutigen Urteil etwas — die Invariante steht in ADR 0013 und haengt an
+  // einem Test in fem-loads.
+  const loads = resolveLoadCase(config, loadCaseId).loads;
 
   const model = validateModel(nodes, beams, supports);
 

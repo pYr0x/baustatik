@@ -156,6 +156,8 @@ einer Aenderung in `fem-loads`/`fem-geometry`/`fem-element` diese erst bauen.
 - **Die `m`-Warze aus `fem-loads`**: `BeamMomentPointLoad.m` ist kNm,
   `BeamMomentConstantLoad.m` ist kNm/m — gleicher Feldname, andere Einheit. Die
   Diskriminante ist `distribution`, nicht der Name.
-- **Kein Lastfall-Begriff**: `resolveLoads` nimmt eine flache Lastmenge. Kommen
-  Lastfaelle und Kombinationen, filtert der Aufrufer vorher; dieses Package
-  bekommt davon nichts mit.
+- **Kein Lastfall-Begriff**: `resolveLoads` nimmt eine flache Lastmenge, und das
+  gilt weiter, seit es Lastfaelle GIBT. Der Aufrufer flacht vorher ab —
+  `fem-solver` uebergibt `effectiveLoads(loadCase)`, also die Lasten samt
+  Fallfaktor. Dieses Package bekommt davon nichts mit, und mit Kombinationen wird
+  sich daran nichts aendern.

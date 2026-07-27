@@ -18,26 +18,40 @@ Eingabe des Anwenders     DIESES PACKAGE       das Tor       @baustatik/fem-load
   `distribution`), die Regeln, wann eine Last zulaessig ist, die zugehoerigen
   Fehlerklassen, den Begriff der Bezugslaenge samt Faktor `L_proj/L`
   (`referenceFactor`), die **Lastvalidierungs-Policy** — die Stellschrauben
-  DIESER Regeln samt Default und Werteprueferei — und die Auskunft
+  DIESER Regeln samt Default und Werteprueferei — die Auskunft
   `LoadModelGeometry` samt ihrer mitgelieferten Implementierung
-  `modelGeometry`.
+  `modelGeometry`, und den **Lastfall** (`LoadCase`, `assertValidLoadCase`,
+  `effectiveLoads`) als Schicht ueber dem Lastmodell.
 - Does not own: die **Aufloesung** in lokale Elementlasten (Drehung,
   Lagerechnung, Merge je Stab — `@baustatik/fem-load-resolve`), die
   **Ersatzknotenlast** (`@baustatik/fem-element`), die **Assemblierung** und
   den Einstiegspunkt der Rechnung (`@baustatik/fem-solver`), die **Darstellung**
   (`@baustatik/fem-viewer`) und die **Speicherung**. Dieses Package haelt
-  keinen Zustand: kein Array, keine Map, kein `let`. Die Lasten leben im Store
-  der Anwendung, neben Knoten und Staeben.
+  keinen Zustand: kein Array, keine Map, kein `let`. Die Lastfaelle leben im
+  Store der Anwendung, neben Knoten und Staeben.
+
+  Kein Widerspruch dazu, dass ein `LoadCase` seine Lasten in einem Array
+  BESITZT: das ist ein Feld eines Datentyps, kein Speicher des Packages. Wer
+  Lastfaelle haelt, anlegt, kopiert oder loescht, ist die Anwendung.
+
 - Ebenfalls nicht hier: das ZUSAMMENSETZEN der Analyse-Einstellungen. Dieses
   Package exportiert seine eigene Scheibe; die versionierte Gesamt-Policy baut
   `@baustatik/fem-solver` als Composition Root
   ([ADR 0011](../../docs/adr/0011-analysis-settings-split-into-versioned-policy-and-ports.md)).
-- Ebenfalls nicht hier: Lastfaelle und Kombinationen. Bewusst **kein**
-  `loadCaseId` im Typ — eine id ohne Besitzer laedt zu einem Fake-Default ein,
-  Nachruesten ist ein Einzeiler.
+- Ebenfalls nicht hier: **Kombinationen**. Teilsicherheitsbeiwerte,
+  psi-Werte, Leiteinwirkung und sich ausschliessende Gruppen sind normatives
+  Tabellenwissen mit NA-Varianten und werden ein eigenes Package. Der Lastfall
+  traegt eine `category`, aber dieses Package **deutet** sie nie — der Typ
+  dafuer kommt aus `@baustatik/actions`
+  ([ADR 0015](../../docs/adr/0015-action-categories-live-in-a-leaf-package.md)).
+- Ebenfalls nicht hier: die **Auswahl**, welcher Lastfall gezeichnet oder
+  gerechnet wird. Das ist Zustand der Anwendung
+  ([ADR 0014](../../docs/adr/0014-load-case-selection-is-a-parameter-not-a-port.md)).
 
 ## Dependencies
 
+- `@baustatik/actions` — `ActionCategory`, das Einwirkungs-Vokabular am
+  Lastfall. Ein Blatt ohne eigene Abhaengigkeiten; gespeichert, nie gedeutet.
 - `@baustatik/errors` — `BaustatikError` als Wurzel der Fehlerhierarchie.
 - `@baustatik/fem-geometry` — `Line`, `Vector`, `Point`. Haelt die
   x/z-Konvention (z abwaerts) an genau einer Stelle.
@@ -50,6 +64,11 @@ Eingabe des Anwenders     DIESES PACKAGE       das Tor       @baustatik/fem-load
 - [`src/types.ts`](src/types.ts): das Lastmodell. Sechs Stablast-Varianten
   (`kind` x `distribution`) plus die Knotenlast. Der Dateikopf traegt Vorzeichen-
   und Drehsinn-Konvention.
+- [`src/load-case.ts`](src/load-case.ts): der Lastfall — `LoadCase`,
+  `assertValidLoadCase` (prueft nur den Faktor, wirft) und `effectiveLoads`
+  (wendet ihn an). Der Dateikopf begruendet den Faktor und die Pruefreihenfolge.
+  KEINE Factory: ein Lastfall ist ein Datensatz, und eine Factory waere per
+  Objektliteral umgehbar — deshalb steht die Zusicherung im Tor des Solvers.
 - [`src/validate.ts`](src/validate.ts): `validateLoad`, `validateLoads`,
   `assertValidLoads`, die Fabrik `createLoadValidator` und der Typ
   `LoadModelGeometry`.
@@ -65,6 +84,21 @@ Eingabe des Anwenders     DIESES PACKAGE       das Tor       @baustatik/fem-load
 
 ## Domain language
 
+- **Lastfall** (`LoadCase`) — eine benannte Gruppe von Lasten, die gemeinsam
+  wirken. Er BESITZT seine Lasten; eine Last existiert nur innerhalb eines
+  Lastfalls, und es gibt kein `loadCaseId` an der Last. Der `name` ist eine
+  Benennung, KEIN Schluessel: zwei Lastfaelle duerfen „Wind" heissen.
+- **Faktor** (`factor`) — ein Faktor auf alle Lastwerte des Falls, Standard 1,
+  endlich und ungleich 0, negativ erlaubt. Er dient der ABLEITUNG DURCH
+  KOPIEREN (Wind umkehren mit -1, Einheitslasten skalieren mit 1,75) und ist
+  **kein Kombinationsbeiwert**
+  ([ADR 0013](../../docs/adr/0013-load-case-factor.md)).
+- **Effektive Last** — `effectiveLoads(loadCase)`: die Lasten, wie sie wirken.
+  Die eine Stelle, durch die Solver UND Viewer schauen — deshalb kann am Pfeil
+  nichts anderes stehen als in der Rechnung.
+- **Einwirkung** — die physikalische Ursache. NICHT dasselbe wie ein Lastfall:
+  „Wind von links" und „Wind von rechts" sind zwei Lastfaelle EINER Einwirkung.
+  Dass sie sich ausschliessen, drueckt `category` nicht aus.
 - **Knotenlast** — ein Vektor ueber die Freiheitsgrade: `fx`, `fz`, `my` global
   in EINER Last. Die Richtung steckt im Vorzeichen. Kraft und Moment duerfen
   gemeinsam auftreten.
@@ -88,10 +122,32 @@ Eingabe des Anwenders     DIESES PACKAGE       das Tor       @baustatik/fem-load
 
 - **z zeigt nach unten.** Eine nach unten wirkende Last ist damit POSITIV. Das
   alte Handoff schrieb `fz: -10` — falsch herum.
+- **Der Lastfall besitzt seine Lasten, und zwar allein.** Kein `loadCaseId` an
+  der Last: zwei Orte fuer dieselbe Zugehoerigkeit waeren zwei Wahrheiten, und
+  eine id ohne Besitzer laedt zu einem Fake-Default-Lastfall ein. Dieselbe Last
+  darf nicht in zwei Faellen liegen — eine Ueberlagerung wuerde sie doppelt
+  zaehlen.
+- **Roh pruefen, effektiv rechnen.** Das Tor (`assertValidLoads`) sieht die
+  EINGEGEBENEN Lastwerte, Rechnung und Darstellung sehen die gefakterten. So
+  nennt jede Meldung die Zahl, die der Anwender getippt hat, und
+  `ScaledLoadValue.value` behaelt seine Bedeutung. Tragfaehig ist das nur,
+  solange keine Regel den BETRAG eines Lastwerts bewertet — festgenagelt in
+  `tests/load-case.test.ts`, begruendet in
+  [ADR 0013](../../docs/adr/0013-load-case-factor.md).
 - **Drehsinn**: das globale y zeigt aus der Zeichenebene heraus, ein positives
   `my`/`m` dreht im Bild GEGEN den Uhrzeigersinn. Das ist NICHT der Drehsinn von
   `theta` in `fem-element` (dort `theta = dw/dx`); es gilt `phiY = -theta`. Die
   Umrechnung leistet `fem-load-resolve`, nicht dieses Package.
+- **Stabrichtung = Knotenreihenfolge, und die legt lokal z fest.** `ex` zeigt
+  vom Anfangs- zum Endknoten (`Line.frame` in `@baustatik/fem-geometry`), `ez`
+  steht senkrecht darauf: derselbe waagrechte Stab von links nach rechts hat
+  lokal z ABWAERTS, von rechts nach links AUFWAERTS. Eine Last mit
+  `frame: 'local'` kehrt deshalb ihre Wirkungsrichtung um, wenn jemand die
+  Knotenreihenfolge des Stabes dreht — eine Last mit `frame: 'global'` nicht.
+  Genauso misst `distanceFromStart` vom ANFANGSknoten und meint am umgedrehten
+  Stab das andere Ende. Kein Fehler, sondern die Konvention; wer die lokale
+  Querrichtung umdrehen will, dreht den Stab. Festgenagelt in
+  `fem-geometry/tests/line.test.ts` und `fem-load-resolve/tests/resolve.test.ts`.
 - **Momentlasten tragen weder `frame` noch `axis` noch `referenceLength`.** Ein
   ebenes Moment dreht immer um y; die Wahl im Dialog hat keine beobachtbare
   Wirkung. Ein Feld ohne Wirkung waere Zustand, den Zeichnen und Solver
@@ -335,6 +391,14 @@ ersetzt. `assertValidLoads` blieb unveraendert und ignoriert die Warnungen.
   Folgefehler.
 - **`modelGeometry` liefert eine Momentaufnahme**, keine lebende Sicht: die
   beiden `Map`s entstehen beim Bauen. Je Vorgang neu bauen, nicht aufheben.
-- Noch nicht da: Lastfaelle, Eigengewicht-Generator, die Lastarten Temperatur,
-  Laengenaenderung, Vorkruemmung, Anfangsvorspannung, und die Verlaeufe
-  Viereckfoermig, Parabolisch, Veraenderlich.
+- **Die id-Eindeutigkeit wird NICHT geprueft.** Last-ids sind global eindeutig
+  und Lastfall-ids ebenso, aber durchgesetzt wird das beim ERZEUGEN
+  (`crypto.randomUUID()` in der Anwendung), nicht durch einen Pruefdurchgang:
+  eine Kollision ist damit nicht erreichbar. Die einzige Stelle, an der die
+  Zusage kippen kann, ist eine Kopieroperation — wer einen Lastfall kopiert,
+  MUSS je Last eine neue id ziehen, sonst tragen zwei Faelle dieselben Last-ids.
+  Kommen je Projektdateien dazu, gehoert die Pruefung an diese Grenze, als
+  strikter Parser nach dem Muster von `parseLoadValidationPolicy`.
+- Noch nicht da: Kombinationen, Eigengewicht-Generator, die Lastarten
+  Temperatur, Laengenaenderung, Vorkruemmung, Anfangsvorspannung, und die
+  Verlaeufe Viereckfoermig, Parabolisch, Veraenderlich.

@@ -204,9 +204,71 @@ type BeamLoad = BeamForceLoad | BeamMomentLoad;
 type FEMLoad = NodeLoad | BeamLoad;
 ```
 
+### `LoadCase`
+
+A named group of loads that act together. The case **owns** its loads — there is
+no `loadCaseId` on a load, and the same load must not appear in two cases.
+
+```typescript
+type LoadCase = {
+  id: string;
+  /** A label, not a key: two cases may both be called "Wind". */
+  name: string;
+  loads: readonly FEMLoad[];
+  /** Finite and non-zero, negative allowed. Defaults to 1. */
+  factor?: number;
+  /** Stored, never interpreted. From `@baustatik/actions`. */
+  category?: ActionCategory;
+};
+```
+
+The `factor` exists for **deriving one case from another by copying**: copy "Wind
+from the left", set `factor: -1`, and the copy is the mirrored case without a
+single value retyped. It is **not** a combination coefficient — entering `1.35`
+here means the combination multiplies by 1.35 a second time. See
+[ADR 0013](../../../docs/adr/0013-load-case-factor.md).
+
 ---
 
 ## API Reference
+
+### assertValidLoadCase()
+
+**Signature:** `function assertValidLoadCase(loadCase: LoadCase): void`
+
+Throws `InvalidLoadCaseError` when the factor is unusable — `0`, `-0`, `NaN` or
+infinite. Checks **nothing else**: `name` and `category` are enforced by the type,
+and an **empty** load case is accepted (the user is not finished, not wrong — a
+solver report calls that state `unloaded`).
+
+Deliberately an assertion and not a `createLoadCase()` factory. A load case is a
+plain record, not an object with behaviour, and a factory would be bypassable by
+an object literal — `fem-solver` therefore calls this in its gate, right next to
+`assertValidLoads`.
+
+```typescript
+const wind: LoadCase = { id: crypto.randomUUID(), name: 'Wind', loads: [] };
+assertValidLoadCase(wind); // fine
+assertValidLoadCase({ id: 'x', name: 'Aus', loads: [], factor: 0 }); // throws
+```
+
+### effectiveLoads()
+
+**Signature:** `function effectiveLoads(loadCase: LoadCase): readonly FEMLoad[]`
+
+The loads as they act — factor applied. **The single place** both the solver and
+the viewer look through, so an arrow can never be labelled differently from the
+number being computed.
+
+Scales load **magnitudes** only (`fx`, `fz`, `my`, `p`, `q`, `q1`, `q2`, `m`,
+`m1`, `m2`). Positions and reference lengths (`distanceFromStart`, `from`, `to`,
+`referenceLength`) are left untouched — otherwise `factor: -1` would turn a legal
+position into a `NegativeDistanceError`. With `factor` absent or `1` it returns
+the **same array**, not a copy.
+
+Note the ordering used by `fem-solver`: the validation gate sees
+`loadCase.loads` (the entered values, so messages name what the user typed) while
+the computation sees `effectiveLoads(loadCase)`.
 
 ### modelGeometry()
 
@@ -342,11 +404,11 @@ validator.assertValidLoads(geom, loads); // computation chain
 **Signature:** `function createLoadValidationPolicy(overrides?: LoadValidationPolicyOverrides): LoadValidationPolicy`
 **Description:** Builds a complete, frozen policy from optional deviations. Checks **values**, not shape — the argument is typed, so the compiler has already ruled on the field names. Without overrides it returns `DEFAULT_LOAD_VALIDATION_POLICY` **itself**, not a copy.
 
-| Field | Default | Meaning |
-| --- | --- | --- |
-| `stationRelativeTolerance` | `1e-9` | relative tolerance when comparing an **absolute** station against the computed beam length |
-| `minimumReferenceFactor` | `1e-9` | hard minimum projection rate; a reference factor `<=` this is rejected |
-| `suspiciousReferenceFactor` | `0.05` | warning threshold; below this a `NearlyDegenerateReferenceLengthWarning` is emitted |
+| Field                       | Default | Meaning                                                                                    |
+| --------------------------- | ------- | ------------------------------------------------------------------------------------------ |
+| `stationRelativeTolerance`  | `1e-9`  | relative tolerance when comparing an **absolute** station against the computed beam length |
+| `minimumReferenceFactor`    | `1e-9`  | hard minimum projection rate; a reference factor `<=` this is rejected                     |
+| `suspiciousReferenceFactor` | `0.05`  | warning threshold; below this a `NearlyDegenerateReferenceLengthWarning` is emitted        |
 
 Value rules: `stationRelativeTolerance` finite and `>= 0`;
 `0 <= minimumReferenceFactor < suspiciousReferenceFactor <= 1`. Violations throw
@@ -409,6 +471,12 @@ const factorVert = referenceFactor('verticalProjection', axis); // 4 / 5 = 0.8
 
 All custom load validation errors inherit from `LoadValidationError`, which extends `BaustatikError` from `@baustatik/errors`.
 
+Two errors deliberately sit **outside** that hierarchy, because
+`LoadValidationError` requires a `loadId` and neither finding has one:
+`InvalidLoadValidationPolicyError` (unusable policy) and `InvalidLoadCaseError`
+(unusable load case factor, carries `loadCaseId`). Both are always thrown, never
+collected.
+
 ```typescript
 import {
   LoadValidationError,
@@ -425,18 +493,18 @@ import {
 } from '@baustatik/fem-loads';
 ```
 
-| Error Class                | Trigger Condition                                               | Key Properties                              |
-| -------------------------- | --------------------------------------------------------------- | ------------------------------------------- |
-| `LoadValidationError`      | Abstract base class for all load validation errors              | `loadId: string`                            |
-| `EmptyLoadTargetError`     | `nodeIds` or `beamIds` array is empty                           | `targetKind: LoadTargetKind`                |
-| `UnknownLoadTargetError`   | Specified node or beam ID does not exist in model               | `targetKind`, `targetId: string`            |
-| `DegenerateBeamError`      | Loaded beam has zero length (`p1 === p2`)                       | `beamId: string`                            |
-| `ZeroNodeLoadError`        | Node load has all components (`fx`, `fz`, `my`) missing or zero | —                                           |
-| `ZeroBeamLoadError`        | Beam load has all force/moment values equal to zero             | `fields: readonly string[]`                 |
-| `NonFiniteLoadValueError`  | A load value or position is `NaN` or infinite                   | `field: string`, `value: number`            |
-| `NegativeDistanceError`    | `distanceFromStart`, `from`, or `to` is less than zero          | `field: string`, `value: number`            |
-| `DistanceOutOfRangeError`  | Distance exceeds beam length (or 100%)                          | `field`, `value`, `limit`, `beamId?`        |
-| `BackwardsLoadExtentError` | Load interval runs backwards (`from > to`)                      | `from: number`, `to: number`                |
+| Error Class                        | Trigger Condition                                                                        | Key Properties                                                  |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `LoadValidationError`              | Abstract base class for all load validation errors                                       | `loadId: string`                                                |
+| `EmptyLoadTargetError`             | `nodeIds` or `beamIds` array is empty                                                    | `targetKind: LoadTargetKind`                                    |
+| `UnknownLoadTargetError`           | Specified node or beam ID does not exist in model                                        | `targetKind`, `targetId: string`                                |
+| `DegenerateBeamError`              | Loaded beam has zero length (`p1 === p2`)                                                | `beamId: string`                                                |
+| `ZeroNodeLoadError`                | Node load has all components (`fx`, `fz`, `my`) missing or zero                          | —                                                               |
+| `ZeroBeamLoadError`                | Beam load has all force/moment values equal to zero                                      | `fields: readonly string[]`                                     |
+| `NonFiniteLoadValueError`          | A load value or position is `NaN` or infinite                                            | `field: string`, `value: number`                                |
+| `NegativeDistanceError`            | `distanceFromStart`, `from`, or `to` is less than zero                                   | `field: string`, `value: number`                                |
+| `DistanceOutOfRangeError`          | Distance exceeds beam length (or 100%)                                                   | `field`, `value`, `limit`, `beamId?`                            |
+| `BackwardsLoadExtentError`         | Load interval runs backwards (`from > to`)                                               | `from: number`, `to: number`                                    |
 | `ReferenceFactorBelowMinimumError` | Reference factor `L_proj / L` is at or below `minimumReferenceFactor` on the target beam | `beamId`, `referenceLength`, `factor`, `minimumReferenceFactor` |
 
 `ReferenceFactorBelowMinimumError` was called `ZeroProjectedLengthError`. With a
@@ -446,10 +514,10 @@ rejected, and the bound need not be 0.
 Warnings live in a second hierarchy, `LoadValidationWarning`. They are never
 thrown; they report **admissible** input that looks like a slip.
 
-| Warning Class                            | Trigger Condition                                          | Key Properties                                                       |
-| ---------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------- |
-| `NearlyDegenerateReferenceLengthWarning`  | Reference factor below `suspiciousReferenceFactor`         | `beamId`, `referenceLength`, `factor`, `suspiciousReferenceFactor`, `values` |
-| `ZeroExtentLoadSegmentWarning`            | Trapezoidal segment with `from === to`                     | `at: number`, `relative: boolean`                                     |
+| Warning Class                            | Trigger Condition                                  | Key Properties                                                               |
+| ---------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `NearlyDegenerateReferenceLengthWarning` | Reference factor below `suspiciousReferenceFactor` | `beamId`, `referenceLength`, `factor`, `suspiciousReferenceFactor`, `values` |
+| `ZeroExtentLoadSegmentWarning`           | Trapezoidal segment with `from === to`             | `at: number`, `relative: boolean`                                            |
 
 `InvalidLoadValidationPolicyError` sits outside both hierarchies: it complains
 about the **setting**, not about a load, and is always thrown, never returned.

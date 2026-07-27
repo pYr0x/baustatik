@@ -654,7 +654,8 @@ Faktoren sind aktuell zulässig; siehe die Einschränkung in
 Die hier beschriebenen Typen decken die aktuelle Eingabe von Knoten- und
 Stablasten ab. Nicht enthalten sind derzeit:
 
-- Lastfälle und Lastkombinationen,
+- Lastkombinationen (Lastfälle selbst gibt es: `LoadCase` in
+  [`src/load-case.ts`](../src/load-case.ts)),
 - ein Eigengewicht-Generator,
 - Temperatur, Längenänderung, Längsverschiebung, Vorkrümmung und
   Anfangsvorspannung,

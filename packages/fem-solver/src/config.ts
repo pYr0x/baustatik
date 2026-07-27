@@ -25,12 +25,43 @@ import type {
   FrameElement2DFormulation,
   SectionProperties,
 } from '@baustatik/fem-element';
-import type { FEMLoad } from '@baustatik/fem-loads';
+import type { LoadCase } from '@baustatik/fem-loads';
 import type { AnalysisPolicy } from './policy';
 
 /**
- * Loest `K d = F`. `K` liegt ZEILENWEISE flach (n*n Werte), `F` und das
- * Ergebnis sind je n Werte.
+ * Was beim Loesen von `K d = F` herauskommt: die Verschiebungen — oder der
+ * Befund, dass es sie nicht gibt.
+ *
+ * Die Kinematik reist als ERGEBNIS zurueck, nicht als Wurf. Ein Mechanismus ist
+ * kein Fehler des Ports, sondern eine Aussage ueber das Modell; ein Wurf ist dem
+ * echten Scheitern vorbehalten (kaputter Worker, gebrochener Vertrag). Wer
+ * beides in einen Kanal legt, kann sie hinterher nicht mehr trennen. Siehe
+ * ADR 0012.
+ */
+export type LinearSolveOutcome =
+  | { readonly kind: 'solved'; readonly d: Float64Array }
+  | {
+      readonly kind: 'singular';
+      /**
+       * Die Zeile im REDUZIERTEN System, in der die Singularitaet aufgefallen
+       * ist. `solve()` uebersetzt sie ueber `free[index]` in Knoten und
+       * Richtung.
+       *
+       * Ein HINWEIS, kein Beweis — die Stelle, an der der Rangabfall waehrend
+       * der Zerlegung sichtbar wird, nicht notwendig der Freiheitsgrad, der
+       * sich bewegt.
+       */
+      readonly index: number;
+      /**
+       * Das kleinste skalierte Pivot als Mass fuer die Naehe zur Kinematik.
+       * `0` heisst „die Zerlegung ist gescheitert", ein kleiner positiver Wert
+       * heisst „sie gelang, aber das Ergebnis waere Rauschen".
+       */
+      readonly pivotRatio: number;
+    };
+
+/**
+ * Loest `K d = F`. `K` liegt ZEILENWEISE flach (n*n Werte), `F` hat n Werte.
  *
  * Darf ein Promise liefern, weil die produktive Fassung ueber einen Worker
  * laeuft (`@baustatik/linear-solver-wasm` braucht ausserdem ein asynchrones
@@ -41,14 +72,23 @@ export type LinearSolve = (
   n: number,
   K: Float64Array,
   F: Float64Array,
-) => Float64Array | Promise<Float64Array>;
+) => LinearSolveOutcome | Promise<LinearSolveOutcome>;
 
 export interface SolverConfig {
   /** PULL der Rohdaten aus dem Store — wie bei `createFEMViewer`. */
   getNodes: () => readonly Node[];
   getBeams: () => readonly Beam[];
   getSupports: () => readonly NodeSupport[];
-  getLoads: () => readonly FEMLoad[];
+  /**
+   * ALLE Lastfaelle, nicht der gerade ausgewaehlte.
+   *
+   * Welcher gerechnet wird, sagt das Argument von `check(loadCaseId)` und
+   * `solve(loadCaseId)`. „Welcher Lastfall ist aktiv" ist Auswahlzustand der
+   * Anwendung; ein Rechenkopf, der ihn LIEST, rechnet je nach Bedienung etwas
+   * anderes. Nebenbei ist damit die Reihe ueber alle Faelle (Kombinationen) eine
+   * Schleife und kein Umschalten im Store. Siehe ADR 0014.
+   */
+  getLoadCases: () => readonly LoadCase[];
 
   /**
    * Die Steifigkeiten eines Stabs, aus `crossSectionId` x `materialId`.

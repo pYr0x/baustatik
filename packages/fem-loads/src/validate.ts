@@ -126,10 +126,7 @@ export type LoadValidator = {
     model: LoadModelGeometry,
     loads: readonly FEMLoad[],
   ): LoadValidationResult;
-  assertValidLoads(
-    model: LoadModelGeometry,
-    loads: readonly FEMLoad[],
-  ): void;
+  assertValidLoads(model: LoadModelGeometry, loads: readonly FEMLoad[]): void;
 };
 
 /**

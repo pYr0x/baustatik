@@ -10,7 +10,7 @@
 
 import { type Beam, type Node, type NodeSupport } from '@baustatik/fem';
 import { type SectionProperties } from '@baustatik/fem-element';
-import { type FEMLoad } from '@baustatik/fem-loads';
+import type { LoadCase } from '@baustatik/fem-loads';
 import { createAnalysisPolicy, createFEMSolver } from '@baustatik/fem-solver';
 import { solveLinearSystem } from './linear-solver-port';
 import { convert } from '@baustatik/units';
@@ -39,10 +39,17 @@ const beams: Beam[] = [
   },
 ];
 const supports: NodeSupport[] = [
-  { id: 's1', nodeId: 'n1', ux: 'fixed', uz: 'fixed', phiY: 'fixed' },
+  { id: 's1', nodeId: 'n1', ux: 'fixed', uz: 'fixed', phiY: 'free' },
 ];
 // z zeigt nach unten: eine nach unten wirkende Last ist POSITIV.
-const loads: FEMLoad[] = [{ id: 'l1', target: 'node', nodeIds: ['n2'], fz: P }];
+//
+// Eine Last existiert nur innerhalb eines Lastfalls. Hier ist es genau einer,
+// ohne Faktor — die Handrechnung unten soll die reinen Zahlen treffen.
+const loadCase: LoadCase = {
+  id: 'lf1',
+  name: 'Einzellast am freien Ende',
+  loads: [{ id: 'l1', target: 'node', nodeIds: ['n2'], fz: P }],
+};
 
 /**
  * Feste Zahlen statt eines Katalogs.
@@ -86,14 +93,14 @@ const solver = createFEMSolver({
   getNodes: () => nodes,
   getBeams: () => beams,
   getSupports: () => supports,
-  getLoads: () => loads,
+  getLoadCases: () => [loadCase],
   getSectionProperties: () => SECTION,
   solveLinearSystem,
   analysisPolicy,
 });
 
 async function run(): Promise<void> {
-  const report = solver.check();
+  const report = solver.check(loadCase.id);
   console.log('Zustand:', report.state);
 
   if (!report.canSolve) {
@@ -106,7 +113,7 @@ async function run(): Promise<void> {
     return;
   }
 
-  const result = await solver.solve();
+  const result = await solver.solve(loadCase.id);
 
   const tip = result.displacements.get('n2');
   const reaction = result.reactions.get('n1');
@@ -141,6 +148,6 @@ async function run(): Promise<void> {
 // void run();
 
 // Zum Ausprobieren in der Konsole.
-Object.assign(globalThis, { solver, nodes, beams, supports, loads });
+Object.assign(globalThis, { solver, nodes, beams, supports, loadCase });
 
 solveButton.addEventListener('click', () => void run());

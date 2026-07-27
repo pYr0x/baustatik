@@ -93,6 +93,15 @@ Important consumers:
   is irrelevant — the only thing that matters is what comes back in `x`/`z`. The
   benefit of the conversion is purely type-level: `Point{x,z}` and `Point{x,y}`
   stay distinguishable so the two worlds cannot be mixed up accidentally.
+- **Beam direction is node order, and node order fixes local `z`.** `ex` runs
+  from the start node to the end node, so entering the same physical beam the
+  other way round reverses _both_ local axes: left → right gives `ez = (0, 1)`,
+  local `z` pointing downwards; right → left gives `ez = (0, −1)`, local `z`
+  pointing upwards. That is the convention and not a defect — reversing a beam's
+  local transverse direction means reversing its node order. Everything
+  downstream inherits it from this one basis: `frame: 'local'` loads in
+  `fem-load-resolve`, the 6×6 DOF transformation in `fem-solver`, and the signs
+  of the local results. Pinned in `tests/line.test.ts`.
 - **`Line.frame` is the authoritative definition of the local beam axes, and is
   deliberately not delegated.** It returns `ex` (start node → end node) and
   `ez`, with `ex = (cos α, sin α)` implying `ez = (−sin α, cos α)`. That equals

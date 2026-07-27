@@ -11,6 +11,12 @@ solveLinearSystem:    (n, K, F) => Float64Array | Promise<Float64Array>
 formulation?:         FrameElement2DFormulation   // default Timoshenko2D
 ```
 
+> Amended by [ADR 0012](0012-kinematics-is-detected-by-the-solver.md):
+> `solveLinearSystem` no longer returns a bare `Float64Array` but a
+> `LinearSolveOutcome` — either the displacements or the finding that the system
+> is kinematic. The port ownership argument below is unchanged; the contract
+> simply carries one more thing the solver alone can observe.
+
 All three exist for one reason: **`fem-solver` must be testable alone.** It is
 the package that wires the entire calculation chain together, so it is the one
 package where a test must be able to say "the assembly is wrong" rather than

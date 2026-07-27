@@ -8,7 +8,14 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"],
-      "inputs": ["src/**/*.tsx", "src/**/*.ts", "tests/**/*.ts", "tests/**/*.tsx"]
+      "inputs": [
+        "src/**/*.tsx",
+        "src/**/*.ts",
+        "tests/**/*.ts",
+        "tests/**/*.tsx",
+        "rust/**/*.rs",
+        "rust/Cargo.toml"
+      ]
     },
     "test:watch": {
       "cache": false,

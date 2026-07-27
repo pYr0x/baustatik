@@ -22,8 +22,12 @@ import type {
   Vector6,
 } from '@baustatik/fem-element';
 import { Line, Vector } from '@baustatik/fem-geometry';
-import { modelGeometry } from '@baustatik/fem-loads';
 import { resolveLoads } from '@baustatik/fem-load-resolve';
+import {
+  assertValidLoadCase,
+  effectiveLoads,
+  modelGeometry,
+} from '@baustatik/fem-loads';
 import { type ResolvedAnalysis, resolveAnalysis } from './analysis';
 import type { SolverConfig } from './config';
 import {
@@ -39,9 +43,14 @@ import {
 } from './element-matrix';
 import {
   type DegreeOfFreedom,
+  ImplausibleDisplacementError,
   SingularStiffnessMatrixError,
+  SmallRotationAssumptionWarning,
+  type SolveWarning,
   UnrestrainedDegreeOfFreedomError,
 } from './errors';
+import type { DeformationLimit, DeformationLimits } from './policy';
+import { resolveLoadCase } from './resolve-load-case';
 
 /** Freiheitsgrade je Knoten, in Nummerierungsreihenfolge. */
 const DOF_PER_NODE = 3;
@@ -77,6 +86,16 @@ export type SupportReaction = {
 };
 
 export type SolveResult = {
+  /**
+   * Welcher Lastfall gerechnet wurde.
+   *
+   * Ein Ergebnis, das nicht sagt, wovon es das Ergebnis ist, kann man nicht
+   * ablegen. Sobald Kombinationen dazukommen, sammelt jemand die Ergebnisse
+   * aller Faelle — selbstbeschreibend passen sie in ein Array, ohne dass eine
+   * Map daneben desynchronisieren kann. Der Pruefbericht traegt die id bewusst
+   * NICHT: er ist fluechtig und wird nie abgelegt.
+   */
+  loadCaseId: string;
   /** je `nodeId` */
   displacements: Map<string, NodeDisplacement>;
   /** je `nodeId` MIT Auflager */
@@ -89,6 +108,17 @@ export type SolveResult = {
    * exakt 0 — ein Gelenk uebertraegt kein Moment.
    */
   elementEndForces: Map<string, Vector6>;
+  /**
+   * Befunde AM ERGEBNIS: gerechnet wurde richtig, aber es gibt etwas dazu zu
+   * sagen. Heute genau einer — das Ergebnis verlaesst den Gueltigkeitsbereich
+   * der Theorie I. Ordnung.
+   *
+   * Sie reisen MIT dem Ergebnis und nicht daneben, aus demselben Grund, aus dem
+   * `loadCaseId` mitreist: ein Ergebnis, das seine Vorbehalte nicht kennt, kann
+   * man nicht ablegen. Ein Fehler waeren sie nicht — die Zahlen sind da, sie
+   * gelten nur unter einer Annahme, die hier nicht mehr traegt.
+   */
+  warnings: SolveWarning[];
 };
 
 /** Alles, was ein Stab fuer die Rueckrechnung braucht, einmal aufgehoben. */
@@ -111,8 +141,44 @@ type PreparedBeam = {
  * (`error-handling-in-libraries.md`). Modell zuerst, dann Lasten — in der
  * anderen Reihenfolge meldete die Lastpruefung Folgefehler eines Modellfehlers.
  */
-export async function solve(config: SolverConfig): Promise<SolveResult> {
-  return solveWith(config, resolveAnalysis(config));
+export async function solve(
+  config: SolverConfig,
+  loadCaseId: string,
+): Promise<SolveResult> {
+  return solveWith(config, resolveAnalysis(config), loadCaseId);
+}
+
+/**
+ * Rechnet ALLE Lastfaelle, in der Reihenfolge von `getLoadCases()`.
+ *
+ * Es gibt genau zwei Rechenoperationen — diese und `solve(loadCaseId)` — und
+ * keine dritte. „Alle rechnen" als Schleife beim Aufrufer liegen zu lassen
+ * hiesse, dass jede Oberflaeche dieselbe Schleife neu schreibt; und erst hier
+ * zahlt sich aus, dass `SolveResult` seine `loadCaseId` traegt: das Array ist
+ * ohne eine Zuordnung daneben lesbar.
+ *
+ * BRICHT BEIM ERSTEN FEHLER AB, wie `solve()`. Das Modell — Knoten, Staebe,
+ * Auflager — ist allen Faellen gemeinsam, ein Modellfehler betrifft also ohnehin
+ * jeden; und eine fehlerhafte Lasteingabe heisst, dass die Eingabe nicht fertig
+ * ist. Wer wissen will, WELCHER Fall klemmt, fragt vorher `check(id)` je Fall.
+ *
+ * NACHEINANDER, nicht parallel: der Linearsolver laeuft ueber einen einzigen
+ * Worker, parallele Aufrufe wuerden sich dort ohnehin aufreihen.
+ */
+export async function solveAll(config: SolverConfig): Promise<SolveResult[]> {
+  return solveAllWith(config, resolveAnalysis(config));
+}
+
+/** `solveAll` mit einem bereits aufgeloesten Kontext, wie `solveWith`. */
+export async function solveAllWith(
+  config: SolverConfig,
+  analysis: ResolvedAnalysis,
+): Promise<SolveResult[]> {
+  const results: SolveResult[] = [];
+  for (const loadCase of config.getLoadCases()) {
+    results.push(await solveWith(config, analysis, loadCase.id));
+  }
+  return results;
 }
 
 /**
@@ -123,19 +189,28 @@ export async function solve(config: SolverConfig): Promise<SolveResult> {
 export async function solveWith(
   config: SolverConfig,
   analysis: ResolvedAnalysis,
+  loadCaseId: string,
 ): Promise<SolveResult> {
   const nodes = config.getNodes();
   const beams = config.getBeams();
   const supports = config.getSupports();
-  const loads = config.getLoads();
+  const loadCase = resolveLoadCase(config, loadCaseId);
 
   assertValidModel(nodes, beams, supports);
+  // Der Lastfall selbst zuerst: ein Faktor von `NaN` wuerde sonst als `NaN` durch
+  // die ganze Kette laufen und als Verformung herauskommen. Der Bericht sagt dazu
+  // nichts — ein unbrauchbarer Faktor ist ein Programmierfehler, kein
+  // Modellzustand, genau wie der ungehaltene Freiheitsgrad.
+  assertValidLoadCase(loadCase);
   const geometry = modelGeometry(nodes, beams);
-  // Derselbe Validator, den `check()` benutzt — sonst koennte der Bericht
-  // „rechenbar" sagen und das Tor trotzdem zuschlagen.
-  analysis.loadValidator.assertValidLoads(geometry, loads);
+  // Derselbe Validator MIT DENSELBEN ZAHLEN, die `check()` sieht — sonst koennte
+  // der Bericht „rechenbar" sagen und das Tor trotzdem zuschlagen. Das sind die
+  // EINGEGEBENEN Werte, ohne Fallfaktor.
+  analysis.loadValidator.assertValidLoads(geometry, loadCase.loads);
 
-  const resolved = resolveLoads(geometry, loads);
+  // Gerechnet wird dagegen mit dem Faktor. Dieselbe Funktion versorgt den
+  // Viewer, damit am Pfeil nichts anderes steht als in der Rechnung (ADR 0013).
+  const resolved = resolveLoads(geometry, effectiveLoads(loadCase));
 
   const dofOf = new Map(
     nodes.map((node, index) => [node.id, index * DOF_PER_NODE]),
@@ -183,12 +258,25 @@ export async function solveWith(
   const free = freeDegreesOfFreedom(nodes, supports, dofOf);
   assertHeld(K, free, nodes);
 
-  const displacements = await solveReduced(config, K, F, free, n);
+  const raw = await solveReduced(config, K, F, free, n, nodes);
+  const displacements = displacementsByNode(nodes, raw, dofOf);
+
+  // Das VIERTE Netz, und es laeuft VOR der Rueckrechnung: aus unbrauchbaren
+  // Verschiebungen sollen keine unbrauchbaren Schnittgroessen entstehen — die
+  // saehen plausibel aus und reisten als Zahlen weiter.
+  const warnings = assessDisplacements(
+    displacements,
+    beams,
+    geometry,
+    analysis.policy.deformationLimits,
+  );
 
   return {
-    displacements: displacementsByNode(nodes, displacements, dofOf),
-    reactions: reactionsByNode(K, F, displacements, supports, dofOf),
-    elementEndForces: endForcesByBeam(prepared, displacements),
+    loadCaseId: loadCase.id,
+    displacements,
+    reactions: reactionsByNode(K, F, raw, supports, dofOf),
+    elementEndForces: endForcesByBeam(prepared, raw),
+    warnings,
   };
 }
 
@@ -304,13 +392,41 @@ function assertHeld(
   }
 }
 
-/** Das reduzierte System herauskopieren, loesen, wieder aufblasen. */
+/**
+ * Das reduzierte System herauskopieren, loesen, wieder aufblasen.
+ *
+ * Hier haengen die Netze 1 bis 3 gegen Kinematik, und die vier sind bewusst
+ * gestaffelt:
+ *
+ * 1. `assertHeld` — billig, laeuft vor dem Port, und der einzige Fall, der sich
+ *    exakt benennen laesst (leere Diagonale, Pendelstab).
+ * 2. Der Port meldet `kind: 'singular'` — der allgemeine Fall, aus der
+ *    Cholesky-Zerlegung. Faengt auch die FAST singulaere Matrix.
+ * 3. `Number.isFinite` — die Absicherung gegen eine Port-Fassung, die den
+ *    Vertrag nicht erfuellt. Sie sollte nie greifen; greift sie doch, ist das
+ *    Ergebnis trotzdem nicht auslieferbar.
+ * 4. `assessDisplacements` am ERGEBNIS, in `solveWith` direkt hinter diesem
+ *    Aufruf.
+ *
+ * WARUM DAS PIVOT ALLEIN NICHT REICHT: es beurteilt die Matrix, die in `K`
+ * STEHT, und die ist nicht die des Modells. Ein schraeger Stab mischt ueber die
+ * Transformation `EA/L` und `12EI/L^3` in dieselbe Zeile — bei realistischer
+ * Schlankheit ein Faktor `1e6` —, und die Ausloeschung traegt die Groesse des
+ * groesseren Terms. Der Rauschboden liegt damit weit ueber der Schwelle: das
+ * Vorzeichen des Rauschens entscheidet ueber den Abbruch, der Betrag ueber die
+ * Schwelle, und beides haengt an den Koordinaten. Nach der Ausloeschung steht in
+ * `K` die exakte Matrix eines geringfuegig ANDEREN Modells, und dieses andere
+ * Modell ist tragfaehig — kein Verfahren, das dieselbe Matrix liest, holt das
+ * zurueck. Die Messung dazu: `docs/messungen/kinematik-abstand.md`, die
+ * Begruendung: ADR 0016.
+ */
 async function solveReduced(
   config: SolverConfig,
   K: number[][],
   F: Float64Array,
   free: readonly number[],
   n: number,
+  nodes: readonly Node[],
 ): Promise<Float64Array> {
   const size = free.length;
   const displacements = new Float64Array(n);
@@ -330,15 +446,127 @@ async function solveReduced(
     }
   }
 
-  const solution = await config.solveLinearSystem(size, reducedK, reducedF);
+  const outcome = await config.solveLinearSystem(size, reducedK, reducedF);
+
+  if (outcome.kind === 'singular') {
+    // Die Zeile des reduzierten Systems zurueck in die globale Nummerierung —
+    // dieselbe Arithmetik wie in `assertHeld`, nur ueber `free` hinweg.
+    const global = free[outcome.index];
+    throw new SingularStiffnessMatrixError(
+      nodes[Math.floor(global / DOF_PER_NODE)].id,
+      DOF_ORDER[global % DOF_PER_NODE],
+      outcome.pivotRatio,
+    );
+  }
 
   for (let r = 0; r < size; r += 1) {
-    if (!Number.isFinite(solution[r])) {
+    if (!Number.isFinite(outcome.d[r])) {
       throw new SingularStiffnessMatrixError();
     }
-    displacements[free[r]] = solution[r];
+    displacements[free[r]] = outcome.d[r];
   }
   return displacements;
+}
+
+/**
+ * Das VIERTE Netz: ist das, was herausgekommen ist, ueberhaupt eine Verformung?
+ *
+ * GEMESSEN WIRD ABSOLUT, nicht relativ zwischen benachbarten Knoten: die
+ * Auflager legen den Bezugsrahmen fest, und gesucht ist die BEWEGUNG des
+ * Tragwerks, nicht die Verzerrung eines Stabs. Bezugslaenge der Verschiebung ist
+ * der angehaengte Stab — ein Knoten hat keine eigene Laenge, und der Stab, an
+ * dem er haengt, ist das naechstliegende Mass.
+ *
+ * JE GROESSE WIRD NUR DER GROESSTE AUSSCHLAG GEMELDET — hoechstens eine Warnung
+ * fuer die Verdrehung und eine fuer die Verschiebung, und geworfen wird auf den
+ * schlimmeren der beiden. Das ist kein Sparen an Auskunft, sondern der Zuschnitt
+ * des Befunds: „das Ergebnis verlaesst die Theorie I. Ordnung" ist eine Aussage
+ * ueber das ERGEBNIS und nicht ueber einen Knoten. Je Knoten zu melden gaebe bei
+ * einem Mechanismus drei Warnungen je Knoten, die alle dasselbe sagen, und
+ * verdeckte die Frage, WIE WEIT es daneben liegt. Wer die Verteilung sehen will,
+ * hat `displacements`.
+ *
+ * EHRLICHE GRENZE: die Pruefung sieht den Mechanismus nur, wenn die Last ihn
+ * anregt. Eine Last, deren Resultierende durch den Drehpunkt zeigt, erzeugt
+ * keine Bewegung — Pruefung still, Modell trotzdem kinematisch. Deshalb das
+ * vierte Netz und nicht der Ersatz fuer das Pivot.
+ */
+function assessDisplacements(
+  displacements: Map<string, NodeDisplacement>,
+  beams: readonly Beam[],
+  geometry: ReturnType<typeof modelGeometry>,
+  limits: DeformationLimits,
+): SolveWarning[] {
+  type Extreme = { nodeId: string; dof: DegreeOfFreedom; value: number };
+
+  let rotation: Extreme | undefined;
+  for (const [nodeId, d] of displacements) {
+    const value = Math.abs(d.phiY);
+    if (rotation === undefined || value > rotation.value) {
+      rotation = { nodeId, dof: 'phiY', value };
+    }
+  }
+
+  let displacement: Extreme | undefined;
+  for (const beam of beams) {
+    const L = Line.length(geometry.beamAxis(beam.id) as Line);
+    for (const nodeId of [beam.startNodeId, beam.endNodeId]) {
+      const d = displacements.get(nodeId);
+      if (d === undefined) continue;
+      const value = Math.hypot(d.ux, d.uz) / L;
+      if (displacement !== undefined && value <= displacement.value) continue;
+      displacement = {
+        nodeId,
+        // Die Richtung, die den groesseren Anteil an der Bewegung hat — sie
+        // sagt dem Anwender, wohin es sich verschiebt.
+        dof: Math.abs(d.ux) >= Math.abs(d.uz) ? 'ux' : 'uz',
+        value,
+      };
+    }
+  }
+
+  const measured: { extreme: Extreme; measure: keyof DeformationLimit }[] = [];
+  if (rotation !== undefined) {
+    measured.push({ extreme: rotation, measure: 'rotation' });
+  }
+  if (displacement !== undefined) {
+    measured.push({ extreme: displacement, measure: 'relativeDisplacement' });
+  }
+
+  // Erst ALLE Groessen gegen `fail`, dann erst warnen: sonst haenge es an der
+  // Reihenfolge, ob eine gerissene Fehlergrenze als Warnung durchkaeme.
+  let worst: { extreme: Extreme; limit: number; ratio: number } | undefined;
+  for (const { extreme, measure } of measured) {
+    const limit = limits.fail[measure];
+    const ratio = extreme.value / limit;
+    if (ratio <= 1) continue;
+    if (worst === undefined || ratio > worst.ratio) {
+      worst = { extreme, limit, ratio };
+    }
+  }
+  if (worst !== undefined) {
+    throw new ImplausibleDisplacementError(
+      worst.extreme.nodeId,
+      worst.extreme.dof,
+      worst.extreme.value,
+      worst.limit,
+    );
+  }
+
+  const warnings: SolveWarning[] = [];
+  for (const { extreme, measure } of measured) {
+    const limit = limits.warn[measure];
+    if (extreme.value <= limit) continue;
+    warnings.push(
+      new SmallRotationAssumptionWarning(
+        extreme.nodeId,
+        extreme.dof,
+        extreme.value,
+        limit,
+      ),
+    );
+  }
+  return warnings;
 }
 
 function displacementsByNode(

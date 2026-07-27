@@ -11,6 +11,7 @@ import {
   ANALYSIS_POLICY_SCHEMA_VERSION,
   createAnalysisPolicy,
   DEFAULT_ANALYSIS_POLICY,
+  DEFAULT_DEFORMATION_LIMITS,
   parseAnalysisPolicy,
 } from '../src/policy';
 
@@ -20,8 +21,20 @@ describe('DEFAULT_ANALYSIS_POLICY', () => {
       schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
       loads: DEFAULT_LOAD_VALIDATION_POLICY,
       shearDeformation: true,
+      deformationLimits: DEFAULT_DEFORMATION_LIMITS,
     });
-    expect(ANALYSIS_POLICY_SCHEMA_VERSION).toBe(1);
+    expect(ANALYSIS_POLICY_SCHEMA_VERSION).toBe(2);
+  });
+
+  it('traegt die gemessenen Verformungsgrenzen', () => {
+    // Die vier Zahlen und ihre Begruendung: docs/messungen/kinematik-abstand.md.
+    // `warn` ist die Gueltigkeitsgrenze der Theorie I. Ordnung, `fail` liegt
+    // ueber allem, was ein tragfaehiges System liefert, und weit unter jedem
+    // gemessenen Mechanismus.
+    expect(DEFAULT_DEFORMATION_LIMITS).toEqual({
+      warn: { rotation: 0.1, relativeDisplacement: 0.1 },
+      fail: { rotation: 1e3, relativeDisplacement: 1e4 },
+    });
   });
 
   it('teilt das Lastblatt mit seinem Eigentuemer — Objektidentitaet', () => {
@@ -33,6 +46,12 @@ describe('DEFAULT_ANALYSIS_POLICY', () => {
   it('ist tief eingefroren', () => {
     expect(Object.isFrozen(DEFAULT_ANALYSIS_POLICY)).toBe(true);
     expect(Object.isFrozen(DEFAULT_ANALYSIS_POLICY.loads)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_ANALYSIS_POLICY.deformationLimits)).toBe(
+      true,
+    );
+    expect(Object.isFrozen(DEFAULT_ANALYSIS_POLICY.deformationLimits.warn)).toBe(
+      true,
+    );
   });
 });
 
@@ -78,10 +97,68 @@ describe('createAnalysisPolicy', () => {
     createAnalysisPolicy({
       shearDeformation: false,
       loads: { stationRelativeTolerance: 1 },
+      deformationLimits: { warn: { rotation: 0.02 } },
     });
 
     expect(DEFAULT_ANALYSIS_POLICY.shearDeformation).toBe(true);
     expect(DEFAULT_ANALYSIS_POLICY.loads).toBe(DEFAULT_LOAD_VALIDATION_POLICY);
+    expect(DEFAULT_ANALYSIS_POLICY.deformationLimits.warn.rotation).toBe(0.1);
+  });
+
+  it('mischt eine einzelne Verformungsgrenze in den Default', () => {
+    const policy = createAnalysisPolicy({
+      deformationLimits: { fail: { rotation: 5 } },
+    });
+
+    expect(policy.deformationLimits).toEqual({
+      warn: { rotation: 0.1, relativeDisplacement: 0.1 },
+      fail: { rotation: 5, relativeDisplacement: 1e4 },
+    });
+  });
+
+  it('haelt das Verformungsblatt fest, solange niemand daran dreht', () => {
+    // Dieselbe Identitaetsregel wie beim Lastblatt: ein unveraendertes Blatt
+    // wird nicht kopiert.
+    const policy = createAnalysisPolicy({ shearDeformation: false });
+
+    expect(policy.deformationLimits).toBe(DEFAULT_DEFORMATION_LIMITS);
+  });
+
+  it('verlangt endliche, positive Grenzen mit warn < fail', () => {
+    const cases: [string, Parameters<typeof createAnalysisPolicy>[0]][] = [
+      // Eine Grenze <= 0 wuerde jedes Ergebnis beanstanden, auch das exakte 0.
+      ['warn.rotation', { deformationLimits: { warn: { rotation: 0 } } }],
+      [
+        'warn.relativeDisplacement',
+        { deformationLimits: { warn: { relativeDisplacement: -1 } } },
+      ],
+      [
+        'fail.rotation',
+        { deformationLimits: { fail: { rotation: Number.POSITIVE_INFINITY } } },
+      ],
+      [
+        'fail.relativeDisplacement',
+        { deformationLimits: { fail: { relativeDisplacement: Number.NaN } } },
+      ],
+      // Ohne Fenster zwischen den Stufen gaebe es die Warnung nicht mehr.
+      ['fail.rotation', { deformationLimits: { fail: { rotation: 0.1 } } }],
+    ];
+
+    for (const [field, overrides] of cases) {
+      const failure = (() => {
+        try {
+          createAnalysisPolicy(overrides);
+          return undefined;
+        } catch (error: unknown) {
+          return error;
+        }
+      })();
+
+      expect(failure, field).toBeInstanceOf(InvalidAnalysisPolicyError);
+      expect((failure as InvalidAnalysisPolicyError).field).toBe(
+        `deformationLimits.${field}`,
+      );
+    }
   });
 });
 
@@ -98,15 +175,97 @@ describe('parseAnalysisPolicy', () => {
     // die Overrides — sonst waeren Projekte nicht mehr reproduzierbar, sobald
     // die Software-Defaults sich aendern.
     expect(json).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       loads: {
         stationRelativeTolerance: 1e-9,
         minimumReferenceFactor: 1e-9,
         suspiciousReferenceFactor: 0.08,
       },
       shearDeformation: false,
+      deformationLimits: {
+        warn: { rotation: 0.1, relativeDisplacement: 0.1 },
+        fail: { rotation: 1e3, relativeDisplacement: 1e4 },
+      },
     });
     expect(parseAnalysisPolicy(json)).toEqual(policy);
+  });
+
+  it('lehnt ein v1-Dokument ab, statt es stillschweigend zu ergaenzen', () => {
+    // Kein Migrationspfad: `deformationLimits` fehlt in v1, und ein
+    // stillschweigend ergaenzter Default waere eine Einstellung, die der
+    // Anwender nie gewaehlt hat. Zum Zeitpunkt des Versionssprungs hatte
+    // `parseAnalysisPolicy` keinen produktiven Aufrufer — es liegt nichts
+    // Persistiertes herum, das migriert werden muesste.
+    const v1 = {
+      schemaVersion: 1,
+      loads: DEFAULT_LOAD_VALIDATION_POLICY,
+      shearDeformation: true,
+    };
+
+    expect(() => parseAnalysisPolicy(v1)).toThrow(
+      UnsupportedAnalysisPolicySchemaVersionError,
+    );
+  });
+
+  it('prueft die geschachtelte Form der Verformungsgrenzen', () => {
+    const complete = JSON.parse(JSON.stringify(DEFAULT_ANALYSIS_POLICY));
+
+    const broken: unknown[] = [
+      // fehlt ganz
+      { ...complete, deformationLimits: undefined },
+      // keine Stufe
+      { ...complete, deformationLimits: {} },
+      // kein Objekt
+      { ...complete, deformationLimits: 0.1 },
+      // eine Stufe unvollstaendig
+      {
+        ...complete,
+        deformationLimits: {
+          warn: { rotation: 0.1 },
+          fail: { rotation: 1e3, relativeDisplacement: 1e4 },
+        },
+      },
+      // unbekanntes Feld in einer Stufe
+      {
+        ...complete,
+        deformationLimits: {
+          warn: { rotation: 0.1, relativeDisplacement: 0.1, drift: 1 },
+          fail: { rotation: 1e3, relativeDisplacement: 1e4 },
+        },
+      },
+      // unbekannte Stufe
+      {
+        ...complete,
+        deformationLimits: { ...complete.deformationLimits, info: {} },
+      },
+      // falscher Typ
+      {
+        ...complete,
+        deformationLimits: {
+          warn: { rotation: '0.1', relativeDisplacement: 0.1 },
+          fail: { rotation: 1e3, relativeDisplacement: 1e4 },
+        },
+      },
+    ];
+
+    for (const input of broken) {
+      expect(() => parseAnalysisPolicy(input)).toThrow(
+        InvalidAnalysisPolicyError,
+      );
+    }
+  });
+
+  it('prueft die Werte auch aus JSON, nicht nur aus der Factory', () => {
+    // Sonst kaeme aus einer Datei durch, was die Factory ablehnt.
+    expect(() =>
+      parseAnalysisPolicy({
+        ...JSON.parse(JSON.stringify(DEFAULT_ANALYSIS_POLICY)),
+        deformationLimits: {
+          warn: { rotation: 2000, relativeDisplacement: 0.1 },
+          fail: { rotation: 1e3, relativeDisplacement: 1e4 },
+        },
+      }),
+    ).toThrow(InvalidAnalysisPolicyError);
   });
 
   it('baut immer ein neues Objekt und friert es tief ein', () => {
@@ -118,13 +277,16 @@ describe('parseAnalysisPolicy', () => {
     expect(parsed).not.toBe(DEFAULT_ANALYSIS_POLICY);
     expect(Object.isFrozen(parsed)).toBe(true);
     expect(Object.isFrozen(parsed.loads)).toBe(true);
+    expect(Object.isFrozen(parsed.deformationLimits)).toBe(true);
+    expect(Object.isFrozen(parsed.deformationLimits.fail)).toBe(true);
   });
 
   it('unterscheidet die nicht unterstuetzte Version von der ungueltigen Form', () => {
     const future = {
-      schemaVersion: 2,
+      schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION + 1,
       loads: DEFAULT_LOAD_VALIDATION_POLICY,
       shearDeformation: true,
+      deformationLimits: DEFAULT_DEFORMATION_LIMITS,
       spannungstheorie: 'II',
     };
 
@@ -134,7 +296,9 @@ describe('parseAnalysisPolicy', () => {
     expect(() => parseAnalysisPolicy(future)).toThrow(
       UnsupportedAnalysisPolicySchemaVersionError,
     );
-    expect(() => parseAnalysisPolicy(future)).toThrow(/2/);
+    expect(() => parseAnalysisPolicy(future)).toThrow(
+      new RegExp(String(ANALYSIS_POLICY_SCHEMA_VERSION + 1)),
+    );
 
     expect(() =>
       parseAnalysisPolicy({ ...DEFAULT_ANALYSIS_POLICY, schemaVersion: '1' }),
@@ -143,7 +307,10 @@ describe('parseAnalysisPolicy', () => {
 
   it('verlangt die vollstaendigen Top-Level-Felder und lehnt unbekannte ab', () => {
     expect(() =>
-      parseAnalysisPolicy({ schemaVersion: 1, shearDeformation: true }),
+      parseAnalysisPolicy({
+        schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
+        shearDeformation: true,
+      }),
     ).toThrow(InvalidAnalysisPolicyError);
 
     expect(() =>
@@ -171,9 +338,10 @@ describe('parseAnalysisPolicy', () => {
   it('delegiert das Blatt an den Parser seines Eigentuemers', () => {
     expect(() =>
       parseAnalysisPolicy({
-        schemaVersion: 1,
+        schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
         loads: { stationRelativeTolerance: 1e-9 },
         shearDeformation: true,
+        deformationLimits: DEFAULT_DEFORMATION_LIMITS,
       }),
     ).toThrow(InvalidLoadValidationPolicyError);
   });

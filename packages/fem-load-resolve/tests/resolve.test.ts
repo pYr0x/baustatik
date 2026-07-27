@@ -91,6 +91,26 @@ describe('resolveLoads: Frame-Drehung', () => {
     expect(seg?.qz1).toBeCloseTo(10 * S, 12);
   });
 
+  // Die Stabrichtung ist die Knotenreihenfolge, und die legt lokal z fest:
+  // `rev` ist derselbe waagrechte Stab wie `h`, nur andersherum eingegeben, und
+  // hat deshalb lokal z nach oben. Dieselbe globale Last kommt lokal gekippt an
+  // — was der naechste Test wieder einsammelt: global wirkt sie unveraendert.
+  it('vertauschte Knoten kippen die lokalen Komponenten einer globalen Last', () => {
+    for (const axis of ['x', 'z'] as const) {
+      const forward = onlySegment(
+        [beamForce({ beamIds: ['h'], distribution: 'constant', axis, q: 7 })],
+        'h',
+      );
+      const backward = onlySegment(
+        [beamForce({ beamIds: ['rev'], distribution: 'constant', axis, q: 7 })],
+        'rev',
+      );
+
+      expect(backward?.qx1).toBeCloseTo(-(forward?.qx1 ?? Number.NaN), 12);
+      expect(backward?.qz1).toBeCloseTo(-(forward?.qz1 ?? Number.NaN), 12);
+    }
+  });
+
   it('vertauschte Knoten: global bleibt global gleich, local spiegelt sich', () => {
     const asGlobal = (beamId: string, frame: 'global' | 'local') => {
       const seg = onlySegment(
@@ -228,6 +248,27 @@ describe('resolveLoads: Momente und ihr Drehsinn', () => {
 });
 
 describe('resolveLoads: Lage', () => {
+  // Dieselbe Konvention von der anderen Seite: `a` misst vom ANFANGSknoten, und
+  // der ist bei `rev` das andere Ende desselben Stabes. Die Zahl bleibt gleich,
+  // die Stelle im Modell nicht.
+  it('die Lage misst vom Anfangsknoten und wandert mit der Stabrichtung', () => {
+    const globalPointOf = (beamId: string, line: Line) => {
+      const resolved = resolveLoads(model, [
+        beamForce({
+          beamIds: [beamId],
+          distribution: 'point',
+          p: 10,
+          distanceFromStart: 1,
+        }),
+      ]);
+      const a = resolved.beams.get(beamId)?.points[0]?.a ?? Number.NaN;
+      return Point.translate(line.p1, Vector.scale(Line.direction(line), a));
+    };
+
+    expect(globalPointOf('h', HORIZONTAL).x).toBeCloseTo(1, 12);
+    expect(globalPointOf('rev', REVERSED).x).toBeCloseTo(3, 12);
+  });
+
   it('relative Abstaende ergeben je Stab andere absolute Lagen', () => {
     const resolved = resolveLoads(model, [
       beamForce({

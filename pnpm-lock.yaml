@@ -75,6 +75,27 @@ importers:
         specifier: ^8.1.0
         version: 8.1.1(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
 
+  packages/actions:
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.5
+        version: 4.1.10(supports-color@8.1.1)(vitest@4.1.10)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(esbuild@0.27.3)(rolldown@1.1.5)(rollup@4.57.1)(supports-color@8.1.1)(typescript@5.9.3)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+
   packages/core:
     dependencies:
       '@baustatik/errors':
@@ -277,6 +298,9 @@ importers:
 
   packages/fem-loads:
     dependencies:
+      '@baustatik/actions':
+        specifier: workspace:*
+        version: link:../actions
       '@baustatik/errors':
         specifier: workspace:*
         version: link:../errors
@@ -699,16 +723,8 @@ packages:
     peerDependencies:
       '@babel/core': ^7.0.0
 
-  '@babel/helper-string-parser@7.27.1':
-    resolution: {integrity: sha512-qMlSxKbpRlAridDExk92nSobyDdpPijUq2DW6oDnUqd0iOGxmQjyqhMIihI9+zv4LPyZdRje2cavWPbCbWm3eA==}
-    engines: {node: '>=6.9.0'}
-
   '@babel/helper-string-parser@7.29.7':
     resolution: {integrity: sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/helper-validator-identifier@7.28.5':
-    resolution: {integrity: sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q==}
     engines: {node: '>=6.9.0'}
 
   '@babel/helper-validator-identifier@7.29.7':
@@ -722,11 +738,6 @@ packages:
   '@babel/helpers@7.28.6':
     resolution: {integrity: sha512-xOBvwq86HHdB7WUDTfKfT/Vuxh7gElQ+Sfti2Cy6yIWNW05P8iUslOVcZ4/sKbE+/jQaukQAdz/gf3724kYdqw==}
     engines: {node: '>=6.9.0'}
-
-  '@babel/parser@7.29.0':
-    resolution: {integrity: sha512-IyDgFV5GeDUVX4YdF/3CPULtVGSXXMLh1xVIgdCgxApktqnQV0r7/8Nqthg+8YLGaAtdyIlo2qIdZrbCv4+7ww==}
-    engines: {node: '>=6.0.0'}
-    hasBin: true
 
   '@babel/parser@7.29.7':
     resolution: {integrity: sha512-hnORnjP/1P/zFEndoeX+n+t1RwWRJiJpM/jO7FW32Kn9r5+sJB2JWOdYo4L6k78j15eCwY3Gm/7364B1EMwtNg==}
@@ -743,10 +754,6 @@ packages:
 
   '@babel/traverse@7.29.0':
     resolution: {integrity: sha512-4HPiQr0X7+waHfyXPZpWPfWL/J7dcN1mx9gL6WdQVMbPnF3+ZhSMs8tCxN7oHddJE9fhNE7+lxdnlyemKfJRuA==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/types@7.29.0':
-    resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
 
   '@babel/types@7.29.7':
@@ -3202,7 +3209,7 @@ snapshots:
 
   '@babel/code-frame@7.29.0':
     dependencies:
-      '@babel/helper-validator-identifier': 7.28.5
+      '@babel/helper-validator-identifier': 7.29.7
       js-tokens: 4.0.0
       picocolors: 1.1.1
 
@@ -3230,8 +3237,8 @@ snapshots:
 
   '@babel/generator@7.29.1':
     dependencies:
-      '@babel/parser': 7.29.0
-      '@babel/types': 7.29.0
+      '@babel/parser': 7.29.7
+      '@babel/types': 7.29.7
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
       jsesc: 3.1.0
@@ -3249,7 +3256,7 @@ snapshots:
   '@babel/helper-module-imports@7.28.6(supports-color@8.1.1)':
     dependencies:
       '@babel/traverse': 7.29.0(supports-color@8.1.1)
-      '@babel/types': 7.29.0
+      '@babel/types': 7.29.7
     transitivePeerDependencies:
       - supports-color
 
@@ -3257,16 +3264,12 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.0(supports-color@8.1.1)
       '@babel/helper-module-imports': 7.28.6(supports-color@8.1.1)
-      '@babel/helper-validator-identifier': 7.28.5
+      '@babel/helper-validator-identifier': 7.29.7
       '@babel/traverse': 7.29.0(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/helper-string-parser@7.27.1': {}
-
   '@babel/helper-string-parser@7.29.7': {}
-
-  '@babel/helper-validator-identifier@7.28.5': {}
 
   '@babel/helper-validator-identifier@7.29.7': {}
 
@@ -3275,10 +3278,6 @@ snapshots:
   '@babel/helpers@7.28.6':
     dependencies:
       '@babel/template': 7.28.6
-      '@babel/types': 7.29.0
-
-  '@babel/parser@7.29.0':
-    dependencies:
       '@babel/types': 7.29.7
 
   '@babel/parser@7.29.7':
@@ -3290,25 +3289,20 @@ snapshots:
   '@babel/template@7.28.6':
     dependencies:
       '@babel/code-frame': 7.29.0
-      '@babel/parser': 7.29.0
-      '@babel/types': 7.29.0
+      '@babel/parser': 7.29.7
+      '@babel/types': 7.29.7
 
   '@babel/traverse@7.29.0(supports-color@8.1.1)':
     dependencies:
       '@babel/code-frame': 7.29.0
       '@babel/generator': 7.29.1
       '@babel/helper-globals': 7.28.0
-      '@babel/parser': 7.29.0
+      '@babel/parser': 7.29.7
       '@babel/template': 7.28.6
-      '@babel/types': 7.29.0
+      '@babel/types': 7.29.7
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
-
-  '@babel/types@7.29.0':
-    dependencies:
-      '@babel/helper-string-parser': 7.27.1
-      '@babel/helper-validator-identifier': 7.28.5
 
   '@babel/types@7.29.7':
     dependencies:
@@ -4261,7 +4255,7 @@ snapshots:
 
   '@vue/compiler-core@3.5.28':
     dependencies:
-      '@babel/parser': 7.29.0
+      '@babel/parser': 7.29.7
       '@vue/shared': 3.5.28
       entities: 7.0.1
       estree-walker: 2.0.2
@@ -5291,7 +5285,7 @@ snapshots:
     dependencies:
       '@jridgewell/remapping': 2.3.5
       acorn: 8.15.0
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       webpack-virtual-modules: 0.6.2
 
   update-browserslist-db@1.2.3(browserslist@4.28.1):

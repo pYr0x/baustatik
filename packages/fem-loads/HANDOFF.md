@@ -192,12 +192,15 @@ polygon, rectangle, triangle, group` — **kein `TextSpec`**. Sobald Lastwerte
 3. **Eingabe von `distanceFromStart` per Maus.** `Line.closestPoint` gibt es in
    `fem-geometry`, aber `createFEMViewer` kennt kein Hit-Testing, nur Pan/Zoom.
    Zwischenschritt: Distanz numerisch im Store setzen.
-4. **Lastfälle.** Kommen „irgendwann zwingend", aber nicht in den nächsten
-   Wochen. Bewusst **kein** `loadCaseId` im Typ — eine ID ohne Besitzer lädt zu
-   einem Fake-Default-Lastfall ein, Nachrüsten ist ein Einzeiler.
-   `@baustatik/actions` (Eurocode-Einwirkungen, ψ-Werte) erst anlegen, wenn die
-   normative Logik wirklich kommt; dann `packages/material/src/national-annex.ts`
-   als Muster wiederverwenden, nicht neu erfinden.
+4. ~~**Lastfälle.**~~ **Erledigt am 2026-07-26** — `LoadCase`,
+   `assertValidLoadCase` und `effectiveLoads` liegen in `src/load-case.ts`. Was von dieser Notiz
+   weiter gilt: bewusst **kein** `loadCaseId` im Typ — eine ID ohne Besitzer
+   lädt zu einem Fake-Default-Lastfall ein. Der Lastfall besitzt seine Lasten,
+   und das ist der einzige Ort der Zugehörigkeit.
+   `@baustatik/actions` gibt es jetzt, aber nur als **Vokabular**: der Rat, die
+   ψ-Werte erst mit der normativen Logik anzulegen und dann
+   `packages/material/src/national-annex.ts` als Muster zu nehmen, steht
+   unverändert ([ADR 0015](../../docs/adr/0015-action-categories-live-in-a-leaf-package.md)).
 
 ## Nebenbefund, unabhängig von den Lasten
 

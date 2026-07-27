@@ -17,7 +17,10 @@
  * Kontext ist nur die Verdrahtung dazwischen.
  */
 
-import { type FrameElement2DFormulation, Timoshenko2D } from '@baustatik/fem-element';
+import {
+  type FrameElement2DFormulation,
+  Timoshenko2D,
+} from '@baustatik/fem-element';
 import { createLoadValidator, type LoadValidator } from '@baustatik/fem-loads';
 import type { SolverConfig } from './config';
 import { type AnalysisPolicy, DEFAULT_ANALYSIS_POLICY } from './policy';

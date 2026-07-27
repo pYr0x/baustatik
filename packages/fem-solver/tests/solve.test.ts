@@ -5,17 +5,29 @@ import {
   Timoshenko2D,
   Timoshenko2DIntegrated,
 } from '@baustatik/fem-element';
-import { ZeroNodeLoadError } from '@baustatik/fem-loads';
+import {
+  InvalidLoadCaseError,
+  type LoadCase,
+  ZeroNodeLoadError,
+} from '@baustatik/fem-loads';
 import { describe, expect, it } from 'vitest';
 import {
+  ImplausibleDisplacementError,
   SingularStiffnessMatrixError,
+  SmallRotationAssumptionWarning,
+  UnknownLoadCaseError,
   UnrestrainedDegreeOfFreedomError,
 } from '../src/errors';
 import {
   createAnalysisPolicy,
   DEFAULT_ANALYSIS_POLICY,
 } from '../src/policy';
-import { solve } from '../src/solve';
+import type { SolverConfig } from '../src/config';
+import {
+  solveAll,
+  solve as solveCase,
+  type SolveResult,
+} from '../src/solve';
 import { createFEMSolver } from '../src/solver';
 import {
   beam,
@@ -27,7 +39,16 @@ import {
   STIFF,
   type Store,
   support,
+  TEST_LOAD_CASE_ID,
 } from './support';
+
+// Fast jeder Test hier prueft die Rechenkette — Nummerierung, Assemblierung,
+// Vorzeichen — und nicht die Lastfallauswahl. Der Wrapper nimmt deshalb den
+// einen Lastfall, den `configOver` aus dem Store baut. Auswahl und Fallfaktor
+// haben ihren eigenen Block am Ende der Datei.
+function solve(config: SolverConfig): Promise<SolveResult> {
+  return solveCase(config, TEST_LOAD_CASE_ID);
+}
 
 const { EI, GAs } = STIFF;
 
@@ -67,11 +88,13 @@ describe('solve — Assemblierung mit trivialer Formulierung', () => {
     // n2 bekommt das Ende von b1 UND den Anfang von b2 — sowohl in F (5, 7, -9)
     // als auch auf der Diagonale von K (1 + 1 = 2). Genau daran zeigt sich,
     // dass wirklich assembliert und nicht bloss eingetragen wird.
-    expect(result.displacements.get('n2')).toEqual({
-      ux: 2.5,
-      uz: 3.5,
-      phiY: -4.5,
-    });
+    // Auf 12 Stellen und nicht bitgenau: der Port skaliert vor dem Loesen
+    // (`S K S`) und wieder zurueck, und das kostet die letzte Stelle. Ein
+    // fairer Preis fuer eine Pivot-Schwelle, die ueberhaupt etwas aussagt.
+    const n2 = result.displacements.get('n2');
+    expect(n2?.ux).toBeCloseTo(2.5, 12);
+    expect(n2?.uz).toBeCloseTo(3.5, 12);
+    expect(n2?.phiY).toBeCloseTo(-4.5, 12);
     expect(result.displacements.get('n3')).toEqual({ ux: 4, uz: 5, phiY: -6 });
     // n1 ist voll gehalten.
     expect(result.displacements.get('n1')).toEqual({ ux: 0, uz: 0, phiY: 0 });
@@ -543,19 +566,66 @@ describe('solve — das Tor und die Kinematik', () => {
     expect(result.elementEndForces.get('b2')?.[2]).toBe(0);
   });
 
-  it('meldet die Kinematik mit besetzter Diagonale am Ergebnis', async () => {
+  it('meldet die Kinematik mit besetzter Diagonale und nennt die Stelle', async () => {
     // Beide Knoten nur vertikal gehalten: die Laengsverschiebung ist ein
     // Starrkoerpermodus. Die Diagonale ist besetzt (EA/L), also faellt es erst
-    // beim Loesen auf.
+    // beim Loesen auf — und zwar erst in der ZWEITEN Laengszeile, weil die
+    // erste fuer sich noch harmlos aussieht.
     const store = cantilever();
     store.supports = [
       support('s1', 'n1', 'free', 'fixed', 'free'),
       support('s2', 'n2', 'free', 'fixed', 'free'),
     ];
 
-    await expect(solve(configOver(store))).rejects.toBeInstanceOf(
-      SingularStiffnessMatrixError,
+    const failure = await solve(configOver(store)).catch(
+      (error: unknown) => error,
     );
+
+    expect(failure).toBeInstanceOf(SingularStiffnessMatrixError);
+    const singular = failure as SingularStiffnessMatrixError;
+    expect(singular.nodeId).toBe('n2');
+    expect(singular.dof).toBe('ux');
+    // Exakter Fehlschlag der Zerlegung, kein Grenzfall.
+    expect(singular.pivotRatio).toBe(0);
+  });
+
+  it('meldet auch das FAST kinematische System', async () => {
+    // Der Fall, den frueher NICHTS gefangen hat: die Zerlegung gelingt, das
+    // Ergebnis ist gross aber endlich — und trotzdem Rauschen.
+    //
+    // Dasselbe Modell wie oben (Laengsverschiebung ist ein Starrkoerpermodus),
+    // nur bekommt jede Diagonale einen Hauch Steifigkeit dazu. Das macht aus
+    // dem exakt singulaeren ein fast singulaeres System, ohne dass der Test
+    // wissen muss, WO der Mechanismus sitzt: die Laengszeilen werden von
+    // `[[1,-1],[-1,1]]` zu `[[1+e,-1],[-1,1+e]]` und damit gerade eben positiv
+    // definit. Der Biegeanteil merkt von `e = 1e-14` nichts.
+    const store = cantilever();
+    store.supports = [
+      support('s1', 'n1', 'free', 'fixed', 'free'),
+      support('s2', 'n2', 'free', 'fixed', 'free'),
+    ];
+
+    const failure = await solve(
+      configOver(store, {
+        solveLinearSystem: (n, K, F) => {
+          const nudged = Float64Array.from(K);
+          for (let i = 0; i < n; i += 1) {
+            nudged[i * n + i] *= 1 + 1e-14;
+          }
+          return gaussSolve(n, nudged, F);
+        },
+      }),
+    ).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(SingularStiffnessMatrixError);
+    const singular = failure as SingularStiffnessMatrixError;
+    // Gelungen zerlegt, aber unter der Schwelle: klein UND positiv. Genau
+    // dieser Bereich lieferte frueher klaglos Unsinn.
+    expect(singular.pivotRatio).toBeGreaterThan(0);
+    expect(singular.pivotRatio).toBeLessThan(1e-12);
+    // Und die Stelle wird trotzdem benannt.
+    expect(singular.nodeId).toBe('n2');
+    expect(singular.dof).toBe('ux');
   });
 
   it('kommt mit einem vollstaendig gehaltenen Modell zurecht', async () => {
@@ -568,7 +638,9 @@ describe('solve — das Tor und die Kinematik', () => {
   });
 
   it('rechnet auch ueber den Rechenkopf', async () => {
-    const result = await createFEMSolver(configOver(cantilever())).solve();
+    const result = await createFEMSolver(configOver(cantilever())).solve(
+      TEST_LOAD_CASE_ID,
+    );
 
     expect(result.displacements.get('n2')?.uz).toBeCloseTo(
       (10 * 2 ** 3) / (3 * EI),
@@ -589,6 +661,380 @@ describe('solve — das Tor und die Kinematik', () => {
       (10 * 2 ** 3) / (3 * EI),
       12,
     );
+  });
+});
+
+describe('solve — die Verformungspruefung', () => {
+  /**
+   * Das Demo-System, dessen Befund diese Pruefung ausgeloest hat: EIN Auflager,
+   * das `ux` und `uz` haelt und `phiY` freilaesst. Die Drehung um diesen Knoten
+   * ist ein Starrkoerpermodus — das Modell ist per Konstruktion ein Mechanismus,
+   * unabhaengig davon, wo der dritte Knoten liegt.
+   */
+  function demoMechanism(x: number, z: number): Store {
+    return {
+      nodes: [node('n1', 0, 0), node('n2', 100, 0), node('n3', x, z)],
+      beams: [beam('b1', 'n1', 'n2'), beam('b2', 'n2', 'n3')],
+      supports: [support('s1', 'n1', 'fixed', 'fixed', 'free')],
+      loads: [{ id: 'l1', target: 'node', nodeIds: ['n2'], fz: 10 }],
+    };
+  }
+
+  it('faengt den Mechanismus, den der Port fuer geloest haelt', async () => {
+    // DER REGRESSIONSTEST. Derselbe Mechanismus wie bei (160, 40), nur ein paar
+    // Meter tiefer — und schon meldet der Port nicht mehr `singular`, sondern
+    // rechnet klaglos durch. Was die Assemblierung an Stellen verliert, holt
+    // keine Zerlegung zurueck: in `K` steht danach die exakte Matrix eines
+    // geringfuegig anderen Modells, und dieses andere Modell ist tragfaehig.
+    // Sichtbar wird der Mechanismus erst am ERGEBNIS.
+    const outcomes: string[] = [];
+
+    const failure = await solve(
+      configOver(demoMechanism(165, 10), {
+        formulation: Timoshenko2D,
+        solveLinearSystem: (n, K, F) => {
+          const outcome = gaussSolve(n, K, F);
+          outcomes.push(outcome.kind);
+          return outcome;
+        },
+      }),
+    ).catch((error: unknown) => error);
+
+    // Der Port hat nichts zu beanstanden — genau darum geht es.
+    expect(outcomes).toEqual(['solved']);
+
+    expect(failure).toBeInstanceOf(ImplausibleDisplacementError);
+    const implausible = failure as ImplausibleDisplacementError;
+    // Genannt wird die VERDREHUNG an n1 — dem Auflagerknoten, dessen freies
+    // `phiY` der Mechanismus ist. Die Starrkoerperdrehung ist an allen drei
+    // Knoten dieselbe; gemeldet wird der erste. Anders als beim Pivot-Hinweis
+    // ist das kein Zufallstreffer der Zerlegung, sondern der Freiheitsgrad, der
+    // sich tatsaechlich bewegt.
+    expect(implausible.nodeId).toBe('n1');
+    expect(implausible.dof).toBe('phiY');
+    expect(implausible.value).toBeGreaterThan(1e9);
+  });
+
+  it('laesst eine grosse, aber legitime Verformung durch', async () => {
+    // Die Gegenprobe, ohne die die Pruefung wertlos waere: ein Kragarm mit
+    // 1.3 rad Endverdrehung ist statisch Unsinn, aber KEIN Mechanismus. Er
+    // bekommt einen Hinweis und ein Ergebnis, keinen Wurf.
+    const result = await solve(
+      configOver(cantilever(2, 130), { formulation: Timoshenko2D }),
+    );
+
+    expect(result.displacements.get('n2')?.phiY).toBeLessThan(-0.1);
+    expect(result.warnings.map((w) => w.constructor.name)).toContain(
+      'SmallRotationAssumptionWarning',
+    );
+  });
+
+  it('meldet ein sauberes Ergebnis ohne Warnung', async () => {
+    const result = await solve(configOver(cantilever()));
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('warnt genau oberhalb von warn und wirft genau oberhalb von fail', async () => {
+    // Dieselbe Rechnung dreimal, nur die Grenzen wandern: so haengt der Test an
+    // der Staffelung und nicht an einer bestimmten Verformung.
+    const store = cantilever();
+    const limitsAt = (warn: number, fail: number) =>
+      configOver(store, {
+        analysisPolicy: createAnalysisPolicy({
+          shearDeformation: false,
+          deformationLimits: {
+            warn: { rotation: warn, relativeDisplacement: 1e5 },
+            fail: { rotation: fail, relativeDisplacement: 1e6 },
+          },
+        }),
+      });
+
+    // phi am Kragarmende ist PL^2/2EI = 0.02 rad.
+    const rotation = 0.02;
+
+    const quiet = await solve(limitsAt(rotation * 2, rotation * 4));
+    expect(quiet.warnings).toEqual([]);
+
+    const warned = await solve(limitsAt(rotation / 2, rotation * 4));
+    expect(warned.warnings).toHaveLength(1);
+    expect(warned.warnings[0]).toBeInstanceOf(SmallRotationAssumptionWarning);
+    expect(warned.warnings[0].nodeId).toBe('n2');
+
+    const failure = await solve(limitsAt(rotation / 4, rotation / 2)).catch(
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(ImplausibleDisplacementError);
+    expect((failure as ImplausibleDisplacementError).dof).toBe('phiY');
+    expect((failure as ImplausibleDisplacementError).limit).toBe(rotation / 2);
+  });
+
+  it('meldet je Groesse nur den groessten Ausschlag', async () => {
+    // Hoechstens zwei Warnungen, egal wie viele Knoten die Grenze reissen: der
+    // Befund gilt dem ERGEBNIS. Je Knoten zu melden ergaebe bei einem grossen
+    // Modell Hunderte Warnungen, die alle dasselbe sagen.
+    const store: Store = {
+      nodes: [
+        node('n1', 0, 0),
+        node('n2', 1, 0),
+        node('n3', 2, 0),
+        node('n4', 3, 0),
+      ],
+      beams: [beam('b1', 'n1', 'n2'), beam('b2', 'n2', 'n3'), beam('b3', 'n3', 'n4')],
+      supports: [support('s1', 'n1')],
+      loads: [{ id: 'l1', target: 'node', nodeIds: ['n4'], fz: 500 }],
+    };
+
+    const result = await solve(configOver(store));
+
+    // Drei Knoten liegen ueber der Grenze, gemeldet werden zwei Groessen.
+    expect(result.warnings).toHaveLength(2);
+    // `SolveWarning` ist schmal, die Groesse gehoert der einzelnen Warnung —
+    // der Aufrufer grenzt mit `instanceof` ein.
+    const excesses = result.warnings.filter(
+      (w) => w instanceof SmallRotationAssumptionWarning,
+    );
+    expect(excesses.map((w) => w.dof)).toEqual(['phiY', 'uz']);
+    // Und zwar der jeweils groesste Ausschlag — am freien Ende.
+    expect(result.warnings[0].nodeId).toBe('n4');
+    expect(result.warnings[1].nodeId).toBe('n4');
+  });
+
+  it('misst die Verschiebung gegen den angehaengten Stab', async () => {
+    // `uz` am Kragarmende ist PL^3/3EI = 0.0267 m bei L = 2 m, also
+    // |u|/L = 0.0133. Die Verdrehungsgrenze steht so hoch, dass nur die
+    // bezogene Verschiebung anschlagen kann.
+    const store = cantilever();
+    const failure = await solve(
+      configOver(store, {
+        analysisPolicy: createAnalysisPolicy({
+          shearDeformation: false,
+          deformationLimits: {
+            warn: { rotation: 1e5, relativeDisplacement: 0.001 },
+            fail: { rotation: 1e6, relativeDisplacement: 0.01 },
+          },
+        }),
+      }),
+    ).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ImplausibleDisplacementError);
+    const implausible = failure as ImplausibleDisplacementError;
+    expect(implausible.nodeId).toBe('n2');
+    expect(implausible.dof).toBe('uz');
+    expect(implausible.value).toBeCloseTo((10 * 2 ** 3) / (3 * EI) / 2, 12);
+  });
+
+  it('bleibt still, wenn die Last den Mechanismus nicht anregt', async () => {
+    // DIE EHRLICHE GRENZE, als Test festgehalten: eine Last, deren Resultierende
+    // durch den Drehpunkt zeigt, erzeugt keine Bewegung. Die Pruefung schweigt,
+    // und das Modell ist trotzdem kinematisch. Deshalb ist sie das VIERTE Netz
+    // und nicht der Ersatz fuer das Pivot.
+    const store = demoMechanism(165, 10);
+    // Eine reine Laengskraft in der Achse des ersten Stabs, angesetzt auf der
+    // Wirkungslinie durch das Auflager: kein Moment um n1, keine Drehung.
+    store.nodes = [node('n1', 0, 0), node('n2', 100, 0), node('n3', 200, 0)];
+    store.loads = [{ id: 'l1', target: 'node', nodeIds: ['n2'], fx: 10 }];
+
+    const result = await solve(
+      configOver(store, { formulation: Timoshenko2D }),
+    ).catch((error: unknown) => error);
+
+    // Entweder faengt das Pivot es (dann ist es kein Beleg fuer die Luecke) oder
+    // die Rechnung geht durch, ohne dass die Verformungspruefung etwas sieht.
+    if (!(result instanceof Error)) {
+      expect(result.warnings).toEqual([]);
+    } else {
+      expect(result).toBeInstanceOf(SingularStiffnessMatrixError);
+    }
+  });
+});
+
+describe('solve — Lastfallauswahl', () => {
+  it('sagt im Ergebnis, welcher Lastfall gerechnet wurde', async () => {
+    // Ein Ergebnis ohne diese Angabe kann man nicht ablegen.
+    const result = await solveCase(configOver(cantilever()), TEST_LOAD_CASE_ID);
+
+    expect(result.loadCaseId).toBe(TEST_LOAD_CASE_ID);
+  });
+
+  it('wirft bei einer id, die es nicht gibt', async () => {
+    // Erreichbar durch eine VERALTETE id: der aktive Lastfall ist geloescht,
+    // die Oberflaeche fragt mit der alten weiter.
+    await expect(
+      solveCase(configOver(cantilever()), 'geloescht'),
+    ).rejects.toBeInstanceOf(UnknownLoadCaseError);
+  });
+
+  it('rechnet den GENANNTEN Fall, nicht den ersten', async () => {
+    const store = cantilever();
+    const cases: LoadCase[] = [
+      { id: 'lf-1', name: 'Erster', loads: store.loads },
+      { id: 'lf-2', name: 'Zweiter', loads: [] },
+    ];
+    const config = configOver(store, { getLoadCases: () => cases });
+
+    const second = await solveCase(config, 'lf-2');
+
+    expect(second.loadCaseId).toBe('lf-2');
+    // Der leere Fall traegt nichts ein — also keine Verformung.
+    expect(second.displacements.get('n2')?.uz).toBe(0);
+    expect(
+      (await solveCase(config, 'lf-1')).displacements.get('n2')?.uz,
+    ).toBeCloseTo((10 * 2 ** 3) / (3 * EI), 12);
+  });
+});
+
+describe('solve — der Lastfallfaktor', () => {
+  it('skaliert das Ergebnis linear', async () => {
+    // Die Rechnung ist linear, also ist der Faktor am Ergebnis derselbe wie an
+    // der Last. Nachgerechnet statt behauptet, weil `effectiveLoads` zwischen
+    // Eingabe und Steifigkeitsmatrix sitzt.
+    const plain = await solve(configOver(cantilever()));
+    const doubled = await solve(configOver({ ...cantilever(), factor: 2 }));
+
+    expect(doubled.displacements.get('n2')?.uz).toBeCloseTo(
+      2 * (plain.displacements.get('n2')?.uz as number),
+      12,
+    );
+    expect(doubled.reactions.get('n1')?.fz).toBeCloseTo(
+      2 * (plain.reactions.get('n1')?.fz as number),
+      12,
+    );
+    expect(doubled.elementEndForces.get('b1')?.[2]).toBeCloseTo(
+      2 * (plain.elementEndForces.get('b1')?.[2] as number),
+      12,
+    );
+  });
+
+  it('kehrt bei Faktor -1 alle Vorzeichen um', async () => {
+    // Der Anwendungsfall: kopierter Windlastfall, umgekehrt.
+    const plain = await solve(configOver(cantilever()));
+    const reversed = await solve(configOver({ ...cantilever(), factor: -1 }));
+
+    expect(reversed.displacements.get('n2')?.uz).toBeCloseTo(
+      -(plain.displacements.get('n2')?.uz as number),
+      12,
+    );
+    expect(reversed.reactions.get('n1')?.my).toBeCloseTo(
+      -(plain.reactions.get('n1')?.my as number),
+      12,
+    );
+  });
+
+  it('verschiebt bei negativem Faktor keine Last — er spiegelt nur', async () => {
+    // DER TEST, der die Trennung von Lastwert und Lage im Solver festnagelt.
+    // Wuerde `effectiveLoads` `distanceFromStart` mitskalieren, kaeme hier ein
+    // NegativeDistanceError aus dem Tor — bei einer Last, die der Anwender
+    // korrekt eingegeben hat.
+    const store: Store = {
+      nodes: [node('n1', 0, 0), node('n2', 2, 0)],
+      beams: [beam('b1', 'n1', 'n2')],
+      supports: [support('s1', 'n1')],
+      loads: [
+        {
+          id: 'l1',
+          target: 'beam',
+          beamIds: ['b1'],
+          kind: 'force',
+          distribution: 'point',
+          frame: 'global',
+          axis: 'z',
+          p: 10,
+          distanceFromStart: 2,
+        },
+      ],
+    };
+
+    const plain = await solve(configOver(store));
+    const reversed = await solve(configOver({ ...store, factor: -1 }));
+
+    // Am Stabende, also dieselbe Stelle wie beim Kragarm mit Knotenlast.
+    expect(plain.displacements.get('n2')?.uz).toBeCloseTo(
+      (10 * 2 ** 3) / (3 * EI),
+      12,
+    );
+    expect(reversed.displacements.get('n2')?.uz).toBeCloseTo(
+      -(10 * 2 ** 3) / (3 * EI),
+      12,
+    );
+  });
+
+  it('prueft das Tor an den EINGEGEBENEN Werten', async () => {
+    // Die Meldung nennt die Zahl, die der Anwender getippt hat — 0, nicht 0
+    // mal Faktor. Sichtbar wird der Unterschied nur an der Meldung; dass
+    // ueberhaupt geworfen wird, waere in beiden Entwuerfen gleich.
+    const store: Store = { ...cantilever(), factor: -2 };
+    store.loads = [{ id: 'l1', target: 'node', nodeIds: ['n2'], fz: 0 }];
+
+    await expect(solve(configOver(store))).rejects.toBeInstanceOf(
+      ZeroNodeLoadError,
+    );
+  });
+
+  it('haelt einen unbrauchbaren Faktor am Tor auf', async () => {
+    // Ein Objektliteral kann `assertValidLoadCase` umgehen — deshalb prueft das
+    // Tor selbst. Ohne diese Zeile lief `NaN` durch die ganze Kette und kaeme
+    // als Verformung heraus.
+    for (const factor of [0, Number.NaN, Infinity]) {
+      await expect(
+        solve(configOver({ ...cantilever(), factor })),
+      ).rejects.toBeInstanceOf(InvalidLoadCaseError);
+    }
+  });
+});
+
+describe('solveAll — alle Lastfaelle', () => {
+  const twoCases = (store: Store): LoadCase[] => [
+    { id: 'lf-1', name: 'Einfach', loads: store.loads },
+    { id: 'lf-2', name: 'Umgekehrt', loads: store.loads, factor: -1 },
+  ];
+
+  it('liefert ein Ergebnis je Fall, in der Reihenfolge der Faelle', async () => {
+    const store = cantilever();
+    const results = await solveAll(
+      configOver(store, { getLoadCases: () => twoCases(store) }),
+    );
+
+    expect(results.map((r) => r.loadCaseId)).toEqual(['lf-1', 'lf-2']);
+    // Das Array ist ohne eine Zuordnung daneben lesbar — genau dafuer traegt
+    // jedes Ergebnis seine id.
+    const [plain, reversed] = results;
+    expect(reversed.displacements.get('n2')?.uz).toBeCloseTo(
+      -(plain.displacements.get('n2')?.uz as number),
+      12,
+    );
+  });
+
+  it('liefert ein leeres Array, wenn es keinen Lastfall gibt', async () => {
+    const results = await solveAll(
+      configOver(cantilever(), { getLoadCases: () => [] }),
+    );
+
+    expect(results).toEqual([]);
+  });
+
+  it('bricht beim ersten kaputten Fall ab', async () => {
+    const store = cantilever();
+    const cases: LoadCase[] = [
+      { id: 'lf-1', name: 'Gut', loads: store.loads },
+      { id: 'lf-2', name: 'Kaputt', loads: store.loads, factor: 0 },
+    ];
+
+    await expect(
+      solveAll(configOver(store, { getLoadCases: () => cases })),
+    ).rejects.toBeInstanceOf(InvalidLoadCaseError);
+  });
+
+  it('rechnet auch ueber den Rechenkopf', async () => {
+    const store = cantilever();
+    const solver = createFEMSolver(
+      configOver(store, { getLoadCases: () => twoCases(store) }),
+    );
+
+    expect((await solver.solveAll()).map((r) => r.loadCaseId)).toEqual([
+      'lf-1',
+      'lf-2',
+    ]);
   });
 });
 
