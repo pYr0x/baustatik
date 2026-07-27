@@ -184,7 +184,7 @@ describe('gridSpecs: Specs-Qualitaet', () => {
 
     expect(gridLine!.strokeColor).toBe('#ff0000');
     expect(gridLine!.strokeWidth).toBe(1); // Default bleibt
-    expect(axis!.strokeColor).toBe('#8c8c8c'); // Default bleibt
+    expect(axis!.strokeColor).toBe('#a0a0a0'); // Default bleibt
     expect(axis!.strokeWidth).toBe(3);
   });
 });

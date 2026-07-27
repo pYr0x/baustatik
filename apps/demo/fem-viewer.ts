@@ -138,8 +138,8 @@ store.addSupport(store.nodes[0], 'fixed', 'fixed', 'free');
 
 // Schraeger Stab als Sichttest: frame global/local und die Bezugslaengen
 // unterscheiden sich nur am schraegen Stab sichtbar.
-store.addNode(Point.make(160, 40));
-store.addBeam(store.nodes[1], store.nodes[2], 'default', 'default');
+// store.addNode(Point.make(160, 40));
+// store.addBeam(store.nodes[1], store.nodes[2], 'default', 'default');
 
 // Repräsentative Fixtures für den Demo- und Sichttest. Die vollständige
 // Sammlung der Eingabevarianten steht in
