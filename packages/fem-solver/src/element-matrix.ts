@@ -9,9 +9,9 @@
  * dieser Datei nichts.
  *
  * REIHENFOLGE: erst kondensieren, dann drehen. Das Gelenk ist am LOKALEN
- * Freiheitsgrad definiert (`releases.start.phiY` meint die Verdrehung am
- * Stabanfang), und nach der Drehung gibt es diesen Freiheitsgrad als eigene
- * Zeile nicht mehr.
+ * Freiheitsgrad definiert (`releases.start.theta` meint die Verdrehung am
+ * Stabanfang, `releases.start.u` das Gleiten laengs der STABachse), und nach
+ * der Drehung gibt es diese Freiheitsgrade als eigene Zeilen nicht mehr.
  */
 
 import type { Vector6 } from '@baustatik/fem-element';
@@ -40,14 +40,23 @@ export function toMutable(rows: readonly (readonly number[])[]): Mutable6x6 {
  * der freigesetzte Freiheitsgrad getragen haette, verteilt sich nicht auf die
  * uebrigen, sondern verschwindet. Das ergibt plausible, falsche Zahlen.
  *
- * Mehrere Gelenke werden nacheinander kondensiert. Beim Stab mit Gelenken an
- * BEIDEN Enden (dem Pendelstab) bleibt nach dem ersten Schritt
- * `K[t2][t2] = 3EI/L` ungleich 0, der zweite geht also durch.
+ * Mehrere Gelenke werden nacheinander kondensiert, und ob der zweite Schritt
+ * noch etwas zu tun findet, haengt am Freiheitsgrad:
+ *
+ * - Beim Stab mit MOMENTENgelenken an beiden Enden (dem Pendelstab) bleibt nach
+ *   dem ersten Schritt `K[t2][t2] = 3EI/L` ungleich 0 — der zweite geht durch.
+ * - Beim LAENGSgelenk nicht. Aus `[[EA/L, -EA/L], [-EA/L, EA/L]]` wird nach der
+ *   Kondensation von `u1` genau `K[u2][u2] = EA/L - (EA/L)^2/(EA/L) = 0`, und
+ *   dasselbe gilt fuer `w` und die Quersteifigkeit. Das ist kein Rundungsrest,
+ *   sondern die Sache selbst: ein Stab, der an EINER Stelle gleitet, traegt
+ *   nirgends Normalkraft.
  */
 export function condense(K: Mutable6x6, f: number[], i: number): void {
   const pivot = K[i][i];
-  // Ein bereits entkoppelter Freiheitsgrad — nichts zu verteilen. Kann bei
-  // widerspruechlichen Eingaben auftreten; teilen wuerde NaN einschleppen.
+  // Ein bereits entkoppelter Freiheitsgrad — nichts zu verteilen, und teilen
+  // wuerde NaN einschleppen. Das ist KEIN Notausgang fuer krumme Eingaben: ein
+  // Stab mit `u` (oder `w`) an beiden Enden landet hier auf dem geraden Weg,
+  // weil der erste Schritt die Steifigkeit schon ganz genommen hat.
   if (pivot === 0) {
     return;
   }

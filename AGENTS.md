@@ -24,7 +24,7 @@ dependencies change.
 | `@baustatik/section-geometry` | Geometry and calculations for cross-sections. | `core`, `errors`, `geometry-2d` |
 | `@baustatik/cross-section` | Cross-section domain model and calculations. | — |
 | `@baustatik/cross-section-viewer` | Viewer-facing cross-section composition and visualization. | `cross-section`, `grid-2d`, `render-core`, `section-geometry`, `viewport-2d` |
-| `@baustatik/fem` | FEM frame model types (`Node`, `Beam`, `NodeSupport`) plus the model validation gate (`validateModel`, `isolatedNodeIds`). | `errors` |
+| `@baustatik/fem` | FEM frame model types (`Node`, `Beam`, `NodeSupport`) plus the model validation gate (`validateModel`, `isolatedNodeIds`). Beam end releases are named in the **local** frame (`u`, `w`, `theta`), not the node frame ([ADR 0017](docs/adr/0017-releases-are-named-in-the-local-frame.md)). | `errors` |
 | `@baustatik/fem-geometry` | 2D geometry primitives in structural x/z coordinates (z downwards). | `core`, `errors`, `geometry-2d` |
 | `@baustatik/fem-element` | Element formulation for plane frames: local 6x6 stiffness, consistent nodal load vector, shape functions. | `errors` |
 | `@baustatik/fem-loads` | Load input model for plane frames (node and beam loads) plus its validation gate. Also owns the **load case** (`LoadCase`, `assertValidLoadCase`, `effectiveLoads`) as a layer above the load model: a named group that owns its loads, with an optional factor for deriving one case from another ([ADR 0013](docs/adr/0013-load-case-factor.md)). | `actions`, `errors`, `fem`, `fem-geometry` |

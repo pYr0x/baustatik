@@ -324,8 +324,15 @@ function prepareBeam(
 
   // Erst kondensieren, dann drehen: das Gelenk ist am LOKALEN Freiheitsgrad
   // definiert, und nach der Drehung gibt es ihn als eigene Zeile nicht mehr.
-  if (beam.releases?.start?.phiY === true) condense(K, f, 2);
-  if (beam.releases?.end?.phiY === true) condense(K, f, 5);
+  // Deshalb tragen die Freisetzungen auch die lokalen Namen `u`/`w`/`theta`
+  // (ADR 0017) — in derselben Reihenfolge wie die Indizes hier.
+  const { start, end } = beam.releases ?? {};
+  if (start?.u === true) condense(K, f, 0);
+  if (start?.w === true) condense(K, f, 1);
+  if (start?.theta === true) condense(K, f, 2);
+  if (end?.u === true) condense(K, f, 3);
+  if (end?.w === true) condense(K, f, 4);
+  if (end?.theta === true) condense(K, f, 5);
 
   const direction = Vector.normalize(Vector.fromPoints(axis.p1, axis.p2));
 

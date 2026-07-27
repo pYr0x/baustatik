@@ -278,7 +278,7 @@ const THREE_HINGED_FRAME: Shape = {
       beam('b2', 'n2', 'n3'),
       // Das Firstgelenk — das dritte Gelenk, das das System statisch bestimmt
       // macht und es gerade noch nicht zum Mechanismus.
-      beam('b3', 'n3', 'n4', { start: { phiY: true } }),
+      beam('b3', 'n3', 'n4', { start: { theta: true } }),
       beam('b4', 'n4', 'n5'),
     ],
     supports: [
@@ -470,9 +470,9 @@ const SWAY_FRAME: Shape = {
   build: (L) => ({
     nodes: [node('n1', 0, L), node('n2', 0, 0), node('n3', L, 0), node('n4', L, L)],
     beams: [
-      beam('b1', 'n1', 'n2', { start: { phiY: true }, end: { phiY: true } }),
+      beam('b1', 'n1', 'n2', { start: { theta: true }, end: { theta: true } }),
       beam('b2', 'n2', 'n3'),
-      beam('b3', 'n4', 'n3', { start: { phiY: true }, end: { phiY: true } }),
+      beam('b3', 'n4', 'n3', { start: { theta: true }, end: { theta: true } }),
     ],
     supports: [support('s1', 'n1'), support('s2', 'n4')],
     loads: [nodeLoad('l1', ['n2'], 5, 10)],
@@ -496,8 +496,8 @@ const HINGE_CHAIN: Shape = {
       node('n4', L, 0),
     ],
     beams: [
-      beam('b1', 'n1', 'n2', { end: { phiY: true } }),
-      beam('b2', 'n2', 'n3', { end: { phiY: true } }),
+      beam('b1', 'n1', 'n2', { end: { theta: true } }),
+      beam('b2', 'n2', 'n3', { end: { theta: true } }),
       beam('b3', 'n3', 'n4'),
     ],
     supports: [

@@ -114,7 +114,10 @@ fehlen — siehe _Known constraints_.
   `assertValidLoads`, vor jeder Rechnung. Der Bericht ist eine Auskunft, kein
   Schluessel.
 - **Kondensation** — das Herausrechnen eines freigesetzten Freiheitsgrads aus
-  der lokalen 6x6. Reine Matrixalgebra, ohne Balkentheorie.
+  der lokalen 6x6. Reine Matrixalgebra, ohne Balkentheorie. Welcher Index
+  gemeint ist, sagt der Name im Modell: `u`/`w`/`theta` sind die LOKALEN
+  Freiheitsgrade in der Reihenfolge 0/1/2 am Anfang und 3/4/5 am Ende
+  ([ADR 0017](../../docs/adr/0017-releases-are-named-in-the-local-frame.md)).
 
 ## Der Bericht: fuenf Zustaende
 
@@ -231,7 +234,15 @@ und der strikte Parser sind die Naht dafuer. Ausfuehrlich in
   darf nicht am Tor vorbei (`error-handling-in-libraries.md`). Warnungen halten
   nichts auf.
 - **Erst kondensieren, dann drehen.** Das Gelenk ist am LOKALEN Freiheitsgrad
-  definiert; nach der Drehung gibt es ihn als eigene Zeile nicht mehr.
+  definiert; nach der Drehung gibt es ihn als eigene Zeile nicht mehr. Bei der
+  Verdrehung faellt das nicht auf (rahmeninvariant), bei `u` auf einem schraegen
+  Stab sehr wohl (ADR 0017).
+- **Eine freigesetzte VERSCHIEBUNG nimmt die Steifigkeit GANZ.** Nach der
+  Kondensation von `u1` ist `K[u2][u2] = EA/L - (EA/L)^2/(EA/L)` exakt 0 — ein
+  Stab, der an einer Stelle gleitet, traegt nirgends Normalkraft. Deshalb
+  trifft ein zweites `u`-Gelenk am anderen Ende einen Pivot von exakt 0, und
+  `condense` kehrt dort still zurueck. Das ist der gerade Weg, kein Notausgang.
+  Beim Momentengelenk gibt es das nicht: dort bleibt `3EI/L` stehen.
 - **`consistentLoad` wird MITkondensiert.** Wer nur `K` kondensiert, bekommt fuer
   eine Gleichlast auf einem Gelenkstab falsche Ersatzknotenlasten — plausible,
   falsche Zahlen. Der Beleg dafuer ist der Kragtraeger mit Endstuetze: ohne
@@ -323,7 +334,10 @@ PULL-Verhalten, und fuer `solve()` in dieser Reihenfolge:
    Transformation wirklich prueft.
 6. **Gelenke**: `12EI/L^3` wird zu `3EI/L^3`, die Stabendkraft am freigesetzten
    Freiheitsgrad ist exakt 0, und der Kragtraeger mit Endstuetze belegt die
-   MITkondensierte Last.
+   MITkondensierte Last. Dazu die beiden Verschiebungsgelenke: `u` nimmt die
+   Normalkraft an BEIDEN Enden heraus (und der zweite Kondensationsschritt
+   laeuft leer), `w` macht aus `4EI/L` die `EI/L`, weil bei fehlender Querkraft
+   das Moment ueber die Laenge konstant bleibt.
 7. **Gleichgewichtsprobe** ueber alle Modelle — der einzige Test, der die ganze
    Kette auf einmal prueft.
 8. **Kinematik**: Pendelstab ohne Verspannung (Netz 1), der Starrkoerpermodus

@@ -53,8 +53,13 @@ entschieden wurde.
   `EA` in kN und `EI` in kNm^2 passen.
 - **Stab** (`Beam`) — eine Kante zwischen zwei Knoten, mit Querschnitts- und
   Material-id. Ein Stab = ein Element; es gibt kein Meshing.
-- **Gelenk** (`releases`) — ein freigesetzter Freiheitsgrad am Stabende. Heute
-  nur `phiY`. Der Solver kondensiert ihn heraus.
+- **Gelenk** (`releases`, `BeamEndReleases`) — ein freigesetzter Freiheitsgrad
+  am STABENDE, nicht am Knoten: nur so lassen sich an einem Knoten mit drei
+  Staeben zwei gelenkig anschliessen. Die drei Namen sind die des Stabs —
+  `u` laengs (Normalkraftgelenk), `w` quer (Querkraftgelenk), `theta` die
+  Verdrehung (Momentengelenk) —, nicht die des Knotens
+  ([ADR 0017](../../docs/adr/0017-releases-are-named-in-the-local-frame.md)).
+  Der Solver kondensiert sie heraus.
 - **Auflager** (`NodeSupport`) — je Richtung `fixed` oder `free`. Nur homogene
   Bedingungen: keine Federn, keine Vorverschiebungen, keine schiefen Auflager.
 - **Teilstruktur** — eine Zusammenhangskomponente des Graphen. Der Begriff
@@ -114,7 +119,9 @@ pnpm --filter @baustatik/fem test
   auf.
 - **Der Pendelstab wird NICHT verboten.** Ein Stab mit Gelenk an beiden Enden
   ist fachlich voellig zulaessig; erst die unverspannte Kette ist kinematisch,
-  und die Unterscheidung braucht wieder das Gleichungssystem.
+  und die Unterscheidung braucht wieder das Gleichungssystem. Dasselbe gilt fuer
+  `u` und `w`: ein laengs gleitender Stab traegt immer noch quer und ist fuer
+  sich kein Mechanismus.
 - **Unbekannte `crossSectionId`/`materialId` werden hier nicht geprueft** —
   dieses Package kennt die Kataloge nicht. Der Befund entsteht im `fem-solver`
   als Unterklasse von `ModelValidationError`.

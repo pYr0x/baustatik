@@ -11,8 +11,10 @@ Kein Implementierungsplan — eine Richtung mit Reihenfolge und Begründung.
 | --- | --- | --- | --- |
 | 0 | ~~Staborientierung: Test + Doku~~ | erledigt 2026-07-26 | War schon korrekt implementiert — jetzt festgenagelt und dokumentiert |
 | 1 | ~~Lastfall-Begriff einführen~~ | erledigt 2026-07-26 | ADR 0013–0015; siehe „Stufe 1" unten |
-| 2 | `internalForces` in `fem-element` + Verlauf-API im Solver | mittel | Höchster Nutzen pro Aufwand, Naht liegt fertig |
+| 1a | ~~Gelenke: `releases` auf lokale Namen umbenennen und um `u`/`w` erweitern~~ | erledigt 2026-07-27 | ADR 0017; `{ u, w, theta }` statt `{ phiY }`, `{ N, V, M }` verworfen |
+| 2 | `internalForces` in `fem-element` + Verlauf-API im Solver | mittel | Höchster Nutzen pro Aufwand, Naht liegt fertig — **Gelenk ist hier Bedingung**, siehe Stufe 2 |
 | 3 | ~~Punktlasten: Kräfte und Momente gezeichnet~~; danach Linienlasten | erledigt 2026-07-27 / mittel | Punktlast ist abgeschlossen, Linienlasten sind ein eigener Plan |
+| 3a | Gelenksymbol zeichnen, `releases` in der Demo setzbar | klein | Unabhängig von den Lasten. Erst hier sieht man, was man eingegeben hat |
 | 4 | ViewPolicy | klein | Erst wenn es genug zu stylen gibt |
 | 5 | Schnittgrößen grafisch | mittel | Braucht 2 + 4 |
 | 6 | Lastkombinationen, min/max | mittel | Braucht 1 + 2 |
@@ -128,6 +130,89 @@ Folgeplan, nicht ein Anhängsel.
 
 Das ist der größte Brocken deiner Liste und der einzige, der nichts vom
 FEM-Strang braucht.
+
+### F. Gelenke — **die Rechnung kann es, es fehlt die Eingabe**
+
+Notiert 2026-07-27. „Alle Stäbe sind biegesteif verbunden" stimmt für die
+Rechnung nicht: `Beam.releases` steht in `fem/src/types.ts`, `solve.ts`
+kondensiert den freigesetzten lokalen Freiheitsgrad heraus, und die Tests
+decken Momentenfreiheit, Kragarm mit und ohne Gelenk, Dreigelenkrahmen,
+Gelenkkette und Pendelstab ab. Auch der Schnitt stimmt: das Gelenk sitzt am
+**Stabende**, nicht am Knoten — nur so lassen sich an einem Knoten mit drei
+Stäben zwei gelenkig anschließen (`kinematics-margin.test.ts:485` sagt das
+ausdrücklich).
+
+Fehlt noch: **Eingabe** (`releases` kommt außerhalb von `fem`, `fem-solver` und
+deren Tests nirgends vor) und **Darstellung** — beides in Stufe 3a. Der zweite
+und dritte Freiheitsgrad und der Name sind seit dem 2026-07-27 da.
+
+#### Der Name zuerst, weil er sonst festwächst — **erledigt am 2026-07-27**
+
+Umgesetzt: `BeamEndReleases = { u?: true; w?: true; theta?: true }` in
+`fem/src/types.ts`, sechs `condense`-Aufrufe statt zwei in `solve.ts`, dazu
+Tests für beide neuen Freiheitsgrade und für den Pivot-0-Zweig. Die Alternative
+`{ N, V, M }` ist geprüft und verworfen — Begründung in
+[ADR 0017](../docs/adr/0017-releases-are-named-in-the-local-frame.md). Die
+Migration ist ein Wort: `phiY` → `theta`.
+
+Der Befund, wie er hier stand:
+
+`Beam.releases.phiY` benutzt den Namen der **Knotenwelt** für einen **lokalen**
+Freiheitsgrad. `solve.ts:325` sagt es im Kommentar selbst: „das Gelenk ist am
+LOKALEN Freiheitsgrad definiert". Aufgefallen ist es nie, weil die Drehung in
+der Ebene rahmeninvariant ist — `phiY` und `theta` unterscheiden sich nur im
+Vorzeichen, nicht um den Stabwinkel. Bei einer Verschiebung ist das vorbei: auf
+einem schrägen Stab ist ein lokales Gleiten längs der Stabachse etwas anderes
+als ein globales `ux`.
+
+Die Konvention ist im Haus bereits da, nur über zwei Packages verteilt:
+
+| System | Namen | Stelle |
+| --- | --- | --- |
+| lokal (Stab) | `u`, `w`, `theta` | `fem-element/src/types.ts:12` |
+| global (Knoten) | `ux`, `uz`, `phiY` | `fem/src/types.ts`, `NodeSupport` |
+
+`releases` gehört damit auf `{ u, w, theta }` — dieselbe Reihenfolge wie
+`d_e = [u1, w1, theta1, u2, w2, theta2]`, also auch dieselbe wie die
+Kondensationsindizes 0/1/2 und 3/4/5 in `solve.ts`. Der Vorzeichenstreit
+`phiY = -theta` (ADR 0005) reist NICHT mit: ein Freisetzungs-Flag ist ein
+`true`, kein Wert.
+
+> Ernstzunehmende Alternative: nach der **nicht übertragenen Schnittgröße**
+> benennen statt nach dem Freiheitsgrad — `{ N, V, M }`. Damit stellt sich die
+> Rahmenfrage gar nicht erst, weil Schnittgrößen ohnehin nur lokal existieren,
+> und es liest sich näher an dem, was der Statiker meint („Normalkraftgelenk").
+> Dagegen: die Kondensation arbeitet an Freiheitsgraden, und die Zuordnung
+> N↔u, V↔w, M↔theta wäre eine zweite Übersetzung im Kopf. Entscheiden, bevor
+> umbenannt wird — nicht danach.
+
+Der Umbau war drei Dateien plus Tests. Sobald die Demo Gelenke setzt und
+irgendetwas davon gespeichert wird, wäre es ein Breaking Change gewesen —
+deshalb jetzt.
+
+#### Was `u` und `w` mitbringen, was `theta` nicht hatte
+
+Das Freisetzen einer Verschiebung nimmt dem Stab die betreffende Steifigkeit
+**ganz**, nicht nur am freigesetzten Ende. Beim Längsanteil ist das
+nachrechenbar: aus `[[EA/L, -EA/L], [-EA/L, EA/L]]` wird nach der Kondensation
+von `u1` genau `K[3][3] = EA/L - (EA/L)²/(EA/L) = 0`. Fachlich richtig — ein
+Stab, der an einer Stelle gleiten kann, trägt nirgends Normalkraft.
+
+Die Folge ist die Stelle, die aufpassen muss: der zweite `condense`-Aufruf
+trifft dann einen **Pivot von exakt 0** und kehrt still zurück. Das Verhalten
+ist korrekt (an einem bereits entkoppelten Freiheitsgrad gibt es nichts zu
+verteilen), aber der Kommentar dort nannte es „widersprüchliche Eingaben" — ein
+defensiver Zweig, den nichts erreichte. Mit `u` an beiden Enden liegt er auf dem
+geraden Weg. Er hat deshalb einen Test und einen ehrlicheren Kommentar bekommen,
+keine Reparatur. Dasselbe gilt für `w`: dort wird `K[w2][w2] = 12EI/L³ −
+(12EI/L³)²/(12EI/L³) = 0`, und die Endverdrehung fällt von `4EI/L` auf `EI/L`,
+weil ohne Querkraft das Moment über die ganze Länge konstant bleibt.
+
+**Nicht verbieten**, aus demselben Grund, mit dem `validate.ts:25` den
+Pendelstab ausdrücklich erlaubt: ein Stab, der längs gleitet, überträgt immer
+noch Querkraft und Moment, ist also für sich kein Mechanismus. Ob das System
+kinematisch wird, entscheidet erst das Gleichungssystem — und dafür gibt es
+den `fem-solver` samt Kinematik-Erkennung.
 
 ---
 
@@ -278,6 +363,25 @@ Anfang und Ende von Trapezlasten — sonst übersieht ein gleichmäßiges Raster
 Sprung in V und den Knick in M, und der Anwender sieht ein falsches Maximum.
 Diese Stellen kennt `fem-load-resolve` bereits, das ist der richtige Lieferant.
 
+#### Bedingung: das Gelenk muss im Verlauf ankommen
+
+Die freigesetzte Endverdrehung wird heute **nirgends aufgehoben**. `condense`
+verteilt die Zeile und nullt sie; `endForces` rechnet aus der kondensierten `K`
+und `f`, deshalb steht am Gelenk exakt 0 — richtig, aber ohne dass die echte
+Stabendverdrehung je existiert hätte. Wer `internalForces(x, dLocal, load)` mit
+den Knotenverdrehungen füttert, bekommt am Gelenk ein Moment ungleich 0, und
+der Verlauf ist still falsch. Zwei Auswege, und die Wahl fällt hier oder nie:
+
+1. Den kondensierten Freiheitsgrad beim Rückeinsetzen rekonstruieren.
+   `PreparedBeam` (`solve.ts:125`) müsste dafür die Kondensationszeile
+   aufheben, nicht nur das Ergebnis.
+2. `internalForces` aus den **Endkräften plus Last** integrieren statt aus
+   `dLocal`. Dann braucht der Verlauf die Verdrehung nie.
+
+Der Prüfstein steht schon bereit: `M(0)` und `M(L)` müssen die
+`elementEndForces` treffen, am Gelenk also 0. Mit `u`- und `w`-Gelenken (Stufe
+1a) gilt dasselbe für `N` und `V`.
+
 Die Frage „x absolut oder relativ" würde ich wie bei den Lasten beantworten:
 absolut in Metern entlang der Stabachse, relativ optional in Prozent, gleiche
 Konvention wie `PointPlacement`. Zwei verschiedene Regeln für dieselbe Größe
@@ -336,6 +440,18 @@ new Konva.Path({ data: 'M ... A r r 0 0 1 ... L ... Z', ... })
 Der Radius ist wie die 48-px-Pfeillänge zunächst fest in px, damit der Bogen
 beim Zoomen konstant groß bleibt; die Referenzskalierung kommt erst mit den
 Streckenlasten (siehe unten) und der ViewPolicy in Stufe 4.
+
+#### Nebenher: das Gelenksymbol
+
+Gehört nicht zu den Lasten, sondern neben `fem-viewer/src/supports.ts` — ein
+Kringel am Stabende, ein paar Pixel vom Knoten weg gerückt, screen-konstant wie
+alles im `fem-viewer`. Für `u` und `w` (Stufe 1a) braucht es eigene Zeichen,
+sonst sieht ein Längsgleiten aus wie ein Momentengelenk. Von den Lasten völlig
+unabhängig, passt also vor oder nach den Streckenlasten.
+
+Dazu die Eingabe: `FEMSceneOptions` reicht `Beam` schon vollständig durch, der
+Viewer bräuchte also nichts Neues am Port. Fehlt nur, dass der Demo-Store
+`releases` überhaupt setzen kann.
 
 #### Danach: Streckenlasten
 
@@ -439,7 +555,11 @@ für sich nützlich. Ein Editor ohne Rechenkern ist ein Zeichenprogramm.
    ist. Die Aufteilung Werte → Katalog → Solver-Anschluss → Editor sorgt
    dafür, dass jeder Zwischenstand für sich brauchbar ist.
 
-5. **Kritischer Pfad zu einem sinnvollen Ergebnis:**
+5. **„Alle Stäbe sind biegesteif verbunden" stimmt nicht.** Das Gelenk rechnet
+   seit Langem; was fehlt, ist die Eingabe, das Symbol und der Name. Der
+   Aufwand liegt also nicht dort, wo die Notiz ihn vermutet — siehe F.
+
+6. **Kritischer Pfad zu einem sinnvollen Ergebnis:**
    `Lastfälle → internalForces → Verlauf-API → grafische Darstellung.`
    Alles andere ist Breite. Wenn du nur einen Strang verfolgen willst, dann
    diesen — er führt vom heutigen „Zahlen im Solver" zu „ein Statiker sieht

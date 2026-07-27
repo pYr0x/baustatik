@@ -342,7 +342,7 @@ describe('solve — Gelenke', () => {
   it('macht aus 12EI/L^3 die 3EI/L^3', async () => {
     const rigid = await solve(configOver(guided()));
     const hinged = await solve(
-      configOver(guided({ start: { phiY: true } })),
+      configOver(guided({ start: { theta: true } })),
     );
 
     expect(rigid.displacements.get('n2')?.uz).toBeCloseTo(
@@ -357,7 +357,7 @@ describe('solve — Gelenke', () => {
 
   it('uebertraegt am Gelenk kein Moment', async () => {
     const result = await solve(
-      configOver(guided({ start: { phiY: true } })),
+      configOver(guided({ start: { theta: true } })),
     );
 
     // Selbstpruefende Eigenschaft der Kondensation: an der freigesetzten Stelle
@@ -402,10 +402,112 @@ describe('solve — Gelenke', () => {
     expect(rigid.reactions.get('n2')?.fz).toBeCloseTo(-9, 10);
 
     const hinged = await solve(
-      configOver(propped({ start: { phiY: true } })),
+      configOver(propped({ start: { theta: true } })),
     );
     expect(hinged.reactions.get('n1')?.fz).toBeCloseTo(-12, 10);
     expect(hinged.reactions.get('n2')?.fz).toBeCloseTo(-12, 10);
+  });
+
+  /**
+   * Laengsgelenk: n1 eingespannt, n2 nur in `ux` gehalten, damit die
+   * Laengslast ueberhaupt irgendwo hin kann. Quer bleibt es der Kragarm.
+   */
+  function sliding(releases?: Parameters<typeof beam>[3]): Store {
+    return {
+      nodes: [node('n1', 0, 0), node('n2', 2, 0)],
+      beams: [beam('b1', 'n1', 'n2', releases)],
+      supports: [
+        support('s1', 'n1'),
+        support('s2', 'n2', 'fixed', 'free', 'free'),
+      ],
+      loads: [{ id: 'l1', target: 'node', nodeIds: ['n2'], fx: 7, fz: 10 }],
+    };
+  }
+
+  it('nimmt mit EINEM Laengsgelenk die Normalkraft ueberall heraus', async () => {
+    // Der Unterschied zum Momentengelenk: das Freisetzen einer VERSCHIEBUNG
+    // wirkt nicht nur am freigesetzten Ende. Aus [[EA/L, -EA/L], [-EA/L,
+    // EA/L]] wird nach der Kondensation von u1 genau K[u2][u2] = 0 — ein Stab,
+    // der an einer Stelle gleitet, traegt nirgends Normalkraft.
+    const result = await solve(
+      configOver(sliding({ start: { u: true } })),
+    );
+
+    const forces = result.elementEndForces.get('b1');
+    expect(forces?.[0]).toBe(0);
+    expect(forces?.[3]).toBe(0);
+
+    // Die Laengslast haengt damit allein am Auflager bei n2; die Einspannung
+    // sieht von ihr nichts.
+    expect(result.reactions.get('n1')?.fx).toBeCloseTo(0, 10);
+    expect(result.reactions.get('n2')?.fx).toBeCloseTo(-7, 10);
+
+    // Quer bleibt alles beim Alten: der Kragarm mit P am freien Ende.
+    expect(result.displacements.get('n2')?.uz).toBeCloseTo(
+      (10 * 2 ** 3) / (3 * EI),
+      12,
+    );
+  });
+
+  it('laeuft durch, wenn beide Enden laengs freigesetzt sind', async () => {
+    // Der Pivot 0 in `condense` — kein Notausgang fuer krumme Eingaben,
+    // sondern der gerade Weg: nach dem ersten Schritt ist K[u2][u2] exakt 0,
+    // der zweite findet nichts mehr zu verteilen. Das Ergebnis muss deshalb
+    // dasselbe sein wie mit nur einem Gelenk, und vor allem endlich.
+    const one = await solve(configOver(sliding({ start: { u: true } })));
+    const both = await solve(
+      configOver(sliding({ start: { u: true }, end: { u: true } })),
+    );
+
+    expect(both.displacements.get('n2')?.uz).toBeCloseTo(
+      one.displacements.get('n2')?.uz as number,
+      12,
+    );
+    expect(both.reactions.get('n2')?.fx).toBeCloseTo(-7, 10);
+    expect(
+      (both.elementEndForces.get('b1') as readonly number[]).every((value) =>
+        Number.isFinite(value),
+      ),
+    ).toBe(true);
+  });
+
+  it('macht mit dem Querkraftgelenk aus 4EI/L die EI/L', async () => {
+    /**
+     * Querkraftgelenk am Stabanfang, beide Knoten quer gehalten, am Ende ein
+     * Moment. Ohne Gelenk traegt die Verdrehung 4EI/L; mit ihm kann keine
+     * Querkraft mehr uebertragen werden, das Moment ist also ueber die ganze
+     * Laenge konstant und die Endverdrehung wird zu m*L/EI — viermal so gross.
+     */
+    function sheared(releases?: Parameters<typeof beam>[3]): Store {
+      return {
+        nodes: [node('n1', 0, 0), node('n2', 2, 0)],
+        beams: [beam('b1', 'n1', 'n2', releases)],
+        supports: [
+          support('s1', 'n1'),
+          support('s2', 'n2', 'free', 'fixed', 'free'),
+        ],
+        loads: [{ id: 'l1', target: 'node', nodeIds: ['n2'], my: 10 }],
+      };
+    }
+
+    const rigid = await solve(configOver(sheared()));
+    const hinged = await solve(configOver(sheared({ start: { w: true } })));
+
+    expect(rigid.displacements.get('n2')?.phiY).toBeCloseTo(
+      (10 * 2) / (4 * EI),
+      12,
+    );
+    expect(hinged.displacements.get('n2')?.phiY).toBeCloseTo(
+      (10 * 2) / EI,
+      12,
+    );
+
+    // Dieselbe selbstpruefende Eigenschaft wie beim Momentengelenk, eine Zeile
+    // weiter: an der freigesetzten Stelle steht exakt 0 — und weil die
+    // Querkraft im unbelasteten Stab konstant ist, am anderen Ende auch.
+    const forces = hinged.elementEndForces.get('b1');
+    expect(forces?.[1]).toBe(0);
+    expect(forces?.[4]).toBeCloseTo(0, 10);
   });
 });
 
@@ -447,7 +549,7 @@ describe('solve — Gleichgewicht', () => {
         nodes: [node('n1', 0, 0), node('n2', 0, -3), node('n3', 4, -3)],
         beams: [
           beam('b1', 'n1', 'n2'),
-          beam('b2', 'n2', 'n3', { end: { phiY: true } }),
+          beam('b2', 'n2', 'n3', { end: { theta: true } }),
         ],
         supports: [support('s1', 'n1'), support('s2', 'n3')],
         loads: [
@@ -529,7 +631,7 @@ describe('solve — das Tor und die Kinematik', () => {
     // und die Querverschiebung faellt vor der Verdrehung auf.
     const store = cantilever();
     store.beams = [
-      beam('b1', 'n1', 'n2', { start: { phiY: true }, end: { phiY: true } }),
+      beam('b1', 'n1', 'n2', { start: { theta: true }, end: { theta: true } }),
     ];
 
     const failure = await solve(configOver(store)).catch(
@@ -550,7 +652,7 @@ describe('solve — das Tor und die Kinematik', () => {
       nodes: [node('n1', 0, 0), node('n2', 4, 0), node('n3', 4, 3)],
       beams: [
         beam('b1', 'n1', 'n2'),
-        beam('b2', 'n3', 'n2', { start: { phiY: true }, end: { phiY: true } }),
+        beam('b2', 'n3', 'n2', { start: { theta: true }, end: { theta: true } }),
       ],
       supports: [support('s1', 'n1'), support('s2', 'n3')],
       loads: [{ id: 'l1', target: 'node', nodeIds: ['n2'], fz: 10 }],

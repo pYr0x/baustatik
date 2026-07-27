@@ -9,7 +9,7 @@ export {
   ZeroLengthBeamError,
 } from './errors';
 export { isolatedNodeIds } from './graph';
-export type { Beam, Node, NodeSupport } from './types';
+export type { Beam, BeamEndReleases, Node, NodeSupport } from './types';
 export {
   assertValidModel,
   type ModelValidationResult,

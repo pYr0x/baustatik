@@ -31,6 +31,38 @@ export type Node = {
   position: { x: number; z: number };
 };
 
+/**
+ * Die an EINEM Stabende freigesetzten Freiheitsgrade — das Gelenk.
+ *
+ * DIE NAMEN SIND DIE DES STABS, nicht die des Knotens: `u` laengs der
+ * Stabachse, `w` quer dazu, `theta` die Verdrehung. Das ist dieselbe
+ * Reihenfolge und dasselbe Vokabular wie `d_e = [u1, w1, theta1, u2, w2,
+ * theta2]` in @baustatik/fem-element, und damit dieselbe Reihenfolge wie die
+ * Kondensationsindizes 0/1/2 und 3/4/5 im Solver.
+ *
+ * Die Knotenwelt heisst `ux`, `uz`, `phiY` (`NodeSupport`) — ein ANDERES
+ * System. Bei der Verdrehung faellt der Unterschied nicht auf, weil die Drehung
+ * in der Ebene rahmeninvariant ist; bei `u` auf einem schraegen Stab ist ein
+ * Gleiten laengs der Stabachse etwas ganz anderes als ein globales `ux`
+ * ([ADR 0017](../../docs/adr/0017-releases-are-named-in-the-local-frame.md)).
+ *
+ * Der Vorzeichenstreit `phiY = -theta` (ADR 0005) reist NICHT mit: ein
+ * Freisetzungs-Flag ist ein `true`, kein Wert, und hat deshalb kein Vorzeichen.
+ * Deshalb auch `true` oder weg statt `boolean` — `false` waere ein zweites Wort
+ * fuer „nicht freigesetzt".
+ *
+ * Das Gelenk sitzt am STABENDE, nicht am Knoten. Nur so lassen sich an einem
+ * Knoten mit drei Staeben zwei gelenkig und einer biegesteif anschliessen.
+ */
+export type BeamEndReleases = {
+  /** Laengs der Stabachse — das Normalkraftgelenk. */
+  u?: true;
+  /** Quer zur Stabachse — das Querkraftgelenk. */
+  w?: true;
+  /** Die Verdrehung — das gewoehnliche Momentengelenk. */
+  theta?: true;
+};
+
 export type Beam = {
   id: string;
   startNodeId: string;
@@ -38,8 +70,8 @@ export type Beam = {
   crossSectionId: string;
   materialId: string;
   releases?: {
-    start?: { phiY?: true };
-    end?: { phiY?: true };
+    start?: BeamEndReleases;
+    end?: BeamEndReleases;
   };
 };
 

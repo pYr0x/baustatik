@@ -25,7 +25,9 @@
  *   - Der Stab mit Gelenk an BEIDEN Enden. Fachlich ein Pendelstab und voellig
  *     zulaessig; erst die KETTE solcher Staebe ist kinematisch, und das braucht
  *     wieder das Gleichungssystem. Hier ausdruecklich erwaehnt, damit ihn
- *     niemand versehentlich verbietet.
+ *     niemand versehentlich verbietet. Dasselbe gilt fuer die freigesetzten
+ *     VERSCHIEBUNGEN `u` und `w` (ADR 0017): ein Stab, der laengs gleitet,
+ *     uebertraegt immer noch Querkraft und Moment.
  *   - Unbekannte `crossSectionId`/`materialId`. Dazu braeuchte die Pruefung die
  *     Kataloge; sie entsteht dort, wo die Steifigkeiten herkommen
  *     (`@baustatik/fem-solver`), als eigene Unterklasse von
