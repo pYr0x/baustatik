@@ -120,6 +120,14 @@ describe('reconcile — diffing against the live Konva tree', () => {
         height: 5,
       },
       { id: 't', kind: 'triangle', center: { u: 0, v: 0 }, sideLength: 6 },
+      {
+        id: 'a',
+        kind: 'arcPath',
+        center: { u: 0, v: 0 },
+        radius: 5,
+        startAngle: 0,
+        sweepAngle: Math.PI / 2,
+      },
     ]);
 
     const stage = currentStage();
@@ -128,6 +136,12 @@ describe('reconcile — diffing against the live Konva tree', () => {
     expect(stage.findOne('#p')).toBeInstanceOf(Konva.Line);
     expect(stage.findOne('#r')).toBeInstanceOf(Konva.Rect);
     expect(stage.findOne('#t')).toBeInstanceOf(Konva.RegularPolygon);
+    // Der Bogen ist ein Pfad: Konva.Arc waere das Ringsegment und zoege die
+    // beiden Radien mit. Konva muss den SVG-String auch WIRKLICH lesen — ein
+    // unparsbares `data` ergaebe eine Shape ohne Segmente statt eines Fehlers.
+    const arc = stage.findOne('#a') as Konva.Path;
+    expect(arc).toBeInstanceOf(Konva.Path);
+    expect(arc.dataArray.map((segment) => segment.command)).toEqual(['M', 'A']);
 
     h.destroy();
   });

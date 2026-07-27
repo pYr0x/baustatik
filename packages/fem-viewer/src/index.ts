@@ -1,6 +1,7 @@
 export { UnknownNodeReferenceError, UnsupportedSupportError } from './errors';
 export { FEM_LAYERS, type FEMLayer } from './layers';
 export {
+  DEFAULT_MOMENT_RADIUS_PX,
   DEFAULT_POINT_FORCE_ARROW_LENGTH_PX,
   type LoadStyle,
 } from './loads';

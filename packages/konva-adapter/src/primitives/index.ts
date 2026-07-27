@@ -4,6 +4,7 @@ import {
   type ShapeSpec,
 } from '@baustatik/render-core';
 import Konva from 'konva';
+import { arcPathConfig, arcPathData } from './arc-path';
 import { arrowConfig } from './arrow';
 import { circleConfig } from './circle';
 import {
@@ -19,6 +20,8 @@ import { rectangleConfig } from './rectangle';
 import { triangleConfig } from './triangle';
 
 export {
+  arcPathConfig,
+  arcPathData,
   arrowConfig,
   circleConfig,
   labelTagConfig,
@@ -59,6 +62,8 @@ function configFor(spec: ShapeSpec): Konva.ShapeConfig {
       return triangleConfig(spec);
     case 'arrow':
       return arrowConfig(spec);
+    case 'arcPath':
+      return arcPathConfig(spec);
     default:
       return assertNever(spec);
   }
@@ -80,6 +85,8 @@ export function buildPrimitive(spec: PrimitiveSpec): LeafNode {
       return new Konva.RegularPolygon(triangleConfig(spec));
     case 'arrow':
       return new Konva.Arrow(arrowConfig(spec));
+    case 'arcPath':
+      return new Konva.Path(arcPathConfig(spec));
     case 'label':
       return buildLabel(spec);
     default:

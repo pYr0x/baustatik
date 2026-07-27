@@ -19,7 +19,8 @@ type ShapeSpec =
   | PolygonSpec
   | RectangleSpec
   | TriangleSpec
-  | ArrowSpec;
+  | ArrowSpec
+  | ArcPathSpec;
 
 type PrimitiveSpec = ShapeSpec | LabelSpec;
 
@@ -183,6 +184,62 @@ const arrow: ArrowSpec = {
   strokeColor: '#1d4ed8',
   strokeWidth: 2,
   fillColor: '#1d4ed8',
+};
+```
+
+---
+
+### ArcPathSpec
+
+**Signature:**
+
+```typescript
+interface ArcPathSpec {
+  readonly id: string;
+  readonly kind: 'arcPath';
+  readonly center: WorldPoint;
+  readonly radius: number;
+  readonly startAngle: number;
+  readonly sweepAngle: number;
+  readonly strokeColor?: string;
+  readonly strokeWidth?: number;
+  readonly strokeStyle?: 'solid' | 'dashed' | 'dotted';
+}
+```
+
+**Description:** A stroked circular arc — the curved sibling of the line, not of
+the circle.
+
+The name separates two figures that many libraries both call "arc": an **arc
+path** is a curved stroke with a stroke width; a **ring segment** is the _area_
+bounded by two radii and two arcs (Konva's `Arc` is the second one). They differ
+in what they show, not in one field, so a ring segment would arrive as its own
+spec with an inner and an outer radius rather than as a `filled` flag here. None
+exists until something needs one; the name is reserved so that it does not end up
+called `ArcSpec` either.
+
+An arc path therefore carries **no fill**. Angles are radians, measured from `+u`
+and growing towards `+v`; since `v` points down, a growing angle runs
+**clockwise** on screen, so `sweepAngle` carries the sign of the turn (negative =
+counter-clockwise). It must satisfy `0 < |sweepAngle| < 2π`: a zero turn draws
+nothing, and a full turn coincides with its own start — that one is a
+`CircleSpec`. `radius` is a world quantity and scales with zoom.
+
+**Example:**
+
+```typescript
+import type { ArcPathSpec } from '@baustatik/render-core';
+
+// 270° counter-clockwise, gap at the top — the moment symbol of the FEM viewer.
+const arc: ArcPathSpec = {
+  id: 'load-1:arc',
+  kind: 'arcPath',
+  center: { u: 0, v: 0 },
+  radius: 1.1,
+  startAngle: (-135 * Math.PI) / 180,
+  sweepAngle: (-270 * Math.PI) / 180,
+  strokeColor: '#1d4ed8',
+  strokeWidth: 2,
 };
 ```
 

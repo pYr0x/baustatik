@@ -12,7 +12,7 @@ Kein Implementierungsplan — eine Richtung mit Reihenfolge und Begründung.
 | 0 | ~~Staborientierung: Test + Doku~~ | erledigt 2026-07-26 | War schon korrekt implementiert — jetzt festgenagelt und dokumentiert |
 | 1 | ~~Lastfall-Begriff einführen~~ | erledigt 2026-07-26 | ADR 0013–0015; siehe „Stufe 1" unten |
 | 2 | `internalForces` in `fem-element` + Verlauf-API im Solver | mittel | Höchster Nutzen pro Aufwand, Naht liegt fertig |
-| 3 | Punktlasten: Kräfte ~~gezeichnet~~, **Momente fehlen**; danach Linienlasten | klein (Moment) / mittel | Moment schließt die Punktlast ab, Linienlasten sind ein eigener Plan |
+| 3 | ~~Punktlasten: Kräfte und Momente gezeichnet~~; danach Linienlasten | erledigt 2026-07-27 / mittel | Punktlast ist abgeschlossen, Linienlasten sind ein eigener Plan |
 | 4 | ViewPolicy | klein | Erst wenn es genug zu stylen gibt |
 | 5 | Schnittgrößen grafisch | mittel | Braucht 2 + 4 |
 | 6 | Lastkombinationen, min/max | mittel | Braucht 1 + 2 |
@@ -290,9 +290,24 @@ Beschriftung gezeichnet. Die hier ursprünglich geforderte Änderung am Port
 („nicht `getLoads()`, sondern der Lastfall") ist **zurückgenommen** — siehe
 „Der Viewer bleibt dumm" in Stufe 1.
 
-#### Zuerst: das Moment fehlt noch
+#### Zuerst: das Moment — **erledigt am 2026-07-27**
 
-Gezeichnet werden bisher nur die Kräfte. Es fehlen die Momentenlasten, und
+Umgesetzt: `render-core` bekam `ArcPathSpec` (Strichbogen, ohne Füllung, mit
+vorzeichenbehaftetem `sweepAngle`; „ArcPath" statt „Arc", weil ein Ringsegment
+eine andere Figur ist und den Namen sonst besetzt), der `konva-adapter` bildet
+ihn über `Konva.Path` und das SVG-Kommando `A` ab, und `fem-viewer/src/loads/`
+ist in zwei Ebenen zerlegt — Lastart (`node-loads.ts`, `beam-loads.ts`) und
+Symbol (`point-force.ts`, `moment.ts`), mit `label.ts` und `style.ts` als
+gemeinsamem Teil. Das Symbol ist ein 270-Grad-Bogen mit Radius 22 px und
+demselben Label-Gap wie die Punktlast; positives Moment dreht gegen den
+Uhrzeigersinn, das negative ist sein Spiegelbild. Festgehalten wird die Lücke:
+sie sitzt bei beiden Vorzeichen unten, das Label darüber, die Spitze an der
+Kante der Lücke. Sie ist gefüllt UND bestrichen wie Konvas Pfeilkopf — nur
+gefüllt fiele sie bei gleichen Maßen kleiner aus.
+
+Der Auftrag, wie er hier stand:
+
+Gezeichnet wurden bisher nur die Kräfte. Es fehlten die Momentenlasten, und
 zwar an beiden Stellen, an denen es sie gibt:
 
 - `NodeLoad.my` — das Knotenmoment. Es steht heute **neben** `fx`/`fz` im

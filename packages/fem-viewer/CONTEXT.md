@@ -4,8 +4,9 @@
 
 Maps a planar FEM frame model — nodes, beams and loads — to render-agnostic `Spec`
 objects and drives a `RenderDriver` with viewport state. Beams draw as thin black
-lines, nodes as small red circles, node supports as grouped symbols, and
-concentrated forces as blue arrows with a labelled magnitude.
+lines, nodes as small red circles, node supports as grouped symbols, concentrated
+forces as blue arrows and moments as blue curved arrows, both with a labelled
+magnitude.
 
 ## Boundaries
 
@@ -22,7 +23,7 @@ concentrated forces as blue arrows with a labelled magnitude.
 - `@baustatik/fem`: `Node` and `Beam` model types.
 - `@baustatik/errors`: base `BaustatikError` class for package error hierarchy.
 - `@baustatik/render-core`: `Spec`, `LineSpec`, `CircleSpec`, `ArrowSpec`,
-  `LabelSpec`, `RenderDriver`.
+  `ArcPathSpec`, `PolygonSpec`, `LabelSpec`, `RenderDriver`.
 - `@baustatik/grid-2d`: `gridSpecs`, `GridOptions` for the background grid.
 - `@baustatik/viewport-2d`: `Viewport`, `Size`, `worldPoint`, `pan`, `zoomAround`.
 - `@baustatik/fem-loads`: the load types, `modelGeometry` (beam axis with the
@@ -36,8 +37,17 @@ concentrated forces as blue arrows with a labelled magnitude.
 ## Navigation
 
 - [`src/scene.ts`](src/scene.ts): `femSpecs` — the pure model → spec mapping.
-- [`src/loads.ts`](src/loads.ts): `loadSpecs` — concentrated forces to arrow and
-  label specs, plus the `LoadStyle` slice and its defaults.
+- [`src/loads/`](src/loads): loads → specs, split along **two levels**: which load
+  produces which symbol, and what a symbol looks like. A new load kind therefore
+  touches the first level only, a changed symbol the second.
+  - [`index.ts`](src/loads/index.ts): `loadSpecs` — distribution over the load kinds.
+  - [`node-loads.ts`](src/loads/node-loads.ts) /
+    [`beam-loads.ts`](src/loads/beam-loads.ts): what hangs where — targets,
+    components, position on the beam axis.
+  - [`point-force.ts`](src/loads/point-force.ts) /
+    [`moment.ts`](src/loads/moment.ts): the symbols — straight arrow, curved arrow.
+  - [`label.ts`](src/loads/label.ts) / [`style.ts`](src/loads/style.ts): what both
+    share — the label rule, the `LoadStyle` slice and its defaults.
 - [`src/layers.ts`](src/layers.ts): `FEM_LAYERS` paint bands and `FEMLayer` type.
 - [`src/viewer.ts`](src/viewer.ts): `createFEMViewer` — viewport state and driver wiring.
 - [`src/errors.ts`](src/errors.ts): `UnknownNodeReferenceError`.
@@ -72,8 +82,9 @@ concentrated forces as blue arrows with a labelled magnitude.
 - **Namespaced spec IDs**: `node:{id}` and `beam:{id}`, matching the `grid:`
   prefix. `validateSpecs` requires global uniqueness across all bands, and a node
   and a beam may otherwise carry the same raw ID. Loads add the target and, for
-  node loads, the component: `load:{loadId}:{targetId}[:fx|:fz]:arrow` and
-  `…:label`. One load on several targets therefore stays distinguishable, which the
+  node loads, the component: `load:{loadId}:{targetId}[:fx|:fz|:my]` plus the part
+  of the symbol — `:arrow`/`:label` for a force, `:arc`/`:head`/`:label` for a
+  moment. One load on several targets therefore stays distinguishable, which the
   fan-out needs.
 - **Supports are grouped, screen-constant symbols**: every `NodeSupport` maps to
   one `GroupSpec` anchored at its node. Its symbol-specific translation and all
@@ -94,11 +105,45 @@ concentrated forces as blue arrows with a labelled magnitude.
   magnitude lives in the label. A negative value flips the direction, the label
   keeps the unsigned input. Distributed loads will not be able to afford this —
   their height has to scale, or 5 kN/m and 50 kN/m look alike.
-- **Unsupported load kinds are skipped, not rejected**: moments and distributed
-  loads produce no specs, and so does a force component that is absent or zero.
+- **The moment symbol turns the way the sign says**: a positive moment turns
+  **counter-clockwise** in the picture, because global y points out of the plane
+  (`fem-loads/src/types.ts`, section DREHSINN). On screen the angle grows
+  clockwise, so a positive moment carries a **negative** `sweepAngle` — the one
+  sign flip in `moment.ts`.
+- **What is held fixed is the gap, not the head**: the 90° gap sits at the
+  **bottom** for both signs, so the two symbols read as mirror images of each
+  other and neither is the odd one out. Hold the _head_ fixed instead and the gap
+  travels with the direction of rotation — bottom for one sign, sideways for the
+  other. The head therefore sits at the _end_ of the arc, on the edge of the gap
+  it points into: bottom left for a positive moment, bottom right for a negative
+  one. The start angles follow (+45° / +135°) rather than being given.
+- **Arc and head are cut once, not twice**: the arc is shortened by exactly the
+  angle the head occupies and the head's base is placed where the shortened arc
+  _ends_. Otherwise the arc's blunt line cap sticks out where the triangle should
+  be pointed, or a gap opens — and arc plus head together would cover more than
+  the nominal 270°. The angle is `atan(pointerLength / radius)`, exact because the
+  head stands tangentially: base, centre and tip form a right triangle. The
+  obvious arc-length approximation `pointerLength / radius` overshoots it.
+- **The moment head is filled _and_ stroked**: Konva draws the force arrow's head
+  that way, and the stroke sits centred on the outline, adding half a stroke width
+  outwards — at the sharp corner, through the miter, `strokeWidth / 2 / sin(half
+tip angle)`, nearly 3 px at these sizes. A fill-only triangle with the same
+  `pointerLength`/`pointerWidth` therefore comes out visibly smaller than the
+  arrow's head. With the same stroke, both numbers in `LoadStyle` mean the same
+  thing in both symbols instead of factors reproducing the difference.
+  `pointerWidth` is the **full** base width, as in Konva.
+- **Unsupported load kinds are skipped, not rejected**: distributed loads produce
+  no specs, and so does a force component or moment that is absent or zero.
   Objecting to them would stop an otherwise drawable model from drawing at all,
   and a zero-length arrow is a point, not a picture.
-- **Label text format is pinned**: `` `${roundSmart(magnitude)} kN` `` over the
+- **The label hangs on the symbol, not on the point of application**: a force
+  labels its outer arrow end, a moment the topmost point of its arc circle — both
+  at the same `loadLabelGapPx` beyond it. The moment's radius is therefore
+  simultaneously its distance to the node and the label's anchor distance. Above,
+  because below is where the gap is and where the head points; a box there would
+  sit in the one place the figure keeps clear.
+- **Label text format is pinned**: `` `${roundSmart(magnitude)} kN` `` (`kNm` for
+  a moment) over the
   already unsigned magnitude, with the `@baustatik/round` defaults and a plain `String` conversion, no locale. The
   integer falls through unchanged (`10 kN`) and the digit count stays small
   (`0.85 kN`). Without the rule the text would hang on the floating-point
@@ -125,9 +170,14 @@ pnpm --filter @baustatik/fem-viewer build
   and `fz` produces two arrows at right angles whose labels can overlap. Known and
   accepted for now; a resolution needs a placement rule over _all_ labels, not a
   local fix.
-- **Only concentrated forces are drawn**: node and beam moments and all distributed
-  loads produce no specs yet. Distributed loads in particular need an answer to the
-  scaling question first — one reference size over all visible loads, otherwise
-  5 kN/m and 50 kN/m are indistinguishable.
+- **Only concentrated loads are drawn**: all distributed loads (line forces and
+  line moments) produce no specs yet. They need an answer to the scaling question
+  first — one reference size over all visible loads, otherwise 5 kN/m and 50 kN/m
+  are indistinguishable.
+- **A node carrying `fz` and `my` at once draws them through each other**: with the
+  gap at the bottom, the arc is closed at the top, exactly where the shaft of a
+  downward force arrow runs — and both labels stack above the node. Legible, but
+  not composed. Same open placement question as above, and the reason the gap
+  could be worth making direction-dependent later.
 - Result diagrams are not rendered yet; they would become an additional band in
   `FEM_LAYERS`.

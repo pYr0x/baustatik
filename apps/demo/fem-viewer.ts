@@ -151,7 +151,7 @@ store.addSupport(store.nodes[0], 'fixed', 'fixed', 'free');
 const gravity = store.addLoadCase('Eigengewicht + Schnee');
 
 // Knotenlast: globale Kraft nach unten.
-store.addNodeLoad([store.nodes[1]], { fz: 10 });
+store.addNodeLoad([store.nodes[1]], { fz: 10, my: 10 });
 
 // Punktuelle Stabkraft: global nach unten, 50 Einheiten vom Stabanfang.
 store.addBeamLoad([store.beams[0]], {
@@ -159,6 +159,14 @@ store.addBeamLoad([store.beams[0]], {
     frame: 'global', axis: 'z',
     p: 10,
     distanceFromStart: 50,
+});
+
+// Einzelmoment auf dem Stab. Negativ, damit im Bild beide Drehsinne stehen:
+// das Knotenmoment oben dreht gegen, dieses mit dem Uhrzeigersinn.
+store.addBeamLoad([store.beams[0]], {
+    kind: 'moment', distribution: 'point',
+    m: -8,
+    distanceFromStart: 25,
 });
 
 // Schneelast auf den schrägen Stab, bezogen auf die horizontale Projektion.
@@ -192,7 +200,7 @@ const driver = createKonvaDriver({
 // 2. Viewer: Driver injizieren, Segmente per PULL aus dem Store.
 const viewer = createFEMViewer({
     driver,
-    initialViewport: viewport(screenPoint(stageSize.width / 2, stageSize.height / 2,), 1),
+    initialViewport: viewport(screenPoint(stageSize.width / 2, stageSize.height / 2,), 5),
     getNodes: () => store.nodes,
     getBeams: () => store.beams,
     getSupports: () => store.supports,

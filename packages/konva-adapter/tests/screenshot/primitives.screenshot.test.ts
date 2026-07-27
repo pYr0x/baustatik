@@ -127,6 +127,24 @@ describe('primitive shapes — screenshot baselines', () => {
     ]);
   });
 
+  it('renders an arc path', async () => {
+    // 270 Grad gegen den Uhrzeigersinn, wie das Momentsymbol des FEM-Viewers:
+    // die Luecke muss oben stehen und der Bogen darf sich nicht schliessen —
+    // ein Ringsegment waere es, wenn beide Radien mitgezogen wuerden.
+    await snapshot('primitive-arc-path', [
+      {
+        id: 'arc-path',
+        kind: 'arcPath',
+        center: { u: 0, v: 0 },
+        radius: 3,
+        startAngle: (-135 * Math.PI) / 180,
+        sweepAngle: (-270 * Math.PI) / 180,
+        strokeColor: '#1d4ed8',
+        strokeWidth: 3,
+      },
+    ]);
+  });
+
   it('renders a dashed stroke', async () => {
     await snapshot('stroke-dashed', [
       {

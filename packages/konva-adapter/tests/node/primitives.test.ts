@@ -1,4 +1,5 @@
 import type {
+  ArcPathSpec,
   ArrowSpec,
   CircleSpec,
   LabelSpec,
@@ -9,6 +10,8 @@ import type {
 } from '@baustatik/render-core';
 import { describe, expect, it } from 'vitest';
 import {
+  arcPathConfig,
+  arcPathData,
   arrowConfig,
   circleConfig,
   labelTagConfig,
@@ -166,6 +169,81 @@ describe('arrowConfig()', () => {
 
     expect(arrowConfig(spec).points).toEqual([0, -3, 0, 0]);
     expect(reversed.points).toEqual([0, 0, 0, -3]);
+  });
+});
+
+describe('arcPathConfig()', () => {
+  // Viertelbogen von rechts nach unten: bei v nach unten ist das der wachsende
+  // Winkel, also der Uhrzeigersinn auf dem Schirm.
+  const spec: ArcPathSpec = {
+    id: 'arc1',
+    kind: 'arcPath',
+    center: { u: 0, v: 0 },
+    radius: 2,
+    startAngle: 0,
+    sweepAngle: Math.PI / 2,
+    strokeColor: '#1d4ed8',
+    strokeWidth: 2,
+  };
+
+  // 'M x0 y0 A rx ry rotation large-arc sweep x1 y1'
+  function tokens(data: string) {
+    const t = data.split(' ');
+    return {
+      from: { u: Number(t[1]), v: Number(t[2]) },
+      radii: { rx: Number(t[4]), ry: Number(t[5]) },
+      rotation: t[6],
+      largeArc: t[7],
+      sweepFlag: t[8],
+      to: { u: Number(t[9]), v: Number(t[10]) },
+    };
+  }
+
+  it('maps the full spec to a Konva path config', () => {
+    expect(arcPathConfig(spec)).toEqual({
+      id: 'arc1',
+      data: arcPathData(spec),
+      stroke: '#1d4ed8',
+      strokeWidth: 2,
+      strokeScaleEnabled: false,
+      dash: undefined,
+    });
+  });
+
+  it('draws the arc from the start angle to start + sweep', () => {
+    const t = tokens(arcPathData(spec));
+
+    expect(t.from.u).toBeCloseTo(2, 10);
+    expect(t.from.v).toBeCloseTo(0, 10);
+    expect(t.to.u).toBeCloseTo(0, 10);
+    expect(t.to.v).toBeCloseTo(2, 10);
+    // Ein Kreisbogen, keine Ellipse: beide Radien gleich, keine Drehung.
+    expect(t.radii).toEqual({ rx: 2, ry: 2 });
+    expect(t.rotation).toBe('0');
+  });
+
+  it('sets the large-arc-flag above half a turn', () => {
+    expect(tokens(arcPathData(spec)).largeArc).toBe('0');
+    expect(
+      tokens(arcPathData({ ...spec, sweepAngle: (3 * Math.PI) / 2 })).largeArc,
+    ).toBe('1');
+  });
+
+  it('takes the sweep-flag from the sign, not from the endpoints', () => {
+    // Beide Boegen haben dieselben Endpunkte; nur das Vorzeichen unterscheidet
+    // sie — ohne das Flag waere der Umlauf nicht darstellbar.
+    expect(tokens(arcPathData(spec)).sweepFlag).toBe('1');
+    expect(
+      tokens(arcPathData({ ...spec, startAngle: Math.PI / 2, sweepAngle: -Math.PI / 2 }))
+        .sweepFlag,
+    ).toBe('0');
+  });
+
+  it('shifts the arc with its centre', () => {
+    const t = tokens(arcPathData({ ...spec, center: { u: 10, v: -5 } }));
+
+    expect(t.from.u).toBeCloseTo(12, 10);
+    expect(t.from.v).toBeCloseTo(-5, 10);
   });
 });
 

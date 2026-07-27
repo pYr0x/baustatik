@@ -120,6 +120,27 @@ describe('render-core errors and validation', () => {
     })).toThrow(InvalidWorldPointError);
   });
 
+  it('throws InvalidSpecError for a degenerate arc', () => {
+    const arc = {
+      id: 'ar1',
+      kind: 'arcPath' as const,
+      center: { u: 0, v: 0 },
+      radius: 5,
+      startAngle: 0,
+      sweepAngle: Math.PI,
+    };
+
+    expect(() => validateSpec(arc)).not.toThrow();
+    expect(() => validateSpec({ ...arc, radius: 0 })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...arc, startAngle: NaN })).toThrow(InvalidSpecError);
+    // Beide Grenzen sind zeichnerisch: ein Umlauf von 0 zeichnet nichts, und
+    // ein voller Umlauf faellt mit seinem eigenen Anfang zusammen. Fuer den
+    // gibt es `circle`.
+    expect(() => validateSpec({ ...arc, sweepAngle: 0 })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...arc, sweepAngle: 2 * Math.PI })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ ...arc, sweepAngle: -3 * Math.PI })).toThrow(InvalidSpecError);
+  });
+
   it('throws InvalidSpecError for invalid label fields', () => {
     const label = {
       id: 'lb1',

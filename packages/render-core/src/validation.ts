@@ -175,6 +175,32 @@ export function validateSpec(spec: Spec): void {
       });
       break;
 
+    case 'arcPath':
+      checkStrokeAndFill(spec);
+      checkWorldPoint(spec.center, spec.id, 'center');
+      checkNumber(spec.radius, spec.id, 'radius', { positive: true });
+      if (!Number.isFinite(spec.startAngle)) {
+        throw new InvalidSpecError(
+          spec.id,
+          `startAngle muss endlich sein, erhalten: ${spec.startAngle}`,
+        );
+      }
+      // Beide Grenzen sind ZEICHNERISCH, nicht kosmetisch: ein Umlauf von 0
+      // zeichnet nichts, und ein voller Umlauf ist ein Kreis — als Bogen
+      // faellt er mit seinem eigenen Anfang zusammen und verschwindet ebenso.
+      // Dafuer gibt es `circle`.
+      if (
+        !Number.isFinite(spec.sweepAngle) ||
+        spec.sweepAngle === 0 ||
+        Math.abs(spec.sweepAngle) >= 2 * Math.PI
+      ) {
+        throw new InvalidSpecError(
+          spec.id,
+          `sweepAngle muss endlich und 0 < |sweepAngle| < 2π sein, erhalten: ${spec.sweepAngle}`,
+        );
+      }
+      break;
+
     case 'label':
       checkLabel(spec);
       break;

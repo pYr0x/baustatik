@@ -8,6 +8,7 @@ export {
 export { assertNever } from './exhaustive';
 export type { ViewIntent } from './intents/view';
 export type {
+  ArcPathSpec,
   ArrowSpec,
   CircleSpec,
   GroupSpec,

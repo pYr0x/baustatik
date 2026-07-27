@@ -111,7 +111,7 @@ describe('Knotenkraefte', () => {
   });
 
   it('emits one arrow-label pair per effective component', () => {
-    const ids = loadOnly([nodeLoad({ fx: 3, fz: 4, my: 5 })]).map((s) => s.id);
+    const ids = loadOnly([nodeLoad({ fx: 3, fz: 4 })]).map((s) => s.id);
 
     expect(ids).toEqual([
       'load:nl:b:fx:arrow',
@@ -119,12 +119,25 @@ describe('Knotenkraefte', () => {
       'load:nl:b:fz:arrow',
       'load:nl:b:fz:label',
     ]);
-    // `my` bleibt unberuecksichtigt: Momentsymbole kommen spaeter.
-    expect(ids.some((id) => id.includes('my'))).toBe(false);
+  });
+
+  it('draws force and moment of the SAME load side by side', () => {
+    // `fx`/`fz` und `my` stehen im selben Lastobjekt — kein Entweder-Oder.
+    const ids = loadOnly([nodeLoad({ fz: 4, my: 5 })]).map((s) => s.id);
+
+    expect(ids).toEqual([
+      'load:nl:b:fz:arrow',
+      'load:nl:b:fz:label',
+      'load:nl:b:my:arc',
+      'load:nl:b:my:head',
+      'load:nl:b:my:label',
+    ]);
   });
 
   it('skips components that are absent or zero', () => {
-    expect(loadOnly([nodeLoad({ fx: 0, fz: undefined, my: 1 })])).toHaveLength(0);
+    expect(
+      loadOnly([nodeLoad({ fx: 0, fz: undefined, my: 0 })]),
+    ).toHaveLength(0);
   });
 
   it('fans out over every target node', () => {
@@ -226,17 +239,8 @@ describe('Punktuelle Stabkraefte', () => {
 });
 
 describe('Noch nicht dargestellte Lastarten', () => {
-  it('ignores beam moments and distributed loads instead of failing', () => {
+  it('ignores distributed loads instead of failing', () => {
     const ignored: FEMLoad[] = [
-      {
-        id: 'm1',
-        target: 'beam',
-        beamIds: ['ab'],
-        kind: 'moment',
-        distribution: 'point',
-        m: 5,
-        distanceFromStart: 10,
-      },
       {
         id: 'q1',
         target: 'beam',
@@ -260,6 +264,14 @@ describe('Noch nicht dargestellte Lastarten', () => {
         fullLength: true,
         q1: 1,
         q2: 2,
+      },
+      {
+        id: 'm1',
+        target: 'beam',
+        beamIds: ['ab'],
+        kind: 'moment',
+        distribution: 'constant',
+        m: 3,
       },
     ];
 

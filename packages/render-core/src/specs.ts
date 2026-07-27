@@ -69,6 +69,34 @@ export interface ArrowSpec extends SpecBase, Stroke, Filled {
 }
 
 /**
+ * Kreisbogen als STRICH — der gebogene Bruder der Linie, nicht des Kreises.
+ *
+ * DER NAME trennt zwei Figuren, die viele Bibliotheken beide "Arc" nennen:
+ * ein ARCPATH ist ein gebogener Strich mit Strichstaerke, ein RINGSEGMENT ist
+ * die von zwei Radien und zwei Boegen begrenzte FLAECHE (Konvas `Arc` ist das
+ * zweite). Sie unterscheiden sich nicht in einem Feld, sondern in dem, was sie
+ * zeigen — deshalb bekaeme ein Ringsegment eine eigene Spec mit Innen- und
+ * Aussenradius und nicht ein `filled`-Flag hier. Bis eine gebraucht wird, gibt
+ * es sie nicht; der Name ist reserviert, damit sie nicht doch `ArcSpec` heisst.
+ *
+ * Ein ArcPath hat entsprechend KEINE Fuellung. Wer eine Flaeche will, nimmt
+ * `polygon`; wer den vollen Kreis will, nimmt `circle`.
+ *
+ * WINKEL in Radiant, gemessen von +u aus und wachsend Richtung +v. Weil v nach
+ * unten zeigt, laeuft ein wachsender Winkel auf dem Schirm IM Uhrzeigersinn —
+ * `sweepAngle` traegt also das Vorzeichen des Umlaufs: negativ = gegen den
+ * Uhrzeigersinn. `radius` ist wie bei `CircleSpec` eine Weltgroesse.
+ */
+export interface ArcPathSpec extends SpecBase, Stroke {
+  readonly kind: 'arcPath';
+  readonly center: WorldPoint;
+  readonly radius: number;
+  readonly startAngle: number;
+  /** Ueberstrichener Winkel mit Vorzeichen, 0 < |sweepAngle| < 2π. */
+  readonly sweepAngle: number;
+}
+
+/**
  * Waagerechte Beschriftung in einer Box — das erste Primitive mit Text.
  *
  * BESONDERHEIT: seine endgueltige Geometrie kennt erst der Adapter. Wie breit
@@ -110,6 +138,7 @@ export type PrimitiveSpec =
   | RectangleSpec
   | TriangleSpec
   | ArrowSpec
+  | ArcPathSpec
   | LabelSpec;
 
 /**

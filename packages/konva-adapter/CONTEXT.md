@@ -67,9 +67,19 @@ Important consumers:
   resets the canvas transform to identity _before_ applying `lineWidth` and
   `setLineDash`, so both `strokeWidth` and `dash` are screen pixels and are
   zoom-invariant. `DASH_PATTERNS` values are therefore plain pixel constants.
-- **`radius` is the only local-coordinate field**: it applies to `circle` and
-  `triangle` and scales with the stage. Screen-constant symbols emit a new radius
-  each zoom frame; the unified `setAttrs` patch picks that up automatically.
+- **`arcPath` is a `Konva.Path`, not a `Konva.Arc`**: the name difference is the
+  point. Konva's `Arc` is a **ring segment** — an area that always draws both radii
+  and the closing edge with it — while `ArcPathSpec` is a curved _stroke_. A plain
+  stroked arc therefore goes through the SVG command `A`, built by `arcPathData()`.
+  Its `data` holds absolute world coordinates and the shape stays at `x=0/y=0`, so
+  the stage transform does the rest, exactly as for every other primitive. Both
+  flags follow from `sweepAngle` alone: SVG counts positive towards +y and `v`
+  points down, so a growing angle _is_ `sweep-flag: 1` — no sign flip. Should a
+  ring segment ever be needed, it arrives as its own spec and _that_ one maps to
+  `Konva.Arc`.
+- **`radius` is the only local-coordinate field**: it applies to `circle`, `arcPath`
+  and `triangle` and scales with the stage. Screen-constant symbols emit a new
+  radius each zoom frame; the unified `setAttrs` patch picks that up automatically.
 - **Triangle geometry**: `TriangleSpec.sideLength` is the edge length `a` of an
   equilateral triangle; Konva's `RegularPolygon` wants the circumradius
   `R = a / √3`. With `v` pointing down, the default orientation puts the apex up.
@@ -98,8 +108,9 @@ pnpm --filter @baustatik/konva-adapter build
 
 Test projects:
 
-- **Unit** (node): pure `*Config` functions, `DASH_PATTERNS`, triangle geometry and
-  `labelTopLeft` against given box sizes. No Konva needed.
+- **Unit** (node): pure `*Config` functions, `DASH_PATTERNS`, triangle geometry, the
+  arc's path data (endpoints and both flags) and `labelTopLeft` against given box
+  sizes. No Konva needed.
 - **Browser** (chromium): reconciler, bands and interaction against real Konva,
   plus the label box _measured_ by Konva and its position for an axis-parallel and
   a skewed direction. Asserts behaviour, never pixels, so it is
