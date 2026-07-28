@@ -15,6 +15,7 @@ export const FEM_LAYERS = [
   'supports',
   'beams',
   'nodes',
+  'hinges',
   'loads',
 ] as const;
 

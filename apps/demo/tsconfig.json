@@ -1,3 +1,6 @@
 {
-    "extends": "../../tsconfig.base.json", // Pfad zu deiner Root-TSConfig
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  }
 }

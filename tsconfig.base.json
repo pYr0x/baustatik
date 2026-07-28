@@ -70,6 +70,9 @@
       "@baustatik/fem-loads": [
         "packages/fem-loads/src/index.ts"
       ],
+      "@baustatik/script": [
+        "packages/script/src/index.ts"
+      ],
       "@baustatik/fem-load-resolve": [
         "packages/fem-load-resolve/src/index.ts"
       ],

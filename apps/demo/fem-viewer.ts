@@ -51,7 +51,7 @@ const useStore = defineStore('sections', {
             this.nodes.push({ id: crypto.randomUUID(), position });
         },
         addBeam(startNode: Node, endNode: Node, crossSectionId: string, materialId: string) {
-            this.beams.push({ id: crypto.randomUUID(), startNodeId: startNode.id, endNodeId: endNode.id, crossSectionId, materialId });
+            this.beams.push({ id: crypto.randomUUID(), startNodeId: startNode.id, endNodeId: endNode.id, crossSectionId, materialId, releases: { start: { theta: true }, end: { theta: true } } });
         },
         addSupport(node: Node, ux: 'fixed' | 'free', uz: 'fixed' | 'free', phiY: 'fixed' | 'free') {
             this.supports.push({ id: crypto.randomUUID(), nodeId: node.id, ux, uz, phiY });
@@ -132,7 +132,7 @@ function requireActiveCase(loadCases: LoadCase[], activeLoadCaseId: string): Loa
 const store = useStore(pinia);
 
 store.addNode(Point.make(0, 0));
-store.addNode(Point.make(100, 0));
+store.addNode(Point.make(100, -50));
 store.addBeam(store.nodes[0], store.nodes[1], 'default', 'default');
 store.addSupport(store.nodes[0], 'fixed', 'fixed', 'free');
 

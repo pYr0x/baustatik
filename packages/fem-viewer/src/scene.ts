@@ -11,6 +11,8 @@ import { type Viewport, worldPoint } from '@baustatik/viewport-2d';
 import { UnknownNodeReferenceError } from './errors';
 import { DEFAULT_LOAD_STYLE, type LoadStyle, loadSpecs } from './loads';
 import { supportSpec } from './supports';
+import { Vector, Point } from '@baustatik/fem-geometry';
+import { BeamEndReleases } from '@baustatik/fem';
 
 // Der FEM-Viewer zeichnet ein SCHEMA, kein massstaebliches Abbild: Knoten und
 // Staebe sind Symbole ohne physische Ausdehnung. Ihre Groessen sind deshalb
@@ -22,6 +24,9 @@ export interface FEMStyle extends LoadStyle {
   readonly nodeColor?: string;
   readonly nodeRadiusPx?: number;
   readonly nodeSupportColor?: string;
+  readonly hingeRadiusPx?: number;
+  readonly hingeInnerColor?: string;
+  readonly hingeStrokeColor?: string;
 }
 
 const DEFAULT_STYLE: Required<FEMStyle> = {
@@ -31,6 +36,9 @@ const DEFAULT_STYLE: Required<FEMStyle> = {
   nodeColor: '#f00',
   nodeRadiusPx: 4,
   nodeSupportColor: '#0f0',
+  hingeRadiusPx: 3,
+  hingeInnerColor: '#fff',
+  hingeStrokeColor: '#000'
 };
 
 export interface FEMSceneOptions {
@@ -41,7 +49,32 @@ export interface FEMSceneOptions {
   readonly viewport: Viewport;
   readonly style?: FEMStyle;
 }
+function beamSpecs(
+  beam: Beam,
+  start: Node,
+  end: Node,
+  vp: Viewport,
+  style: Required<FEMStyle>,
+): readonly Spec[] {
+  const specs: Spec[] = [beamSpec(beam, start, end, style)];
 
+  const v = Vector.fromPoints(start.position, end.position);
+
+  const hasRelease = (release?: BeamEndReleases) =>
+    release?.u === true ||
+    release?.w === true ||
+    release?.theta === true;
+
+  if (hasRelease(beam.releases?.start)) {
+    specs.push(hingeSpec(beam, start, v, vp, style));
+  }
+
+  if (hasRelease(beam.releases?.end)) {
+    specs.push(hingeSpec(beam, end, Vector.negate(v), vp, style));
+  }
+
+  return specs;
+}
 function beamSpec(
   beam: Beam,
   start: Node,
@@ -96,6 +129,20 @@ function nodeSupportSpec(
   });
 }
 
+function hingeSpec(beam: Beam, atNode: Node, v: Vector, vp: Viewport, style: Required<FEMStyle>,): CircleSpec {
+  const hingePosition = Point.translate(atNode.position, Vector.scale(Vector.normalize(v), (style.nodeRadiusPx * 2 / vp.scale)));
+  return {
+    kind: 'circle',
+    id: `beam:${beam.id}:hinge:${atNode.id}`,
+    layer: 'hinges',
+    center: worldPoint(hingePosition.x, hingePosition.z),
+    radius: style.hingeRadiusPx / vp.scale,
+    fillColor: style.hingeInnerColor,
+    strokeWidth: 1,
+    strokeColor: style.hingeStrokeColor
+  };
+}
+
 // Reine Abbildung Modell -> Zeichen-Specs. Kein Driver, kein Konva, kein
 // Zustand — deshalb in Node testbar (siehe tests/scene.test.ts).
 //
@@ -117,7 +164,8 @@ export function femSpecs(options: FEMSceneOptions): readonly Spec[] {
     if (!start) throw new UnknownNodeReferenceError(beam.id, beam.startNodeId);
     const end = byId.get(beam.endNodeId);
     if (!end) throw new UnknownNodeReferenceError(beam.id, beam.endNodeId);
-    specs.push(beamSpec(beam, start, end, resolved));
+
+    specs.push(...beamSpecs(beam, start, end, vp, resolved));
   }
 
   for (const node of nodes) {
