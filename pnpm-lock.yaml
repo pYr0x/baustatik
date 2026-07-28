@@ -520,6 +520,9 @@ importers:
       oxlint:
         specifier: ^1.73.0
         version: 1.73.0
+      playwright:
+        specifier: ^1.58.2
+        version: 1.58.2
       vite:
         specifier: ^8.1.4
         version: 8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
@@ -4193,7 +4196,7 @@ snapshots:
       '@vue/shared': 3.5.39
       estree-walker: 2.0.2
       magic-string: 0.30.21
-      postcss: 8.5.16
+      postcss: 8.5.23
       source-map-js: 1.2.1
 
   '@vue/compiler-ssr@3.5.39':
