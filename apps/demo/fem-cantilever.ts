@@ -27,7 +27,7 @@ if (!solveButton) {
 }
 
 // Koordinaten in METERN (siehe `Node.position`), Kraefte in kN.
-const L = 1;
+const L = 2;
 const P = 10;
 
 const nodes: Node[] = [
@@ -44,7 +44,7 @@ const beams: Beam[] = [
   },
 ];
 const supports: NodeSupport[] = [
-  { id: 's1', nodeId: 'n1', ux: 'fixed', uz: 'fixed', phiY: 'free' },
+  { id: 's1', nodeId: 'n1', ux: 'fixed', uz: 'fixed', phiY: 'fixed' },
 ];
 // z zeigt nach unten: eine nach unten wirkende Last ist POSITIV.
 //
