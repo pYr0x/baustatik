@@ -32,7 +32,7 @@ jobs:
       # Chromium. Sie vergleichen keine Pixel und sind daher plattformunabhaengig;
       # Screenshot-Baselines bleiben lokal (`pnpm test:screenshot`).
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+         run: pnpm --filter @baustatik/konva-adapter exec playwright install --with-deps chromium
 
       - name: Build
         run: pnpm build
