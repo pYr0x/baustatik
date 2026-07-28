@@ -13,11 +13,17 @@ export {
   SingularStiffnessMatrixError,
   SmallRotationAssumptionWarning,
   SolveWarning,
+  UnknownBeamError,
   UnknownLoadCaseError,
   UnknownSectionPropertiesError,
   UnrestrainedDegreeOfFreedomError,
   UnsupportedAnalysisPolicySchemaVersionError,
 } from './errors';
+export {
+  internalForcesAlong,
+  internalForcesAt,
+  type SectionForcesAt,
+} from './internal-forces';
 export {
   ANALYSIS_POLICY_SCHEMA_VERSION,
   type AnalysisPolicy,

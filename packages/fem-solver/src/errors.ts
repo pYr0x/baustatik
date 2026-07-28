@@ -139,6 +139,27 @@ export class UnknownLoadCaseError extends BaustatikError {
 }
 
 /**
+ * Die Verlauf-API wurde nach einem Stab gefragt, den das Ergebnis nicht kennt.
+ *
+ * Ein eigener Name und kein `undefined`: das Ergebnis traegt jeden gerechneten
+ * Stab, eine unbekannte id ist also ein Tippfehler oder ein Ergebnis aus einem
+ * anderen Modell — beides Fehler des Aufrufers, keine Auskunft.
+ */
+export class UnknownBeamError extends BaustatikError {
+  readonly beamId: string;
+  readonly loadCaseId: string;
+
+  constructor(beamId: string, loadCaseId: string) {
+    super(
+      `Das Ergebnis des Lastfalls "${loadCaseId}" kennt keinen Stab ` +
+        `"${beamId}".`,
+    );
+    this.beamId = beamId;
+    this.loadCaseId = loadCaseId;
+  }
+}
+
+/**
  * Ein freier Freiheitsgrad, den kein Element haelt — die Diagonale der
  * reduzierten Steifigkeitsmatrix ist dort 0.
  *

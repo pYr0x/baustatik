@@ -1,4 +1,7 @@
-import { UnknownNodeReferenceError } from '@baustatik/fem';
+import {
+  UnknownNodeReferenceError,
+  UnrestrainedBeamError,
+} from '@baustatik/fem';
 import {
   type FrameElement2DFormulation,
   type SectionProperties,
@@ -362,7 +365,7 @@ describe('solve — Gelenke', () => {
 
     // Selbstpruefende Eigenschaft der Kondensation: an der freigesetzten Stelle
     // steht exakt 0, nicht „fast 0".
-    expect(result.elementEndForces.get('b1')?.[2]).toBe(0);
+    expect(result.beamStates.get('b1')?.endForces[2]).toBe(0);
     expect(result.reactions.get('n1')?.my).toBeCloseTo(0, 10);
   });
 
@@ -433,7 +436,7 @@ describe('solve — Gelenke', () => {
       configOver(sliding({ start: { u: true } })),
     );
 
-    const forces = result.elementEndForces.get('b1');
+    const forces = result.beamStates.get('b1')?.endForces;
     expect(forces?.[0]).toBe(0);
     expect(forces?.[3]).toBe(0);
 
@@ -449,26 +452,31 @@ describe('solve — Gelenke', () => {
     );
   });
 
-  it('laeuft durch, wenn beide Enden laengs freigesetzt sind', async () => {
-    // Der Pivot 0 in `condense` — kein Notausgang fuer krumme Eingaben,
-    // sondern der gerade Weg: nach dem ersten Schritt ist K[u2][u2] exakt 0,
-    // der zweite findet nichts mehr zu verteilen. Das Ergebnis muss deshalb
-    // dasselbe sein wie mit nur einem Gelenk, und vor allem endlich.
-    const one = await solve(configOver(sliding({ start: { u: true } })));
-    const both = await solve(
-      configOver(sliding({ start: { u: true }, end: { u: true } })),
-    );
+  it('WIRFT, wenn beide Enden laengs freigesetzt sind', async () => {
+    // FRUEHER lief das still durch: nach dem ersten Schritt ist K[u2][u2]
+    // exakt 0, der zweite fand nichts mehr zu verteilen, und weil das Element
+    // danach zu diesen Knotenfreiheitsgraden gar nichts mehr beitraegt, sah
+    // `assertHeld` an der GLOBALEN Diagonale das Auflager und schwieg. Es kamen
+    // plausible Zahlen heraus fuer einen Stab, der eine Starrkoerperbewegung in
+    // sich hat.
+    //
+    // Jetzt faengt es die Modellpruefung ab, VOR jeder Rechnung — dieselbe
+    // Stelle, an der `UnsupportedComponentError` steht.
+    await expect(
+      solve(configOver(sliding({ start: { u: true }, end: { u: true } }))),
+    ).rejects.toThrow(UnrestrainedBeamError);
+  });
 
-    expect(both.displacements.get('n2')?.uz).toBeCloseTo(
-      one.displacements.get('n2')?.uz as number,
-      12,
-    );
-    expect(both.reactions.get('n2')?.fx).toBeCloseTo(-7, 10);
-    expect(
-      (both.elementEndForces.get('b1') as readonly number[]).every((value) =>
-        Number.isFinite(value),
+  it('WIRFT auch bei drei Freisetzungen im Biegeblock', async () => {
+    // Der Biegeblock [w1, theta1, w2, theta2] hat Rang 2: zwei Kondensationen
+    // traegt er, die dritte laeuft auf Pivot 0 — auch ohne `w`-Paar.
+    await expect(
+      solve(
+        configOver(
+          sliding({ start: { w: true, theta: true }, end: { theta: true } }),
+        ),
       ),
-    ).toBe(true);
+    ).rejects.toThrow(UnrestrainedBeamError);
   });
 
   it('macht mit dem Querkraftgelenk aus 4EI/L die EI/L', async () => {
@@ -505,7 +513,7 @@ describe('solve — Gelenke', () => {
     // Dieselbe selbstpruefende Eigenschaft wie beim Momentengelenk, eine Zeile
     // weiter: an der freigesetzten Stelle steht exakt 0 — und weil die
     // Querkraft im unbelasteten Stab konstant ist, am anderen Ende auch.
-    const forces = hinged.elementEndForces.get('b1');
+    const forces = hinged.beamStates.get('b1')?.endForces;
     expect(forces?.[1]).toBe(0);
     expect(forces?.[4]).toBeCloseTo(0, 10);
   });
@@ -665,7 +673,7 @@ describe('solve — das Tor und die Kinematik', () => {
     const tip = result.displacements.get('n2')?.uz as number;
     expect(tip).toBeGreaterThan(0);
     expect(tip).toBeLessThan((10 * 4 ** 3) / (3 * EI));
-    expect(result.elementEndForces.get('b2')?.[2]).toBe(0);
+    expect(result.beamStates.get('b2')?.endForces[2]).toBe(0);
   });
 
   it('meldet die Kinematik mit besetzter Diagonale und nennt die Stelle', async () => {
@@ -1002,8 +1010,8 @@ describe('solve — der Lastfallfaktor', () => {
       2 * (plain.reactions.get('n1')?.fz as number),
       12,
     );
-    expect(doubled.elementEndForces.get('b1')?.[2]).toBeCloseTo(
-      2 * (plain.elementEndForces.get('b1')?.[2] as number),
+    expect(doubled.beamStates.get('b1')?.endForces[2]).toBeCloseTo(
+      2 * (plain.beamStates.get('b1')?.endForces[2] as number),
       12,
     );
   });

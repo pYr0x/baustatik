@@ -13,18 +13,29 @@ loads                     createFEMSolver  ->  pruefen und rechnen
 ```
 
 **Stand:** beides laeuft. `check()` liefert einen Zustand, `solve()` liefert
-Verformungen, Auflagerkraefte und Stabendkraefte. Schnittgroessenverlaeufe
-fehlen — siehe _Known constraints_.
+Verformungen, Auflagerkraefte und je Stab einen Auswertungszustand, aus dem
+`internalForcesAt`/`internalForcesAlong` die Schnittgroessen `N`, `V` und `M` an
+jeder Stelle beantworten. Die Biegelinie fehlt — siehe _Known constraints_.
 
 ## Boundaries
 
 - Owns: den Einstiegspunkt und die Reihenfolge der Rechenkette; den
-  Pruefbericht; die Freiheitsgrad-Nummerierung; die statische Kondensation der
-  Gelenke; die 6x6-Transformation lokal -> global; die Assemblierung; die
-  Randbedingungen per Elimination; die Rueckrechnung der Auflager- und
-  Stabendkraefte. Dazu die **Composition-Root-Rolle fuer die
+  Pruefbericht; die Freiheitsgrad-Nummerierung; die ORCHESTRIERUNG der
+  Kondensation — welcher Stab welche Freisetzungen hat, nicht mehr die
+  Mechanik; die 6x6-Transformation lokal -> global; die Assemblierung; die
+  Randbedingungen per Elimination; die Rueckrechnung der Auflagerkraefte; die
+  Verlauf-API `internalForcesAt`/`internalForcesAlong` als freie Funktionen ueber
+  das Ergebnis. Dazu die **Composition-Root-Rolle fuer die
   `AnalysisPolicy`**: die versionierte Gesamtform, ihren Parser und die eigenen
   Analyse-Entscheidungen (heute `shearDeformation`).
+
+  DIE KONDENSATION SELBST liegt seit
+  [ADR 0018](../../docs/adr/0018-section-forces-from-equilibrium.md) in
+  `@baustatik/fem-element`: ihre Umkehrung — die Endverformung eines
+  freigesetzten Freiheitsgrads zurueckrechnen — braucht die Zeilen und
+  Lastwerte, wie sie unmittelbar VOR der jeweiligen Kondensation standen, und
+  die kennt nur, wer kondensiert hat. Dieses Package reicht `beam.releases`
+  durch und bekommt K und f fertig kondensiert zurueck.
 - Does not own: die Modellregeln (`@baustatik/fem`), die Lastregeln
   (`@baustatik/fem-loads`) **samt deren Stellschrauben** — die
   `LoadValidationPolicy` gehoert ihrem Regel-Eigentuemer, dieses Package setzt
@@ -73,13 +84,17 @@ fehlen — siehe _Known constraints_.
 - [`src/check.ts`](src/check.ts): `CheckReport`, die fuenf Zustaende, die
   Reihenfolge und der Kurzschluss.
 - [`src/solve.ts`](src/solve.ts): die Rechenkette von den Rohdaten bis zu den
-  Stabendkraeften.
-- [`src/element-matrix.ts`](src/element-matrix.ts): Kondensation und
-  Transformation auf der lokalen 6x6 — theoriefrei.
+  Auswertungszustaenden der Staebe.
+- [`src/internal-forces.ts`](src/internal-forces.ts): die Verlauf-API
+  `internalForcesAt`/`internalForcesAlong` als FREIE Funktionen ueber das
+  Ergebnis — keine Methoden, weil `SolveResult` klonbar bleiben muss (ADR 0019).
+- [`src/element-matrix.ts`](src/element-matrix.ts): die Transformation auf der
+  lokalen 6x6 — theoriefrei. Die Kondensation stand hier und liegt seit
+  ADR 0018 in `@baustatik/fem-element`.
 - [`src/errors.ts`](src/errors.ts): zwei Erweiterungen fremder Hierarchien, die
-  eigenen Rechenfehler, `UnknownLoadCaseError` fuer eine Lastfall-id, die es
-  nicht gibt, und `SolveWarning` als eigene schmale Wurzel fuer Befunde am
-  ERGEBNIS.
+  eigenen Rechenfehler, `UnknownLoadCaseError` fuer eine Lastfall-id und
+  `UnknownBeamError` fuer eine Stab-id, die es nicht gibt, und `SolveWarning`
+  als eigene schmale Wurzel fuer Befunde am ERGEBNIS.
 - [`src/solver.ts`](src/solver.ts): `createFEMSolver`.
 
 ## Domain language
@@ -282,7 +297,15 @@ und der strikte Parser sind die Naht dafuer. Ausfuehrlich in
   Pruefung laeuft VOR der Rueckrechnung — aus unbrauchbaren Verschiebungen sollen
   keine unbrauchbaren Schnittgroessen entstehen. Siehe
   [ADR 0016](../../docs/adr/0016-kinematics-shows-in-the-displacement-not-in-the-pivot.md).
-- **Vier gestaffelte Netze gegen Kinematik**, in dieser Reihenfolge:
+- **Vier gestaffelte Netze gegen Kinematik**, in dieser Reihenfolge — und VOR
+  allen vieren steht seit Stufe 2 die Modellpruefung: der ELEMENTINTERNE
+  Mechanismus (`u` an beiden Enden, `w` an beiden Enden, drei Freisetzungen aus
+  dem Biegeblock) wird als `UnrestrainedBeamError` in `@baustatik/fem`
+  abgefangen. Er MUSS dort abgefangen werden, weil ihn keines der vier Netze
+  sieht: nach der Kondensation traegt das Element zu den betroffenen
+  Knotenfreiheitsgraden nichts mehr bei, und `assertHeld` prueft die GLOBALE
+  Diagonale, an der ein anderer Stab oder ein Auflager steht. Der Solver rechnete
+  sonst still durch und lieferte plausible Zahlen.
   1. `assertHeld` — leere Diagonale eines freien Freiheitsgrads. Billig, laeuft
      vor dem Port, und der EINZIGE Fall, der sich exakt benennen laesst
      (Pendelstab).
@@ -335,9 +358,10 @@ PULL-Verhalten, und fuer `solve()` in dieser Reihenfolge:
 6. **Gelenke**: `12EI/L^3` wird zu `3EI/L^3`, die Stabendkraft am freigesetzten
    Freiheitsgrad ist exakt 0, und der Kragtraeger mit Endstuetze belegt die
    MITkondensierte Last. Dazu die beiden Verschiebungsgelenke: `u` nimmt die
-   Normalkraft an BEIDEN Enden heraus (und der zweite Kondensationsschritt
-   laeuft leer), `w` macht aus `4EI/L` die `EI/L`, weil bei fehlender Querkraft
-   das Moment ueber die Laenge konstant bleibt.
+   Normalkraft an BEIDEN Enden heraus, `w` macht aus `4EI/L` die `EI/L`, weil
+   bei fehlender Querkraft das Moment ueber die Laenge konstant bleibt. Und der
+   elementinterne Mechanismus WIRFT — `u` an beiden Enden wie drei
+   Freisetzungen aus dem Biegeblock.
 7. **Gleichgewichtsprobe** ueber alle Modelle — der einzige Test, der die ganze
    Kette auf einmal prueft.
 8. **Kinematik**: Pendelstab ohne Verspannung (Netz 1), der Starrkoerpermodus
@@ -348,6 +372,13 @@ PULL-Verhalten, und fuer `solve()` in dieser Reihenfolge:
    haelt, die grosse aber legitime Verformung, die Staffelung warn/fail, die
    Bezugslaenge der Verschiebung — und die ehrliche Grenze als Test, dass eine
    Last, die den Mechanismus nicht anregt, unentdeckt bleibt.
+10. **Verlauf-API** (`tests/internal-forces.test.ts`): das, was NUR dieses
+    Package leisten kann. Der schraege Stab muss dieselben LOKALEN
+    Schnittgroessen liefern wie der gerade (sonst dreht `toLocalVector` etwas
+    falsch herum), der Zweifeldtraeger trifft `-qL^2/8` und `+9qL^2/128` gegen
+    die Handrechnung, `solveAll` legt je Lastfall eigene Zustaende ab, und ein
+    `structuredClone`tes Ergebnis beantwortet die Schnittgroessen weiter — der
+    Beleg fuer ADR 0019. Die Zahlen selbst sind in `fem-element` verankert.
 
 Die Handrechnung gegen den ECHTEN Rust-Loeser steht in
 `apps/demo/fem-cantilever.ts`.
@@ -360,12 +391,16 @@ mit den Grenzen, die aus ihm hervorgegangen sind, bewiese es nur sich selbst.
 
 ## Known constraints
 
-- **Keine Schnittgroessenverlaeufe.** `solve()` liefert Stabendkraefte, aber
-  keine Verlaeufe zwischen den Knoten: `internalForces` in `@baustatik/fem-element`
-  ist selbst noch ein Stub.
-- **Die Verdrehung am freigesetzten Stabende geht verloren.** Fuer Verformungen,
-  Auflager- und Stabendkraefte folgenlos; fuer spaetere Verlaeufe muss sie
-  zurueckgerechnet werden.
+- **Keine Biegelinie.** `solve()` liefert Schnittgroessen an jeder Stelle, aber
+  keine Verformung zwischen den Knoten. `ElementEvaluationState.deformation`
+  haelt den Platz dafuer frei; die Auswertung wird eine reine Funktion ueber
+  denselben Zustand und gehoert nach `@baustatik/fem-element`.
+- **Kombinationen und min/max fehlen.** Sie werden Summen ueber
+  `ElementEvaluationState`-Datensaetze und benutzen dieselbe Stuetzstellenliste.
+- **Der Ergebnisspeicher ist Anwendungszustand.** Die `Map<loadCaseId,
+  SolveResult>` und die Regel „jede Aenderung loescht alles" gehoeren zum Store,
+  nicht in dieses Package. Groessenordnung: 1,5–3 MB je Lastfall bei 2000 Knoten
+  und 2500 Staeben.
 - **Der genannte Knoten bei `SingularStiffnessMatrixError` ist ein Hinweis, kein
   Beweis.** Genannt wird die Stelle, an der der Rangabfall in der Zerlegung
   sichtbar wird; der Mechanismus kann anderswo sitzen und mehrere Knoten

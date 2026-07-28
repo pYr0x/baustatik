@@ -80,6 +80,28 @@ entschieden wurde.
   Warnungen.
 - **Alle Befunde tragen ihre ids als FELDER**, nicht nur im Meldungstext — die
   Oberflaeche markiert daran das betroffene Element.
+- **Ein Stab darf keinen Mechanismus IN SICH haben** (M6). Freigesetzt werden
+  duerfen `u` an einem Ende, und aus `{w1, theta1, w2, theta2}` hoechstens zwei
+  — aber nie `w` an beiden Enden. Die Bedingung folgt aus dem Rang der beiden
+  entkoppelten Bloecke der Elementsteifigkeit (axial 1, quer 2) und haengt an
+  keiner einzigen Zahl: `EA`, `EI`, `L` und `phi` kuerzen sich heraus, deshalb
+  ist sie HIER statisch entscheidbar, ohne dass dieses Package eine Steifigkeit
+  kennt.
+
+  ABGRENZUNG ZUM PENDELSTAB: `theta` an beiden Enden bleibt ausdruecklich
+  erlaubt — zwei Freisetzungen im Quer-Block, kein Pivot 0, und der Stab traegt
+  weiter die Normalkraft. Wer die Regel auf „dieselbe Richtung an beiden Enden"
+  verkuerzt, laesst `w`+`theta`+`theta` durch, das nachweislich auf Pivot 0
+  laeuft; wer sie auf „zwei Gelenke sind zu viel" ausdehnt, verbietet den
+  Pendelstab. Das zweite Tor steht in `@baustatik/fem-element`
+  (`UnrestrainedElementError`) und MISST das Pivot, statt dieser Aufzaehlung zu
+  vertrauen.
+
+  Warum das eine MODELLregel ist und nicht dem Loeser ueberlassen wird: der Fall
+  faellt sonst NIRGENDS auf. Nach der Kondensation traegt das Element zu den
+  betroffenen Knotenfreiheitsgraden nichts mehr bei, `assertHeld` prueft die
+  GLOBALE Diagonale, an der ein anderer Stab oder ein Auflager steht, und alle
+  vier Netze aus ADR 0016 bleiben still. Es kommen plausible Zahlen heraus.
 - **Die Hierarchie ist die Erweiterungsstelle.** Wer eine Modellregel braucht,
   die dieses Package nicht pruefen kann (weil ihr Wissen woanders liegt),
   leitet von `ModelValidationError` ab. `fem-solver` tut das mit
@@ -96,6 +118,7 @@ Geprueft wird:
 | M3  | Teilstruktur ohne Auflager                      | `UnsupportedComponentError` |
 | M4  | zwei Auflager auf einem Knoten                  | `DuplicateSupportError`     |
 | M5  | Knoten ohne jeden Stab                          | `IsolatedNodeWarning`       |
+| M6  | elementinterner Mechanismus am Stab             | `UnrestrainedBeamError`     |
 
 **M1 schaltet M3 ab.** Faellt ein Stab wegen haengender Referenz aus dem
 Graphen, saehe der Rest aus wie eine Teilstruktur ohne Auflager — ein
@@ -117,11 +140,12 @@ pnpm --filter @baustatik/fem test
   Gleichungssystem noetig waere. Verschieblicher Rahmen, Gelenkkette und lauter
   parallele Auflager brauchen das Gleichungssystem und fallen im `fem-solver`
   auf.
-- **Der Pendelstab wird NICHT verboten.** Ein Stab mit Gelenk an beiden Enden
-  ist fachlich voellig zulaessig; erst die unverspannte Kette ist kinematisch,
-  und die Unterscheidung braucht wieder das Gleichungssystem. Dasselbe gilt fuer
-  `u` und `w`: ein laengs gleitender Stab traegt immer noch quer und ist fuer
-  sich kein Mechanismus.
+- **Der Pendelstab wird NICHT verboten.** Ein Stab mit MOMENTENgelenk an beiden
+  Enden ist fachlich voellig zulaessig; erst die unverspannte Kette ist
+  kinematisch, und die Unterscheidung braucht wieder das Gleichungssystem. Fuer
+  `u` und `w` gilt dasselbe nur an EINEM Ende: ein laengs gleitender Stab traegt
+  immer noch quer und ist fuer sich kein Mechanismus. An beiden Enden ist er
+  einer, und den faengt M6 ab.
 - **Unbekannte `crossSectionId`/`materialId` werden hier nicht geprueft** —
   dieses Package kennt die Kataloge nicht. Der Befund entsteht im `fem-solver`
   als Unterklasse von `ModelValidationError`.

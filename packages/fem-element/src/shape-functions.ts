@@ -4,9 +4,10 @@
  *
  * Package-intern: NICHT aus src/index.ts exportiert. Die oeffentliche Methode
  * `PreparedElement.shapeFunctions(x)` projiziert nur die Werte heraus; die
- * Ableitungen brauchen ausschliesslich `gaussStiffness` (jetzt) und
- * `internalForces` (spaeteres Inkrement). Sie koennen jederzeit oeffentlich
- * werden — der umgekehrte Weg waere ein Breaking Change.
+ * Ableitungen braucht heute allein `gaussStiffness` und spaeter die Biegelinie.
+ * NICHT die Schnittgroessen — die entstehen aus Gleichgewicht und sehen weder
+ * `N` noch `EI` (ADR 0018). Sie koennen jederzeit oeffentlich werden — der
+ * umgekehrte Weg waere ein Breaking Change.
  *
  * LAENGE-6-KONTRAKT: alle sechs Arrays laufen ueber die volle DOF-Reihenfolge
  * `[u1, w1, theta1, u2, w2, theta2]` mit Nullen an den nicht beteiligten

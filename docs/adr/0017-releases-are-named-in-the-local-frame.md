@@ -83,6 +83,26 @@ by the equation system, and `fem-solver` has two nets for that (ADR 0012,
 ADR 0016). Forbidding the input here would forbid legitimate models to catch a
 case that is caught anyway.
 
+> **Corrected 2026-07-28 (ADR 0018, TODO stage 2).** This section is wrong, and
+> the paragraph above it says why without drawing the conclusion. A beam that
+> slides lengthwise at *one* end still transmits shear and moment; released at
+> *both* ends it has a rigid-body motion inside itself, and none of the solver's
+> four nets sees it — after condensation the element contributes nothing to those
+> node degrees of freedom, and `assertHeld` looks at the *global* diagonal, where
+> another beam or a support is standing. It computes through and returns
+> plausible numbers. `validateModel` now rejects it as `UnrestrainedBeamError`
+> (rule M6), and `prepare` in `fem-element` measures the pivot itself.
+>
+> The rule is also wider than "the same direction at both ends": the bending
+> block `[w1, θ1, w2, θ2]` has rank 2, so *three* releases out of `w`/`θ` empty
+> it too — `w1+θ1+θ2` provably hits a zero pivot without containing a `w` pair.
+>
+> The pin-ended beam is genuinely unaffected and stays legal. But the sentence
+> below that it "still transmits normal and shear force" is only half right:
+> after both moment releases the bending block is empty, and moment equilibrium
+> on an unloaded member with hinges at both ends demands `V = 0`. It transmits
+> the **normal force**, and that is all.
+
 ## Consequences
 
 - `Beam.releases` is a breaking change to `@baustatik/fem`. It is cheap right
@@ -94,4 +114,5 @@ case that is caught anyway.
   transformation never saw the release.
 - `internalForces` (TODO stage 2) inherits the condition unchanged, but for
   three quantities instead of one: `N(0)`, `V(0)` and `M(0)` must meet
-  `elementEndForces` — at a release, exactly 0.
+  `elementEndForces` — at a release, exactly 0. *(Done 2026-07-28; the member
+  end forces now live in `SolveResult.beamStates`, ADR 0019.)*

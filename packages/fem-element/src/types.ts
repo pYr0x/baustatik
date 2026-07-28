@@ -150,31 +150,145 @@ export type LocalElementLoad = {
 };
 
 /**
- * Eine an `props` und `L` gebundene Elementinstanz. Die Fabrik `prepare`
- * berechnet den Schubparameter φ GENAU EINMAL; alle Methoden teilen sich
- * dasselbe φ, sodass Steifigkeit, Ansatzfunktionen und Schnittgroessen nicht
- * mit unterschiedlichem φ auseinanderdriften koennen.
+ * Die an EINEM Stabende freigesetzten Freiheitsgrade.
+ *
+ * FORMGLEICH mit `BeamEndReleases` in `@baustatik/fem`, aber ein eigener Typ:
+ * dieses Package ist abhaengigkeitsfrei und darf `fem` nicht importieren. Dass
+ * die Namen sich decken, ist kein Zufall — ADR 0017 hat sie dort gerade
+ * deshalb auf `{ u, w, theta }` gelegt, weil es das Vokabular DIESES Packages
+ * ist. Die „Uebersetzung" im Solver ist damit ein Durchreichen.
+ */
+export type ElementEndReleases = {
+  /** Laengs der Stabachse — das Normalkraftgelenk. */
+  u?: true;
+  /** Quer zur Stabachse — das Querkraftgelenk. */
+  w?: true;
+  /** Die Verdrehung — das gewoehnliche Momentengelenk. */
+  theta?: true;
+};
+
+export type ElementReleases = {
+  start?: ElementEndReleases;
+  end?: ElementEndReleases;
+};
+
+/** Die drei Schnittgroessen des ebenen Stabs an EINER Stelle. */
+export type SectionForces = {
+  /** Normalkraft [kN], positiv = Zug. */
+  N: number;
+  /** Querkraft [kN], positiv auf dem positiven Schnittufer in +z-Richtung. */
+  V: number;
+  /** Biegemoment [kNm], positiv = Zug auf der lokalen +z-Seite. */
+  M: number;
+};
+
+/**
+ * Welcher einseitige Grenzwert an einer Sprungstelle gemeint ist.
+ *
+ * An einer Einzellast ist die Schnittgroesse UNSTETIG — es gibt dort keinen
+ * einen Wert, und ein Aufrufer, der sich einen aussuchen muesste, raet. `left`
+ * summiert die Einzellasten mit `a < x`, `right` die mit `a <= x`.
+ */
+export type Side = 'left' | 'right';
+
+/**
+ * Das serialisierbare Rechenergebnis EINES Stabs — alles, was noetig ist, um
+ * `N`, `V` und `M` an jeder Stelle zu beantworten, ohne irgendwo nachzulesen.
+ *
+ * REINE DATEN: keine Closure, keine Klasseninstanz, nichts, was auf `config`
+ * zeigt. Genau das macht ein abgelegtes Ergebnis moeglich — es ist klonbar,
+ * serialisierbar, und es kann nicht veralten, weil es nichts nachschlaegt
+ * ([ADR 0019](../../../docs/adr/0019-result-carries-an-evaluation-state.md)).
+ */
+export type ElementEvaluationState = {
+  /** Stablaenge [m]. */
+  L: number;
+  /**
+   * `[Fx1, Fz1, My1, Fx2, Fz2, My2]`, lokal, in DOF-Richtung — die
+   * STABENDKRAEFTE `K d - f`, NICHT die Schnittgroessen. Die Vorzeichen
+   * stimmen nicht ueberein; die Umrechnung leistet `internalForcesAt`.
+   *
+   * Selbstpruefende Eigenschaft: an einem freigesetzten Freiheitsgrad steht
+   * exakt 0.
+   */
+  endForces: Vector6;
+  /**
+   * `[u1, w1, theta1, u2, w2, theta2]`, lokal. Die freigesetzten
+   * Freiheitsgrade sind ZURUECKGERECHNET und tragen damit die Bewegung des
+   * STABENDES, nicht die des Knotens.
+   */
+  endDisplacements: Vector6;
+  /** Die Stablast, UNKONDENSIERT — das Gleichgewicht braucht sie im Original. */
+  load: LocalElementLoad;
+  /**
+   * Proviant fuer die spaetere Biegelinie: aus `M/EI` (Kruemmung), `V/GAs`
+   * (Schub, `GAs = 12*EI/(phi*L^2)`, `phi === 0` heisst schubstarr) und `N/EA`.
+   * `phi` ist von aussen sonst unsichtbar — deshalb kommt der Datensatz vom
+   * Element und nicht vom Solver.
+   *
+   * `kind` ist der Diskriminator und damit zugleich der Versionsmechanismus
+   * (Muster wie `ActionCategory`, `BeamLoad`); es gibt bewusst kein
+   * `schemaVersion`. `Timoshenko2D` und `Timoshenko2DIntegrated` liefern
+   * DASSELBE `kind` — sie unterscheiden sich nur im Bau von `K`, nicht in der
+   * Kinematik.
+   */
+  deformation: {
+    kind: 'timoshenko-2d-iie';
+    phi: number;
+    EI: number;
+    EA: number;
+  };
+};
+
+/**
+ * Die DRITTE Bindungsstufe: an `props`, `L`, die Releases UND die Last
+ * gebunden.
+ *
+ * WARUM DIE LAST GEBUNDEN WIRD und nicht bei jedem Aufruf hereinkommt: die
+ * Rueckrechnung des freigesetzten Freiheitsgrads
+ * `d_i = (f[i] - sum_{j != i} K[i,j] * d_j) / K[i,i]` greift auf `f[i]` der
+ * UNKONDENSIERTEN Last zu — `evaluate` rechnet buchstaeblich mit demselben
+ * Vektor weiter wie `consistentLoad`. Zwei verschiedene Lasten ergaeben eine
+ * falsche Endverformung UND falsche Stabendkraefte, beide plausibel aussehend.
+ * Dieselbe Begruendung wie ADR 0003 fuer `prepare`, eine Ebene weiter.
+ */
+export type LoadedElement = {
+  /**
+   * Konsistenter Ersatzknotenvektor (= f_e), KONDENSIERT. Nutzt die
+   * element-eigenen Ansatzfunktionen — dieselben N wie fuer die Verschiebung,
+   * nie gemischt.
+   */
+  consistentLoad(): Vector6;
+  /**
+   * Der Auswertungszustand aus den LOKALEN Knotenverformungen des geloesten
+   * Systems.
+   *
+   * Endverformungen aus den UNKONDENSIERTEN Zeilen, Stabendkraefte aus der
+   * KONDENSIERTEN Matrix — genau diese Falle liegt hier in EINEM Aufruf und
+   * nicht mehr beim Solver.
+   */
+  evaluate(dLocal: Vector6): ElementEvaluationState;
+};
+
+/**
+ * Eine an `props`, `L` und die Releases gebundene Elementinstanz. Die Fabrik
+ * `prepare` berechnet den Schubparameter φ GENAU EINMAL und kondensiert GENAU
+ * EINMAL; alle Methoden teilen sich dasselbe φ und dieselbe kondensierte
+ * Matrix, sodass Steifigkeit, Ansatzfunktionen und Schnittgroessen nicht
+ * auseinanderdriften koennen.
+ *
+ * `stiffness()` und `shapeFunctions(x)` bleiben AUF DIESER Stufe, weil sie
+ * nicht von der Last abhaengen: sonst muesste jeder Steifigkeitstest
+ * (Quervergleich geschlossen <-> integriert, Locking-Sweep, Rangtest) eine
+ * leere Last erfinden, ebenso jede spaetere Eigenwert- oder Knicklastrechnung.
  */
 export type PreparedElement = {
-  /** Lokale 6x6-Steifigkeitsmatrix. */
+  /** Lokale 6x6-Steifigkeitsmatrix, KONDENSIERT und lastunabhaengig. */
   stiffness(): Matrix6;
-  /**
-   * Konsistenter Ersatzknotenvektor (= f_e). Nutzt die element-eigenen
-   * Ansatzfunktionen — dieselben N wie fuer die Verschiebung, nie gemischt.
-   */
-  consistentLoad(load: LocalElementLoad): Vector6;
-  /**
-   * Schnittgroessen an lokaler Stelle `x` aus den Knotenverschiebungen und der
-   * Originallast. Liegt hier (nicht im Solver), weil die Rekonstruktion des
-   * Verlaufs zwischen den Knoten die element-eigenen Ansatzfunktionen braucht.
-   */
-  internalForces(
-    x: number,
-    dLocal: Vector6,
-    load: LocalElementLoad,
-  ): { N: number; V: number; M: number };
   /** Ansatzfunktionen an lokaler Stelle `x` (fuer Tests und Verlaeufe). */
   shapeFunctions(x: number): { Nu: number[]; Nw: number[]; Ntheta: number[] };
+  /** Bindet die aufgeloeste Stablast. */
+  withLoad(load: LocalElementLoad): LoadedElement;
 };
 
 /**
@@ -185,5 +299,9 @@ export type PreparedElement = {
  * Solver unberuehrt — das ist der Lackmustest, ob die Grenze haelt.
  */
 export type FrameElement2DFormulation = {
-  prepare(props: SectionProperties, L: number): PreparedElement;
+  prepare(
+    props: SectionProperties,
+    L: number,
+    releases?: ElementReleases,
+  ): PreparedElement;
 };

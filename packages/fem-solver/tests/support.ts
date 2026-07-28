@@ -159,6 +159,11 @@ export function gaussSolve(
  *
  * Damit sind Freiheitsgrad-Nummerierung, Assemblierung, Transformation und
  * Randbedingungen mit Zahlen pruefbar, die im Kopf nachzurechnen sind.
+ *
+ * KENNT KEINE FREISETZUNGEN — die Einheitsmatrix hat keine Bloecke, die eine
+ * Kondensation leerraeumen koennte, und die Tests, die Gelenke pruefen, laufen
+ * ohnehin ueber `Timoshenko2D`. `evaluate` liefert trotzdem einen vollstaendigen
+ * Zustand, damit `beamStates` und die Verlauf-API auch hier etwas vorfinden.
  */
 export function fakeFormulation(
   load: Vector6 = [1, 2, 3, 4, 5, 6],
@@ -168,11 +173,24 @@ export function fakeFormulation(
   ) as unknown as Matrix6;
 
   return {
-    prepare: () => ({
+    prepare: (props, L) => ({
       stiffness: () => identity,
-      consistentLoad: () => load,
       shapeFunctions: () => ({ Nu: [], Nw: [], Ntheta: [] }),
-      internalForces: () => ({ N: 0, V: 0, M: 0 }),
+      withLoad: (elementLoad) => ({
+        consistentLoad: () => load,
+        evaluate: (dLocal) => ({
+          L,
+          endForces: dLocal.map((d, i) => d - load[i]) as unknown as Vector6,
+          endDisplacements: dLocal,
+          load: elementLoad,
+          deformation: {
+            kind: 'timoshenko-2d-iie',
+            phi: 0,
+            EI: props.EI,
+            EA: props.EA,
+          },
+        }),
+      }),
     }),
   };
 }

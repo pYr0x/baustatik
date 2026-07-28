@@ -1,15 +1,20 @@
 /**
  * Die Rechenkette: von geprueften Rohdaten zu Verformungen, Auflagerkraeften
- * und Stabendkraeften.
+ * und den Auswertungszustaenden der Staebe.
  *
  * WAS HIER PASSIERT und was anderswo:
  *
  *   fem-loads          prueft die Lasteingabe            (das Tor davor)
  *   fem-load-resolve   loest Lasten auf Elemente auf     (lokal, je Stab)
- *   fem-element        Steifigkeit und Ersatzknotenlast  (die Balkentheorie)
- *   HIER               Freiheitsgrade, Kondensation, Transformation,
- *                      Assemblierung, Randbedingungen, Rueckrechnung
+ *   fem-element        Steifigkeit, Ersatzknotenlast, Kondensation und
+ *                      Auswertung                        (die Balkentheorie)
+ *   HIER               Freiheitsgrade, Transformation, Assemblierung,
+ *                      Randbedingungen, Rueckrechnung
  *   linear-solver-wasm loest K d = F                     (per Port)
+ *
+ * Die Kondensation der Gelenke stand frueher hier und ist nach `fem-element`
+ * gezogen (ADR 0018): dieses Package ORCHESTRIERT sie noch — es sagt, welcher
+ * Stab welche Freisetzungen hat —, aber es besitzt die Mechanik nicht mehr.
  *
  * Die einzige Stelle, an der dieses Package rechnet statt zu verdrahten, ist
  * das Einsortieren von Zahlen in Matrizen — und genau das ist sein Beruf.
@@ -17,9 +22,10 @@
 
 import { assertValidModel, type Beam, type Node } from '@baustatik/fem';
 import type {
+  ElementEvaluationState,
+  LoadedElement,
   LocalElementLoad,
   SectionProperties,
-  Vector6,
 } from '@baustatik/fem-element';
 import { Line, Vector } from '@baustatik/fem-geometry';
 import { resolveLoads } from '@baustatik/fem-load-resolve';
@@ -31,9 +37,7 @@ import {
 import { type ResolvedAnalysis, resolveAnalysis } from './analysis';
 import type { SolverConfig } from './config';
 import {
-  condense,
   DOF_PER_ELEMENT,
-  endForces,
   type Mutable6x6,
   rotateStiffness,
   rotateVector,
@@ -101,13 +105,21 @@ export type SolveResult = {
   /** je `nodeId` MIT Auflager */
   reactions: Map<string, SupportReaction>;
   /**
-   * je `beamId`, in LOKALEN Stabkoordinaten und in der Reihenfolge
-   * `[N1, V1, M1, N2, V2, M2]`.
+   * je `beamId`: der vollstaendige Auswertungszustand des Stabs — Laenge,
+   * Stabendkraefte, zurueckgerechnete Endverformungen, die Stablast und die
+   * Kennwerte der Kinematik.
    *
-   * Selbstpruefende Eigenschaft: an einem freigesetzten Freiheitsgrad steht
-   * exakt 0 — ein Gelenk uebertraegt kein Moment.
+   * DARAUS beantworten `internalForcesAt` und `internalForcesAlong` `N`, `V`
+   * und `M` an jeder Stelle, OHNE `config` zu lesen — weder Geometrie noch
+   * Lasten noch Querschnittswerte. Genau deshalb kann ein abgelegtes Ergebnis
+   * nicht veralten, und genau deshalb gibt es keinen `modelRevision`-Stempel
+   * ([ADR 0019](../../../docs/adr/0019-result-carries-an-evaluation-state.md)).
+   *
+   * Ein frueheres `elementEndForces` ist darin AUFGEGANGEN: die Zahlen stehen
+   * als `beamStates.get(id).endForces`, und zwei Kopien haetten beim
+   * Serialisieren auseinanderlaufen koennen.
    */
-  elementEndForces: Map<string, Vector6>;
+  beamStates: Map<string, ElementEvaluationState>;
   /**
    * Befunde AM ERGEBNIS: gerechnet wurde richtig, aber es gibt etwas dazu zu
    * sagen. Heute genau einer — das Ergebnis verlaesst den Gueltigkeitsbereich
@@ -129,6 +141,12 @@ type PreparedBeam = {
   /** Kondensiert, LOKAL. */
   f: number[];
   T: Mutable6x6;
+  /**
+   * Das an Last UND Freisetzungen gebundene Element. Es haelt den Bauplan der
+   * Rueckrechnung; ohne es waeren die Endverformungen der freigesetzten
+   * Freiheitsgrade nicht mehr rekonstruierbar.
+   */
+  loaded: LoadedElement;
   /** Globale Zeilen-/Spaltenindizes der sechs Elementfreiheitsgrade. */
   map: number[];
 };
@@ -275,7 +293,7 @@ export async function solveWith(
     loadCaseId: loadCase.id,
     displacements,
     reactions: reactionsByNode(K, F, raw, supports, dofOf),
-    elementEndForces: endForcesByBeam(prepared, raw),
+    beamStates: beamStatesByBeam(prepared, raw),
     warnings,
   };
 }
@@ -303,40 +321,48 @@ function prepareBeam(
   beam: Beam,
   geometry: ReturnType<typeof modelGeometry>,
   beamLoads: Map<string, LocalElementLoad>,
-): { beam: Beam; K: Mutable6x6; f: number[]; T: Mutable6x6 } {
+): {
+  beam: Beam;
+  K: Mutable6x6;
+  f: number[];
+  T: Mutable6x6;
+  loaded: LoadedElement;
+} {
   // `assertValidModel` hat haengende Referenzen und Laenge 0 bereits
   // ausgeschlossen, und `check()` die fehlenden Steifigkeiten.
   const axis = geometry.beamAxis(beam.id) as Line;
   const L = Line.length(axis);
   const props = config.getSectionProperties(beam) as SectionProperties;
 
+  // DIE FREISETZUNGEN GEHEN MIT HINEIN, statt hier sechs `condense`-Aufrufe zu
+  // veranlassen: `Beam['releases']` und `ElementReleases` sind formgleich, weil
+  // ADR 0017 die Namen `u`/`w`/`theta` gerade deshalb aus fem-elements
+  // Vokabular genommen hat. Die „Uebersetzung" ist damit ein Durchreichen.
   const element = analysis.formulation.prepare(
     analysis.policy.shearDeformation ? props : { ...props, GAs: 'rigid' },
     L,
+    beam.releases,
+  );
+  const loaded = element.withLoad(
+    beamLoads.get(beam.id) ?? { segments: [], points: [] },
   );
 
+  // Kondensiert kommt beides schon heraus; hier wird nur noch gedreht. Die
+  // Reihenfolge „erst kondensieren, dann drehen" bleibt zwingend: das Gelenk
+  // ist am LOKALEN Freiheitsgrad definiert, und nach der Drehung gibt es ihn
+  // als eigene Zeile nicht mehr.
   const K = toMutable(element.stiffness());
-  const f = [
-    ...element.consistentLoad(
-      beamLoads.get(beam.id) ?? { segments: [], points: [] },
-    ),
-  ];
-
-  // Erst kondensieren, dann drehen: das Gelenk ist am LOKALEN Freiheitsgrad
-  // definiert, und nach der Drehung gibt es ihn als eigene Zeile nicht mehr.
-  // Deshalb tragen die Freisetzungen auch die lokalen Namen `u`/`w`/`theta`
-  // (ADR 0017) — in derselben Reihenfolge wie die Indizes hier.
-  const { start, end } = beam.releases ?? {};
-  if (start?.u === true) condense(K, f, 0);
-  if (start?.w === true) condense(K, f, 1);
-  if (start?.theta === true) condense(K, f, 2);
-  if (end?.u === true) condense(K, f, 3);
-  if (end?.w === true) condense(K, f, 4);
-  if (end?.theta === true) condense(K, f, 5);
+  const f = [...loaded.consistentLoad()];
 
   const direction = Vector.normalize(Vector.fromPoints(axis.p1, axis.p2));
 
-  return { beam, K, f, T: transformationMatrix(direction.dx, direction.dz) };
+  return {
+    beam,
+    K,
+    f,
+    T: transformationMatrix(direction.dx, direction.dz),
+    loaded,
+  };
 }
 
 /** Die sechs globalen Indizes eines Elements: Anfangsknoten, dann Endknoten. */
@@ -635,14 +661,24 @@ function reactionsByNode(
   return result;
 }
 
-function endForcesByBeam(
+/**
+ * Der Auswertungszustand je Stab: global loesen, lokal drehen, das Element
+ * auswerten lassen.
+ *
+ * DIE AUSWERTUNG SELBST LIEGT IM ELEMENT. Frueher rechnete dieses Package
+ * `K d - f` selbst und musste dabei wissen, dass die Endverformungen aus den
+ * UNkondensierten und die Endkraefte aus den KONdensierten Zeilen kommen — zwei
+ * Reihenfolgen in einer Datei, die von der Kondensation nichts mehr sah. Jetzt
+ * liegt beides in einem Aufruf (ADR 0018).
+ */
+function beamStatesByBeam(
   prepared: readonly PreparedBeam[],
   d: Float64Array,
-): Map<string, Vector6> {
-  const result = new Map<string, Vector6>();
-  for (const { beam, K, f, T, map } of prepared) {
+): Map<string, ElementEvaluationState> {
+  const result = new Map<string, ElementEvaluationState>();
+  for (const { beam, T, map, loaded } of prepared) {
     const global = map.map((index) => d[index]);
-    result.set(beam.id, endForces(K, toLocalVector(global, T), f));
+    result.set(beam.id, loaded.evaluate(toLocalVector(global, T)));
   }
   return result;
 }

@@ -50,7 +50,7 @@ export function assembleChain(
   lengths.forEach((Le, e) => {
     const el = formulation.prepare(props, Le);
     const ke = el.stiffness();
-    const fe = el.consistentLoad(loads[e] ?? { segments: [], points: [] });
+    const fe = el.withLoad(loads[e] ?? { segments: [], points: [] }).consistentLoad();
     const base = 3 * e;
 
     for (let i = 0; i < 6; i++) {

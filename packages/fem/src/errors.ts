@@ -145,6 +145,74 @@ export class UnsupportedComponentError extends ModelValidationError {
 }
 
 /**
+ * Zu viele Freiheitsgrade an EINEM Stab freigesetzt — ein elementinterner
+ * Mechanismus (M6).
+ *
+ * Der Stab hat dann eine Starrkoerperbewegung IN SICH, die von nichts gehalten
+ * wird: er gleitet laengs (`direction: 'u'`) oder quer (`'w'`) zu seiner Achse,
+ * ohne dass eine Steifigkeit dagegen steht. Der Fall faellt sonst NIRGENDS auf —
+ * nach der Kondensation stehen in den betroffenen Zeilen Nullen, das Element
+ * traegt zu diesen Knotenfreiheitsgraden nichts mehr bei, und `assertHeld` im
+ * Solver prueft die GLOBALE Diagonale, an der ein anderer Stab oder ein
+ * Auflager laengst steht. Der Solver rechnet also durch, alle vier Netze aus
+ * ADR 0016 bleiben still, und es kommen plausible Zahlen heraus.
+ *
+ * WANN GENAU, hergeleitet aus dem Rang der beiden entkoppelten Bloecke der
+ * Elementsteifigkeit — die Bedingung haengt an keiner einzigen Zahl (`EA`, `EI`,
+ * `L`, `phi` kuerzen sich heraus), deshalb ist sie hier statisch entscheidbar:
+ *
+ *   - AXIAL, Block `[u1, u2]`, Rang 1: eine Kondensation traegt der Block, die
+ *     zweite nicht. Also `u` an BEIDEN Enden ist der Mechanismus.
+ *   - QUER, Block `[w1, theta1, w2, theta2]`, Rang 2 (vier Freiheitsgrade,
+ *     zwei Starrkoerpermoden): ZWEI Kondensationen traegt der Block, die dritte
+ *     nicht. Also drei oder mehr Freisetzungen aus `w`/`theta` sind der
+ *     Mechanismus — und zusaetzlich das Paar `w`/`w` schon zu zweit, weil ein
+ *     Stab, der an einer Stelle quer gleitet, nirgends Querkraft traegt.
+ *
+ * NICHT betroffen ist `theta` an beiden Enden: das ist der Pendelstab und
+ * ausdruecklich zulaessig. Nach der Kondensation von `theta1` steht
+ * `K[theta2][theta2] = 3EI/L != 0` — kein Pivot 0 —, und der Stab uebertraegt
+ * weiter die Normalkraft. Querkraft traegt er OHNE Stablast nicht mehr: mit
+ * Momentengelenken an beiden Enden verlangt das Momentengleichgewicht dann
+ * `V = 0`. Beides ist kein Mechanismus, sondern die Sache selbst. Wer die Regel
+ * schlicht auf „dieselbe Richtung an beiden Enden" verkuerzt, verbietet
+ * entweder den Pendelstab mit oder laesst `w`+`theta`+`theta` durch, das
+ * nachweislich auf Pivot 0 laeuft.
+ *
+ * Die Regel deckt sich damit exakt mit dem Pivot-0-Zweig der Kondensation: die
+ * Diagonalglieder sind strikt positiv, weil `prepare()` in
+ * `@baustatik/fem-element` `L`, `EA` und `EI` als endlich und `> 0` erzwingt;
+ * null wird ein Pivot nur, wenn der Block schon leergeraeumt ist. Dort steht
+ * das zweite Tor, `UnrestrainedElementError`, und es misst das Pivot selbst,
+ * statt dieser Aufzaehlung zu vertrauen.
+ */
+export class UnrestrainedBeamError extends ModelValidationError {
+  readonly beamId: string;
+  /** Die Richtung, in der sich der Stab in sich bewegen kann. */
+  readonly direction: 'u' | 'w';
+  /** Die beteiligten Freisetzungen, als `start.u`, `end.theta`, … */
+  readonly released: readonly string[];
+
+  constructor(
+    beamId: string,
+    direction: 'u' | 'w',
+    released: readonly string[],
+  ) {
+    super(
+      `Stab "${beamId}": freigesetzt sind ${released
+        .map((name) => `"${name}"`)
+        .join(', ')} — der Stab gleitet ` +
+        `${direction === 'u' ? 'laengs' : 'quer'} zu seiner Achse, ohne dass ` +
+        'etwas dagegen haelt. Ein Momentengelenk an beiden Enden (der ' +
+        'Pendelstab) ist davon nicht betroffen.',
+    );
+    this.beamId = beamId;
+    this.direction = direction;
+    this.released = released;
+  }
+}
+
+/**
  * Ein Knoten, an dem kein Stab haengt (M5).
  *
  * WARNUNG und kein Fehler: waehrend der Eingabe ist ein einzeln gesetzter

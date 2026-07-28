@@ -5,6 +5,7 @@ export {
   ModelValidationWarning,
   type NodeReferenceOwner,
   UnknownNodeReferenceError,
+  UnrestrainedBeamError,
   UnsupportedComponentError,
   ZeroLengthBeamError,
 } from './errors';

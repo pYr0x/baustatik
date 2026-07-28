@@ -8,17 +8,31 @@
  *
  * ZWEI FORMULIERUNGEN, EIN KERN: `Timoshenko2D` bildet K aus der geschlossenen
  * Formel, `Timoshenko2DIntegrated` integriert sie per Gauss aus denselben
- * Ansatzfunktionen. phi-Normalisierung, N, konsistenter Lastvektor und
- * Schnittgroessen sind identisch; nur `stiffness()` ist injiziert. Beide
- * erfuellen das UNVERAENDERTE `FrameElement2DFormulation`, sodass der Solver
- * keinen Unterschied sieht und `prepare(props, L)` aus ADR-0003 unangetastet
- * bleibt. Sie pruefen sich gegenseitig (Test-Anker K<->N). Siehe
+ * Ansatzfunktionen. phi-Normalisierung, N, konsistenter Lastvektor,
+ * Kondensation und Auswertungszustand sind identisch; nur `stiffness()` ist
+ * injiziert. Beide erfuellen dasselbe `FrameElement2DFormulation` und liefern
+ * dasselbe `deformation.kind` — sie unterscheiden sich im Bau von `K`, nicht in
+ * der Kinematik. Sie pruefen sich gegenseitig (Test-Anker K<->N). Siehe
  * `docs/adr/0004-timoshenko-closed-and-integrated-stiffness.md`.
+ *
+ * DREI BINDUNGSSTUFEN: `prepare(props, L, releases)` bindet `phi` UND die
+ * Freisetzungen (und kondensiert dabei einmal), `withLoad(load)` bindet die
+ * Last, `evaluate(dLocal)` bindet das Ergebnis des Loesens. Warum die Last eine
+ * eigene Stufe bekommt und nicht Argument bleibt, steht an `LoadedElement` in
+ * `types.ts` — kurz: `evaluate` rechnet mit demselben Lastvektor weiter wie
+ * `consistentLoad`, und zwei verschiedene Lasten ergaeben plausible falsche
+ * Zahlen. Dieselbe Begruendung wie ADR-0003 fuer `prepare`, eine Ebene weiter.
  */
 
 import {
+  condenseLoad,
+  condenseStiffness,
+  endForces,
+  recoverEndDisplacements,
+  releasedIndices,
+} from './condense';
+import {
   BackwardsLoadSegmentError,
-  InternalForcesNotImplementedError,
   InvalidElementInputError,
   InvalidShearStiffnessError,
   LoadOutsideElementError,
@@ -31,6 +45,7 @@ import {
   type StiffnessBuilder,
 } from './stiffness';
 import type {
+  ElementReleases,
   FrameElement2DFormulation,
   LocalElementLoad,
   PreparedElement,
@@ -181,17 +196,26 @@ function createFormulation(
   buildStiffness: StiffnessBuilder,
 ): FrameElement2DFormulation {
   return {
-    prepare(props: SectionProperties, L: number): PreparedElement {
+    prepare(
+      props: SectionProperties,
+      L: number,
+      releases?: ElementReleases,
+    ): PreparedElement {
       requirePositiveFinite(L, 'L');
       requirePositiveFinite(props.EA, 'EA');
       requirePositiveFinite(props.EI, 'EI');
       const { phi, GAs } = normalizeShear(props.GAs, props.EI, L);
       const input = { EA: props.EA, EI: props.EI, GAs, L, phi };
 
-      return {
-        stiffness: () => buildStiffness(input),
+      // EINMAL kondensiert, nicht je Aufruf: `steps` ist der Bauplan der
+      // Rueckrechnung und muss zu genau dieser Matrix gehoeren.
+      const { K, steps } = condenseStiffness(
+        buildStiffness(input),
+        releasedIndices(releases),
+      );
 
-        consistentLoad: (load) => consistentLoad(load, L, phi),
+      return {
+        stiffness: () => K,
 
         shapeFunctions: (x) => {
           // Ableitungen bleiben package-intern; oeffentlich sind nur die Werte.
@@ -199,8 +223,39 @@ function createFormulation(
           return { Nu, Nw, Ntheta };
         },
 
-        internalForces: () => {
-          throw new InternalForcesNotImplementedError();
+        withLoad: (load) => {
+          const { f, pivotLoads } = condenseLoad(
+            consistentLoad(load, L, phi),
+            steps,
+          );
+
+          return {
+            consistentLoad: () => f,
+
+            evaluate: (dLocal) => {
+              // Erst die Endverformungen aus den UNKONDENSIERTEN Zeilen, dann
+              // die Stabendkraefte aus der KONDENSIERTEN Matrix. Die
+              // Reihenfolge ist die Falle, die frueher beim Solver lag.
+              const endDisplacements = recoverEndDisplacements(
+                dLocal,
+                steps,
+                pivotLoads,
+              );
+
+              return {
+                L,
+                endForces: endForces(K, endDisplacements, f),
+                endDisplacements,
+                load,
+                deformation: {
+                  kind: 'timoshenko-2d-iie',
+                  phi,
+                  EI: props.EI,
+                  EA: props.EA,
+                },
+              };
+            },
+          };
         },
       };
     },

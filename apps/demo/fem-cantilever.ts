@@ -11,7 +11,12 @@
 import { type Beam, type Node, type NodeSupport } from '@baustatik/fem';
 import { type SectionProperties } from '@baustatik/fem-element';
 import type { LoadCase } from '@baustatik/fem-loads';
-import { createAnalysisPolicy, createFEMSolver } from '@baustatik/fem-solver';
+import {
+  createAnalysisPolicy,
+  createFEMSolver,
+  internalForcesAlong,
+  internalForcesAt,
+} from '@baustatik/fem-solver';
 import { solveLinearSystem } from './linear-solver-port';
 import { convert } from '@baustatik/units';
 
@@ -140,9 +145,18 @@ async function run(): Promise<void> {
   });
 
   console.log(
-    'Stabendkraefte b1 (lokal, [N1 V1 M1 N2 V2 M2])',
-    result.elementEndForces.get('b1'),
+    'Stabendkraefte b1 (lokal, [Fx1 Fz1 My1 Fx2 Fz2 My2])',
+    result.beamStates.get('b1')?.endForces,
   );
+
+  // Der beste Handprueftstein fuer die Schnittgroessen: M laeuft linear von
+  // -P*L auf 0, V ist konstant P.
+  console.log('Schnittgroessen b1', {
+    beiNull: internalForcesAt(result, 'b1', 0),
+    mErwartet: -P * L,
+    beiL: internalForcesAt(result, 'b1', L),
+    verlauf: internalForcesAlong(result, 'b1', { subdivisions: 4 }),
+  });
 }
 
 // void run();

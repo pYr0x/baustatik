@@ -4,26 +4,32 @@
 
 Die Elementformulierung des ebenen Stabwerks: pro Stab die lokale
 6x6-Steifigkeit, den konsistenten Ersatzknotenvektor (aus aufgeloesten lokalen
-Lasten) und die Schnittgroessen liefern. Eine Elementformulierung ist ein
-untrennbares Paket aus Kinematik, Ansatzfunktionen, Steifigkeit, Lastvektor und
+Lasten), die statische Kondensation der Gelenke und die Schnittgroessen `N`, `V`,
+`M` an jeder Stelle liefern. Eine Elementformulierung ist ein untrennbares Paket
+aus Kinematik, Ansatzfunktionen, Steifigkeit, Lastvektor und
 Schnittgroessen-Rekonstruktion — einzelne Formeln verschiedener Elemente werden
 nie gemischt. Reine, in Node testbare Mathematik ohne Konva/DOM/WASM.
 
 Aktueller Stand: das Produktivelement `Timoshenko2D` (locking-freies IIE) steht
-mit Steifigkeit, Ansatzfunktionen und konsistentem Lastvektor; daneben
-`Timoshenko2DIntegrated` als gleichwertige, gegenpruefende Variante. Releases
-(statische Kondensation) und Schnittgroessenverlaeufe (`internalForces`) sind
-spaetere Inkremente.
+vollstaendig — Steifigkeit, Ansatzfunktionen, konsistenter Lastvektor,
+Kondensation samt Rueckrechnung und Schnittgroessen; daneben
+`Timoshenko2DIntegrated` als gleichwertige, gegenpruefende Variante. Spaetere
+Inkremente: die Biegelinie (der Platz dafuer ist in
+`ElementEvaluationState.deformation` freigehalten) und Theorie II. Ordnung.
 
 ## Boundaries
 
-- Owns: das Interface `FrameElement2DFormulation` / `PreparedElement`, die
-  lokalen Typen (`Vector6`, `Matrix6`, `SectionProperties`, `LocalElementLoad`),
-  die element-eigene Mathematik (K, f_e, Ansatzfunktionen, Schnittgroessen), die
-  hand-gerollte 6x6-Arithmetik.
+- Owns: das Interface `FrameElement2DFormulation` / `PreparedElement` /
+  `LoadedElement`, die lokalen Typen (`Vector6`, `Matrix6`,
+  `SectionProperties`, `LocalElementLoad`, `ElementReleases`,
+  `ElementEvaluationState`, `SectionForces`), die element-eigene Mathematik
+  (K, f_e, Ansatzfunktionen, Kondensation und ihre Umkehrung, Schnittgroessen),
+  die hand-gerollte 6x6-Arithmetik.
 - Does not own: Transformation lokal<->global, Assemblierung, Randbedingungen,
   Reaktionen, den Solve `K d = F` (alles `fem-solver` + `linalg-wasm`); die
-  Aufloesung `BeamLoad -> LocalElementLoad` (`fem-load-resolve`); den Bau der
+  ORCHESTRIERUNG der Kondensation — welcher Stab welche Freisetzungen hat, sagt
+  der Solver und reicht es als Argument durch; die Aufloesung
+  `BeamLoad -> LocalElementLoad` (`fem-load-resolve`); den Bau der
   `SectionProperties` aus material x cross-section (separater Adapter); die
   globale Analyse-Einstellung, ob Schub beruecksichtigt wird.
 
@@ -42,6 +48,12 @@ spaetere Inkremente.
   `Timoshenko2DIntegrated`, phi-Normalisierung, `consistentLoad`.
 - [`src/stiffness.ts`](src/stiffness.ts): die beiden austauschbaren
   Steifigkeits-Bauer (geschlossen / per Gauss integriert).
+- [`src/condense.ts`](src/condense.ts): statische Kondensation der
+  freigesetzten Freiheitsgrade, ihre Umkehrung (`recoverEndDisplacements`) und
+  `endForces`. Package-intern.
+- [`src/internal-forces.ts`](src/internal-forces.ts): `internalForcesAt` und
+  `internalForcesStations` als reine Funktionen ueber
+  `ElementEvaluationState` — der Gleichgewichtsweg, ohne Stoffgesetz.
 - [`src/shape-functions.ts`](src/shape-functions.ts): IIE-Ansatzfunktionen und
   ihre Ableitungen. Package-intern.
 - [`src/gauss.ts`](src/gauss.ts): 3-Punkt-Gauss-Integrator. Package-intern.
@@ -86,10 +98,67 @@ spaetere Inkremente.
 - **Schub ist global, nicht pro Stab**: ob Schubverformung beruecksichtigt wird,
   ist eine globale Analyse-Einstellung (RSTAB-Konvention) im Adapter/`fem-solver`.
   fem-element weiss davon nichts und sieht nur das fertige `GAs` je Element.
-- **`prepare()`-Fabrik**: das Interface bindet `props` und `L` einmal und
-  berechnet `phi` genau einmal; alle Methoden der `PreparedElement`-Instanz
-  teilen dasselbe `phi`, damit K, Ansatzfunktionen und Schnittgroessen nicht mit
-  unterschiedlichem `phi` auseinanderdriften.
+- **Drei Bindungsstufen**: `prepare(props, L, releases?)` bindet `props`, `L`
+  und die Freisetzungen — `phi` wird genau einmal berechnet und genau einmal
+  kondensiert; `withLoad(load)` bindet die Last; `evaluate(dLocal)` bindet das
+  Ergebnis des Loesens. Alle Methoden einer Instanz teilen dasselbe `phi` und
+  dieselbe kondensierte Matrix, damit K, Ansatzfunktionen und Schnittgroessen
+  nicht auseinanderdriften. Warum die LAST eine eigene Stufe ist: `evaluate`
+  rechnet die Endverformung eines freigesetzten Freiheitsgrads aus `f[i]` der
+  UNkondensierten Last zurueck, also aus buchstaeblich demselben Vektor, den
+  `consistentLoad` produziert hat — zwei verschiedene Lasten ergaeben eine
+  falsche Endverformung UND falsche Stabendkraefte, beide plausibel aussehend
+  (ADR 0003 eine Ebene weiter,
+  [ADR 0018](../../docs/adr/0018-section-forces-from-equilibrium.md)).
+  `stiffness()` und `shapeFunctions(x)` bleiben auf der oberen Stufe, weil sie
+  nicht von der Last abhaengen — sonst muesste jeder Steifigkeitstest eine leere
+  Last erfinden.
+- **Schnittgroessen entstehen aus GLEICHGEWICHT, nicht aus dem Stoffgesetz**:
+
+  ```text
+  N(x) = -e[0] - int_0^x qx - sum_{a<x} px
+  V(x) = -e[1] - int_0^x qz - sum_{a<x} pz
+  M(x) = +e[2] + int_0^x (V + my_e) + sum_{a<x} p.my
+  ```
+
+  mit `e = endForces`. Exakt fuer den geraden, prismatischen Stab nach
+  Theorie I. Ordnung, ohne `EA`/`EI`/`phi`/Ansatzfunktion — Timoshenko und
+  Euler-Bernoulli haben dieselbe Formel. Der Stoffgesetz-Weg (`M = EI*theta'`)
+  ist ausgeschlossen: beim beidseitig eingespannten Traeger unter Gleichlast
+  sind alle Knotenfreiheitsgrade null und er liefert `M == 0` statt `-qL^2/12`.
+  Zwei Fallen: `dM/dx = V + my_e` (nicht `= V`; `my_e` traegt schon das Minus
+  aus ADR 0005), und `sum_{a<x}` ist STRIKT kleiner — das ist der linksseitige
+  Grenzwert, `side: 'right'` summiert `a <= x`. Herleitung und verworfene
+  Alternative: ADR 0018.
+- **Stabendkraft != Schnittgroesse**: `endForces` ist `K d - f` in DOF-Richtung,
+  `[Fx1, Fz1, My1, Fx2, Fz2, My2]`. Die Umrechnung:
+
+  | | links bei x = 0 | rechts bei x = L |
+  | --- | --- | --- |
+  | `N` | `-e[0]` | `+e[3]` |
+  | `V` | `-e[1]` | `+e[4]` |
+  | `M` | `+e[2]` | `-e[5]` |
+
+  Das Moment tanzt aus der Reihe, weil `theta` (Element, +x nach +z) gegen
+  `phiY` (Knoten) laeuft — dasselbe Minus wie ADR 0005. VORZEICHENREGEL: ein
+  positiver Wert wird auf der lokalen +z-Seite aufgetragen, `M` damit auf der
+  Zugseite; `N` positiv = Zug.
+- **Bei Knotenvertauschung kippt `M`, NICHT `V`**: `ex` dreht sich um, `ez`
+  dreht mit (fem-geometry), also dreht sich die Zugseite um. `V` bleibt, weil
+  `dM/dx = V` und `M` und `x` beide kippen. `N` bleibt ohnehin.
+- **Der elementinterne Mechanismus ist ein Fehler**: `prepare` misst bei jeder
+  Kondensation das Pivot gegen seinen unkondensierten Wert und wirft
+  `UnrestrainedElementError`, wenn es zusammengebrochen ist. Betroffen sind `u`
+  an beiden Enden (Block `[u1, u2]`, Rang 1) sowie `w` an beiden Enden oder drei
+  Freisetzungen aus `w`/`theta` (Block `[w1, theta1, w2, theta2]`, Rang 2).
+  NICHT betroffen ist `theta` an beiden Enden — der Pendelstab, der danach die
+  Normalkraft weiter traegt. Querkraft traegt er OHNE Stablast nicht mehr: mit
+  Momentengelenken an beiden Enden verlangt das Momentengleichgewicht dann
+  `V = 0`. Mit Stablast sehr wohl — die Last geht ueber die Ersatzknotenlasten
+  in die Stabendkraefte ein, und der Verlauf faellt aus dem Gleichgewicht wie
+  ueberall sonst. Dasselbe faengt
+  `@baustatik/fem` schon am Modell ab (`UnrestrainedBeamError`), aus der blossen
+  Freisetzungskombination; zwei Tore, weil dieses Package oeffentlich ist.
 - **Hand-gerollte 6x6, keine externe Matrix-Library**: auf Element-Ebene wird
   nichts invertiert/zerlegt/geloest, nur eine 6x6 per Formel gebaut und ein
   `K*d` gerechnet. Feste Laenge steckt im Typ (`Matrix6`/`Vector6` als Tupel).
@@ -152,12 +221,15 @@ pnpm --filter @baustatik/fem-element lint
 
 ## Known constraints
 
-- `internalForces` ist ein werfender Stub. Der Schnittgroessenverlauf zwischen
-  den Knoten braucht zusaetzlich die Partikulaerloesung der Stablast; der
-  Ersatzknotenvektor allein rekonstruiert ihn nicht. Spaeteres Inkrement,
-  bewusst kein Teilausbau mit Endkraft-Semantik — der waere an `x=0`/`x=L`
-  richtig und dazwischen still falsch.
-- Releases (gemeinsame statische Kondensation von K und f) fehlen noch.
+- Die BIEGELINIE fehlt noch. `ElementEvaluationState.deformation` haelt den
+  Platz frei (`phi`, `EI`, `EA`); die Auswertung wird eine eigene reine Funktion
+  ueber denselben Zustand und braucht denselben Gleichgewichtsweg —
+  Interpolation ueber `Nw` allein waere beim eingespannten Traeger wieder `== 0`.
+- Die Extremstellen in `internalForcesStations` entstehen aus einer
+  quadratischen Interpolation ueber drei Stuetzwerte je Intervall. Das ist dort
+  EXAKT (`q` linear ⇒ `V` quadratisch), aber es setzt voraus, dass die
+  Grundstuetzstellen jede Unstetigkeit enthalten — ein Lastabschnitt, dessen
+  Grenze fehlte, bliebe unbemerkt.
 - Die EB-Referenz-`ebConsistentLoad` deckt nur Volllast-Segmente (`from=0`,
   `to=L`) und Einzellasten ab; Teilsegmente wirft sie zurueck. Fuer Teilsegmente
   pruefen stattdessen Partitionsinvarianz und Arbeitsaequivalenz.

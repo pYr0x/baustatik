@@ -12,7 +12,7 @@ Kein Implementierungsplan — eine Richtung mit Reihenfolge und Begründung.
 | 0 | ~~Staborientierung: Test + Doku~~ | erledigt 2026-07-26 | War schon korrekt implementiert — jetzt festgenagelt und dokumentiert |
 | 1 | ~~Lastfall-Begriff einführen~~ | erledigt 2026-07-26 | ADR 0013–0015; siehe „Stufe 1" unten |
 | 1a | ~~Gelenke: `releases` auf lokale Namen umbenennen und um `u`/`w` erweitern~~ | erledigt 2026-07-27 | ADR 0017; `{ u, w, theta }` statt `{ phiY }`, `{ N, V, M }` verworfen |
-| 2 | `internalForces` in `fem-element` + Verlauf-API im Solver | mittel | Höchster Nutzen pro Aufwand, Naht liegt fertig — **Gelenk ist hier Bedingung**, siehe Stufe 2 |
+| 2 | ~~`internalForces` in `fem-element` + Verlauf-API im Solver~~ | erledigt 2026-07-28 | ADR 0018–0019; Abweichungen vom Entwurf siehe Stufe 2 |
 | 3 | ~~Punktlasten: Kräfte und Momente gezeichnet~~; danach Linienlasten | erledigt 2026-07-27 / mittel | Punktlast ist abgeschlossen, Linienlasten sind ein eigener Plan |
 | 3a | Gelenksymbol zeichnen, `releases` in der Demo setzbar | klein | Unabhängig von den Lasten. Erst hier sieht man, was man eingegeben hat |
 | 4 | ViewPolicy | klein | Erst wenn es genug zu stylen gibt |
@@ -105,6 +105,11 @@ Das hier ist bemerkenswert gut vorbereitet:
 
 Es fehlt also die Implementierung, nicht der Entwurf. Das ist der Punkt aus
 deiner Liste mit dem besten Verhältnis von Nutzen zu Aufwand.
+
+> **Überholt am 2026-07-28.** Umgesetzt — aber anders: der Verlauf entsteht aus
+> GLEICHGEWICHT, die Ansatzfunktionen werden dafür gar nicht gebraucht, und
+> `elementEndForces` ist in `beamStates` aufgegangen. Siehe „Stufe 2" unten und
+> ADR 0018.
 
 ### D. Grafische Lastdarstellung — **Plan liegt fertig, reviewt**
 
@@ -344,48 +349,47 @@ mit drei Bedingungen:
   den Auswahlzustand lesen" gilt für die RECHNUNG, nicht für eine Eingabe, die
   der Anwender im gerade gewählten Fall macht.
 
-### Stufe 2 — Schnittgrößen rechnerisch
+### Stufe 2 — Schnittgrößen rechnerisch — **erledigt 2026-07-28**
 
-Zwei getrennte Ebenen, und die Trennung ist wichtig:
+Umgesetzt in `packages/PLAN.md`, festgehalten in
+[ADR 0018](../docs/adr/0018-section-forces-from-equilibrium.md) (Gleichgewicht
+statt Stoffgesetz, samt Umzug der Kondensation nach `fem-element`) und
+[ADR 0019](../docs/adr/0019-result-carries-an-evaluation-state.md)
+(serialisierbarer Auswertungszustand am Ergebnis).
 
-1. **`fem-element`**: `internalForces(x, dLocal, load)` implementieren.
-   Rein, lokal, ohne Modellwissen. Prüfbar gegen geschlossene Lösungen
-   (Kragarm mit Einzellast, Einfeldträger mit Gleichlast) und gegen die
-   vorhandenen `elementEndForces` an den Rändern.
-2. **`fem-solver`**: eine Verlauf-API auf dem `SolveResult`, die je Stab und
-   Stelle x auswertet.
+**Die Abweichungen vom Entwurf oben, jede mit ihrem Grund:**
 
-Zur API-Frage, die du früh entscheiden solltest: **Punktabfrage als Primitiv,
-Abtastung als Hilfsfunktion darüber.** Also `internalForcesAt(beamId, x)` als
-Kern und `internalForcesAlong(beamId, opts)` für den Verlauf. Die Abtastung
-muss die **Unstetigkeitsstellen erzwingen** — Angriffspunkte von Einzellasten,
-Anfang und Ende von Trapezlasten — sonst übersieht ein gleichmäßiges Raster den
-Sprung in V und den Knick in M, und der Anwender sieht ein falsches Maximum.
-Diese Stellen kennt `fem-load-resolve` bereits, das ist der richtige Lieferant.
-
-#### Bedingung: das Gelenk muss im Verlauf ankommen
-
-Die freigesetzte Endverdrehung wird heute **nirgends aufgehoben**. `condense`
-verteilt die Zeile und nullt sie; `endForces` rechnet aus der kondensierten `K`
-und `f`, deshalb steht am Gelenk exakt 0 — richtig, aber ohne dass die echte
-Stabendverdrehung je existiert hätte. Wer `internalForces(x, dLocal, load)` mit
-den Knotenverdrehungen füttert, bekommt am Gelenk ein Moment ungleich 0, und
-der Verlauf ist still falsch. Zwei Auswege, und die Wahl fällt hier oder nie:
-
-1. Den kondensierten Freiheitsgrad beim Rückeinsetzen rekonstruieren.
-   `PreparedBeam` (`solve.ts:125`) müsste dafür die Kondensationszeile
-   aufheben, nicht nur das Ergebnis.
-2. `internalForces` aus den **Endkräften plus Last** integrieren statt aus
-   `dLocal`. Dann braucht der Verlauf die Verdrehung nie.
-
-Der Prüfstein steht schon bereit: `M(0)` und `M(L)` müssen die
-`elementEndForces` treffen, am Gelenk also 0. Mit `u`- und `w`-Gelenken (Stufe
-1a) gilt dasselbe für `N` und `V`.
-
-Die Frage „x absolut oder relativ" würde ich wie bei den Lasten beantworten:
-absolut in Metern entlang der Stabachse, relativ optional in Prozent, gleiche
-Konvention wie `PointPlacement`. Zwei verschiedene Regeln für dieselbe Größe
-wären eine Fehlerquelle ohne Gegenwert.
+- **Der Weg ist Weg 2, nicht Weg 1.** `internalForces` integriert aus den
+  Endkräften plus Last; der Stoffgesetz-Weg ist ausdrücklich verworfen, weil er
+  beim beidseitig eingespannten Träger unter Gleichlast `M ≡ 0` liefert. Weg 1
+  (den kondensierten Freiheitsgrad rekonstruieren) wird trotzdem gebraucht — für
+  die spätere Biegelinie —, und ist als `recoverEndDisplacements` mit umgesetzt.
+- **Punktabfrage mit `side`.** An einer Einzellast gibt es keinen einen Wert;
+  `'left'` summiert `a < x`, `'right'` summiert `a ≤ x`.
+- **Exakte Extremstellen statt feinem Raster.** `internalForcesStations` liefert
+  neben Rändern, Segmentgrenzen und Lastpositionen die Wurzeln von
+  `V + my_e = 0` und `qz = 0` je Intervall. Ein daraus gemeldetes Maximum hängt
+  nicht an der Rasterweite.
+- **`x` nur absolut in Metern**, kein relativer Modus — anders als oben
+  vorgeschlagen. Das ist eine Abfrage, keine abgelegte Eingabe; zwei
+  Schreibweisen für dieselbe Stelle wären eine Verwechslung ohne Gegenwert. Die
+  Analogie zu `PointPlacement` trägt nicht, weil dort ein Wert GESPEICHERT wird.
+- **Auswertungszustand statt Verlauf-API am Ergebnis.** `SolveResult.beamStates`
+  trägt je Stab reine Daten; `internalForcesAt`/`internalForcesAlong` sind freie
+  Funktionen darüber. `elementEndForces` ist darin aufgegangen.
+- **Die Stützstellen kommen aus `fem-element`, nicht aus `fem-load-resolve`**
+  — anders als oben vorgeschlagen. Sie stehen im `load` des
+  Auswertungszustands. Die Auswertung darf nichts nachlesen; genau das trägt das
+  abgelegte Ergebnis.
+- **Schritt 0 war eine Vorbedingung und ist mitgekommen**: der elementinterne
+  Mechanismus ist jetzt ein Modellfehler (`UnrestrainedBeamError` in `fem`,
+  `UnrestrainedElementError` in `fem-element`). Die Regel ist WEITER als im
+  Plan gedacht: nicht nur „dieselbe Verschiebungsrichtung an beiden Enden",
+  sondern auch drei Freisetzungen aus `{w1, θ1, w2, θ2}` — der Biegeblock hat
+  Rang 2, und `w`+`θ`+`θ` läuft nachweislich auf Pivot 0, ohne ein `w`-Paar zu
+  enthalten. Der Pendelstab (`θ` an beiden Enden) bleibt erlaubt; er trägt
+  danach allerdings nur noch die Normalkraft, nicht auch die Querkraft, wie
+  ADR 0017 an einer Stelle nahelegt.
 
 ### Stufe 3 — Lasten zeichnen
 

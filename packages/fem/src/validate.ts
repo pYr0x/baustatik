@@ -22,12 +22,16 @@
  *     eine Teilstruktur ohne jedes Auflager — steht als
  *     `UnsupportedComponentError` sehr wohl hier: sie ist garantiert singulaer,
  *     ohne dass dafuer etwas aufgestellt werden muesste.
- *   - Der Stab mit Gelenk an BEIDEN Enden. Fachlich ein Pendelstab und voellig
- *     zulaessig; erst die KETTE solcher Staebe ist kinematisch, und das braucht
- *     wieder das Gleichungssystem. Hier ausdruecklich erwaehnt, damit ihn
- *     niemand versehentlich verbietet. Dasselbe gilt fuer die freigesetzten
- *     VERSCHIEBUNGEN `u` und `w` (ADR 0017): ein Stab, der laengs gleitet,
- *     uebertraegt immer noch Querkraft und Moment.
+ *   - Der Stab mit MOMENTENgelenk an BEIDEN Enden. Fachlich ein Pendelstab und
+ *     voellig zulaessig; erst die KETTE solcher Staebe ist kinematisch, und das
+ *     braucht wieder das Gleichungssystem. Hier ausdruecklich erwaehnt, damit
+ *     ihn niemand versehentlich verbietet. Fuer die freigesetzten
+ *     VERSCHIEBUNGEN `u` und `w` (ADR 0017) gilt das nur an EINEM Ende: ein
+ *     Stab, der an einer Stelle laengs gleitet, uebertraegt immer noch
+ *     Querkraft und Moment. An BEIDEN Enden dieselbe Verschiebungsrichtung ist
+ *     dagegen ein elementinterner Mechanismus und steht als
+ *     `UnrestrainedBeamError` sehr wohl hier (M6) — der Fall faellt beim Loesen
+ *     naemlich nirgends auf, siehe die Begruendung an der Fehlerklasse.
  *   - Unbekannte `crossSectionId`/`materialId`. Dazu braeuchte die Pruefung die
  *     Kataloge; sie entsteht dort, wo die Steifigkeiten herkommen
  *     (`@baustatik/fem-solver`), als eigene Unterklasse von
@@ -40,6 +44,7 @@ import {
   type ModelValidationError,
   type ModelValidationWarning,
   UnknownNodeReferenceError,
+  UnrestrainedBeamError,
   UnsupportedComponentError,
   ZeroLengthBeamError,
 } from './errors';
@@ -132,6 +137,12 @@ export function validateModel(
     }
   }
 
+  // M6 — elementinterner Mechanismus. Braucht den Graphen nicht, nur die
+  // Freisetzungen des Stabs; die Herleitung steht an `UnrestrainedBeamError`.
+  for (const beam of beams) {
+    errors.push(...internalMechanisms(beam));
+  }
+
   // M5 — Knoten ohne jeden Stab.
   const isolated = isolatedNodeIds(nodes, beams);
   for (const node of nodes) {
@@ -141,6 +152,44 @@ export function validateModel(
   }
 
   return { errors, warnings };
+}
+
+/**
+ * Die elementinternen Mechanismen EINES Stabs (M6), axial vor quer.
+ *
+ * Zwei entkoppelte Bloecke, zwei Raenge, zwei Bedingungen — die Herleitung
+ * steht an `UnrestrainedBeamError`. Beide Befunde koennen zugleich auftreten,
+ * deshalb eine Liste und kein „erster Treffer".
+ */
+function internalMechanisms(beam: Beam): UnrestrainedBeamError[] {
+  const { start, end } = beam.releases ?? {};
+  const isReleased = (at: 'start' | 'end', dof: 'u' | 'w' | 'theta') =>
+    (at === 'start' ? start : end)?.[dof] === true;
+
+  /** Die freigesetzten Namen eines Blocks, in DOF-Reihenfolge. */
+  const releasedIn = (dofs: readonly ('u' | 'w' | 'theta')[]) =>
+    (['start', 'end'] as const)
+      .flatMap((at) => dofs.map((dof) => ({ at, dof })))
+      .filter(({ at, dof }) => isReleased(at, dof))
+      .map(({ at, dof }) => `${at}.${dof}`);
+
+  const errors: UnrestrainedBeamError[] = [];
+
+  // Der AXIALE Block [u1, u2] hat Rang 1: eine Kondensation traegt er.
+  if (isReleased('start', 'u') && isReleased('end', 'u')) {
+    errors.push(new UnrestrainedBeamError(beam.id, 'u', releasedIn(['u'])));
+  }
+
+  // Der QUER-Block [w1, theta1, w2, theta2] hat Rang 2: zwei Kondensationen
+  // traegt er. Das `w`-Paar raeumt ihn allerdings schon zu zweit leer — ein
+  // Stab, der an einer Stelle quer gleitet, traegt nirgends Querkraft.
+  const bending = releasedIn(['w', 'theta']);
+  const slidesCrosswise = isReleased('start', 'w') && isReleased('end', 'w');
+  if (slidesCrosswise || bending.length >= 3) {
+    errors.push(new UnrestrainedBeamError(beam.id, 'w', bending));
+  }
+
+  return errors;
 }
 
 /**

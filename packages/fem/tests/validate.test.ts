@@ -3,6 +3,7 @@ import {
   DuplicateSupportError,
   IsolatedNodeWarning,
   UnknownNodeReferenceError,
+  UnrestrainedBeamError,
   UnsupportedComponentError,
   ZeroLengthBeamError,
 } from '../src/errors';
@@ -187,6 +188,114 @@ describe('validateModel', () => {
       const result = validateModel([...nodes, node('frei', 9, 9)], beams, supports);
 
       expect(result.errors).toEqual([]);
+    });
+  });
+
+  describe('M6 — elementinterner Mechanismus', () => {
+    it('meldet `u` an beiden Stabenden', () => {
+      const { nodes, supports } = healthy();
+      const b = beam('b1', 'n1', 'n2');
+      b.releases = { start: { u: true }, end: { u: true } };
+
+      const { errors } = validateModel(nodes, [b], supports);
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toBeInstanceOf(UnrestrainedBeamError);
+      expect(errors[0]).toMatchObject({ beamId: 'b1', direction: 'u' });
+    });
+
+    it('meldet `w` an beiden Stabenden', () => {
+      const { nodes, supports } = healthy();
+      const b = beam('b1', 'n1', 'n2');
+      b.releases = { start: { w: true }, end: { w: true } };
+
+      const { errors } = validateModel(nodes, [b], supports);
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatchObject({ beamId: 'b1', direction: 'w' });
+    });
+
+    it('meldet BEIDE Richtungen, wenn beide doppelt freigesetzt sind', () => {
+      const { nodes, supports } = healthy();
+      const b = beam('b1', 'n1', 'n2');
+      b.releases = { start: { u: true, w: true }, end: { u: true, w: true } };
+
+      const { errors } = validateModel(nodes, [b], supports);
+
+      expect(errors.map((error) => (error as UnrestrainedBeamError).direction))
+        .toEqual(['u', 'w']);
+    });
+
+    it('meldet drei Freisetzungen aus dem Biegeblock ohne `w`-Paar', () => {
+      // Der Block [w1, theta1, w2, theta2] hat Rang 2: zwei Kondensationen
+      // traegt er, die dritte laeuft auf Pivot 0 — auch wenn `w` nur an EINEM
+      // Ende freigesetzt ist. Eine Regel, die bloss „dieselbe Richtung an
+      // beiden Enden" verbietet, laesst genau diesen Stab durch, und
+      // `evaluate` teilt danach durch null.
+      const { nodes, supports } = healthy();
+      const b = beam('b1', 'n1', 'n2');
+      b.releases = { start: { w: true, theta: true }, end: { theta: true } };
+
+      const { errors } = validateModel(nodes, [b], supports);
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toBeInstanceOf(UnrestrainedBeamError);
+      expect(errors[0]).toMatchObject({
+        beamId: 'b1',
+        direction: 'w',
+        released: ['start.w', 'start.theta', 'end.theta'],
+      });
+    });
+
+    it('meldet dasselbe spiegelbildlich am anderen Stabende', () => {
+      const { nodes, supports } = healthy();
+      const b = beam('b1', 'n1', 'n2');
+      b.releases = { start: { theta: true }, end: { w: true, theta: true } };
+
+      const { errors } = validateModel(nodes, [b], supports);
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatchObject({ direction: 'w' });
+    });
+
+    it('zaehlt `u` nicht in den Biegeblock', () => {
+      // Axial und Biegung sind entkoppelt. `u` an einem Ende plus zwei
+      // Momentengelenke ist der voellig gewoehnliche Pendelstab mit
+      // Laengsgleiten — zwei Freisetzungen im Biegeblock, nicht drei.
+      const { nodes, supports } = healthy();
+      const b = beam('b1', 'n1', 'n2');
+      b.releases = { start: { u: true, theta: true }, end: { theta: true } };
+
+      expect(validateModel(nodes, [b], supports).errors).toEqual([]);
+    });
+
+    it('laesst den Pendelstab (`theta` an beiden Enden) durch', () => {
+      // Nach der Kondensation von theta1 steht K[theta2][theta2] = 3EI/L != 0:
+      // kein Pivot 0, der Stab traegt weiter die Normalkraft. Wer die Regel auf
+      // `theta` ausdehnt, verbietet den Pendelstab mit.
+      const { nodes, supports } = healthy();
+      const b = beam('b1', 'n1', 'n2');
+      b.releases = { start: { theta: true }, end: { theta: true } };
+
+      expect(validateModel(nodes, [b], supports).errors).toEqual([]);
+    });
+
+    it('laesst `u` und `w` an EINEM Ende durch', () => {
+      // Ein Stab, der an einer Stelle laengs gleitet, uebertraegt immer noch
+      // Querkraft und Moment — das ist ein gewoehnliches Normalkraftgelenk.
+      const { nodes, supports } = healthy();
+      const b = beam('b1', 'n1', 'n2');
+      b.releases = { start: { u: true, w: true } };
+
+      expect(validateModel(nodes, [b], supports).errors).toEqual([]);
+    });
+
+    it('laesst verschiedene Richtungen an den beiden Enden durch', () => {
+      const { nodes, supports } = healthy();
+      const b = beam('b1', 'n1', 'n2');
+      b.releases = { start: { u: true }, end: { w: true } };
+
+      expect(validateModel(nodes, [b], supports).errors).toEqual([]);
     });
   });
 });

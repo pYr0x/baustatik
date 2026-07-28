@@ -44,16 +44,53 @@ export class BackwardsLoadSegmentError extends BaustatikError {
 }
 
 /**
- * `internalForces` ist ein bewusster Stub. Kein Teilausbau mit
- * Endkraft-Semantik: der waere an `x=0`/`x=L` richtig und dazwischen still
- * falsch.
+ * Ein freigesetzter Freiheitsgrad trifft bei der Kondensation ein Pivot, das
+ * gegenueber seinem unkondensierten Wert zusammengebrochen ist: das Element hat
+ * eine Starrkoerperbewegung IN SICH.
+ *
+ * Beispiele: `u` an beiden Enden (der Stab gleitet laengs), `w` an beiden Enden
+ * (er gleitet quer), oder drei Freisetzungen aus `w`/`theta` — der Biegeblock
+ * hat Rang 2 und traegt nur zwei. NICHT betroffen ist `theta` an beiden Enden,
+ * der Pendelstab: dort steht nach dem ersten Schritt `K[theta2][theta2] =
+ * 3EI/L != 0`, und der Stab uebertraegt weiter die Normalkraft. (Querkraft
+ * traegt er ohne Stablast nicht mehr — mit Momentengelenken an beiden Enden
+ * verlangt das Momentengleichgewicht dann `V = 0`. Das ist die Sache selbst
+ * und kein Mechanismus.)
+ *
+ * DAS ZWEITE TOR. `@baustatik/fem` beanstandet denselben Befund als
+ * `UnrestrainedBeamError` schon am Modell, aus der blossen
+ * Freisetzungskombination — statisch entscheidbar, weil sich `EA`, `EI`, `L`
+ * und `phi` in der Bedingung herauskuerzen. Dieses Package ist oeffentlich und
+ * darf sich darauf nicht verlassen; es MISST das Pivot.
  */
-export class InternalForcesNotImplementedError extends BaustatikError {
-  constructor() {
+export class UnrestrainedElementError extends BaustatikError {
+  /** Der Freiheitsgrad in der Schreibweise von `ElementReleases`. */
+  readonly dof: string;
+  readonly pivot: number;
+  readonly originalPivot: number;
+
+  constructor(dof: string, pivot: number, originalPivot: number) {
     super(
-      'internalForces: spaeteres Inkrement. Der Schnittgroessenverlauf ' +
-        'zwischen den Knoten braucht zusaetzlich die Partikulaerloesung ' +
-        'der Stablast; der Ersatzknotenvektor allein rekonstruiert ihn nicht.',
+      `Freisetzung "${dof}": das Pivot ist bei der Kondensation von ` +
+        `${originalPivot} auf ${pivot} zusammengebrochen — das Element hat ` +
+        'eine Starrkoerperbewegung in sich und traegt in dieser Richtung ' +
+        'nichts mehr. Ein Momentengelenk an beiden Enden (der Pendelstab) ' +
+        'ist davon nicht betroffen.',
     );
+    this.dof = dof;
+    this.pivot = pivot;
+    this.originalPivot = originalPivot;
+  }
+}
+
+/** Die Abfragestelle `x` liegt nicht auf dem Stab. */
+export class StationOutsideElementError extends BaustatikError {
+  readonly x: number;
+  readonly L: number;
+
+  constructor(x: number, L: number) {
+    super(`Auswertungsstelle liegt nicht in [0, ${L}] (war: ${x}).`);
+    this.x = x;
+    this.L = L;
   }
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   BackwardsLoadSegmentError,
-  InternalForcesNotImplementedError,
   InvalidElementInputError,
   InvalidShearStiffnessError,
   LoadOutsideElementError,
@@ -178,8 +177,8 @@ describe('Timoshenko2DIntegrated: K aus den Ansatzfunktionen', () => {
 
   it('liefert denselben Lastvektor wie die geschlossene Variante', () => {
     const load = fullSpanLoad(L, { qz: 4, my: 1.5 });
-    const a = Timoshenko2D.prepare(shear, L).consistentLoad(load);
-    const b = Timoshenko2DIntegrated.prepare(shear, L).consistentLoad(load);
+    const a = Timoshenko2D.prepare(shear, L).withLoad(load).consistentLoad();
+    const b = Timoshenko2DIntegrated.prepare(shear, L).withLoad(load).consistentLoad();
     for (let i = 0; i < 6; i++) expectClose(b[i], a[i], 1e-14);
   });
 });
@@ -246,7 +245,7 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
         { a: L, px: 0, pz: 4, my: 0 },
       ],
     };
-    const got = Timoshenko2D.prepare(rigid, L).consistentLoad(load);
+    const got = Timoshenko2D.prepare(rigid, L).withLoad(load).consistentLoad();
     const ref = ebConsistentLoad(load, rigid, L);
     for (let i = 0; i < 6; i++) expectClose(got[i], ref[i], 1e-12);
   });
@@ -256,13 +255,13 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
     const a = 1.1;
     const at = (x: number, v1: number, v2: number) =>
       v1 + ((v2 - v1) * x) / L;
-    const whole = el.consistentLoad({
+    const whole = el.withLoad({
       segments: [
         { from: 0, to: L, qx1: 2, qx2: 5, qz1: 3, qz2: -1, my1: 1.5, my2: 4 },
       ],
       points: [],
-    });
-    const split = el.consistentLoad({
+    }).consistentLoad();
+    const split = el.withLoad({
       segments: [
         {
           from: 0,
@@ -286,7 +285,7 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
         },
       ],
       points: [],
-    });
+    }).consistentLoad();
     for (let i = 0; i < 6; i++) expectClose(split[i], whole[i], 1e-12);
   });
 
@@ -297,7 +296,7 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
       ],
       points: [{ a: 1, px: 1.5, pz: 7, my: 2.5 }],
     };
-    const f = Timoshenko2D.prepare(shear, L).consistentLoad(load);
+    const f = Timoshenko2D.prepare(shear, L).withLoad(load).consistentLoad();
     const [seg] = load.segments;
     const span = seg.to - seg.from;
     const xm = (seg.from + seg.to) / 2;
@@ -317,7 +316,7 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
     const q = 4;
     const load = fullSpanLoad(L, { qz: q });
     for (const props of [rigid, shear]) {
-      const f = Timoshenko2D.prepare(props, L).consistentLoad(load);
+      const f = Timoshenko2D.prepare(props, L).withLoad(load).consistentLoad();
       expectClose(f[1], (q * L) / 2, 1e-12);
       expectClose(f[2], (q * L ** 2) / 12, 1e-12);
       expectClose(f[4], (q * L) / 2, 1e-12);
@@ -332,14 +331,14 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
     const el = Timoshenko2D.prepare(shear, L);
     const M = 3.5;
 
-    const atStart = el.consistentLoad({
+    const atStart = el.withLoad({
       segments: [],
       points: [{ a: 0, px: 0, pz: 0, my: M }],
-    });
-    const atEnd = el.consistentLoad({
+    }).consistentLoad();
+    const atEnd = el.withLoad({
       segments: [],
       points: [{ a: L, px: 0, pz: 0, my: M }],
-    });
+    }).consistentLoad();
 
     for (const [got, want] of [
       [atStart, [0, 0, M, 0, 0, 0]],
@@ -352,7 +351,7 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
   it('lehnt Lasten ausserhalb des Elements ab', () => {
     const el = Timoshenko2D.prepare(shear, L);
     expect(() =>
-      el.consistentLoad({
+      el.withLoad({
         segments: [
           {
             from: 0,
@@ -366,18 +365,18 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
           },
         ],
         points: [],
-      }),
+      }).consistentLoad(),
     ).toThrow(LoadOutsideElementError);
     expect(() =>
-      el.consistentLoad({ segments: [], points: [{ a: -0.1, px: 0, pz: 1, my: 0 }] }),
+      el.withLoad({ segments: [], points: [{ a: -0.1, px: 0, pz: 1, my: 0 }] }).consistentLoad(),
     ).toThrow(/Einzellast/);
     expect(() =>
-      el.consistentLoad({
+      el.withLoad({
         segments: [
           { from: 2, to: 1, qx1: 0, qx2: 0, qz1: 1, qz2: 1, my1: 0, my2: 0 },
         ],
         points: [],
-      }),
+      }).consistentLoad(),
     ).toThrow(BackwardsLoadSegmentError);
   });
 
@@ -392,28 +391,28 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
     // 1e-7 ist absolut groesser als 1e-9, relativ aber weit innerhalb
     // 1e-9 * 1000 = 1e-6. Vor der Umstellung haette das geworfen.
     expect(() =>
-      el.consistentLoad({
+      el.withLoad({
         segments: [],
         points: [{ a: longL + 1e-7, px: 0, pz: 1, my: 0 }],
-      }),
+      }).consistentLoad(),
     ).not.toThrow();
 
     // Ein echter Bereichsfehler faellt weiterhin durch.
     expect(() =>
-      el.consistentLoad({
+      el.withLoad({
         segments: [],
         points: [{ a: longL + 1e-3, px: 0, pz: 1, my: 0 }],
-      }),
+      }).consistentLoad(),
     ).toThrow(LoadOutsideElementError);
   });
 
   it('ignoriert entartete Segmente (from === to) ohne Division durch null', () => {
-    const f = Timoshenko2D.prepare(shear, L).consistentLoad({
+    const f = Timoshenko2D.prepare(shear, L).withLoad({
       segments: [
         { from: 1, to: 1, qx1: 9, qx2: 9, qz1: 9, qz2: 9, my1: 9, my2: 9 },
       ],
       points: [],
-    });
+    }).consistentLoad();
     for (const v of f) expect(v).toBe(0);
   });
 });
@@ -521,11 +520,3 @@ describe('Timoshenko2D: Vergleich gegen feinere Diskretisierung', () => {
   });
 });
 
-describe('Timoshenko2D: noch nicht implementiert', () => {
-  it('internalForces wirft mit Hinweis auf das spaetere Inkrement', () => {
-    const el = Timoshenko2D.prepare(shear, L);
-    expect(() =>
-      el.internalForces(1, [0, 0, 0, 0, 0, 0], noLoad),
-    ).toThrow(InternalForcesNotImplementedError);
-  });
-});

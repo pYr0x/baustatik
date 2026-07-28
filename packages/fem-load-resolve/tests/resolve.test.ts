@@ -185,7 +185,7 @@ describe('resolveLoads: Momente und ihr Drehsinn', () => {
     const f = Timoshenko2D.prepare(
       { EA: 1, EI: 1, GAs: 'rigid' },
       Line.length(HORIZONTAL),
-    ).consistentLoad(local ?? { segments: [], points: [] });
+    ).withLoad(local ?? { segments: [], points: [] }).consistentLoad();
 
     for (const [i, want] of [0, 0, -m, 0, 0, 0].entries()) {
       expect(f[i]).toBeCloseTo(want, 12);
