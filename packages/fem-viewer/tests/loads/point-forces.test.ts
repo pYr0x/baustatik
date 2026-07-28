@@ -1,64 +1,46 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Beam, Node } from '@baustatik/fem';
 import type { FEMLoad } from '@baustatik/fem-loads';
 import { UnknownLoadTargetError } from '@baustatik/fem-loads';
 import type { ArrowSpec, LabelSpec } from '@baustatik/render-core';
 import { validateSpecs } from '@baustatik/render-core';
-import { pan, screenPoint, viewport } from '@baustatik/viewport-2d';
+import { pan, type Viewport } from '@baustatik/viewport-2d';
 
-import { femSpecs } from '../src/scene';
-
-const vp1 = viewport(screenPoint(0, 0), 1);
-
-// a — b liegt waagrecht (L = 100), b — c faellt unter 45 Grad (L = 100 * √2).
-const nodeA: Node = { id: 'a', position: { x: 0, z: 0 } };
-const nodeB: Node = { id: 'b', position: { x: 100, z: 0 } };
-const nodeC: Node = { id: 'c', position: { x: 200, z: 100 } };
-
-const beamAB: Beam = {
-  id: 'ab',
-  startNodeId: 'a',
-  endNodeId: 'b',
-  crossSectionId: 'default',
-  materialId: 'default',
-};
-const beamBC: Beam = { ...beamAB, id: 'bc', startNodeId: 'b', endNodeId: 'c' };
+import {
+  beamAB,
+  beamBC,
+  drawingOf,
+  nodeA,
+  nodeB,
+  nodeC,
+  vp1,
+  vp4,
+} from './helpers';
 
 const NODES = [nodeA, nodeB, nodeC];
 const BEAMS = [beamAB, beamBC];
 const S = Math.SQRT1_2;
 
-function specsFor(
+const { specsFor, loadOnly, specById } = drawingOf(NODES, BEAMS);
+
+function arrow(
   loads: readonly FEMLoad[],
-  vp = vp1,
-): ReturnType<typeof femSpecs> {
-  return femSpecs({
-    nodes: NODES,
-    beams: BEAMS,
-    supports: [],
-    loads,
-    viewport: vp,
-  });
+  id: string,
+  vp: Viewport = vp1,
+): ArrowSpec {
+  const spec = specById<ArrowSpec>(loads, id, vp);
+  expect(spec.kind).toBe('arrow');
+  return spec;
 }
 
-// Nur die Lastspecs: `femSpecs` liefert immer die ganze Szene.
-function loadOnly(loads: readonly FEMLoad[], vp = vp1) {
-  return specsFor(loads, vp).filter((spec) => spec.id.startsWith('load:'));
-}
-
-function arrow(loads: readonly FEMLoad[], id: string, vp = vp1): ArrowSpec {
-  const spec = specsFor(loads, vp).find((s) => s.id === id);
-  expect(spec, `kein Spec mit id ${id}`).toBeDefined();
-  expect(spec?.kind).toBe('arrow');
-  return spec as ArrowSpec;
-}
-
-function label(loads: readonly FEMLoad[], id: string, vp = vp1): LabelSpec {
-  const spec = specsFor(loads, vp).find((s) => s.id === id);
-  expect(spec, `kein Spec mit id ${id}`).toBeDefined();
-  expect(spec?.kind).toBe('label');
-  return spec as LabelSpec;
+function label(
+  loads: readonly FEMLoad[],
+  id: string,
+  vp: Viewport = vp1,
+): LabelSpec {
+  const spec = specById<LabelSpec>(loads, id, vp);
+  expect(spec.kind).toBe('label');
+  return spec;
 }
 
 const nodeLoad = (fields: Partial<FEMLoad> & object = {}): FEMLoad =>
@@ -321,8 +303,6 @@ describe('Label', () => {
 });
 
 describe('Schema statt Abbild', () => {
-  const vp4 = viewport(screenPoint(0, 0), 4);
-
   it('keeps arrow length, pointer, font and gap screen-constant', () => {
     const at1 = arrow([nodeLoad()], 'load:nl:b:fz:arrow');
     const at4 = arrow([nodeLoad()], 'load:nl:b:fz:arrow', vp4);
@@ -367,13 +347,10 @@ describe('Szene bleibt gueltig', () => {
   });
 
   it('produces specs that pass render-core validation', () => {
-    const specs = femSpecs({
-      nodes: NODES,
-      beams: BEAMS,
-      supports: [],
-      loads: [nodeLoad({ fx: 3, fz: -4 }), beamPointLoad({ beamIds: ['ab', 'bc'] })],
-      viewport: vp1,
-    });
+    const specs = specsFor([
+      nodeLoad({ fx: 3, fz: -4 }),
+      beamPointLoad({ beamIds: ['ab', 'bc'] }),
+    ]);
 
     expect(() => validateSpecs(specs)).not.toThrow();
   });

@@ -15,11 +15,20 @@ The viewer is schematic: node radii, beam widths, and support symbol sizes use s
 **Signature:**
 
 ```typescript
-const FEM_LAYERS: readonly ['grid', 'supports', 'beams', 'nodes', 'loads'];
+const FEM_LAYERS: readonly [
+  'grid',
+  'supports',
+  'beams',
+  'nodes',
+  'hinges',
+  'loads',
+];
 type FEMLayer = (typeof FEM_LAYERS)[number];
 ```
 
-**Description:** The paint bands of a FEM scene in paint order — last is topmost. Pass this to the render driver at construction so nodes always draw above beams, supports draw behind beams/nodes, and loads draw above everything, guaranteeing correct z-ordering regardless of creation order.
+**Description:** The paint bands of a FEM scene in paint order — last is topmost. Pass this to the render driver at construction so nodes always draw above beams, supports draw behind beams/nodes, hinges draw above the nodes they sit next to, and loads draw above everything, guaranteeing correct z-ordering regardless of creation order.
+
+Hinges sit above `nodes` because a hinge is a white disc that has to read as a *hole* in the beam: drawn underneath, the node circle and the beam line would show through it and it would stop being a hinge.
 
 ### femSpecs()
 
@@ -36,7 +45,7 @@ function femSpecs(options: {
 }): readonly Spec[];
 ```
 
-**Description:** Pure mapping from model data to render-agnostic specs. Resolves each beam's and support's node references against `nodes`, maps structural coordinates (x, z) to world points (u, v) without sign flip, and assigns the corresponding layer bands (`beams`, `nodes`, `supports`, `loads`). Throws `UnknownNodeReferenceError` when an element references a non-existent node ID, and `UnknownLoadTargetError` (from `@baustatik/fem-loads`) when a load targets one.
+**Description:** Pure mapping from model data to render-agnostic specs. Resolves each beam's and support's node references against `nodes`, maps structural coordinates (x, z) to world points (u, v) without sign flip, and assigns the corresponding layer bands (`beams`, `nodes`, `hinges`, `supports`, `loads`). Throws `UnknownNodeReferenceError` when an element references a non-existent node ID, and `UnknownLoadTargetError` (from `@baustatik/fem-loads`) when a load targets one.
 
 A single options object rather than positional parameters: three `readonly X[]`
 in a row would otherwise sit next to each other, and a swapped pair would not
@@ -65,15 +74,22 @@ width — because the head carries the same stroke Konva's arrow head does.
 Distributed loads (line forces and line moments) are silently skipped for now, so
 an existing line load does not stop the rest from drawing.
 
-`FEMStyle` fields are optional and default to thin black beams (`'#000'`, 2px width), small red nodes (`'#f00'`, 4px radius), green support symbols (`'#0f0'`) and blue loads (`'#1d4ed8'` on a light `'#dbeafe'` label box):
+`FEMStyle` fields are optional and default to thin black beams (`'#000'`, 2px width), small red nodes (`'#f00'`, 4px radius), green support symbols (`'#0f0'`), white hinge discs with a black outline (3px radius) and blue loads (`'#1d4ed8'` on a light `'#dbeafe'` label box).
+
+It is the composition of two slices — `ModelStyle` for beams, nodes, hinges and supports, `LoadStyle` for forces and moments — resolved once and passed to both halves, so a single override object reaches the whole scene:
 
 ```typescript
-interface FEMStyle extends LoadStyle {
+interface FEMStyle extends ModelStyle, LoadStyle {}
+
+interface ModelStyle {
   readonly beamColor?: string;
   readonly beamWidthPx?: number;
   readonly nodeColor?: string;
   readonly nodeRadiusPx?: number;
   readonly nodeSupportColor?: string;
+  readonly hingeRadiusPx?: number;
+  readonly hingeInnerColor?: string;
+  readonly hingeStrokeColor?: string;
 }
 
 interface LoadStyle {
@@ -209,6 +225,6 @@ class UnsupportedSupportError extends BaustatikError {
 
 ## Notes
 
-- **Layer Ordering**: Passing `FEM_LAYERS` to the driver ensures that element specs are sorted correctly (`grid` -> `supports` -> `beams` -> `nodes` -> `loads`). Missing or invalid layer registrations throw `UnknownLayerError`.
+- **Layer Ordering**: Passing `FEM_LAYERS` to the driver ensures that element specs are sorted correctly (`grid` -> `supports` -> `beams` -> `nodes` -> `hinges` -> `loads`). Missing or invalid layer registrations throw `UnknownLayerError`.
 - **Coordinate Convention**: `z` points downwards in structural coordinates (`fem-geometry`), matching screen coordinate `v`.
 - **Spec Namespacing**: IDs are namespaced as `node:{id}`, `beam:{id}`, and `support:{id}` (plus child spec suffixes for supports). Loads use `load:{loadId}:{targetId}[:{component}]:arrow` and `…:label` for a force, `…:arc`, `…:head` and `…:label` for a moment, so the same load on several targets stays distinguishable.

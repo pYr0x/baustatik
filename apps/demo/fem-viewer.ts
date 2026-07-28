@@ -51,7 +51,7 @@ const useStore = defineStore('sections', {
             this.nodes.push({ id: crypto.randomUUID(), position });
         },
         addBeam(startNode: Node, endNode: Node, crossSectionId: string, materialId: string) {
-            this.beams.push({ id: crypto.randomUUID(), startNodeId: startNode.id, endNodeId: endNode.id, crossSectionId, materialId, releases: { start: { theta: true }, end: { theta: true } } });
+            this.beams.push({ id: crypto.randomUUID(), startNodeId: startNode.id, endNodeId: endNode.id, crossSectionId, materialId/*, releases: { start: { theta: true }, end: { theta: true } } */ });
         },
         addSupport(node: Node, ux: 'fixed' | 'free', uz: 'fixed' | 'free', phiY: 'fixed' | 'free') {
             this.supports.push({ id: crypto.randomUUID(), nodeId: node.id, ux, uz, phiY });
@@ -132,9 +132,10 @@ function requireActiveCase(loadCases: LoadCase[], activeLoadCaseId: string): Loa
 const store = useStore(pinia);
 
 store.addNode(Point.make(0, 0));
-store.addNode(Point.make(100, -50));
+store.addNode(Point.make(2, 0));
 store.addBeam(store.nodes[0], store.nodes[1], 'default', 'default');
 store.addSupport(store.nodes[0], 'fixed', 'fixed', 'free');
+store.addSupport(store.nodes[1], 'free', 'fixed', 'free');
 
 // Schraeger Stab als Sichttest: frame global/local und die Bezugslaengen
 // unterscheiden sich nur am schraegen Stab sichtbar.
@@ -158,7 +159,7 @@ store.addBeamLoad([store.beams[0]], {
     kind: 'force', distribution: 'point',
     frame: 'global', axis: 'z',
     p: 10,
-    distanceFromStart: 50,
+    distanceFromStart: 0.5,
 });
 
 // Einzelmoment auf dem Stab. Negativ, damit im Bild beide Drehsinne stehen:
@@ -166,7 +167,7 @@ store.addBeamLoad([store.beams[0]], {
 store.addBeamLoad([store.beams[0]], {
     kind: 'moment', distribution: 'point',
     m: -8,
-    distanceFromStart: 25,
+    distanceFromStart: 0.5,
 });
 
 // Schneelast auf den schrägen Stab, bezogen auf die horizontale Projektion.
@@ -200,7 +201,7 @@ const driver = createKonvaDriver({
 // 2. Viewer: Driver injizieren, Segmente per PULL aus dem Store.
 const viewer = createFEMViewer({
     driver,
-    initialViewport: viewport(screenPoint(stageSize.width / 2, stageSize.height / 2,), 5),
+    initialViewport: viewport(screenPoint(stageSize.width / 2, stageSize.height / 2,), 100),
     getNodes: () => store.nodes,
     getBeams: () => store.beams,
     getSupports: () => store.supports,
@@ -213,7 +214,7 @@ const viewer = createFEMViewer({
         return active === undefined ? [] : effectiveLoads(active);
     },
     getScreenSize: () => stageSize,
-    grid: { spacing: 10 }, // Weltkoordinaten; Segmente sind 60–100 Einheiten gross
+    grid: { spacing: 1 }, // Weltkoordinaten; Segmente sind 60–100 Einheiten gross
 });
 
 // 3. Einmal zeichnen. Pan/Zoom laeuft danach automatisch intern.
@@ -292,7 +293,7 @@ async function run(loadCaseId: string): Promise<void> {
 
     console.log('Auflagerkraft am ersten Knoten', result.reactions.get(store.nodes[0].id));
     console.log('Verschiebungen am ersten Knoten', result.displacements.get(store.nodes[0].id));
-    console.log('Verschiebungen am letzten Knoten', result.displacements.get(store.nodes[2].id));
+    console.log('Auflagerkraft am letzten Knoten', result.reactions.get(store.nodes[1].id));
 }
 
 // Alle Lastfaelle nacheinander — die zweite und letzte Rechenoperation. Bricht

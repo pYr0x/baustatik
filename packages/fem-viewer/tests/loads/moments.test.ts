@@ -1,28 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Beam, Node } from '@baustatik/fem';
 import type { FEMLoad } from '@baustatik/fem-loads';
 import { UnknownLoadTargetError } from '@baustatik/fem-loads';
 import type { ArcPathSpec, LabelSpec, PolygonSpec } from '@baustatik/render-core';
 import { validateSpecs } from '@baustatik/render-core';
-import { screenPoint, viewport } from '@baustatik/viewport-2d';
 
-import { femSpecs } from '../src/scene';
+import { beamAB, drawingOf, nodeA, nodeB, vp1, vp4 } from './helpers';
 
-const vp1 = viewport(screenPoint(0, 0), 1);
-const vp4 = viewport(screenPoint(0, 0), 4);
-
-const nodeA: Node = { id: 'a', position: { x: 0, z: 0 } };
-const nodeB: Node = { id: 'b', position: { x: 100, z: 0 } };
-
-const beamAB: Beam = {
-  id: 'ab',
-  startNodeId: 'a',
-  endNodeId: 'b',
-  crossSectionId: 'default',
-  materialId: 'default',
-};
-
+// Das Moment braucht keinen schraegen Stab: es dreht immer um y, `frame` und
+// `axis` gibt es fuer das Einzelmoment gar nicht.
 const NODES = [nodeA, nodeB];
 const BEAMS = [beamAB];
 
@@ -34,25 +20,7 @@ const POINTER_LENGTH = 10;
 // Hier steht die Absicht, nicht eine aus `moment.ts` abgeschriebene Zahl.
 const HEAD_SPAN = Math.atan(POINTER_LENGTH / RADIUS);
 
-function specsFor(loads: readonly FEMLoad[], vp = vp1) {
-  return femSpecs({
-    nodes: NODES,
-    beams: BEAMS,
-    supports: [],
-    loads,
-    viewport: vp,
-  });
-}
-
-function loadOnly(loads: readonly FEMLoad[], vp = vp1) {
-  return specsFor(loads, vp).filter((spec) => spec.id.startsWith('load:'));
-}
-
-function specById<T>(loads: readonly FEMLoad[], id: string, vp = vp1): T {
-  const spec = specsFor(loads, vp).find((s) => s.id === id);
-  expect(spec, `kein Spec mit id ${id}`).toBeDefined();
-  return spec as T;
-}
+const { specsFor, loadOnly, specById } = drawingOf(NODES, BEAMS);
 
 const arc = (loads: readonly FEMLoad[], id: string, vp = vp1) =>
   specById<ArcPathSpec>(loads, id, vp);

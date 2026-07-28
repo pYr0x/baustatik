@@ -36,10 +36,28 @@ magnitude.
 
 ## Navigation
 
-- [`src/scene.ts`](src/scene.ts): `femSpecs` — the pure model → spec mapping.
-- [`src/loads/`](src/loads): loads → specs, split along **two levels**: which load
-  produces which symbol, and what a symbol looks like. A new load kind therefore
-  touches the first level only, a changed symbol the second.
+`model/` and `loads/` are built the same way on purpose — each has an `index.ts`
+that only distributes, a `style.ts` holding its slice of the style, and one file
+per symbol. Both are split along **two levels**: which thing produces which
+symbol, and what that symbol looks like. A new kind therefore touches the first
+level only, a changed symbol the second.
+
+- [`src/scene.ts`](src/scene.ts): `femSpecs` — composition only, model + loads.
+- [`src/style.ts`](src/style.ts): `FEMStyle` and `DEFAULT_STYLE` — the two style
+  slices assembled, resolved once and handed to both halves.
+- [`src/model/`](src/model): model → specs.
+  - [`index.ts`](src/model/index.ts): `modelSpecs` — distribution, and the one
+    place that resolves node references.
+  - [`beam.ts`](src/model/beam.ts) / [`node.ts`](src/model/node.ts): the elements
+    themselves — line and circle.
+  - [`hinge.ts`](src/model/hinge.ts): the hinge symbol and where it sits, plus
+    `hasRelease` — the question "is there a hinge here?" belongs to the hinge.
+  - [`support.ts`](src/model/support.ts): **which** symbol a support case gets and
+    how it hangs off the node.
+  - [`support-symbols.ts`](src/model/support-symbols.ts): **what** those symbols
+    look like, in local coordinates.
+  - [`style.ts`](src/model/style.ts): the `ModelStyle` slice and its defaults.
+- [`src/loads/`](src/loads): loads → specs.
   - [`index.ts`](src/loads/index.ts): `loadSpecs` — distribution over the load kinds.
   - [`node-loads.ts`](src/loads/node-loads.ts) /
     [`beam-loads.ts`](src/loads/beam-loads.ts): what hangs where — targets,
@@ -50,8 +68,23 @@ magnitude.
     share — the label rule, the `LoadStyle` slice and its defaults.
 - [`src/layers.ts`](src/layers.ts): `FEM_LAYERS` paint bands and `FEMLayer` type.
 - [`src/viewer.ts`](src/viewer.ts): `createFEMViewer` — viewport state and driver wiring.
-- [`src/errors.ts`](src/errors.ts): `UnknownNodeReferenceError`.
+- [`src/errors.ts`](src/errors.ts): `UnknownNodeReferenceError`,
+  `UnsupportedSupportError`. Stays at the top level: it is the **package's**
+  error hierarchy, and `index.ts` exports both directly.
 - [`docs/usage.md`](docs/usage.md): canonical API usage documentation.
+
+Tests mirror this layout — `tests/model/`, `tests/loads/`, plus
+`tests/scene.test.ts` for what only exists once both halves meet (band coverage,
+ID uniqueness, one style object reaching both). Fixtures live in
+`tests/helpers.ts` and `tests/loads/helpers.ts`; the load side keeps its own
+because it needs a **skewed** beam, otherwise no test proves that the rotation
+into the beam frame happens at all.
+
+**Types live with the thing they belong to, and there is no `types.ts`.** The
+types here are option objects and style slices, not a vocabulary of their own —
+that comes from `@baustatik/fem`. A type earns its own file when someone needs it
+without the implementation; the style slices qualify because they also break the
+import cycle between the mappings and `scene.ts`.
 
 ## Invariants and conventions
 
@@ -68,24 +101,36 @@ magnitude.
   are therefore zoom-dependent local values that remain screen-constant.
 - **Paint bands guarantee z-order, array order does not**: renderers append newly
   built shapes, so a beam added after the nodes exist would otherwise draw over
-  them. `FEM_LAYERS` (`['grid','supports','beams','nodes','loads']`, last =
-  topmost) is passed to the driver at construction. Loads sit topmost because they
-  are the statement of the picture, and an arrow hidden by a beam is not one. The
-  tuple is simultaneously the name list, the type source and the z-order — one
-  declaration, one truth. Bands coarsen array order
-  rather than competing with it: band order wins between bands, array order still
-  applies within a band.
+  them. `FEM_LAYERS` (`['grid','supports','beams','nodes','hinges','loads']`,
+  last = topmost) is passed to the driver at construction. Loads sit topmost
+  because they are the statement of the picture, and an arrow hidden by a beam is
+  not one. Hinges sit above `nodes`: the hinge is a white disc that has to read
+  as a **hole** in the beam, and underneath the node circle it would stop being
+  one. The tuple is simultaneously the name list, the type source and the
+  z-order — one declaration, one truth. Bands coarsen array order rather than
+  competing with it: band order wins between bands, array order still applies
+  within a band.
 - **z points downwards, mapped directly onto v**: `@baustatik/fem` positions follow
   the structural convention (z downwards, loads act in +z) and screen `v` also
-  grows downwards, so `worldPoint(x, z)` needs no sign flip. `src/scene.ts` is the
-  single site of this mapping.
+  grows downwards, so `worldPoint(x, z)` needs no sign flip. Every `worldPoint`
+  call in the package follows this rule — there is no site that mirrors.
 - **Namespaced spec IDs**: `node:{id}` and `beam:{id}`, matching the `grid:`
   prefix. `validateSpecs` requires global uniqueness across all bands, and a node
-  and a beam may otherwise carry the same raw ID. Loads add the target and, for
+  and a beam may otherwise carry the same raw ID. A hinge names **both** the beam
+  and the node it sits at — `beam:{beamId}:hinge:{nodeId}` — because several beams
+  can meet hinged at one node, and the picture has to say *which* of them is
+  hinged. Loads add the target and, for
   node loads, the component: `load:{loadId}:{targetId}[:fx|:fz|:my]` plus the part
   of the symbol — `:arrow`/`:label` for a force, `:arc`/`:head`/`:label` for a
   moment. One load on several targets therefore stays distinguishable, which the
   fan-out needs.
+- **The hinge sits next to the node, not on it, and every release is the same
+  symbol**: it is offset two node radii along the beam axis, into its own beam.
+  Drawn *at* the node it would hide under the node circle, and at a node where
+  several beams meet hinged, all of them would coincide — the drawing would stop
+  saying which beam is hinged. `u`, `w` and `theta` all produce the same disc:
+  the viewer states **that** the beam connects hinged, not which component is
+  released. Telling them apart needs three symbols and an answer for combinations.
 - **Supports are grouped, screen-constant symbols**: every `NodeSupport` maps to
   one `GroupSpec` anchored at its node. Its symbol-specific translation and all
   child geometry are divided by the viewport scale together, so their visual
