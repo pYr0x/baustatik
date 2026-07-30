@@ -4,7 +4,7 @@ import {
 } from '@baustatik/fem';
 import {
   type FrameElement2DFormulation,
-  type SectionProperties,
+  type SectionStiffness,
   Timoshenko2D,
   Timoshenko2DIntegrated,
 } from '@baustatik/fem-element';
@@ -166,9 +166,9 @@ describe('solve — die Analyse-Einstellung', () => {
   /** Eine Formulierung, die nur festhaelt, WAS bei ihr ankommt. */
   function recording(): {
     formulation: FrameElement2DFormulation;
-    seen: SectionProperties[];
+    seen: SectionStiffness[];
   } {
-    const seen: SectionProperties[] = [];
+    const seen: SectionStiffness[] = [];
     const inner = fakeFormulation();
 
     return {

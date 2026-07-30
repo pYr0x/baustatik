@@ -21,7 +21,7 @@
 import type {
   LocalElementLoad,
   Matrix6,
-  SectionProperties,
+  SectionStiffness,
   Vector6,
 } from '../../src/types';
 
@@ -30,7 +30,7 @@ import type {
  * Biege-Hermite-Block EI/L^3 * [[12, 6L, -12, 6L], [6L, 4L^2, -6L, 2L^2],
  * [-12, -6L, 12, -6L], [6L, 2L^2, -6L, 4L^2]], eingeordnet in die 6 DOF.
  */
-export function ebStiffness(props: SectionProperties, L: number): Matrix6 {
+export function ebStiffness(props: SectionStiffness, L: number): Matrix6 {
   const { EA, EI } = props;
   const ka = EA / L;
   const kb = EI / (L * L * L);
@@ -55,7 +55,7 @@ export function ebStiffness(props: SectionProperties, L: number): Matrix6 {
  */
 export function ebConsistentLoad(
   load: LocalElementLoad,
-  _props: SectionProperties,
+  _props: SectionStiffness,
   L: number,
 ): Vector6 {
   const L2 = L * L;

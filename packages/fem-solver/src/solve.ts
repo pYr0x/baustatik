@@ -25,7 +25,7 @@ import type {
   ElementEvaluationState,
   LoadedElement,
   LocalElementLoad,
-  SectionProperties,
+  SectionStiffness,
 } from '@baustatik/fem-element';
 import { Line, Vector } from '@baustatik/fem-geometry';
 import { resolveLoads } from '@baustatik/fem-load-resolve';
@@ -302,7 +302,7 @@ export async function solveWith(
  * Steifigkeit und Ersatzknotenlast eines Stabs, kondensiert und mit seiner
  * Transformation.
  *
- * Der SCHUB-SCHALTER greift hier: `getSectionProperties` liefert immer eine
+ * Der SCHUB-SCHALTER greift hier: `getSectionStiffness` liefert immer eine
  * echte Schubsteifigkeit — jeder Querschnitt HAT eine —, und ob sie
  * beruecksichtigt wird, ist eine Entscheidung ueber die Analyse. Der
  * Querschnitt bleibt dabei unangetastet; ersetzt wird nur der Wert auf dem Weg
@@ -332,7 +332,7 @@ function prepareBeam(
   // ausgeschlossen, und `check()` die fehlenden Steifigkeiten.
   const axis = geometry.beamAxis(beam.id) as Line;
   const L = Line.length(axis);
-  const props = config.getSectionProperties(beam) as SectionProperties;
+  const props = config.getSectionStiffness(beam) as SectionStiffness;
 
   // DIE FREISETZUNGEN GEHEN MIT HINEIN, statt hier sechs `condense`-Aufrufe zu
   // veranlassen: `Beam['releases']` und `ElementReleases` sind formgleich, weil

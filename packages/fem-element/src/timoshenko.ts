@@ -49,7 +49,7 @@ import type {
   FrameElement2DFormulation,
   LocalElementLoad,
   PreparedElement,
-  SectionProperties,
+  SectionStiffness,
   Vector6,
 } from './types';
 
@@ -197,7 +197,7 @@ function createFormulation(
 ): FrameElement2DFormulation {
   return {
     prepare(
-      props: SectionProperties,
+      props: SectionStiffness,
       L: number,
       releases?: ElementReleases,
     ): PreparedElement {

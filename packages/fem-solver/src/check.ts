@@ -34,7 +34,7 @@ import { type ResolvedAnalysis, resolveAnalysis } from './analysis';
 import type { SolverConfig } from './config';
 import {
   LoadOnIsolatedNodeWarning,
-  UnknownSectionPropertiesError,
+  UnknownSectionStiffnessError,
 } from './errors';
 import { resolveLoadCase } from './resolve-load-case';
 
@@ -138,9 +138,9 @@ export function checkWith(
   // gehoert trotzdem zu den Modellfehlern — ein Stab ohne Steifigkeit ist kein
   // Rechenproblem, sondern ein unvollstaendiges Modell.
   for (const beam of beams) {
-    if (config.getSectionProperties(beam) === undefined) {
+    if (config.getSectionStiffness(beam) === undefined) {
       model.errors.push(
-        new UnknownSectionPropertiesError(
+        new UnknownSectionStiffnessError(
           beam.id,
           beam.crossSectionId,
           beam.materialId,

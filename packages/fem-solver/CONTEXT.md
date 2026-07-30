@@ -63,7 +63,7 @@ jeder Stelle beantworten. Die Biegelinie fehlt — siehe _Known constraints_.
   `assertValidLoads`, `LoadValidationWarning` als Erweiterungsstelle, und die
   Fehlerklassen, die unveraendert durchgereicht werden.
 - `@baustatik/fem-load-resolve` — `resolveLoads`.
-- `@baustatik/fem-element` — `Timoshenko2D`, `SectionProperties`, `Vector6`.
+- `@baustatik/fem-element` — `Timoshenko2D`, `SectionStiffness`, `Vector6`.
 - `@baustatik/fem-geometry` — `Line`, `Vector` fuer Stablaenge und Richtung.
 
 **Nicht dabei:** `@baustatik/linear-solver-wasm`, `@baustatik/cross-section`,
@@ -105,7 +105,7 @@ jeder Stelle beantworten. Die Biegelinie fehlt — siehe _Known constraints_.
   Werte. Jeder Aufruf sieht den aktuellen Stand. Dasselbe Muster wie im
   `fem-viewer`.
 - **Port** — eine Faehigkeit, die dieses Package bewusst nicht besitzt:
-  `getSectionProperties`, `solveLinearSystem`, `formulation`. Alle drei
+  `getSectionStiffness`, `solveLinearSystem`, `formulation`. Alle drei
   existieren aus EINEM Grund — Isolierbarkeit. Ohne sie waere ausgerechnet das
   Package, das die ganze Kette verdrahtet, nicht allein pruefbar.
 - **Lastfall** — die Einheit, die dieses Package rechnet: genau einer je
@@ -161,7 +161,7 @@ Entwurf:
 | Sorte                           | Beispiele                                                  | Wohnt in                | Persistiert     |
 | ------------------------------- | ---------------------------------------------------------- | ----------------------- | --------------- |
 | **Daten** — schreibbar als JSON | Toleranzen, Warnschwellen, `shearDeformation`              | `AnalysisPolicy`        | ja, versioniert |
-| **Faehigkeit** — ist Code       | `formulation`, `solveLinearSystem`, `getSectionProperties` | Ports in `SolverConfig` | nein            |
+| **Faehigkeit** — ist Code       | `formulation`, `solveLinearSystem`, `getSectionStiffness` | Ports in `SolverConfig` | nein            |
 
 `formulation` ist begrifflich sehr wohl eine Analyse-Einstellung — sie laesst
 sich nur nicht schreiben. Ein Funktionsobjekt hat keine JSON-Form. Dieselbe
@@ -425,5 +425,5 @@ mit den Grenzen, die aus ihm hervorgegangen sind, bewiese es nur sich selbst.
   bemerken ist Sache der Anwendung.
 - **Ein Stab = ein Element.** Kein Meshing; das Element ist fuer den geraden,
   prismatischen Stab exakt.
-- **Kein Querschnitts- und Materialkatalog.** `getSectionProperties` ist die
+- **Kein Querschnitts- und Materialkatalog.** `getSectionStiffness` ist die
   Naht dafuer; heute liefert die Anwendung feste Zahlen.

@@ -4,6 +4,10 @@ An **analysis setting** is anything that steers the computation without changing
 the model. A column's cross-section belongs to the model; whether its shear
 deformation is accounted for is a setting.
 
+> Renamed by [ADR 0020](0020-section-properties-versus-section-stiffness.md):
+> `getSectionProperties` is now `getSectionStiffness`. The original name is
+> kept below because this is a record of a decision, not API documentation.
+
 Analysis settings fall into **two kinds**, and that dividing line is the whole
 design:
 

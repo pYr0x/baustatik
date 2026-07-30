@@ -105,7 +105,7 @@ entschieden wurde.
 - **Die Hierarchie ist die Erweiterungsstelle.** Wer eine Modellregel braucht,
   die dieses Package nicht pruefen kann (weil ihr Wissen woanders liegt),
   leitet von `ModelValidationError` ab. `fem-solver` tut das mit
-  `UnknownSectionPropertiesError`. Der Bericht bleibt dadurch EINE Liste.
+  `UnknownSectionStiffnessError`. Der Bericht bleibt dadurch EINE Liste.
 
 ## Validation
 

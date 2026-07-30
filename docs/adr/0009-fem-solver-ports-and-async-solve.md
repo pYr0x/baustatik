@@ -11,6 +11,12 @@ solveLinearSystem:    (n, K, F) => Float64Array | Promise<Float64Array>
 formulation?:         FrameElement2DFormulation   // default Timoshenko2D
 ```
 
+> Renamed by [ADR 0020](0020-section-properties-versus-section-stiffness.md):
+> the port is now `getSectionStiffness` and its return type
+> `SectionStiffness`. The text below keeps the original names — it is a record
+> of a decision, not API documentation. Nothing about the port argument
+> changes; only the word does.
+
 > Amended by [ADR 0012](0012-kinematics-is-detected-by-the-solver.md):
 > `solveLinearSystem` no longer returns a bare `Float64Array` but a
 > `LinearSolveOutcome` — either the displacements or the finding that the system

@@ -12,7 +12,7 @@
  *           `shearDeformation`. Sie wohnen HIER, in der `AnalysisPolicy`, und
  *           werden versioniert persistiert.
  *   FAEHIGKEIT — ist Code. `formulation`, `solveLinearSystem`,
- *           `getSectionProperties`. Sie bleiben Ports in `SolverConfig`.
+ *           `getSectionStiffness`. Sie bleiben Ports in `SolverConfig`.
  *
  * `formulation` ist begrifflich sehr wohl eine Analyse-Einstellung — sie laesst
  * sich nur nicht schreiben. Ein Funktionsobjekt hat keine JSON-Form, und die
@@ -119,7 +119,7 @@ export type AnalysisPolicy = {
    * Ob die Schubverformung beruecksichtigt wird. Voreinstellung `true` — das
    * ist die native Betriebsart der Timoshenko-Formulierung.
    *
-   * Bei `false` ersetzt `solve()` das `GAs` aus `getSectionProperties` durch
+   * Bei `false` ersetzt `solve()` das `GAs` aus `getSectionStiffness` durch
    * `'rigid'`. Der QUERSCHNITT bleibt unangetastet: jeder Querschnitt HAT eine
    * Schubsteifigkeit, sie zu vernachlaessigen ist eine Entscheidung ueber die
    * ANALYSE (RSTAB-Konvention, vorweggenommen in `fem-element/src/types.ts`).

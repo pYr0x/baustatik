@@ -9,7 +9,7 @@
  */
 
 import { type Beam, type Node, type NodeSupport } from '@baustatik/fem';
-import { type SectionProperties } from '@baustatik/fem-element';
+import { type SectionStiffness } from '@baustatik/fem-element';
 import type { LoadCase } from '@baustatik/fem-loads';
 import {
   createAnalysisPolicy,
@@ -76,7 +76,7 @@ const Az = A * 5 / 6;
 // -> Schubweich = uz: 0.03810291225354625 | RSTAB: 38,1
 // -> Schubsteif = uz: 0.036363781818763645 | RSTAB: 36,4
 
-const SECTION: SectionProperties = { EA: E * A, EI: E * I, GAs: G * Az };
+const SECTION: SectionStiffness = { EA: E * A, EI: E * I, GAs: G * Az };
 
 /**
  * Die Analyse-Einstellungen dieser Rechnung — einmal gebaut, vollstaendig.
@@ -99,7 +99,7 @@ const solver = createFEMSolver({
   getBeams: () => beams,
   getSupports: () => supports,
   getLoadCases: () => [loadCase],
-  getSectionProperties: () => SECTION,
+  getSectionStiffness: () => SECTION,
   solveLinearSystem,
   analysisPolicy,
 });

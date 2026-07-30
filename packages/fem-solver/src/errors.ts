@@ -6,7 +6,7 @@
  *   - Zwei erweitern die HIERARCHIEN anderer Packages
  *     (`ModelValidationError` aus `@baustatik/fem`, `LoadValidationWarning` aus
  *     `@baustatik/fem-loads`). Sie gehoeren fachlich dorthin, koennen dort aber
- *     nicht wohnen: die eine braucht `SectionProperties`, das `fem` nicht kennt;
+ *     nicht wohnen: die eine braucht `SectionStiffness`, das `fem` nicht kennt;
  *     die andere braucht Modell UND Lasten, und keins der beiden Packages sieht
  *     beides. Die abstrakte Basisklasse ist genau dafuer die Erweiterungsstelle
  *     — der Bericht bleibt dadurch EINE Liste je Sorte.
@@ -68,13 +68,13 @@ function describeExcess(
  * Ein MODELLfehler, kein Rechenfehler: die `crossSectionId` oder `materialId`
  * des Stabs zeigt ins Leere. Er entsteht hier und nicht in `@baustatik/fem`,
  * weil nur dieses Package den Port kennt, der die Steifigkeiten liefert — `fem`
- * weiss nichts von `SectionProperties`.
+ * weiss nichts von `SectionStiffness`.
  *
  * WARUM ER IM BERICHT LANDET UND NICHT ERST IN `solve()`: sonst meldete
  * `check()` „ready" und `solve()` schluege trotzdem fehl. Genau diese
  * Zweideutigkeit soll der Bericht beseitigen.
  */
-export class UnknownSectionPropertiesError extends ModelValidationError {
+export class UnknownSectionStiffnessError extends ModelValidationError {
   readonly beamId: string;
   readonly crossSectionId: string;
   readonly materialId: string;

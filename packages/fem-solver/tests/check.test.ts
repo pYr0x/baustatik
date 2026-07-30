@@ -16,7 +16,7 @@ import { check } from '../src/check';
 import {
   LoadOnIsolatedNodeWarning,
   UnknownLoadCaseError,
-  UnknownSectionPropertiesError,
+  UnknownSectionStiffnessError,
 } from '../src/errors';
 import { createAnalysisPolicy } from '../src/policy';
 import { createFEMSolver } from '../src/solver';
@@ -171,11 +171,11 @@ describe('check — Steifigkeiten und Lasten auf stablosen Knoten', () => {
     // NICHT erst in solve(): sonst meldete check() „ready" und solve() schluege
     // trotzdem fehl — genau die Zweideutigkeit, gegen die der Bericht steht.
     const report = reportOver(readyStore(), {
-      getSectionProperties: () => undefined,
+      getSectionStiffness: () => undefined,
     });
 
     expect(report.state).toBe('invalid');
-    expect(report.model.errors[0]).toBeInstanceOf(UnknownSectionPropertiesError);
+    expect(report.model.errors[0]).toBeInstanceOf(UnknownSectionStiffnessError);
     expect(report.model.errors[0]).toMatchObject({
       beamId: 'b1',
       crossSectionId: 'default',

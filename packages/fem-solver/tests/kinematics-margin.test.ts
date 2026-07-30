@@ -31,7 +31,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
-import { type SectionProperties, Timoshenko2D } from '@baustatik/fem-element';
+import { type SectionStiffness, Timoshenko2D } from '@baustatik/fem-element';
 import type { FEMLoad, LoadCase } from '@baustatik/fem-loads';
 import { describe, expect, it } from 'vitest';
 import type { LinearSolveOutcome, SolverConfig } from '../src/config';
@@ -59,9 +59,9 @@ const G = 81e6;
 
 /**
  * Ein Querschnitt aus Katalogwerten. `Av` ist die Schubflaeche; `kappa` steckt
- * darin bereits, wie `SectionProperties.GAs` es verlangt.
+ * darin bereits, wie `SectionStiffness.GAs` es verlangt.
  */
-function steelSection(A: number, I: number, Av: number): SectionProperties {
+function steelSection(A: number, I: number, Av: number): SectionStiffness {
   return { EA: E * A, EI: E * I, GAs: G * Av };
 }
 
@@ -70,7 +70,7 @@ function steelSection(A: number, I: number, Av: number): SectionProperties {
  * Verstaerkungsfaktor der Ausloeschung ist `A*L^2/I`, und `A/I` unterscheidet
  * die drei um Faktor 20.
  */
-const SECTIONS: readonly { name: string; props: SectionProperties }[] = [
+const SECTIONS: readonly { name: string; props: SectionStiffness }[] = [
   { name: 'IPE 80', props: steelSection(7.64e-4, 80.1e-8, 3.58e-4) },
   { name: 'HEB 200', props: steelSection(78.1e-4, 5696e-8, 24.83e-4) },
   { name: 'HEB 600', props: steelSection(270e-4, 171000e-8, 83.8e-4) },
@@ -165,7 +165,7 @@ type System = {
   beams: Beam[];
   supports: NodeSupport[];
   loads: FEMLoad[];
-  props: SectionProperties;
+  props: SectionStiffness;
 };
 
 /** Ein Systembauer vor der Wahl von Querschnitt und Laenge. */
@@ -646,7 +646,7 @@ function configFor(system: System, probe: PivotProbe): SolverConfig {
     getBeams: () => system.beams,
     getSupports: () => system.supports,
     getLoadCases: () => [loadCase],
-    getSectionProperties: () => system.props,
+    getSectionStiffness: () => system.props,
     solveLinearSystem: probingGaussSolve(probe),
     // ECHTE Formulierung MIT Schub — die Betriebsart der Anwendung. Ohne sie
     // faehrte die Messung an dem Effekt vorbei, den sie messen soll.

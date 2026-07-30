@@ -145,7 +145,7 @@ const solver = createFEMSolver({
   getBeams: () => store.beams,
   getSupports: () => store.supports,
   getLoadCases: () => store.loadCases,
-  getSectionProperties: () => ({ EA: 1e6, EI: 1000, GAs: 500 }),
+  getSectionStiffness: () => ({ EA: 1e6, EI: 1000, GAs: 500 }),
   solveLinearSystem,
 });
 

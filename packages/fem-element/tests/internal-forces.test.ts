@@ -25,15 +25,15 @@ import type {
   ElementEvaluationState,
   ElementReleases,
   LocalElementLoad,
-  SectionProperties,
+  SectionStiffness,
   Vector6,
 } from '../src/types';
 import { solveDense } from './references/chain';
 import { expectClose } from './helpers';
 
 const L = 3;
-const rigid: SectionProperties = { EA: 1e5, EI: 2e4, GAs: 'rigid' };
-const shear: SectionProperties = { EA: 1e5, EI: 2e4, GAs: 5e4 };
+const rigid: SectionStiffness = { EA: 1e5, EI: 2e4, GAs: 'rigid' };
+const shear: SectionStiffness = { EA: 1e5, EI: 2e4, GAs: 5e4 };
 const noLoad: LocalElementLoad = { segments: [], points: [] };
 
 /** Eine konstante Streckenlast ueber die volle Laenge. */
@@ -52,7 +52,7 @@ function span(
 }
 
 type Case = {
-  props?: SectionProperties;
+  props?: SectionStiffness;
   Le?: number;
   load?: LocalElementLoad;
   /** Gesperrte lokale Freiheitsgrade, Indizes 0..5. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LocalElementLoad, SectionProperties } from '../src/types';
+import type { LocalElementLoad, SectionStiffness } from '../src/types';
 import {
   expectClose,
   expectThreeRigidBodyModes,
@@ -11,7 +11,7 @@ import {
 } from './helpers';
 import { ebConsistentLoad, ebStiffness } from './references/euler-bernoulli';
 
-const props: SectionProperties = { EA: 1e5, EI: 2e4, GAs: 'rigid' };
+const props: SectionStiffness = { EA: 1e5, EI: 2e4, GAs: 'rigid' };
 const L = 3;
 
 describe('EB-Referenz: Steifigkeit', () => {

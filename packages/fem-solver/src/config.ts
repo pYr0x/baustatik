@@ -23,7 +23,7 @@
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type {
   FrameElement2DFormulation,
-  SectionProperties,
+  SectionStiffness,
 } from '@baustatik/fem-element';
 import type { LoadCase } from '@baustatik/fem-loads';
 import type { AnalysisPolicy } from './policy';
@@ -102,7 +102,7 @@ export interface SolverConfig {
    * exportiert nur den Typ `Segment`, Flaeche und Traegheitsmoment rechnet
    * nirgends jemand aus. Der Port ist die Naht, an der er einsteckt.
    */
-  getSectionProperties: (beam: Beam) => SectionProperties | undefined;
+  getSectionStiffness: (beam: Beam) => SectionStiffness | undefined;
 
   /** Der Linearsolver. Verdrahtet die Anwendung — hier ist er nur ein Aufruf. */
   solveLinearSystem: LinearSolve;

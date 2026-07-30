@@ -21,7 +21,7 @@ Inkremente: die Biegelinie (der Platz dafuer ist in
 
 - Owns: das Interface `FrameElement2DFormulation` / `PreparedElement` /
   `LoadedElement`, die lokalen Typen (`Vector6`, `Matrix6`,
-  `SectionProperties`, `LocalElementLoad`, `ElementReleases`,
+  `SectionStiffness`, `LocalElementLoad`, `ElementReleases`,
   `ElementEvaluationState`, `SectionForces`), die element-eigene Mathematik
   (K, f_e, Ansatzfunktionen, Kondensation und ihre Umkehrung, Schnittgroessen),
   die hand-gerollte 6x6-Arithmetik.
@@ -30,7 +30,7 @@ Inkremente: die Biegelinie (der Platz dafuer ist in
   ORCHESTRIERUNG der Kondensation — welcher Stab welche Freisetzungen hat, sagt
   der Solver und reicht es als Argument durch; die Aufloesung
   `BeamLoad -> LocalElementLoad` (`fem-load-resolve`); den Bau der
-  `SectionProperties` aus material x cross-section (separater Adapter); die
+  `SectionStiffness` aus material x cross-section (separater Adapter); die
   globale Analyse-Einstellung, ob Schub beruecksichtigt wird.
 
 ## Dependencies

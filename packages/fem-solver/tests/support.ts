@@ -11,14 +11,14 @@ import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type {
   FrameElement2DFormulation,
   Matrix6,
-  SectionProperties,
+  SectionStiffness,
   Vector6,
 } from '@baustatik/fem-element';
 import type { FEMLoad, LoadCase } from '@baustatik/fem-loads';
 import type { LinearSolveOutcome, SolverConfig } from '../src/config';
 import { createAnalysisPolicy } from '../src/policy';
 
-export const STIFF: SectionProperties = { EA: 1e6, EI: 1000, GAs: 500 };
+export const STIFF: SectionStiffness = { EA: 1e6, EI: 1000, GAs: 500 };
 
 export function node(id: string, x: number, z: number): Node {
   return { id, position: { x, z } };
@@ -223,7 +223,7 @@ export function configOver(
         ...(store.factor === undefined ? {} : { factor: store.factor }),
       },
     ],
-    getSectionProperties: () => STIFF,
+    getSectionStiffness: () => STIFF,
     solveLinearSystem: gaussSolve,
     analysisPolicy: createAnalysisPolicy({ shearDeformation: false }),
     ...overrides,

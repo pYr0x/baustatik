@@ -20,7 +20,7 @@
 import type {
   FrameElement2DFormulation,
   LocalElementLoad,
-  SectionProperties,
+  SectionStiffness,
 } from '../../src/types';
 
 export type Chain = {
@@ -37,7 +37,7 @@ export type Chain = {
  */
 export function assembleChain(
   formulation: FrameElement2DFormulation,
-  props: SectionProperties,
+  props: SectionStiffness,
   lengths: number[],
   loads: LocalElementLoad[] = [],
 ): Chain {

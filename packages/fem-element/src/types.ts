@@ -68,6 +68,12 @@ export type Matrix6 = readonly [
  * `material` x `cross-section` EINMAL berechnet. Die Element-Mathematik
  * importiert nie material/cross-section, sondern rechnet nur mit diesen Zahlen.
  *
+ * HIESS FRUEHER `SectionProperties` — der Name ist an `cross-section`
+ * abgegeben. Was jede Profiltabelle *section properties* nennt, sind `A`, `Iy`,
+ * `Wel`, `Sy`: Geometrie ohne Material. Hier stehen Steifigkeiten, also
+ * Geometrie MAL Material. Zwei Begriffe, ein Name waere die teuerste
+ * Verwechslung im FEM-Strang (siehe ADR 0020).
+ *
  * `GAs` = kappa*G*A ist die EINE effektive Schubsteifigkeit (kappa steckt schon
  * drin), damit kappa nicht doppelt angewendet wird. Der schubstarre Fall
  * (Schub vernachlaessigen, φ=0) wird ausgedrueckt durch:
@@ -87,7 +93,7 @@ export type Matrix6 = readonly [
  * (RSTAB-Konvention) und lebt spaeter im Adapter/fem-solver. Dieses Package
  * weiss davon nichts; es sieht nur das fertige `GAs` pro Element.
  */
-export type SectionProperties = {
+export type SectionStiffness = {
   /** Dehnsteifigkeit E*A [kN]. */
   EA: number;
   /** Biegesteifigkeit E*I [kNm^2]. */
@@ -300,7 +306,7 @@ export type PreparedElement = {
  */
 export type FrameElement2DFormulation = {
   prepare(
-    props: SectionProperties,
+    props: SectionStiffness,
     L: number,
     releases?: ElementReleases,
   ): PreparedElement;

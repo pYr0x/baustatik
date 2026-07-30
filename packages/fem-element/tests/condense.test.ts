@@ -12,11 +12,11 @@
 import { describe, expect, it } from 'vitest';
 import { UnrestrainedElementError } from '../src/errors';
 import { Timoshenko2D, Timoshenko2DIntegrated } from '../src/timoshenko';
-import type { ElementReleases, SectionProperties } from '../src/types';
+import type { ElementReleases, SectionStiffness } from '../src/types';
 
 const L = 3;
-const rigid: SectionProperties = { EA: 1e5, EI: 2e4, GAs: 'rigid' };
-const shear: SectionProperties = { EA: 1e5, EI: 2e4, GAs: 5e4 };
+const rigid: SectionStiffness = { EA: 1e5, EI: 2e4, GAs: 'rigid' };
+const shear: SectionStiffness = { EA: 1e5, EI: 2e4, GAs: 5e4 };
 
 /** Die Kombinationen, die den jeweiligen Block leerraeumen. */
 const mechanisms: [string, ElementReleases][] = [

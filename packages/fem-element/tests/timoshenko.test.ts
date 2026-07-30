@@ -7,7 +7,7 @@ import {
 } from '../src/errors';
 import { shapeFunctionsAt } from '../src/shape-functions';
 import { Timoshenko2D, Timoshenko2DIntegrated } from '../src/timoshenko';
-import type { LocalElementLoad, SectionProperties } from '../src/types';
+import type { LocalElementLoad, SectionStiffness } from '../src/types';
 import {
   assembleChain,
   chainResidual,
@@ -27,8 +27,8 @@ import {
 } from './helpers';
 
 const L = 3;
-const shear: SectionProperties = { EA: 1e5, EI: 2e4, GAs: 5e4 };
-const rigid: SectionProperties = { EA: 1e5, EI: 2e4, GAs: 'rigid' };
+const shear: SectionStiffness = { EA: 1e5, EI: 2e4, GAs: 5e4 };
+const rigid: SectionStiffness = { EA: 1e5, EI: 2e4, GAs: 'rigid' };
 /** phi = 12*EI/(GAs*L^2) = 12*2e4/(5e4*9). */
 const PHI = (12 * shear.EI) / (5e4 * L * L);
 
@@ -419,7 +419,7 @@ describe('Timoshenko2D: konsistenter Lastvektor', () => {
 
 describe('Timoshenko2D: Kragarm und Locking', () => {
   /** Freies Ende eines Kragarms: DOF 4 (w2) und 5 (theta2). */
-  function tipDeflection(props: SectionProperties, Le: number, P: number) {
+  function tipDeflection(props: SectionStiffness, Le: number, P: number) {
     const K = Timoshenko2D.prepare(props, Le).stiffness();
     return solve2(K[4][4], K[4][5], K[5][4], K[5][5], P, 0).x;
   }

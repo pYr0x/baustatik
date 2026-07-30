@@ -61,7 +61,7 @@ Umrechnung `lokale Last → f_e` ist eine **Methode der Elementformulierung**.
 | `@baustatik/fem-loads`                                                | Last-Eingabemodell + validate — **existiert**, bleibt theorie- und f_e-frei                                                                                                                                                                                               | (später `fem-geometry`)                             |
 | `@baustatik/fem-geometry`                                             | x/z-Geometrie (z abwärts) — **existiert**                                                                                                                                                                                                                                 | core, errors, geometry-2d                           |
 | **`@baustatik/fem-load-resolve`** _(neu)_                             | Schritt A: `BeamLoad` → lokale Streckenlast `{qx(x), qz(x), my(x)}` + Einzellasten `{px, pz, my}@a` je Element; frame-Drehung, Projektion (`referenceLength`), Teillast-Split                                                                                             | `fem-loads`, `fem-geometry`, `fem`                  |
-| **`@baustatik/fem-element`** _(neu — „das Paket aus allem")_          | `FrameElement2DFormulation`-Interface; `EulerBernoulli2D`, `Timoshenko2D`: Kinematik, N_u/N_w/N_θ, lokale K, konsistenter f_e, Schnittgrößen; Gauß-Integration                                                                                                            | nur `SectionProperties` + interner 6×6-Matrixcode   |
+| **`@baustatik/fem-element`** _(neu — „das Paket aus allem")_          | `FrameElement2DFormulation`-Interface; `EulerBernoulli2D`, `Timoshenko2D`: Kinematik, N_u/N_w/N_θ, lokale K, konsistenter f_e, Schnittgrößen; Gauß-Integration                                                                                                            | nur `SectionStiffness` + interner 6×6-Matrixcode   |
 | **`@baustatik/fem-solver`** _(neu — ersetzt Platzhalter `solver-2d`)_ | Schritt C: Transformation, Assemblierung, BC, `K d = F` **aufbauen**, Reaktionen `R = Kd − F`, statische Kondensation für Releases (K **und** f gemeinsam). **Struktur-Löser** (direkte Steifigkeitsmethode); die reine Lineare Algebra `K d = F` liegt in `linalg-wasm`. | `fem`, `fem-element` (nur Interface), `linalg-wasm` |
 | **`@baustatik/linalg-wasm`** _(neu)_                                  | Nur `solve(n, K, F) → d`: dichter/dünnbesetzter Linear-Solver in **Rust (faer)**, zu **WASM** kompiliert. Kennt keine FEM-Begriffe, nur Zahlen (`Float64Array`).                                                                                                          | — (isolierter Rust/WASM-Build)                      |
 
@@ -79,7 +79,7 @@ ist EB der Grenzübergang φ→0 des locking-freien Timoshenko-IIE-Elements: die
 IIE-Ansatzfunktionen gehen exakt in die Hermite-Polynome über, `1+φ=1` (keine
 Division durch null). Produktiv gibt es daher **nur** `Timoshenko2D`. „EB" als
 Modellierungswunsch heißt „Schub vernachlässigen" = φ=0 erzwingen; dafür genügt
-ein schubstarres Flag / schubstarre `SectionProperties` (κGA=∞), **kein** eigenes
+ein schubstarres Flag / schubstarre `SectionStiffness` (κGA=∞), **kein** eigenes
 Element. Optional darf ein dünner `EulerBernoulli2D`-Wrapper das Interface
 erfüllen, indem er die Timoshenko-Mathematik mit φ=0 aufruft — nie mit kopierten
 Formeln. Die geschlossene EB-K (Hermite) wird trotzdem hergeleitet, aber
@@ -103,22 +103,22 @@ Kondensation ohne WASM testbar.
 
 ```ts
 interface FrameElement2DFormulation {
-  localStiffness(props: SectionProperties, L: number): Matrix6;
+  localStiffness(props: SectionStiffness, L: number): Matrix6;
   consistentLoad(
     load: LocalElementLoad,
-    props: SectionProperties,
+    props: SectionStiffness,
     L: number,
   ): Vector6; // = Ersatzknotenlast
   internalForces(
     x: number,
     dLocal: Vector6,
     load: LocalElementLoad,
-    props: SectionProperties,
+    props: SectionStiffness,
     L: number,
   ): { N: number; V: number; M: number };
   shapeFunctions(
     x: number,
-    props: SectionProperties,
+    props: SectionStiffness,
     L: number,
   ): { Nu: number[]; Nw: number[]; Ntheta: number[] };
 }
@@ -146,7 +146,7 @@ transformiert und assembliert.
 | Schnittgrößen                 | `s_e = K_e d_e − f_e^Stablast`; Originallast zusätzlich speichern                                                                                                                                      | Ersatzknotenvektor allein rekonstruiert den Verlauf zwischen den Knoten nicht                                                                                                                                                                             |
 | Releases                      | K **und** f gemeinsam statisch kondensieren                                                                                                                                                            | nur K zu ändern wäre falsch; liegt im Element (f-Anteil)                                                                                                                                                                                                  |
 | Gauß                          | 3 Punkte pro stetigem Lastabschnitt (exakt bis Grad 5); an Lastsprüngen splitten; Punktlasten durch Auswertung N(a), nicht integrieren                                                                 | reicht für konstante + linear veränderliche Lasten                                                                                                                                                                                                        |
-| `SectionProperties`           | Typ in `fem-element`; Builder `sectionProperties(material, section)` in **separatem Adapter**                                                                                                          | Element-Mathematik importiert nie `material`/`cross-section`; κGA wird einmal berechnet                                                                                                                                                                   |
+| `SectionStiffness`           | Typ in `fem-element`; Builder `resolveSectionStiffness(...)` in **separatem Adapter**                                                                                                          | Element-Mathematik importiert nie `material`/`cross-section`; κGA wird einmal berechnet                                                                                                                                                                   |
 | Matrix/Solver                 | Element: hand-gerollte 6×6, keine externe Dep. Globaler Linear-Solver: **Rust (faer) → WASM** in `linalg-wasm`, nur der reine Solve; Assemblierung bleibt in TS (`fem-solver`)                         | einzige Stelle, die eine LA-Abhängigkeit rechtfertigt; Domänenlogik ohne WASM testbar                                                                                                                                                                     |
 | `fem-1d`/`fem-2d`             | **kein** 1D/2D-Element-Split wiederbeleben                                                                                                                                                             | ein 2D-Rahmenelement mit 6 DOF; der 1D-Durchlaufträger ist die Teilmenge ohne Neigung                                                                                                                                                                     |
 | `solver-2d`                   | Platzhalter mit `fem-solver` befüllen oder umbenennen                                                                                                                                                  | war ohne `package.json`                                                                                                                                                                                                                                   |
@@ -218,7 +218,7 @@ Kragarm-Referenz Timoshenko: `w(L) = PL³/(3EI) + PL/S` (2. Term = Schubanteil).
 3. `fem-solver`: Transformation, Assemblierung, BC, Reaktionen — gegen das
    Interface, theoriefrei. Der reine Solve `K d = F` wird an `linalg-wasm`
    (Rust/faer→WASM) delegiert; in Node zunächst mit Mock-Solver testbar.
-4. `SectionProperties`-Adapter (`material` × `cross-section`), κGA einmal.
+4. `SectionStiffness`-Adapter (`material` × `cross-section`), κGA einmal.
 5. `fem-load-resolve`: Schritt A mit `fem-geometry` (frame, Projektion, Split).
 6. `Timoshenko2D` als **einziges Produktivelement**: φ, locking-freie K,
    gekoppelte N_w(x,φ)/N_θ(x,φ), konsistenter f_e ausschließlich mit diesen N.
@@ -233,7 +233,7 @@ Kragarm-Referenz Timoshenko: `w(L) = PL³/(3EI) + PL/S` (2. Term = Schubanteil).
 1. `packages/fem-element/` anlegen nach dem Muster von `packages/fem-loads/`
    (`package.json`, `tsconfig.json`, `vite.config.ts`, `.oxlintrc.json`,
    `.oxfmtrc.json`, `src/index.ts`, `CONTEXT.md`).
-2. `src/types.ts`: `SectionProperties`, `LocalElementLoad`, `Vector6`, `Matrix6`,
+2. `src/types.ts`: `SectionStiffness`, `LocalElementLoad`, `Vector6`, `Matrix6`,
    `FrameElement2DFormulation`.
 3. Zeilen in der Tabelle in `AGENTS.md` ergänzen (vier neue Packages:
    `fem-load-resolve`, `fem-element`, `fem-solver`, `linalg-wasm`), Platzhalter

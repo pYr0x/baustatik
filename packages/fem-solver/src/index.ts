@@ -15,7 +15,7 @@ export {
   SolveWarning,
   UnknownBeamError,
   UnknownLoadCaseError,
-  UnknownSectionPropertiesError,
+  UnknownSectionStiffnessError,
   UnrestrainedDegreeOfFreedomError,
   UnsupportedAnalysisPolicySchemaVersionError,
 } from './errors';
