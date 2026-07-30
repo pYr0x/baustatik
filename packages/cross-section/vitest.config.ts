@@ -13,7 +13,7 @@ export default defineConfig({
       {
         test: {
           name: { label: 'Unit', color: 'green' },
-          include: ['test/node/**/*.test.ts', 'src/**/*.test.ts'],
+          include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
           exclude: ['**/*.browser.test.ts'],
           environment: 'node',
         },
@@ -21,7 +21,7 @@ export default defineConfig({
       {
         test: {
           name: { label: 'Browser', color: 'blue' },
-          include: ['test/browser/**/*.browser.test.ts'],
+          include: ['tests/browser/**/*.browser.test.ts'],
           browser: {
             enabled: true,
             provider: playwright(),
