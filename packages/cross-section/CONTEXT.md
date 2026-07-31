@@ -120,6 +120,75 @@ laeuft im FEM-Strang durch den Port `getSectionStiffness`, und dort ist
 `undefined` bereits der Vertrag fuer „Querschnitt unbekannt" — daraus wird ein
 Modellfehler **im Bericht** statt einer Ausnahme mitten in `solve()`.
 
+## Spannungspunkte: Regel statt Liste
+
+> **Jede Vorlage enthaelt mindestens alle Ecken der Umrissfigur und den
+> Schwerpunkt.**
+
+| Form | Punkte | |
+| --- | --- | --- |
+| `rectangle` | **5** | 4 Ecken + Schwerpunkt |
+| `t-beam` | **9** | 8 Ecken + Schwerpunkt |
+| `i-symmetric` (geschweisst) | **15** | 12 Ecken + Schwerpunkt + 2 auf der Stegachse `(0, ±h/2)` |
+| Walzprofil (IPE/HEA) | **13** | RSTAB: 5 + 5 Gurt, 2 Steganfang, 1 Schwerpunkt |
+
+Was die Regel erledigt: beim **Plattenbalken mit breitem Gurt** kann die
+Nulllinie *im Gurt* liegen (`bf=2,0 / hf=0,2 / bw=0,25 / h=0,5` → `zs = 0,1395`
+bei `hf = 0,2`). „Schwerpunkt" trifft das ohne Sonderfall und liefert dort
+`t = bf`; „Mitte Steg" haette den Punkt an die falsche Stelle gesetzt. Und beim
+**Rechteck** haben die vier Ecken allein ueberall `S = 0`; das Maximum
+`b·h²/8` sitzt auf halber Hoehe.
+
+Dass das Walzprofil bei RSTABs 13 bleibt und die Gurtunterseiten-Ecken auslaesst,
+ist eine **begruendete Ausnahme**: bei homogenem Querschnitt koennen sie nie
+massgebend werden (gleiches `y`, kleineres `|z|` als die Gurtspitze darueber),
+und die Nummerierung ist gedruckt. Geschweisstes I (15) und gewalztes IPE (13)
+lesen sich damit bewusst verschieden — es sind zwei Formen.
+
+**Die Nummerierung ist ein veroeffentlichter Vertrag.** RSTAB druckt „S-Punkt
+Nr. 1…13" (1–5 oberer Gurt von links, 6–10 unterer, 11/12 Steganfang, 13
+Schwerpunkt). Wir uebernehmen sie; ein Test haelt fest, welche Nummer wo sitzt,
+bevor der erste Bericht sie druckt.
+
+`t` ist die **massgebende** Breite: an einer Sprungstelle (Gurtunterkante) gilt
+die **kleinere** der beiden, weil die Schubspannung dort nach oben springt. Die
+groessere zu nehmen hiesse, die Spitze wegzurechnen, um die es an diesem Punkt
+geht.
+
+Zwei Vorzeichenkonventionen, und das ist Absicht: bei den parametrischen Formen
+sind `Sy`/`Sz` das erste Flaechenmoment des Teils **oberhalb** bzw. **links**
+vom Punkt, also durchweg ≤ 0. Beim Walzprofil uebernehmen wir RSTABs Zaehlweise,
+in der das Vorzeichen die **Umlaufrichtung** des Schubflusses kodiert. Fuer
+`|tau|` ist die Richtung gleichgueltig.
+
+### Was geprueft ist, und eine bekannte Abweichung
+
+Der Walzprofil-Zweig integriert die **Ausrundung** — die fummeligste Rechnung
+des Packages. Belege:
+
+- `A` und `Iy` aus `h, b, tw, tf, r` treffen die Tabelle jedes der 42 Profile
+  auf **0,05 %**.
+- `Sy` im Schwerpunkt trifft den Tabellenwert `SyMax` auf **0,05 %**, und
+  `2·SyMax = Wpl,y` (in `steel-profiles` geprueft) belegt unabhaengig, dass die
+  Tabelle sich selbst treu ist.
+- Alle 546 Referenzpunkte stimmen auf **0,7 %** — bis auf zwei.
+
+**Punkt 3 und 8** (Gurtmitte) weichen um bis zu **2,8 %** ab, und der Grund ist
+nicht gefunden. Unser Wert ist das erste Flaechenmoment des halben Gurts,
+`b/2 · tf · (h−tf)/2`; dieselbe Formel stimmt an Punkt 2 und 4 auf 0,45 %. Der
+Unterschied ist weder ein fester Anteil der Ausrundung noch eine Funktion von
+`r/tf`. Ein Test haelt die Spanne als **Charakterisierung** fest, damit ein
+spaeterer Erklaerungsversuch merkt, wenn er sie aendert.
+
+Dass die Toleranz gegen die Fixture bei 0,7 % und nicht bei 0,3 % liegt, ist
+kein Zugestaendnis an unsere Rechnung: RSTAB widerspricht **sich selbst** um bis
+zu 0,56 % (Spannungspunkt 13 gegen das eigene `Sy,max`, HEA 260) und druckt
+spiegelbildliche Punkte verschieden (IPE 220: 119,44 gegen 119,73).
+
+Fuer den **geschlossenen Kasten** gibt es noch keine Vorlage: `stressPoints`
+liefert `undefined`. Eine Vorlage ohne Referenzdaten waere geraten und nicht
+gerechnet; er kommt mit den QRO-Daten, die ausserdem Bogentangenten mitbringen.
+
 ## Fixture aus dem Nachbarpackage
 
 `tests/fixtures/rstab-stress-points.json` wird von

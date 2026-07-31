@@ -12,6 +12,31 @@ import { allPositive, type ShapeResult } from './kernel';
  * GESAMThoehe. Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der
  * Gurtoberkante — damit ist `zs` die Zahl, die man von Hand nachrechnet.
  */
+/**
+ * Der Schwerpunktabstand von der GURTOBERKANTE, oder `undefined` bei
+ * unsinnigen Abmessungen.
+ *
+ * Eigene Funktion, weil die Spannungspunkt-Vorlage denselben Wert braucht. Zwei
+ * Rechnungen fuer eine Zahl waeren zwei Gelegenheiten, sie verschieden zu
+ * bekommen — und die Spannungspunkte liegen SCHWERPUNKTSBEZOGEN, verschoeben
+ * sich also alle neun.
+ */
+export function tBeamCentroid(
+  bf: number,
+  hf: number,
+  bw: number,
+  h: number,
+): number | undefined {
+  const hs = h - hf;
+  // `bf === bw` ist erlaubt (dann ist es ein Rechteck), `bw > bf` nicht: das
+  // waere kein Plattenbalken mehr, und die Bandfolge fuer Vy bekaeme eine
+  // negative Laenge.
+  if (!allPositive(bf, hf, bw, h, hs) || bw > bf) return undefined;
+  const Af = bf * hf;
+  const As = bw * hs;
+  return (Af * (hf / 2) + As * (hf + hs / 2)) / (Af + As);
+}
+
 export function tBeam(
   bf: number,
   hf: number,
@@ -20,17 +45,12 @@ export function tBeam(
   idealisation: Idealisation,
 ): ShapeResult | undefined {
   const hs = h - hf; // Steghoehe unter dem Gurt
-  // `bf === bw` ist erlaubt (dann ist es ein Rechteck), `bw > bf` nicht: das
-  // waere kein Plattenbalken mehr, und die Bandfolge fuer Vy bekaeme eine
-  // negative Laenge.
-  if (!allPositive(bf, hf, bw, h, hs) || bw > bf) return undefined;
+  const zs = tBeamCentroid(bf, hf, bw, h);
+  if (zs === undefined) return undefined;
 
   const Af = bf * hf;
   const As = bw * hs;
   const A = Af + As;
-
-  // Schwerpunkt von der Gurtoberkante aus.
-  const zs = (Af * (hf / 2) + As * (hf + hs / 2)) / A;
 
   const dF = zs - hf / 2; // Hebelarm Gurt -> Schwerpunkt
   const dS = hf + hs / 2 - zs; // Hebelarm Steg -> Schwerpunkt
