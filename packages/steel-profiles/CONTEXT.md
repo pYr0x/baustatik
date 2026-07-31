@@ -76,6 +76,12 @@ Namen sind bewusst verschieden.
 erzeugten Dateien sind **eingecheckt** — der Sinn des Katalogs ist, dass man die
 Zahlen im Diff sieht.
 
+`data-source/` selbst ist **nicht versioniert** (`.gitignore`): mehrere
+Megabyte PDF, die nach dem einmaligen Lauf niemand mehr braucht. Wer das Skript
+erneut laufen lassen will, legt die Ausdrucke wieder dort ab; wer nur die Zahlen
+lesen will, braucht sie nicht. Was versioniert ist, ist das Ergebnis — und der
+Kopfkommentar jeder Datendatei nennt Quelle und Ausdrucksdatum.
+
 ```text
 pnpm --filter @baustatik/steel-profiles extract
 ```
@@ -125,9 +131,10 @@ Build-Schritt ist.
 
 ## Der goldene Einzelfall
 
-`data-source/IPE80.pdf` ist der einzige Ort, an dem nicht „die Datei sagt X"
-geprueft ist, sondern **„X ist richtig"** (Handrechnung).
-`tests/catalogue.test.ts` haelt die ganze Zeile fest.
+Der Ausdruck zu IPE 80 ist der einzige Fall, in dem nicht „die Datei sagt X"
+geprueft wurde, sondern **„X ist richtig"** (Handrechnung).
+`tests/catalogue.test.ts` haelt die ganze Zeile fest — der Test IST damit das,
+was von der Handrechnung im Repository bleibt.
 
 ## Reihen
 

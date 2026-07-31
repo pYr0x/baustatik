@@ -1,570 +1,118 @@
-# Ausbauplan Monorepo
+# Ausbauplan Monorepo — offen
 
-Stand: 2026-07-26. Deine Notizen, gegen den Ist-Code gelesen und sortiert.
-Kein Implementierungsplan — eine Richtung mit Reihenfolge und Begründung.
+Stand: 2026-07-29. Diese Liste enthält bewusst nur noch offene Arbeit und
+Entscheidungen, die dafür wichtig bleiben. Erledigte Stufen sind in ADRs,
+`CONTEXT.md`, Changelogs und Tests festgehalten — nicht hier.
 
----
+## Nächste sinnvolle Wege
 
-## Kurzfassung: was ich zuerst machen würde
-
-| # | Schritt | Aufwand | Warum jetzt |
-| --- | --- | --- | --- |
-| 0 | ~~Staborientierung: Test + Doku~~ | erledigt 2026-07-26 | War schon korrekt implementiert — jetzt festgenagelt und dokumentiert |
-| 1 | ~~Lastfall-Begriff einführen~~ | erledigt 2026-07-26 | ADR 0013–0015; siehe „Stufe 1" unten |
-| 1a | ~~Gelenke: `releases` auf lokale Namen umbenennen und um `u`/`w` erweitern~~ | erledigt 2026-07-27 | ADR 0017; `{ u, w, theta }` statt `{ phiY }`, `{ N, V, M }` verworfen |
-| 2 | ~~`internalForces` in `fem-element` + Verlauf-API im Solver~~ | erledigt 2026-07-28 | ADR 0018–0019; Abweichungen vom Entwurf siehe Stufe 2 |
-| 3 | ~~Punktlasten: Kräfte und Momente gezeichnet~~; danach Linienlasten | erledigt 2026-07-27 / mittel | Punktlast ist abgeschlossen, Linienlasten sind ein eigener Plan |
-| 3a | Gelenksymbol zeichnen, `releases` in der Demo setzbar | klein | Unabhängig von den Lasten. Erst hier sieht man, was man eingegeben hat |
-| 4 | ViewPolicy | klein | Erst wenn es genug zu stylen gibt |
-| 5 | Schnittgrößen grafisch | mittel | Braucht 2 + 4 |
-| 6 | Lastkombinationen, min/max | mittel | Braucht 1 + 2 |
-| 7 | Querschnitte: Katalog → Werte → Editor | groß | Eigener Strang, läuft parallel |
-
----
-
-## Bestandsaufnahme deiner fünf Punkte
-
-### A. Staborientierung — **ist bereits da**
-
-Genau das Verhalten, das du beschreibst, steht schon in
-`fem-geometry/src/line.ts:66` (`Line.frame`): `ex` zeigt vom Anfangs- zum
-Endknoten, `ez` entsteht daraus durch dieselbe Drehung, die global x nach z
-überführt — `(dx, dz) → (−dz, dx)`.
-
-- Stab von links nach rechts: `ex = (1, 0)` → `ez = (0, 1)`, lokal z nach unten.
-- Stab von rechts nach links: `ex = (−1, 0)` → `ez = (0, −1)`, lokal z nach oben.
-
-Das ist die von dir gewünschte Konvention, und sie hängt an genau einer Stelle:
-`fem-load-resolve` benutzt `Line.toLocal` für `frame: 'local'`, und dieselbe
-Basis trägt die 6x6-Transformation im Solver. Es gibt hier **nichts global
-nachzuziehen**.
-
-Sichtbar gemacht am 2026-07-26 — **erledigt**:
-
-- `fem-geometry/tests/line.test.ts`: ein waagrechter Stab von +x nach −x nagelt
-  `ez = (0, −1)` fest, läuft in der `normalVector`-Tripwire mit, und `toLocal`
-  zeigt dieselbe globale Last am umgedrehten Stab gekippt.
-- `fem-load-resolve/tests/resolve.test.ts`: dieselbe globale Streckenlast auf
-  `h` und auf `rev` (derselbe Stab, vertauschte Knoten) — die lokalen
-  Komponenten kippen; dazu die Lage, die vom Anfangsknoten misst und deshalb
-  am umgedrehten Stab am anderen Ende landet.
-- Je ein Abschnitt „Stabrichtung = Knotenreihenfolge, und die legt lokal z fest"
-  in `fem-geometry/CONTEXT.md` und `fem-loads/CONTEXT.md`.
-
-### B. Lastfälle — **fehlen, und sie sind der Engpass**
-
-`fem-loads/src/types.ts` sagt im Kopf ausdrücklich „keine Lastfälle", und
-`HANDOFF.md:196` hat die id bewusst weggelassen: *„Bewusst kein `loadCaseId` im
-Typ — eine ID ohne Besitzer lädt zu einem Fake-Default ein, Nachrüsten ist ein
-Einzeiler."* Diese Entscheidung war richtig. Der Einzeiler ist jetzt fällig.
-
-Der Grund für die Dringlichkeit ist nicht der Lastfall selbst, sondern was
-gerade daneben gebaut wird: Der Viewer zieht Lasten über
-`getLoads(): FEMLoad[]`, und die Schnittgrößen-API würde dieselbe flache Menge
-nehmen. Beides gegen eine flache Liste zu bauen und danach umzustellen, ist
-zweimal dieselbe Arbeit plus ein Breaking Change in einer schon veröffentlichten
-API. Vorher kostet es fast nichts.
-
-#### Entschieden am 2026-07-26 (Vorgespräch, vor dem Grilling)
-
-**Kein neues Package.** `LoadCase` gehört nach `fem-loads`. Das Package besitzt
-bereits das Eingabemodell *und* dessen Validierung, und ein Lastfall bringt keine
-einzige neue Abhängigkeit mit: id, Name, Liste, optionaler Faktor,
-optionales Kategorie-Tag. Ein Package für einen Typ und eine
-Validierungsfunktion wäre Overhead.
-
-Die Grenze, an der ein neues Package wirklich fällig wird, liegt woanders: bei
-der **Kombinatorik** — EN 1990 mit γ, ψ0/ψ1/ψ2, Leiteinwirkung und sich
-ausschließenden Gruppen. Das ist normatives Tabellenwissen mit NA-Varianten,
-also das Muster von `material` samt Herkunftsangabe je Datensatz (ADR 0001).
-Arbeitsname für später: `@baustatik/fem-combinations`.
-
-Der einzige Einwand dagegen ist die Einwirkungskategorie — die *ist* normativ.
-Aber `fem-loads` würde sie nur **speichern**, nicht **deuten**: keine ψ-Werte in
-diesem Package. Ein Tag ohne Auswertung rechtfertigt kein Package, und ein
-späterer Umzug ist ein Re-Export.
-
-Zwei bewusst gesetzte Sätze werden dabei zurückgenommen und müssen mitwandern:
-`fem-loads/src/types.ts:5` („keine Lastfaelle") und `fem-loads/CONTEXT.md:35`.
-`HANDOFF.md:196` bleibt als Begründung stehen, warum es *keine* `loadCaseId` an
-der Last gibt — diese Entscheidung gilt weiter.
-
-### C. Schnittgrößenverläufe — **die Naht ist schon geschnitten**
-
-Das hier ist bemerkenswert gut vorbereitet:
-
-- `PreparedElement.internalForces(x, dLocal, load)` **existiert als Vertrag**
-  (`fem-element/src/types.ts:171`) und wirft heute nur
-  `InternalForcesNotImplementedError` (`timoshenko.ts:202`).
-- Die Ansatzfunktionen samt Ableitungen liegen fertig in
-  `shape-functions.ts` — package-intern, mit dem Kommentar, dass sie für
-  `internalForces` gedacht sind.
-- `solve()` liefert bereits `elementEndForces` je Stab, lokal, in
-  `[N1, V1, M1, N2, V2, M2]`. Das sind die Randwerte des Verlaufs, also
-  gleichzeitig die Prüfsteine für x=0 und x=L.
-
-Es fehlt also die Implementierung, nicht der Entwurf. Das ist der Punkt aus
-deiner Liste mit dem besten Verhältnis von Nutzen zu Aufwand.
-
-> **Überholt am 2026-07-28.** Umgesetzt — aber anders: der Verlauf entsteht aus
-> GLEICHGEWICHT, die Ansatzfunktionen werden dafür gar nicht gebraucht, und
-> `elementEndForces` ist in `beamStates` aufgegangen. Siehe „Stufe 2" unten und
-> ADR 0018.
-
-### D. Grafische Lastdarstellung — **Plan liegt fertig, reviewt**
-
-`packages/PLAN.md` beschreibt Punktlasten (`NodeLoad.fx/fz`,
-`BeamForcePointLoad`) in sechs Schritten, `review-PLAN.md` hat ihn bereits
-kritisch gegengelesen und die Punkte sind eingearbeitet. Umsetzbar wie er steht
-— mit einer Anpassung, siehe Reihenfolge unten. Linienlasten sind ein eigener
-Folgeplan, nicht ein Anhängsel.
-
-### E. Querschnitte — **fast leeres Feld**
-
-- `cross-section` exportiert **einen einzigen Typ** (`Segment`), keine
-  Berechnung.
-- `section-geometry` kann `area`, `centroid`, `perimeter`, `boundingBox`,
-  Boolesche Operationen — aber **keine Trägheitsmomente, keine
-  Widerstandsmomente, kein statisches Moment, keine Hauptachsen**.
-- `cross-section-viewer` ist ein Gerüst, kein Vorbild.
-- `material` hat Festigkeitsklassen, aber **keine Profiltabellen**.
-- Die Anschlussstelle steht dagegen fest: `fem-solver` zieht
-  `getSectionProperties(beam): SectionProperties` als Port
-  (`fem-solver/src/config.ts:96`). Wer den bedient, ist offen — und genau das
-  soll `cross-section` irgendwann sein.
-
-Das ist der größte Brocken deiner Liste und der einzige, der nichts vom
-FEM-Strang braucht.
-
-### F. Gelenke — **die Rechnung kann es, es fehlt die Eingabe**
-
-Notiert 2026-07-27. „Alle Stäbe sind biegesteif verbunden" stimmt für die
-Rechnung nicht: `Beam.releases` steht in `fem/src/types.ts`, `solve.ts`
-kondensiert den freigesetzten lokalen Freiheitsgrad heraus, und die Tests
-decken Momentenfreiheit, Kragarm mit und ohne Gelenk, Dreigelenkrahmen,
-Gelenkkette und Pendelstab ab. Auch der Schnitt stimmt: das Gelenk sitzt am
-**Stabende**, nicht am Knoten — nur so lassen sich an einem Knoten mit drei
-Stäben zwei gelenkig anschließen (`kinematics-margin.test.ts:485` sagt das
-ausdrücklich).
-
-Fehlt noch: **Eingabe** (`releases` kommt außerhalb von `fem`, `fem-solver` und
-deren Tests nirgends vor) und **Darstellung** — beides in Stufe 3a. Der zweite
-und dritte Freiheitsgrad und der Name sind seit dem 2026-07-27 da.
-
-#### Der Name zuerst, weil er sonst festwächst — **erledigt am 2026-07-27**
-
-Umgesetzt: `BeamEndReleases = { u?: true; w?: true; theta?: true }` in
-`fem/src/types.ts`, sechs `condense`-Aufrufe statt zwei in `solve.ts`, dazu
-Tests für beide neuen Freiheitsgrade und für den Pivot-0-Zweig. Die Alternative
-`{ N, V, M }` ist geprüft und verworfen — Begründung in
-[ADR 0017](../docs/adr/0017-releases-are-named-in-the-local-frame.md). Die
-Migration ist ein Wort: `phiY` → `theta`.
-
-Der Befund, wie er hier stand:
-
-`Beam.releases.phiY` benutzt den Namen der **Knotenwelt** für einen **lokalen**
-Freiheitsgrad. `solve.ts:325` sagt es im Kommentar selbst: „das Gelenk ist am
-LOKALEN Freiheitsgrad definiert". Aufgefallen ist es nie, weil die Drehung in
-der Ebene rahmeninvariant ist — `phiY` und `theta` unterscheiden sich nur im
-Vorzeichen, nicht um den Stabwinkel. Bei einer Verschiebung ist das vorbei: auf
-einem schrägen Stab ist ein lokales Gleiten längs der Stabachse etwas anderes
-als ein globales `ux`.
-
-Die Konvention ist im Haus bereits da, nur über zwei Packages verteilt:
-
-| System | Namen | Stelle |
+| Strang | Nächster Schritt | Warum |
 | --- | --- | --- |
-| lokal (Stab) | `u`, `w`, `theta` | `fem-element/src/types.ts:12` |
-| global (Knoten) | `ux`, `uz`, `phiY` | `fem/src/types.ts`, `NodeSupport` |
-
-`releases` gehört damit auf `{ u, w, theta }` — dieselbe Reihenfolge wie
-`d_e = [u1, w1, theta1, u2, w2, theta2]`, also auch dieselbe wie die
-Kondensationsindizes 0/1/2 und 3/4/5 in `solve.ts`. Der Vorzeichenstreit
-`phiY = -theta` (ADR 0005) reist NICHT mit: ein Freisetzungs-Flag ist ein
-`true`, kein Wert.
-
-> Ernstzunehmende Alternative: nach der **nicht übertragenen Schnittgröße**
-> benennen statt nach dem Freiheitsgrad — `{ N, V, M }`. Damit stellt sich die
-> Rahmenfrage gar nicht erst, weil Schnittgrößen ohnehin nur lokal existieren,
-> und es liest sich näher an dem, was der Statiker meint („Normalkraftgelenk").
-> Dagegen: die Kondensation arbeitet an Freiheitsgraden, und die Zuordnung
-> N↔u, V↔w, M↔theta wäre eine zweite Übersetzung im Kopf. Entscheiden, bevor
-> umbenannt wird — nicht danach.
-
-Der Umbau war drei Dateien plus Tests. Sobald die Demo Gelenke setzt und
-irgendetwas davon gespeichert wird, wäre es ein Breaking Change gewesen —
-deshalb jetzt.
-
-#### Was `u` und `w` mitbringen, was `theta` nicht hatte
-
-Das Freisetzen einer Verschiebung nimmt dem Stab die betreffende Steifigkeit
-**ganz**, nicht nur am freigesetzten Ende. Beim Längsanteil ist das
-nachrechenbar: aus `[[EA/L, -EA/L], [-EA/L, EA/L]]` wird nach der Kondensation
-von `u1` genau `K[3][3] = EA/L - (EA/L)²/(EA/L) = 0`. Fachlich richtig — ein
-Stab, der an einer Stelle gleiten kann, trägt nirgends Normalkraft.
-
-Die Folge ist die Stelle, die aufpassen muss: der zweite `condense`-Aufruf
-trifft dann einen **Pivot von exakt 0** und kehrt still zurück. Das Verhalten
-ist korrekt (an einem bereits entkoppelten Freiheitsgrad gibt es nichts zu
-verteilen), aber der Kommentar dort nannte es „widersprüchliche Eingaben" — ein
-defensiver Zweig, den nichts erreichte. Mit `u` an beiden Enden liegt er auf dem
-geraden Weg. Er hat deshalb einen Test und einen ehrlicheren Kommentar bekommen,
-keine Reparatur. Dasselbe gilt für `w`: dort wird `K[w2][w2] = 12EI/L³ −
-(12EI/L³)²/(12EI/L³) = 0`, und die Endverdrehung fällt von `4EI/L` auf `EI/L`,
-weil ohne Querkraft das Moment über die ganze Länge konstant bleibt.
-
-**Nicht verbieten**, aus demselben Grund, mit dem `validate.ts:25` den
-Pendelstab ausdrücklich erlaubt: ein Stab, der längs gleitet, überträgt immer
-noch Querkraft und Moment, ist also für sich kein Mechanismus. Ob das System
-kinematisch wird, entscheidet erst das Gleichungssystem — und dafür gibt es
-den `fem-solver` samt Kinematik-Erkennung.
-
----
-
-## Reihenfolge mit Begründung
-
-### Stufe 1 — Lastfall-Begriff — **erledigt am 2026-07-26**
-
-Umgesetzt: `LoadCase`, `assertValidLoadCase`, `effectiveLoads` in
-`fem-loads/src/load-case.ts`; neues Blatt-Package `@baustatik/actions`;
-`fem-solver` mit `getLoadCases()`, `check(loadCaseId)`, `solve(loadCaseId)` und
-`solveAll()`, dazu `SolveResult.loadCaseId` und `UnknownLoadCaseError`; Demo mit
-drei Lastfällen, aktivem Lastfall als Schreibziel und `copyLoadCase`.
-Begründungen in ADR 0013, 0014, 0015.
-
-Der Entwurf, wie er vor dem Grilling stand — die Abweichungen stehen oben:
-
-- In `fem-loads` ein `LoadCase = { id, name, loads, category?, factor? }` plus
-  Validierung. Der Lastfall besitzt seine Lasten — keine `loadCaseId` an der
-  Last, sonst zwei Wahrheiten.
-- Dazu **eine** Funktion: `effectiveLoads(loadCase): readonly FEMLoad[]`. Sie
-  wendet den Faktor an und liefert die flache Menge. Sie ist der Grund, warum
-  alles danach unverändert bleiben kann — siehe „Der Viewer bleibt dumm".
-- `resolveLoads` bleibt **unverändert**: es löst weiterhin eine flache Menge
-  auf. Der Lastfall ist eine Schicht darüber, keine Änderung an der
-  Lastauflösung. (`fem-load-resolve/CONTEXT.md:159` sieht das genau so vor.)
-- `solve()` rechnet **einen** Lastfall. Superposition kommt in Stufe 6, nicht
-  jetzt — sonst wird der Lastvektor zur Matrix und das Ergebnisobjekt gleich
-  mit.
-- Kein Eigenlast-Generator, keine Teilsicherheitsbeiwerte, keine ψ-Werte. Die
-  gehören zur Kombinatorik und würden hier nur ungenutzt herumliegen.
-  `LoadOrigin` hält den Platz schon frei.
-
-(Punkt A ist inzwischen für sich erledigt, nicht als Nebenprodukt.)
-
-#### Der Viewer bleibt dumm — der Port `getLoads()` ändert sich nicht
-
-Wenn der Lastfall seine Lasten besitzt und der Viewer immer **genau einen**
-zeigt, dann muss der Viewer den Begriff Lastfall gar nicht kennen. Der
-Composition Root verdrahtet:
-
-```ts
-getLoads: () => effectiveLoads(store.activeLoadCase)
-```
-
-„Welcher Lastfall ist sichtbar" ist Auswahlzustand der Anwendung, nicht Wissen
-des Zeichners. Dazu kommt: der Port ist inzwischen implementiert und
-veröffentlicht (1bb918d, Changeset `thick-arrows-point-down`) — ihn umzubauen
-wäre ein zweiter Breaking Change ohne Gegenwert. Das korrigiert, was weiter
-unten in Stufe 3 stand.
-
-**Beim Solver dagegen umstellen:** `getLoads()` wird zu `getLoadCase()`, und
-`SolveResult` bekommt eine `loadCaseId`. Ein Ergebnis, das nicht sagt, wovon es
-das Ergebnis ist, kann man nicht ablegen — und `fem-solver/CONTEXT.md:304`
-nennt den Schritt („aus `canSolve` wird `canSolve(caseId)`") bereits vorweg.
-
-#### Die zwei Lastfallparameter
-
-**`category?` — Einwirkungskategorie**, optional, kein Zwang. Union-Typ statt
-`string`, sonst sind Tippfehler zulässige Werte. `fem-loads` speichert das Tag
-und wertet es nicht aus.
-
-> Zum Aufpassen: **Kategorie ≠ Einwirkung.** „Wind von links" und „Wind von
-> rechts" sind zwei Lastfälle *derselben* Einwirkung und dürfen nie gleichzeitig
-> in einer Kombination stehen. Diese ausschließende Gruppe drückt ein
-> Kategorie-Tag nicht aus. Nicht jetzt bauen — aber das Feld darf nicht so tun,
-> als könne es das, sonst wird es später als Gruppierung missbraucht.
-
-**`factor?` — Faktor auf alle Lasten des Falls**, Voreinstellung 1. Machbar,
-mit drei Bedingungen:
-
-1. Er **verdoppelt** den Kombinationsbeiwert. Kombination 1,35 × Lastfall 1,2
-   ergibt 1,62, und niemand sieht die 1,62. Wenn der Faktor bleibt, muss er im
-   Bericht getrennt ausgewiesen werden.
-2. Der Viewer muss den **gefakterten** Wert beschriften, sonst steht 5 kN am
-   Pfeil und 6 kN in der Rechnung. `effectiveLoads()` als einzige Stelle löst
-   das von selbst, weil Viewer und Solver durch dieselbe Funktion sehen.
-3. Validierung: endlich und `> 0`. Faktor 0 wäre ein stillgelegter Lastfall
-   durch die Hintertür — dafür gehört ein eigener Schalter oder Löschen, kein
-   magischer Wert.
-
-#### Beantwortet im Grilling am 2026-07-26 — **umgesetzt**
-
-- **Ist der Faktor gerechtfertigt?** Ja, aber aus einem anderen Grund als hier
-  vermutet. Er ist keine Skalierung „charakteristischer Eingabe", sondern eine
-  **Ableitung durch Kopieren**: Lastfall kopieren und als Ganzes umkehren oder
-  auf den echten Wert skalieren. Damit ist er auch kein verlegter
-  Kombinationsbeiwert (ADR 0013).
-- **Negativer Faktor?** Erlaubt, und der Hauptzweck — genau dafür wird er
-  gebraucht (Wind umdrehen). `0` und nicht endliche Werte wirft
-  `assertValidLoadCase`, aufgerufen im Tor von `solve()`.
-- **Kategorienliste?** Ein diskriminierter Union in einem neuen Blatt-Package
-  `@baustatik/actions`, zwei Achsen (`action` × `kind`, plus `useCategory` A–E).
-  Die ψ-Werte kommen später ebenfalls dorthin oder in die Kombinatorik — nicht
-  nach `fem-loads`. Muss ein Blatt sein, sonst entsteht ein Zyklus, sobald die
-  Kombinatorik `LoadCase` braucht (ADR 0015).
-- **Last-ids global eindeutig?** Ja, und Lastfall-ids ebenso — aber
-  **ungeprüft**: mit `crypto.randomUUID()` ist eine Kollision nicht erreichbar,
-  und doppelte Last-ids sind heute schon ungeprüft. Die einzige reale Bedrohung
-  ist die Kopieroperation, und die zieht neue ids.
-- **Null Lastfälle?** Der Store hält mindestens einen. Ein leerer Lastfall ist
-  kein Fehler, sondern der Zustand `unloaded` — `check.ts:9-14` begründet das
-  bereits ausführlich.
-- **Migration der Demo?** Drei Lastfälle, umschaltbar über die Konsole
-  (`store.activeLoadCaseId`), kein HTML. „Wind von rechts" entsteht als Kopie von
-  „Wind von links" mit Faktor −1 und führt damit den Anlass für den Faktor vor.
-
-#### Was gegenüber diesem Entwurf anders entschieden wurde
-
-- **Nicht `getLoadCase()` als Port, sondern `getLoadCases()` plus
-  `check(loadCaseId)`/`solve(loadCaseId)`.** Der Solver darf keinen
-  Auswahlzustand lesen — dasselbe Argument, mit dem der Viewer dumm bleibt. Der
-  Hinweis auf `fem-solver/CONTEXT.md:304` unten war insofern richtig, dass die
-  Stelle den Schritt vorhersagt: sie sagt `canSolve(caseId)`, also einen
-  **Parameter**, nicht einen Port (ADR 0014).
-- **`CheckReport` bekommt keine `loadCaseId`.** Der Bericht ist flüchtig und wird
-  nie abgelegt; der Aufrufer hat die id gerade übergeben. `SolveResult` trägt sie.
-- **Kein `validateLoadCases`.** Es gab keine erreichbare Regel: doppelte ids
-  schließt die id-Erzeugung aus, gleiche Namen sind kein Befund (der Name ist
-  kein Schlüssel), und der leere Lastfall ist ein Zustand.
-- **Keine `createLoadCase`-Factory, sondern `assertValidLoadCase` im Tor.** Die
-  Factory stand kurz da und war zweimal falsch: sie versprach den Bau einer
-  Maschine wie `createFEMViewer`, gab aber ihr Argument zurück — und sie war per
-  Objektliteral umgehbar, `NaN` lief also weiter bis zur Verformung.
-- **`solveAll()` statt einer Schleife beim Aufrufer.** Genau zwei
-  Rechenoperationen, keine dritte.
-- **Der aktive Lastfall IST das Schreibziel des Stores.** `addNodeLoad(nodes,
-  load)` schreibt hinein. Der Anwender legt einen Lastfall an, wechselt hinein
-  und gibt Lasten ein — dagegen zu bauen wäre nur Zeremonie. Die Regel „nicht
-  den Auswahlzustand lesen" gilt für die RECHNUNG, nicht für eine Eingabe, die
-  der Anwender im gerade gewählten Fall macht.
-
-### Stufe 2 — Schnittgrößen rechnerisch — **erledigt 2026-07-28**
-
-Umgesetzt in `packages/PLAN.md`, festgehalten in
-[ADR 0018](../docs/adr/0018-section-forces-from-equilibrium.md) (Gleichgewicht
-statt Stoffgesetz, samt Umzug der Kondensation nach `fem-element`) und
-[ADR 0019](../docs/adr/0019-result-carries-an-evaluation-state.md)
-(serialisierbarer Auswertungszustand am Ergebnis).
-
-**Die Abweichungen vom Entwurf oben, jede mit ihrem Grund:**
-
-- **Der Weg ist Weg 2, nicht Weg 1.** `internalForces` integriert aus den
-  Endkräften plus Last; der Stoffgesetz-Weg ist ausdrücklich verworfen, weil er
-  beim beidseitig eingespannten Träger unter Gleichlast `M ≡ 0` liefert. Weg 1
-  (den kondensierten Freiheitsgrad rekonstruieren) wird trotzdem gebraucht — für
-  die spätere Biegelinie —, und ist als `recoverEndDisplacements` mit umgesetzt.
-- **Punktabfrage mit `side`.** An einer Einzellast gibt es keinen einen Wert;
-  `'left'` summiert `a < x`, `'right'` summiert `a ≤ x`.
-- **Exakte Extremstellen statt feinem Raster.** `internalForcesStations` liefert
-  neben Rändern, Segmentgrenzen und Lastpositionen die Wurzeln von
-  `V + my_e = 0` und `qz = 0` je Intervall. Ein daraus gemeldetes Maximum hängt
-  nicht an der Rasterweite.
-- **`x` nur absolut in Metern**, kein relativer Modus — anders als oben
-  vorgeschlagen. Das ist eine Abfrage, keine abgelegte Eingabe; zwei
-  Schreibweisen für dieselbe Stelle wären eine Verwechslung ohne Gegenwert. Die
-  Analogie zu `PointPlacement` trägt nicht, weil dort ein Wert GESPEICHERT wird.
-- **Auswertungszustand statt Verlauf-API am Ergebnis.** `SolveResult.beamStates`
-  trägt je Stab reine Daten; `internalForcesAt`/`internalForcesAlong` sind freie
-  Funktionen darüber. `elementEndForces` ist darin aufgegangen.
-- **Die Stützstellen kommen aus `fem-element`, nicht aus `fem-load-resolve`**
-  — anders als oben vorgeschlagen. Sie stehen im `load` des
-  Auswertungszustands. Die Auswertung darf nichts nachlesen; genau das trägt das
-  abgelegte Ergebnis.
-- **Schritt 0 war eine Vorbedingung und ist mitgekommen**: der elementinterne
-  Mechanismus ist jetzt ein Modellfehler (`UnrestrainedBeamError` in `fem`,
-  `UnrestrainedElementError` in `fem-element`). Die Regel ist WEITER als im
-  Plan gedacht: nicht nur „dieselbe Verschiebungsrichtung an beiden Enden",
-  sondern auch drei Freisetzungen aus `{w1, θ1, w2, θ2}` — der Biegeblock hat
-  Rang 2, und `w`+`θ`+`θ` läuft nachweislich auf Pivot 0, ohne ein `w`-Paar zu
-  enthalten. Der Pendelstab (`θ` an beiden Enden) bleibt erlaubt; er trägt
-  danach allerdings nur noch die Normalkraft, nicht auch die Querkraft, wie
-  ADR 0017 an einer Stelle nahelegt.
-
-### Stufe 3 — Lasten zeichnen
-
-`PLAN.md` ist umgesetzt (1bb918d): Punktlasten werden als Pfeile mit
-Beschriftung gezeichnet. Die hier ursprünglich geforderte Änderung am Port
-(„nicht `getLoads()`, sondern der Lastfall") ist **zurückgenommen** — siehe
-„Der Viewer bleibt dumm" in Stufe 1.
-
-#### Zuerst: das Moment — **erledigt am 2026-07-27**
-
-Umgesetzt: `render-core` bekam `ArcPathSpec` (Strichbogen, ohne Füllung, mit
-vorzeichenbehaftetem `sweepAngle`; „ArcPath" statt „Arc", weil ein Ringsegment
-eine andere Figur ist und den Namen sonst besetzt), der `konva-adapter` bildet
-ihn über `Konva.Path` und das SVG-Kommando `A` ab, und `fem-viewer/src/loads/`
-ist in zwei Ebenen zerlegt — Lastart (`node-loads.ts`, `beam-loads.ts`) und
-Symbol (`point-force.ts`, `moment.ts`), mit `label.ts` und `style.ts` als
-gemeinsamem Teil. Das Symbol ist ein 270-Grad-Bogen mit Radius 22 px und
-demselben Label-Gap wie die Punktlast; positives Moment dreht gegen den
-Uhrzeigersinn, das negative ist sein Spiegelbild. Festgehalten wird die Lücke:
-sie sitzt bei beiden Vorzeichen unten, das Label darüber, die Spitze an der
-Kante der Lücke. Sie ist gefüllt UND bestrichen wie Konvas Pfeilkopf — nur
-gefüllt fiele sie bei gleichen Maßen kleiner aus.
-
-Der Auftrag, wie er hier stand:
-
-Gezeichnet wurden bisher nur die Kräfte. Es fehlten die Momentenlasten, und
-zwar an beiden Stellen, an denen es sie gibt:
-
-- `NodeLoad.my` — das Knotenmoment. Es steht heute **neben** `fx`/`fz` im
-  selben Lastobjekt (`fem-loads/src/types.ts:108`), ein Knoten kann also
-  gleichzeitig Kraft und Moment tragen. Der Zeichner muss beides aus
-  derselben Last herausholen und darf den Pfeil nicht als Entweder-Oder
-  behandeln.
-- `BeamMomentPointLoad` — das Einzelmoment auf dem Stab
-  (`fem-loads/src/types.ts:228`), mit `PointPlacement` wie die
-  `BeamForcePointLoad`.
-
-Darstellung: ein gebogener Pfeil (Kreisbogen mit Pfeilspitze am Ende), der
-Drehsinn folgt dem Vorzeichen. Die Vorzeichenregel steht im Kopf von
-`types.ts:18` — positives Moment dreht nach der Rechte-Hand-Regel um +y, im
-Bild also von +z nach +x. Die kommt aufs Papier, bevor irgendein Bogen
-gezeichnet wird, sonst wird der Drehsinn geraten.
-
-**Konva kann das mit `Konva.Path()`.** `data` ist ein SVG-Pfad-String, also
-`A` (elliptic arc) für den Bogen und ein kleines geschlossenes Dreieck für
-die Spitze — kein eigener Renderer, keine Bitmap. Beispiel für die Form:
-
-```ts
-new Konva.Path({ data: 'M ... A r r 0 0 1 ... L ... Z', ... })
-```
-
-Der Radius ist wie die 48-px-Pfeillänge zunächst fest in px, damit der Bogen
-beim Zoomen konstant groß bleibt; die Referenzskalierung kommt erst mit den
-Streckenlasten (siehe unten) und der ViewPolicy in Stufe 4.
-
-#### Nebenher: das Gelenksymbol
-
-Gehört nicht zu den Lasten, sondern neben `fem-viewer/src/supports.ts` — ein
-Kringel am Stabende, ein paar Pixel vom Knoten weg gerückt, screen-konstant wie
-alles im `fem-viewer`. Für `u` und `w` (Stufe 1a) braucht es eigene Zeichen,
-sonst sieht ein Längsgleiten aus wie ein Momentengelenk. Von den Lasten völlig
-unabhängig, passt also vor oder nach den Streckenlasten.
-
-Dazu die Eingabe: `FEMSceneOptions` reicht `Beam` schon vollständig durch, der
-Viewer bräuchte also nichts Neues am Port. Fehlt nur, dass der Demo-Store
-`releases` überhaupt setzen kann.
-
-#### Danach: Streckenlasten
-
-Offen bleibt ein eigener Plan für Streckenlasten — deren Darstellung ist
-inhaltlich etwas anderes als ein Pfeil (Füllfläche zwischen Stab und Lastlinie,
-Trapezform, Bezugslänge sichtbar, Beschriftung an zwei Stellen) und braucht als
-erstes eine Antwort auf die Skalierungsfrage, die `fem-loads/HANDOFF.md:185`
-schon aufwirft: **eine Referenzgröße über alle sichtbaren Lasten des Lastfalls**,
-damit 5 kN/m und 50 kN/m unterscheidbar sind. Punktlasten drücken sich mit ihrer
-festen 48-px-Pfeillänge noch davor; Streckenlasten können das nicht.
-
-### Stufe 4 — ViewPolicy
-
-Erst hier, weil jetzt genug zu stylen da ist: Lastfarben, Pfeillängen,
-Referenzskalierung, später Schnittgrößen-Farben und -Maßstäbe. Vorher wäre es
-eine Policy für fünf Felder — `FEMStyle` (`fem-viewer/src/scene.ts:17`) hat
-heute genau `beamColor`, `beamWidthPx`, `nodeColor`, `nodeRadiusPx`,
-`nodeSupportColor`.
-
-**Meine deutlichste Abweichung von deiner Notiz:** Baue die ViewPolicy **nicht**
-analog zur `AnalysisPolicy`. Die `AnalysisPolicy` ist versioniert, streng
-geparst und wirft bei unbekannten Feldern, weil sie das **Rechenergebnis**
-bestimmt — eine stillschweigend geänderte Toleranz ändert Zahlen, für die
-jemand haftet, und ein Projekt muss in fünf Jahren reproduzierbar bleiben
-(ADR 0011). Für Pfeilfarben gilt nichts davon. Eine ältere Datei ohne das Feld
-`arrowLengthPx` ist kein Fehler, sondern nimmt den Default.
-
-Übernehmen: das Muster „jedes Package bringt seine eigene Scheibe samt Default
-mit, ein Composition Root setzt zusammen" — das trägt hier genauso. Nicht
-übernehmen: `schemaVersion`, striktes Parsen, Fehler bei unbekannten Feldern.
-Wenn Ansichtseinstellungen später wirklich persistiert werden, kann man
-versionieren; vorwegnehmen sollte man es nicht.
-
-### Stufe 5 — Schnittgrößen grafisch
-
-Braucht Stufe 2 (Werte) und Stufe 4 (Maßstab, Farben, welche Größe wird
-gezeigt). Die harte Frage ist auch hier die Skalierung — dieselbe wie bei den
-Streckenlasten, deshalb lohnt es sich, sie in Stufe 3 einmal richtig zu lösen.
-
-### Stufe 6 — Lastkombinationen
-
-Erst wenn Lastfälle rechnen und Verläufe existieren. Dann ist es ein
-überschaubarer Aufbau: Kombination = gewichtete Summe von Lastfällen,
-Superposition auf den Verläufen (linear, also zulässig), min/max an jeder
-Stelle x über alle Kombinationen. Die Extremwertsuche braucht dieselbe
-Stützstellenliste wie Stufe 2 — noch ein Grund, sie dort sauber zu machen.
-
-Ein Hinweis vorab: Sobald Bemessung dazukommt, brauchst du nicht nur min/max
-je Größe, sondern die **zugehörigen** Werte (max M mit dem gleichzeitig
-wirkenden N). Das ist eine andere Datenstruktur als drei unabhängige Extrema.
-Das muss jetzt nicht gebaut werden, sollte aber beim Entwurf des
-Ergebnistyps mitgedacht sein.
-
-### Stufe 7 — Querschnitte (eigener Strang, jederzeit parallel)
-
-In dieser Reihenfolge, und die Trennung ist der ganze Punkt:
-
-1. **Querschnittswerte für Geometrie** — `A`, `Iy`, `Iz`, `Sy`, `Wy`,
-   Schwerpunkt, Hauptachsen, für Polygone und für dünnwandige Segmentzüge.
-   Gehört nach `section-geometry` (Polygone) beziehungsweise `cross-section`
-   (Segmentzüge mit `thickness`). Rein numerisch, ohne UI, gegen
-   Handrechnungen prüfbar.
-2. **Profilkatalog als Daten** — IPE, HEA/HEB, U, Winkel, Rohr. Bau das nach
-   dem Muster von `material`: vendorierte Tabellen plus Factory, mit einer
-   Herkunftsangabe je Datensatz (ADR 0001 hat das für die
-   Materialkennwerte schon durchdacht). Tabellenwerte sind **keine**
-   nachgerechneten Werte — die Norm rundet und berücksichtigt Ausrundungen.
-   Wenn beides existiert, muss die Quelle am Wert stehen.
-3. **Anschluss an den Solver** — `getSectionProperties` aus `cross-section`
-   bedienen. Ab hier hat ein Stab ein echtes Profil statt eingetippter Zahlen.
-   Das ist der Moment, in dem sich der ganze Strang auszahlt, und er kommt
-   früher, als der Editor fertig ist.
-4. **Editor** — zuletzt. Er braucht 1 als Rechenkern, 2 als Startpunkte
-   („HEB 300 laden und ändern") und einen brauchbaren Viewer. Der aktuelle
-   `cross-section-viewer` ist ein Gerüst; wenn du dort weiterbaust, ist
-   `grid-2d` das Vorbild, nicht der vorhandene Viewer.
-
-Schritt 3 vor 4 ist wichtig: Ein Profilkatalog, der den Solver füttert, ist
-für sich nützlich. Ein Editor ohne Rechenkern ist ein Zeichenprogramm.
-
----
-
-## Was ich anders sehen würde als deine Notizen
-
-1. **Lastfälle sind kein „irgendwann", sondern der erste Schritt.** In deiner
-   Notiz stehen sie als Randbemerkung beim Thema Schnittgrößen. Sie sind aber
-   die Struktur, gegen die Viewer-Port *und* Schnittgrößen-API geschnitten
-   werden. Danach eingezogen, sind es zwei Breaking Changes statt einer
-   additiven Erweiterung.
-
-2. **ViewPolicy nicht „analog zu AnalysisPolicy".** Siehe Stufe 4 — das
-   Zusammensetzmuster ja, die Versionierungsmaschinerie nein. Sonst
-   verschleppst du Strenge, die einen guten Grund hat, dorthin, wo sie keinen
-   hat.
-
-3. **Staborientierung ist erledigt.** Da ist nichts nachzuziehen, nur zu
-   dokumentieren. Der Punkt kann von der Liste.
-
-4. **Der Querschnittseditor ist der teuerste Punkt und der am wenigsten
-   dringende.** Er ist auch der, bei dem Scope-Kriechen am wahrscheinlichsten
-   ist. Die Aufteilung Werte → Katalog → Solver-Anschluss → Editor sorgt
-   dafür, dass jeder Zwischenstand für sich brauchbar ist.
-
-5. **„Alle Stäbe sind biegesteif verbunden" stimmt nicht.** Das Gelenk rechnet
-   seit Langem; was fehlt, ist die Eingabe, das Symbol und der Name. Der
-   Aufwand liegt also nicht dort, wo die Notiz ihn vermutet — siehe F.
-
-6. **Kritischer Pfad zu einem sinnvollen Ergebnis:**
-   `Lastfälle → internalForces → Verlauf-API → grafische Darstellung.`
-   Alles andere ist Breite. Wenn du nur einen Strang verfolgen willst, dann
-   diesen — er führt vom heutigen „Zahlen im Solver" zu „ein Statiker sieht
-   einen Momentenverlauf".
+| FEM-Viewer | Streckenlasten zeichnen | Punktlasten, Momente und Gelenke sind sichtbar; Streckenlasten sind die verbleibende grundlegende Lastart. |
+| FEM-Viewer | Schnittgrößen grafisch darstellen | Die Rechenwerte und exakten Auswertungsstellen existieren bereits. |
+| FEM-Rechnung | Lastkombinationen und Hüllkurven | Baut auf Lastfällen und den vorhandenen Schnittgrößen-Auswertungen auf. |
+| Querschnitte | Werte → Profilkatalog → Solver-Anschluss | Liefert echte Steifigkeiten, bevor ein Editor gebaut wird. |
+
+Der Viewer- und der Querschnittsstrang können unabhängig weiterlaufen.
+
+## 1. Streckenlasten im Viewer
+
+Streckenlasten brauchen einen eigenen Entwurf; sie sind nicht nur eine Reihe
+von Punktlastpfeilen. Die Darstellung soll Lastlinie und Stab über eine Fläche
+(inklusive Trapezform bei veränderlicher Intensität) verbinden und die
+Bezugslänge klar machen.
+
+Vor der Umsetzung ist die gemeinsame Skalierungsregel festzulegen:
+
+- Eine Referenzgröße bezieht sich auf **alle sichtbaren Lasten des aktiven
+  Lastfalls**, damit unterschiedliche Intensitäten erkennbar bleiben.
+- Symbole bleiben screen-konstant, während die fachliche Größe über Länge bzw.
+  Höhe lesbar skaliert wird.
+- Beschriftungen müssen dieselben effektiven (also bereits mit
+  Lastfallfaktor versehenen) Werte zeigen wie die Rechnung.
+
+Diese Regel sollte anschließend auch die Basis für Diagramm-Skalierung sein;
+keine zweite, leicht abweichende Skalierungslogik einführen.
+
+## 2. Gemeinsame View-Policy, wenn sie gebraucht wird
+
+Die vorhandenen Viewer-Styles reichen für einzelne Symbole. Sobald
+Streckenlasten und Schnittgrößendiagramme eine gemeinsame Skalierung, Farben
+oder Sichtbarkeit brauchen, werden diese Optionen als View-Policy gebündelt.
+
+Sie folgt nur dem Zusammensetzungsmuster der `AnalysisPolicy` (Paket-Slices
+und Default im Composition Root), **nicht** deren Persistenz- und
+Versionsstrenge: Anzeigeeinstellungen dürfen bei fehlenden Feldern auf
+Defaults fallen.
+
+## 3. Schnittgrößen grafisch darstellen
+
+Darstellen von `N`, `V` und `M` entlang des Stabs, auf Basis der vorhandenen
+`ElementEvaluationState`-Daten und `internalForcesAt` /
+`internalForcesAlong`.
+
+- Nicht über ein grobes Raster approximieren: die vom Rechenkern gelieferten
+  Last-, Segment- und Extremstellen verwenden.
+- Die Skalierung aus dem Streckenlast-Thema wiederverwenden.
+- Vor dem UI-Entwurf festlegen, ob mehrere Größen gleichzeitig oder bewusst
+  einzeln sichtbar sind; Lesbarkeit hat Vorrang vor Vollständigkeit.
+
+## 4. Lastkombinationen und Hüllkurven
+
+Ein neues Kombinationsmodul übernimmt die normative Kombination; `fem-loads`
+bleibt Eigentümer von Lastfällen und `actions` von der reinen
+Einwirkungs-Vokabel. Keine ψ- oder γ-Werte in diese bestehenden Pakete ziehen.
+
+Wichtige Anforderungen für den Entwurf:
+
+- Kombinationen sind gewichtete, lineare Superpositionen von Lastfällen.
+- Gegensätzliche Varianten derselben Einwirkung (z. B. Wind links/rechts)
+  brauchen eine ausschließende Gruppe; eine Kategorie allein drückt das nicht
+  aus.
+- Hüllkurven bewahren die **zugehörigen** Werte: Beim maßgebenden `M` müssen
+  gleichzeitig wirkendes `N` und `V` abrufbar bleiben. Drei unabhängige
+  Min-/Max-Listen reichen für Bemessung nicht aus.
+- Die Extremwertsuche nutzt die exakten Stützstellen des Abschnittskraft-
+  Verlaufs.
+
+## 5. Querschnitte und echte Stabsteifigkeiten
+
+Die getroffenen Entscheidungen stehen in
+[ADR 0020](../docs/adr/0020-section-properties-versus-section-stiffness.md),
+[0021](../docs/adr/0021-section-values-separate-from-tabulated-profiles.md),
+[0022](../docs/adr/0022-stress-points-are-computed-from-a-template.md) und
+[0023](../docs/adr/0023-cross-sections-belong-to-the-model.md); die
+Arbeitspläne selbst (`plan*.md`) sind nicht versioniert.
+
+Reihenfolge:
+
+1. ~~Parametrische Querschnittswerte im Rechenkern~~ — erledigt:
+   `@baustatik/cross-section` liefert `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` und κ
+   aus vier geschlossenen Formen. Widerstandsmomente und Hauptachsenwinkel
+   kommen erst mit der Bemessung; Polygone werden durch die
+   Closed-Form-Entscheidung nicht gebraucht.
+2. ~~Stahlprofilkatalog als Daten mit nachweisbarer Quelle~~ — erledigt:
+   `@baustatik/steel-profiles`, 18 IPE + 24 HEA. Tabellen- und nachgerechnete
+   Werte bleiben unterscheidbar, weil sie in getrennten Packages wohnen.
+3. ~~Adapter auf `SolverConfig.getSectionStiffness`~~ — erledigt:
+   `@baustatik/fem-section-resolve`. Die Demo rechnet mit IPE 300 aus S235.
+4. Erst danach ein Querschnittseditor. **Offen.**
+
+Ein Profilkatalog, der den Solver versorgt, ist bereits ein sinnvoller
+Zwischenstand. Ein Editor ohne Rechenkern nicht.
+
+Offen geblieben ist außerdem: der geschlossene Kasten hat noch keine
+Spannungspunkt-Vorlage (wartet auf die QRO-Daten mit ihren Bogentangenten), und
+`It` fehlt — dort wirkt die `idealisation` wieder, und zwischen `⅓Σl·t³` und
+Bredt liegen drei Zehnerpotenzen.
+
+## Dauerhafte Leitplanken
+
+- Die FEM-Rechnung bleibt unabhängig von Auswahl- und Darstellungszustand.
+  Der Viewer zeigt genau einen von der Anwendung gewählten Lastfall; der Solver
+  bekommt die Lastfall-ID als Eingabe.
+- Auswertungsdaten müssen beim Ergebnis verbleiben und serialisierbar sein.
+  Ein abgelegtes Ergebnis darf für Schnittgrößen nichts am aktuellen Modell
+  nachlesen müssen.
+- Fachliche Skalierung und Bildschirmgeometrie getrennt halten: Lasten,
+  Gelenke und Beschriftungen bleiben bei Zoom lesbar.

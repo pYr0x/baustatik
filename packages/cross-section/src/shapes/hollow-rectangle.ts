@@ -75,8 +75,11 @@ function closedBoxPath(
   // Vom Symmetrieschnitt bis zur Ecke: quer zur Schubrichtung, Hebelarm fest.
   const first = crossWallSegment(-arm, t, across / 2);
   // Die Wand laengs der Schubrichtung.
-  const side = bandSegments(-arm, [{ extent: along, width: t }], endMoment(first))
-    .segments[0];
+  const side = bandSegments(
+    -arm,
+    [{ extent: along, width: t }],
+    endMoment(first),
+  ).segments[0];
   // Von der gegenueberliegenden Ecke zurueck zum zweiten Symmetrieschnitt.
   const last = crossWallSegment(arm, t, across / 2, endMoment(side));
 

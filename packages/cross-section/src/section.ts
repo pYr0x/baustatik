@@ -1,4 +1,7 @@
-import { lookupProfile, type SteelProfileData } from '@baustatik/steel-profiles';
+import {
+  lookupProfile,
+  type SteelProfileData,
+} from '@baustatik/steel-profiles';
 import type { SectionProperties } from './properties';
 import { hollowRectangle } from './shapes/hollow-rectangle';
 import { iSymmetric } from './shapes/i-symmetric';

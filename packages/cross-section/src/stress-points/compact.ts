@@ -1,5 +1,5 @@
-import type { StressPoint } from './types';
 import { momentBefore, type OutlineBand, widthAt } from './outline';
+import type { StressPoint } from './types';
 
 /**
  * DIE REGEL, aus der jede Vorlage einer parametrischen Form faellt:

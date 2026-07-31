@@ -11,8 +11,19 @@ import type { NationalAnnexParams } from './national-annex';
 import type { Kgm3, KNm3, MPa, PerK } from './quantity';
 import type { SteelResistance } from './types';
 
-/** Shear modulus of structural steel [MPa] — EN 1993-1-1 §3.2.6. */
-export const STEEL_SHEAR_MODULUS: MPa = 81000;
+/**
+ * Shear modulus of structural steel [MPa].
+ *
+ * The EXACT quotient `G = E / (2(1+ν)) = 210000 / 2.6 = 80769.23`, rounded to
+ * the nearest whole MPa — **not** the 81000 that EN 1993-1-1 §3.2.6 prints and
+ * that most tables repeat. The code sheet rounds; we do not, because `G` is
+ * consumed by a computation (`GAs = κ·G·A`) and not by a reader.
+ *
+ * The sentence matters: without it, 80769 reads like a typo and someone
+ * "corrects" it back to 81000, changing every shear deformation by 0.3 %.
+ * RSTAB uses the exact quotient for the same reason.
+ */
+export const STEEL_SHEAR_MODULUS: MPa = 80769;
 
 /** Nominal thickness [mm] above which the reduced (`*40`) strengths apply. */
 const THICKNESS_LIMIT = 40;

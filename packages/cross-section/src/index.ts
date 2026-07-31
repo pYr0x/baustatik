@@ -3,8 +3,8 @@ export {
   type CrossSection,
   type Idealisation,
   profileProperties,
-  sectionProperties,
   type ShapeSpec,
+  sectionProperties,
 } from './section';
 export { type StressPoint, stressPoints } from './stress-points/index';
 export type { Segment } from './types';

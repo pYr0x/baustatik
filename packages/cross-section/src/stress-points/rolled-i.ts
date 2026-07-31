@@ -58,10 +58,8 @@ function fillet(d: RolledIDimensions) {
   const offset = (4 * r) / (3 * Math.PI);
 
   const area = squareArea - quarterArea;
-  const momentZ =
-    squareArea * (z0 + r / 2) - quarterArea * (z0 + r - offset);
-  const momentY =
-    squareArea * (y0 + r / 2) - quarterArea * (y0 + r - offset);
+  const momentZ = squareArea * (z0 + r / 2) - quarterArea * (z0 + r - offset);
+  const momentY = squareArea * (y0 + r / 2) - quarterArea * (y0 + r - offset);
 
   return { area, momentZ, momentY };
 }
@@ -146,11 +144,9 @@ export function rolledIStressPoints(d: RolledIDimensions): StressPoint[] {
   const halfFlangeMomentZ = -bb * tf * (bb / 2);
 
   /** Alles oberhalb des Steganfangs: Gurt + zwei Ausrundungen + Stegstueck. */
-  const aboveWebStart =
-    flangeMoment + filletMoment - tw * r * (zWeb + r / 2);
+  const aboveWebStart = flangeMoment + filletMoment - tw * r * (zWeb + r / 2);
   /** Alles oberhalb des Schwerpunkts. */
-  const aboveCentroid =
-    flangeMoment + filletMoment - (tw * (hh - tf) ** 2) / 2;
+  const aboveCentroid = flangeMoment + filletMoment - (tw * (hh - tf) ** 2) / 2;
 
   const flange = (
     nr: number,

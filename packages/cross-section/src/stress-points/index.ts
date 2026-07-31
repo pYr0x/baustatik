@@ -1,13 +1,9 @@
 import { lookupProfile } from '@baustatik/steel-profiles';
 import type { CrossSection } from '../section';
-import {
-  iSymmetricPoints,
-  rectanglePoints,
-  tBeamPoints,
-} from './compact';
+import { tBeamCentroid } from '../shapes/t-beam';
+import { iSymmetricPoints, rectanglePoints, tBeamPoints } from './compact';
 import { rolledIStressPoints } from './rolled-i';
 import type { StressPoint } from './types';
-import { tBeamCentroid } from '../shapes/t-beam';
 
 /** mm -> m fuer die Katalogabmessungen. */
 const MM = 1e-3;

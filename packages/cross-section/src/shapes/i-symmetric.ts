@@ -25,7 +25,9 @@ export function iSymmetric(
   const Iz = (2 * tf * b * b * b + hw * tw * tw * tw) / 12;
 
   const paths =
-    idealisation === 'solid' ? solidPaths(h, b, tw, tf, hw) : thinPaths(h, b, tw, tf);
+    idealisation === 'solid'
+      ? solidPaths(h, b, tw, tf, hw)
+      : thinPaths(h, b, tw, tf);
 
   return { A, Iy, Iz, Iyz: 0, ys: 0, zs: h / 2, ...paths };
 }
