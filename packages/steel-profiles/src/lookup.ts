@@ -10,9 +10,13 @@ const TABLES = { IPE, HEA } as const satisfies Record<
 /**
  * Die kanonische Bezeichnung, so wie sie gedruckt wird: `'IPE 200'`.
  *
- * Ein String-Literal-Union und kein `string`: wer im Modell `'IPE 20'` tippt,
- * soll es beim Typecheck merken und nicht erst, wenn `lookupProfile`
- * `undefined` liefert.
+ * Ein String-Literal-Union ueber die tatsaechlichen Tabellenschluessel, damit
+ * ein Aufrufer, der die Bezeichnung im Code hinschreibt, sie beim Typecheck
+ * pruefen lassen KANN.
+ *
+ * `lookupProfile` nimmt bewusst trotzdem `string`: die Bezeichnung kommt in
+ * der Regel aus einem Eingabefeld, einem CSV-Import oder einem fremden Modell,
+ * und dort gibt es keinen Typecheck mehr — nur noch `undefined`.
  */
 export type ProfileId = keyof typeof IPE | keyof typeof HEA;
 

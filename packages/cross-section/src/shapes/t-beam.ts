@@ -3,16 +3,6 @@ import { bandSegments, crossWallSegment, endMoment } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
 
 /**
- * Der Plattenbalken — die einzige UNSYMMETRISCHE Form dieses Standes und damit
- * der einzige Fall mit `zs != h/2` und einem Steiner-Anteil. Ein
- * Vorzeichenfehler im Steiner-Anteil oder eine verkehrte z-Richtung faellt nur
- * hier auf.
- *
- * `bf`/`hf` sind Breite und Dicke des Gurts OBEN, `bw` die Stegbreite, `h` die
- * GESAMThoehe. Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der
- * Gurtoberkante — damit ist `zs` die Zahl, die man von Hand nachrechnet.
- */
-/**
  * Der Schwerpunktabstand von der GURTOBERKANTE, oder `undefined` bei
  * unsinnigen Abmessungen.
  *
@@ -20,6 +10,10 @@ import { allPositive, type ShapeResult } from './kernel';
  * Rechnungen fuer eine Zahl waeren zwei Gelegenheiten, sie verschieden zu
  * bekommen — und die Spannungspunkte liegen SCHWERPUNKTSBEZOGEN, verschoeben
  * sich also alle neun.
+ *
+ * Sie ist ausserdem die EINE Gueltigkeitspruefung der Form: `undefined` heisst
+ * „das sind keine Plattenbalkenmasse", und `tBeam` wie `stressPoints` haengen
+ * beide daran.
  */
 export function tBeamCentroid(
   bf: number,
@@ -37,6 +31,16 @@ export function tBeamCentroid(
   return (Af * (hf / 2) + As * (hf + hs / 2)) / (Af + As);
 }
 
+/**
+ * Der Plattenbalken — die einzige UNSYMMETRISCHE Form dieses Standes und damit
+ * der einzige Fall mit `zs != h/2` und einem Steiner-Anteil. Ein
+ * Vorzeichenfehler im Steiner-Anteil oder eine verkehrte z-Richtung faellt nur
+ * hier auf.
+ *
+ * `bf`/`hf` sind Breite und Dicke des Gurts OBEN, `bw` die Stegbreite, `h` die
+ * GESAMThoehe. Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der
+ * Gurtoberkante — damit ist `zs` die Zahl, die man von Hand nachrechnet.
+ */
 export function tBeam(
   bf: number,
   hf: number,

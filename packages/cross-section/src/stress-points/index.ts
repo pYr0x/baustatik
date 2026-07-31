@@ -1,5 +1,5 @@
 import { lookupProfile } from '@baustatik/steel-profiles';
-import type { CrossSection } from '../section';
+import { type CrossSection, sectionProperties } from '../section';
 import { tBeamCentroid } from '../shapes/t-beam';
 import { iSymmetricPoints, rectanglePoints, tBeamPoints } from './compact';
 import { rolledIStressPoints } from './rolled-i';
@@ -39,27 +39,32 @@ export function stressPoints(
     });
   }
 
+  // EINE Gueltigkeitspruefung, nicht zwei. Die Abmessungen hier noch einmal
+  // von Hand zu pruefen hiesse, zwei Antworten auf „ist dieser Querschnitt
+  // brauchbar" zu fuehren — und sie waeren auseinandergelaufen: `tf = -1`
+  // haette Spannungspunkte geliefert, aber keine Querschnittswerte.
+  if (sectionProperties(cs) === undefined) return undefined;
+
   const shape = cs.shape;
   switch (shape.kind) {
     case 'rectangle':
-      return shape.b > 0 && shape.h > 0
-        ? rectanglePoints(shape.b, shape.h)
-        : undefined;
+      return rectanglePoints(shape.b, shape.h);
     case 'i-symmetric':
-      return shape.h > 2 * shape.tf && shape.b > shape.tw && shape.tw > 0
-        ? iSymmetricPoints(shape.h, shape.b, shape.tw, shape.tf)
-        : undefined;
-    case 't-beam': {
-      const zs = tBeamCentroid(shape.bf, shape.hf, shape.bw, shape.h);
-      return zs === undefined
-        ? undefined
-        : tBeamPoints(shape.bf, shape.hf, shape.bw, shape.h, zs);
-    }
+      return iSymmetricPoints(shape.h, shape.b, shape.tw, shape.tf);
+    case 't-beam':
+      return tBeamPoints(
+        shape.bf,
+        shape.hf,
+        shape.bw,
+        shape.h,
+        // `sectionProperties` hat die Masse eben erst durchgelassen; der
+        // Schwerpunkt ist damit bestimmt.
+        tBeamCentroid(shape.bf, shape.hf, shape.bw, shape.h) as number,
+      );
     case 'hollow-rectangle':
       // Siehe oben: der geschlossene Kasten wartet auf die QRO-Daten.
       return undefined;
   }
 }
 
-export { rolledIGeometry } from './rolled-i';
 export type { StressPoint } from './types';

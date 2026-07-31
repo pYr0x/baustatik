@@ -49,19 +49,41 @@ export type RolledIDimensions = {
  */
 function fillet(d: RolledIDimensions) {
   const { h, tw, tf, r } = d;
-  const y0 = tw / 2;
-  const z0 = -(h / 2 - tf); // Gurtunterseite, oben
 
   const squareArea = r * r;
   const quarterArea = (Math.PI * r * r) / 4;
-  // Schwerpunkt des Viertelkreises, vom Mittelpunkt aus gemessen.
+  /** Schwerpunkt des Viertelkreises, vom Kreismittelpunkt aus gemessen. */
   const offset = (4 * r) / (3 * Math.PI);
+  /** Eigentraegheit des Viertelkreises um SEINEN Schwerpunkt. */
+  const quarterOwnI = (Math.PI * r ** 4) / 16 - quarterArea * offset * offset;
 
-  const area = squareArea - quarterArea;
-  const momentZ = squareArea * (z0 + r / 2) - quarterArea * (z0 + r - offset);
-  const momentY = squareArea * (y0 + r / 2) - quarterArea * (y0 + r - offset);
+  /**
+   * Erstes und zweites Flaechenmoment um EINE Achse. `edge` ist die Kante des
+   * Quadrats, an der Gurt bzw. Steg anliegt.
+   *
+   * Beide Achsen rechnen identisch und unterscheiden sich nur in `edge` —
+   * zweimal hingeschrieben waere zweimal Gelegenheit, ein Vorzeichen zu
+   * verlieren.
+   */
+  const about = (edge: number) => {
+    const squareCentre = edge + r / 2;
+    const quarterCentre = edge + r - offset;
+    return {
+      moment: squareArea * squareCentre - quarterArea * quarterCentre,
+      inertia:
+        r ** 4 / 12 +
+        squareArea * squareCentre * squareCentre -
+        (quarterOwnI + quarterArea * quarterCentre * quarterCentre),
+    };
+  };
 
-  return { area, momentZ, momentY };
+  return {
+    area: squareArea - quarterArea,
+    /** Um die y-Achse: Kante ist die Gurtunterseite (oben). */
+    aboutY: about(-(h / 2 - tf)),
+    /** Um die z-Achse: Kante ist die Stegflanke. */
+    aboutZ: about(tw / 2),
+  };
 }
 
 /**
@@ -74,46 +96,18 @@ function fillet(d: RolledIDimensions) {
  * Integration fallen.
  */
 export function rolledIGeometry(d: RolledIDimensions) {
-  const { h, b, tw, tf, r } = d;
+  const { h, b, tw, tf } = d;
   const hw = h - 2 * tf;
   const f = fillet(d);
 
-  const A = 2 * b * tf + hw * tw + 4 * f.area;
-
-  // Iy: I des offenen I plus der Steiner-Anteil der vier Ausrundungen um ihren
-  // eigenen Schwerpunkt herum waere die exakte Rechnung. Der Eigenanteil der
-  // Ausrundung ist gegen ihren Steiner-Anteil klein, aber nicht vernachlaessigt:
-  // er faellt aus derselben Zerlegung Quadrat minus Viertelkreis.
-  const zf = -(h / 2 - tf) + r; // Kreismittelpunkt in z (oben)
-  const zSquare = -(h / 2 - tf) + r / 2;
-  const squareArea = r * r;
-  const quarterArea = (Math.PI * r * r) / 4;
-  const offset = (4 * r) / (3 * Math.PI);
-  const zQuarter = zf - offset;
-
-  // Eigenträgheit + Steiner, Quadrat minus Viertelkreis, um die y-Achse.
-  const IySquare = (r * r * r * r) / 12 + squareArea * zSquare * zSquare;
-  // Viertelkreis um seinen Mittelpunkt: pi r^4/16; um seinen Schwerpunkt:
-  // pi r^4/16 - quarterArea * offset^2.
-  const IyQuarterOwn = (Math.PI * r ** 4) / 16 - quarterArea * offset * offset;
-  const IyQuarter = IyQuarterOwn + quarterArea * zQuarter * zQuarter;
-  const IyFillet = IySquare - IyQuarter;
-
-  const Iy = (b * h ** 3 - (b - tw) * hw ** 3) / 12 + 4 * IyFillet;
-
-  const yf = tw / 2 + r;
-  const ySquare = tw / 2 + r / 2;
-  const yQuarter = yf - offset;
-  const IzSquare = (r * r * r * r) / 12 + squareArea * ySquare * ySquare;
-  const IzQuarter =
-    (Math.PI * r ** 4) / 16 -
-    quarterArea * offset * offset +
-    quarterArea * yQuarter * yQuarter;
-  const IzFillet = IzSquare - IzQuarter;
-
-  const Iz = (2 * tf * b ** 3 + hw * tw ** 3) / 12 + 4 * IzFillet;
-
-  return { A, Iy, Iz };
+  // Das offene I plus VIER Ausrundungen. Deren Eigentraegheit ist gegen ihren
+  // Steiner-Anteil klein, aber nicht vernachlaessigt — sie faellt aus derselben
+  // Zerlegung Quadrat minus Viertelkreis wie das erste Flaechenmoment.
+  return {
+    A: 2 * b * tf + hw * tw + 4 * f.area,
+    Iy: (b * h ** 3 - (b - tw) * hw ** 3) / 12 + 4 * f.aboutY.inertia,
+    Iz: (2 * tf * b ** 3 + hw * tw ** 3) / 12 + 4 * f.aboutZ.inertia,
+  };
 }
 
 export function rolledIStressPoints(d: RolledIDimensions): StressPoint[] {
@@ -132,7 +126,7 @@ export function rolledIStressPoints(d: RolledIDimensions): StressPoint[] {
   /** Erstes Flaechenmoment des GESAMTEN oberen Gurts (negativ). */
   const flangeMoment = -b * tf * zf;
   /** Beide oberen Ausrundungen. */
-  const filletMoment = 2 * f.momentZ;
+  const filletMoment = 2 * f.aboutY.moment;
 
   /** Der Gurtueberstand von der Spitze bis zur Ausrundung. */
   const outstand = bb - yFillet;

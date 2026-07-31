@@ -28,13 +28,15 @@
  *     Fall generisch (zwei Zahlen + leere Folgezeile) und PROTOKOLLIERT jede
  *     Reparatur, damit sie nicht unbemerkt bleibt.
  *
- * DREI ABBRUCHBEDINGUNGEN — ein stillschweigend uebersprungenes oder falsch
+ * VIER ABBRUCHBEDINGUNGEN — ein stillschweigend uebersprungenes oder falsch
  * zugeordnetes Profil ist der wahrscheinlichste Fehler dieser Extraktion:
  *
  *  a) Zeilenzahl je Reihe (IPE 18, HEA 24).
- *  b) `h` muss ueber die Reihe STRENG WACHSEN — faengt eine Verschiebung der
+ *  b) Kein Profilname doppelt — faengt zwei Bloecke, die denselben Seitenkopf
+ *     erwischt haben.
+ *  c) `h` muss ueber die Reihe STRENG WACHSEN — faengt eine Verschiebung der
  *     Bloecke gegen die Namen.
- *  c) `A` aus `h, b, tw, tf, r` nachgerechnet muss den Tabellenwert auf 1 %
+ *  d) `A` aus `h, b, tw, tf, r` nachgerechnet muss den Tabellenwert auf 1 %
  *     treffen — faengt eine Verschiebung der ZEILEN innerhalb eines Blocks.
  */
 
