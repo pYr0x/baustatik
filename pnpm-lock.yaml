@@ -44,6 +44,9 @@ importers:
       '@baustatik/fem-loads':
         specifier: workspace:*
         version: link:../../packages/fem-loads
+      '@baustatik/fem-section-resolve':
+        specifier: workspace:*
+        version: link:../../packages/fem-section-resolve
       '@baustatik/fem-solver':
         specifier: workspace:*
         version: link:../../packages/fem-solver
@@ -56,12 +59,18 @@ importers:
       '@baustatik/linear-solver-wasm':
         specifier: workspace:*
         version: link:../../packages/linear-solver-wasm
+      '@baustatik/material':
+        specifier: workspace:*
+        version: link:../../packages/material
       '@baustatik/script':
         specifier: workspace:*
         version: link:../../packages/script
       '@baustatik/section-geometry':
         specifier: workspace:*
         version: link:../../packages/section-geometry
+      '@baustatik/steel-profiles':
+        specifier: workspace:*
+        version: link:../../packages/steel-profiles
       '@baustatik/units':
         specifier: workspace:*
         version: link:../../packages/units
@@ -119,6 +128,10 @@ importers:
         version: 4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.32.0)(terser@5.46.0)
 
   packages/cross-section:
+    dependencies:
+      '@baustatik/steel-profiles':
+        specifier: workspace:*
+        version: link:../steel-profiles
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.3.15
@@ -335,6 +348,40 @@ importers:
       vitest:
         specifier: ^4.1.5
         version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+
+  packages/fem-section-resolve:
+    dependencies:
+      '@baustatik/cross-section':
+        specifier: workspace:*
+        version: link:../cross-section
+      '@baustatik/fem':
+        specifier: workspace:*
+        version: link:../fem
+      '@baustatik/fem-element':
+        specifier: workspace:*
+        version: link:../fem-element
+      '@baustatik/material':
+        specifier: workspace:*
+        version: link:../material
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.5
+        version: 4.1.10(supports-color@8.1.1)(vitest@4.1.10)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.5(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(esbuild@0.27.3)(rolldown@1.1.5)(rollup@4.57.1)(supports-color@8.1.1)(typescript@5.9.3)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
 
   packages/fem-solver:
     dependencies:
@@ -611,6 +658,9 @@ importers:
 
   packages/script:
     dependencies:
+      '@baustatik/cross-section':
+        specifier: workspace:*
+        version: link:../cross-section
       '@baustatik/errors':
         specifier: workspace:*
         version: link:../errors

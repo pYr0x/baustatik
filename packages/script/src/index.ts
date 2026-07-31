@@ -9,6 +9,8 @@ export type {
   BeamHandle,
   BeamInput,
   BeamLoadInput,
+  CrossSectionHandle,
+  CrossSectionInput,
   FEMModelBuilder,
   FEMModelSnapshot,
   FEMModelSnapshotBuilder,

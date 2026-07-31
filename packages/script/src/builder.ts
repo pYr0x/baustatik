@@ -1,10 +1,13 @@
 import { BaustatikError } from '@baustatik/errors';
+import type { CrossSection } from '@baustatik/cross-section';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type { BeamLoad, LoadCase, NodeLoad } from '@baustatik/fem-loads';
 import type {
   BeamHandle,
   BeamInput,
   BeamLoadInput,
+  CrossSectionHandle,
+  CrossSectionInput,
   FEMModelSnapshot,
   FEMModelSnapshotBuilder,
   LoadCaseHandle,
@@ -67,6 +70,10 @@ class BeamHandleImpl implements BeamHandle {
   }
 }
 
+class CrossSectionHandleImpl implements CrossSectionHandle {
+  constructor(readonly id: string) {}
+}
+
 class LoadCaseHandleImpl implements LoadCaseHandle {
   readonly #owner: FEMModelBuilderImpl;
 
@@ -98,6 +105,7 @@ class LoadCaseHandleImpl implements LoadCaseHandle {
 class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
   readonly #nodes: Node[] = [];
   readonly #beams: Beam[] = [];
+  readonly #crossSections: CrossSection[] = [];
   readonly #supports: NodeSupport[] = [];
   readonly #loadCases: LoadCase[] = [];
   readonly #nodeHandles = new WeakSet<NodeHandleImpl>();
@@ -135,6 +143,23 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
     this.#beams.push(record);
     this.#beamHandles.add(handle);
     return handle;
+  }
+
+  /**
+   * Legt einen Querschnitt ins Modell und gibt seine ID heraus.
+   *
+   * Anders als Knoten und Staebe reist der Griff NICHT als Argument weiter:
+   * `Beam.crossSectionId` bleibt ein String, damit `@baustatik/fem` weiterhin
+   * nur an `errors` haengt (ADR 0023). Aufgerufen wird also
+   * `model.beam(a, b, { crossSectionId: ipe300.id, materialId: 'S235' })`.
+   */
+  crossSection(input: CrossSectionInput): CrossSectionHandle {
+    const record = {
+      ...structuredClone(input),
+      id: crypto.randomUUID(),
+    } as CrossSection;
+    this.#crossSections.push(record);
+    return new CrossSectionHandleImpl(record.id);
   }
 
   loadCase(input: LoadCaseInput): LoadCaseHandle {
@@ -204,9 +229,10 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
 
   finish(): FEMModelSnapshot {
     return structuredClone({
-      schemaVersion: 1,
+      schemaVersion: 2,
       nodes: this.#nodes,
       beams: this.#beams,
+      crossSections: this.#crossSections,
       supports: this.#supports,
       loadCases: this.#loadCases,
     });

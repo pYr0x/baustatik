@@ -6,6 +6,18 @@ declare module '@baustatik/script' {
     uz: 'fixed' | 'free';
     phiY: 'fixed' | 'free';
   };
+  export type Idealisation = 'solid' | 'thin-walled';
+  export type ShapeSpec =
+    | { kind: 'rectangle'; b: number; h: number }
+    | { kind: 'hollow-rectangle'; b: number; h: number; t: number; idealisation: Idealisation }
+    | { kind: 'i-symmetric'; h: number; b: number; tw: number; tf: number; idealisation: Idealisation }
+    | { kind: 't-beam'; bf: number; hf: number; bw: number; h: number; idealisation: Idealisation };
+  export type CrossSectionInput =
+    | { kind: 'shape'; shape: ShapeSpec }
+    | { kind: 'profile'; profileId: string };
+  export interface CrossSectionHandle {
+    readonly id: string;
+  }
   export type BeamInput = {
     crossSectionId: string;
     materialId: string;
@@ -69,6 +81,7 @@ declare module '@baustatik/script' {
   export interface FEMModelBuilder {
     node(position: Position): NodeHandle;
     beam(startNode: NodeHandle, endNode: NodeHandle, input: BeamInput): BeamHandle;
+    crossSection(input: CrossSectionInput): CrossSectionHandle;
     loadCase(input: LoadCaseInput): LoadCaseHandle;
   }
   export type ModelDefinition = (model: FEMModelBuilder) => void;

@@ -1,3 +1,4 @@
+import type { CrossSection, Idealisation, ShapeSpec } from '@baustatik/cross-section';
 import { BaustatikError } from '@baustatik/errors';
 import { assertValidModel } from '@baustatik/fem';
 import {
@@ -19,11 +20,16 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
     'schemaVersion',
     'nodes',
     'beams',
+    'crossSections',
     'supports',
     'loadCases',
   ]);
-  if (snapshot.schemaVersion !== 1) {
-    fail('Snapshot.schemaVersion muss 1 sein.');
+  // Ein v1-Snapshot wird ABGELEHNT und nicht um ein leeres `crossSections`
+  // ergaenzt: er beschreibt ein Modell, dessen `crossSectionId` ins Leere
+  // zeigt. Ein stillschweigendes Ergaenzen taeuschte vor, es liesse sich
+  // rechnen.
+  if (snapshot.schemaVersion !== 2) {
+    fail('Snapshot.schemaVersion muss 2 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -73,6 +79,13 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
     };
   });
 
+  const crossSections = array(
+    snapshot.crossSections,
+    'Snapshot.crossSections',
+  ).map((value, index) =>
+    parseCrossSection(value, `Snapshot.crossSections[${index}]`),
+  );
+
   const supports = array(snapshot.supports, 'Snapshot.supports').map(
     (value, index) => {
       const support = record(value, `Snapshot.supports[${index}]`);
@@ -121,6 +134,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
 
   unique(nodes, 'Knoten');
   unique(beams, 'Stab');
+  unique(crossSections, 'Querschnitt');
   unique(supports, 'Lager');
   unique(loadCases, 'Lastfall');
 
@@ -131,7 +145,100 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
     assertValidLoads(geometry, loadCase.loads);
   }
 
-  return { schemaVersion: 1, nodes, beams, supports, loadCases };
+  return { schemaVersion: 2, nodes, beams, crossSections, supports, loadCases };
+}
+
+/**
+ * Der Querschnitt an der Snapshot-Grenze.
+ *
+ * NUR DIE GESTALT, nicht die Aufloesbarkeit: ob ein `profileId` im Katalog
+ * steht oder ob ein Stab auf einen vorhandenen Querschnitt zeigt, prueft diese
+ * Stelle NICHT. Beides meldet der Bericht des Solvers als Modellfehler
+ * (`UnknownSectionStiffnessError`), und eine zweite Regel an der zweiten Stelle
+ * gaebe zwei Wahrheiten darueber, was ein gueltiges Modell ist.
+ *
+ * `idealisation` ist Pflicht, wo `ShapeSpec` es verlangt — ein fehlendes Feld
+ * hier stillschweigend auf `'solid'` zu setzen, waere genau der Default, den
+ * `cross-section` bewusst nicht anbietet.
+ */
+function parseCrossSection(input: unknown, path: string): CrossSection {
+  const value = record(input, path);
+  const kind = oneOf(value.kind, ['shape', 'profile'] as const, `${path}.kind`);
+  const id = text(value.id, `${path}.id`);
+
+  if (kind === 'profile') {
+    exactKeys(value, path, ['kind', 'id', 'profileId']);
+    return {
+      kind,
+      id,
+      profileId: text(value.profileId, `${path}.profileId`),
+    };
+  }
+
+  exactKeys(value, path, ['kind', 'id', 'shape']);
+  return { kind, id, shape: parseShape(value.shape, `${path}.shape`) };
+}
+
+function parseShape(input: unknown, path: string): ShapeSpec {
+  const value = record(input, path);
+  const kind = oneOf(
+    value.kind,
+    ['rectangle', 'hollow-rectangle', 'i-symmetric', 't-beam'] as const,
+    `${path}.kind`,
+  );
+  const size = (key: string) => positive(value[key], `${path}.${key}`);
+
+  switch (kind) {
+    case 'rectangle':
+      // Das Vollrechteck traegt KEIN `idealisation`: ein duennwandiges
+      // Vollrechteck gibt es nicht.
+      exactKeys(value, path, ['kind', 'b', 'h']);
+      return { kind, b: size('b'), h: size('h') };
+    case 'hollow-rectangle':
+      exactKeys(value, path, ['kind', 'b', 'h', 't', 'idealisation']);
+      return {
+        kind,
+        b: size('b'),
+        h: size('h'),
+        t: size('t'),
+        idealisation: parseIdealisation(value.idealisation, path),
+      };
+    case 'i-symmetric':
+      exactKeys(value, path, ['kind', 'h', 'b', 'tw', 'tf', 'idealisation']);
+      return {
+        kind,
+        h: size('h'),
+        b: size('b'),
+        tw: size('tw'),
+        tf: size('tf'),
+        idealisation: parseIdealisation(value.idealisation, path),
+      };
+    case 't-beam':
+      exactKeys(value, path, ['kind', 'bf', 'hf', 'bw', 'h', 'idealisation']);
+      return {
+        kind,
+        bf: size('bf'),
+        hf: size('hf'),
+        bw: size('bw'),
+        h: size('h'),
+        idealisation: parseIdealisation(value.idealisation, path),
+      };
+  }
+}
+
+function parseIdealisation(value: unknown, path: string): Idealisation {
+  return oneOf(
+    value,
+    ['solid', 'thin-walled'] as const,
+    `${path}.idealisation`,
+  );
+}
+
+/** Eine Abmessung. Null und negativ sind keine Masse, sondern Tippfehler. */
+function positive(value: unknown, path: string): number {
+  const number = finite(value, path);
+  if (number <= 0) fail(`${path} muss groesser als 0 sein.`);
+  return number;
 }
 
 function parseLoad(input: unknown, path: string, ids: Set<string>): FEMLoad {

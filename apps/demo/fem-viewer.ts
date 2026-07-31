@@ -1,4 +1,7 @@
-import { type Node, type Beam, type NodeSupport } from '@baustatik/fem';
+import { type Node, type Beam, type NodeSupport, BeamEndReleases } from '@baustatik/fem';
+import type { CrossSection } from '@baustatik/cross-section';
+import { resolveSectionStiffness } from '@baustatik/fem-section-resolve';
+import { createMaterials } from '@baustatik/material';
 import {
     assertValidLoadCase,
     type BeamLoad,
@@ -35,6 +38,7 @@ const useStore = defineStore('sections', {
     state: () => ({
         nodes: [] as Node[],
         beams: [] as Beam[],
+        crossSections: [] as CrossSection[],
         supports: [] as NodeSupport[],
         loadCases: [] as LoadCase[],
         activeLoadCaseId: '',
@@ -52,6 +56,39 @@ const useStore = defineStore('sections', {
         },
         addBeam(startNode: Node, endNode: Node, crossSectionId: string, materialId: string) {
             this.beams.push({ id: crypto.randomUUID(), startNodeId: startNode.id, endNodeId: endNode.id, crossSectionId, materialId/*, releases: { start: { theta: true }, end: { theta: true } } */ });
+        },
+        /**
+         * Das Gelenk ist ein EIGENER Modellierschritt — wie `addSupport` am
+         * Knoten, nur am STABENDE (ADR 0017). Deshalb bleibt `addBeam` schmal:
+         * ein Stab hat zwei Enden mit je drei Freiheitsgraden, das passt in
+         * keine Argumentliste, und interaktiv setzt der Anwender Gelenke ohnehin
+         * erst nach dem Zeichnen.
+         *
+         * Voreinstellung `{ theta: true }`, weil das Momentengelenk der Normalfall
+         * ist; `u` (Normalkraft) und `w` (Querkraft) schreibt man aus, wenn man
+         * sie wirklich meint.
+         *
+         * Nachgeschlagen wird ueber `this.beams`, statt auf `beam` zu schreiben:
+         * der von `addBeam` zurueckgegebene Stab ist das ROHE Objekt. Ein
+         * Schreibzugriff darauf ginge am Pinia-Proxy vorbei, und der Viewer
+         * zeichnete nicht neu — dieselbe Falle wie bei `requireActiveCase`.
+         *
+         * Setzt nur frei, nimmt nichts zurueck: mit `?: true` heisst „nicht
+         * freigesetzt" FELD WEG, nicht `false`. Ein Gegenstueck dazu braucht
+         * erst die Oberflaeche.
+         */
+        addRelease(beam: Beam, end: 'start' | 'end', dofs: BeamEndReleases = { theta: true }) {
+            const target = this.beams.find((candidate) => candidate.id === beam.id);
+            if (target === undefined) throw new Error('Stab nicht im Modell — `release` nach `addBeam` aufrufen.');
+            target.releases = { ...target.releases, [end]: { ...target.releases?.[end], ...dofs } };
+        },
+        /**
+         * Der Querschnitt gehoert zum MODELL, nicht zur Anwendung (ADR 0023):
+         * er liegt im Store neben Knoten und Staeben und reist mit dem
+         * Snapshot. `Beam.crossSectionId` bleibt ein String und zeigt hierher.
+         */
+        addCrossSection(section: CrossSection) {
+            this.crossSections.push(section);
         },
         addSupport(node: Node, ux: 'fixed' | 'free', uz: 'fixed' | 'free', phiY: 'fixed' | 'free') {
             this.supports.push({ id: crypto.randomUUID(), nodeId: node.id, ux, uz, phiY });
@@ -131,16 +168,24 @@ function requireActiveCase(loadCases: LoadCase[], activeLoadCaseId: string): Loa
 }
 const store = useStore(pinia);
 
+// Der Querschnitt ist jetzt echt: IPE 300 aus dem Walzprofil-Katalog. Bis
+// hierher stand im Solver ein erfundenes { EA: 1e6, EI: 1000, GAs: 500 }.
+store.addCrossSection({ kind: 'profile', id: 'IPE 300', profileId: 'IPE 300' });
+
 store.addNode(Point.make(0, 0));
 store.addNode(Point.make(2, 0));
-store.addBeam(store.nodes[0], store.nodes[1], 'default', 'default');
+store.addNode(Point.make(4, 0));
+store.addBeam(store.nodes[0], store.nodes[1], 'IPE 300', 'S235');
+store.addBeam(store.nodes[1], store.nodes[2], 'IPE 300', 'S235');
 store.addSupport(store.nodes[0], 'fixed', 'fixed', 'free');
 store.addSupport(store.nodes[1], 'free', 'fixed', 'free');
+store.addSupport(store.nodes[2], 'free', 'fixed', 'free');
+store.addRelease(store.beams[0], "end");
 
 // Schraeger Stab als Sichttest: frame global/local und die Bezugslaengen
 // unterscheiden sich nur am schraegen Stab sichtbar.
 // store.addNode(Point.make(160, 40));
-// store.addBeam(store.nodes[1], store.nodes[2], 'default', 'default');
+// store.addBeam(store.nodes[1], store.nodes[2], 'IPE 300', 'S235');
 
 // Repräsentative Fixtures für den Demo- und Sichttest. Die vollständige
 // Sammlung der Eingabevarianten steht in
@@ -230,6 +275,10 @@ store.$subscribe(() => viewer.requestRender());
 //    Die drei Ports (Steifigkeiten, Linearsolver, Formulierung) sind das, was
 //    das Package bewusst nicht selbst weiss. Hier bleiben sie schlicht: das
 //    Rechnen selbst zeigt `fem-cantilever.ts` gegen die Handrechnung.
+// Deutscher Nationaler Anhang — dieselbe Fabrik, die auch der Eingabedialog
+// bekaeme. Kein globaler Zustand (ADR 0002).
+const materials = createMaterials({ na: 'DE' });
+
 const solver = createFEMSolver({
     getNodes: () => store.nodes,
     getBeams: () => store.beams,
@@ -237,7 +286,11 @@ const solver = createFEMSolver({
     // ALLE Lastfälle. Welcher gerechnet wird, sagt das Argument von `check()`
     // und `solve()` — der Solver liest keinen Ansichtszustand.
     getLoadCases: () => store.loadCases,
-    getSectionProperties: () => ({ EA: 1e6, EI: 1000, GAs: 500 }),
+    // Ab hier rechnet die FEM ECHT: Querschnitt x Material -> EA, EI, GAs.
+    // `undefined` (unbekannter Querschnitt oder unbekanntes Material) wird vom
+    // Bericht als Modellfehler gemeldet, nicht geworfen.
+    getSectionStiffness: (beam) =>
+        resolveSectionStiffness(beam, store.crossSections, materials),
     solveLinearSystem,
 });
 

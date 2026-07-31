@@ -1,6 +1,9 @@
+import type { CrossSection } from '@baustatik/cross-section';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
+import { resolveSectionStiffness } from '@baustatik/fem-section-resolve';
 import { effectiveLoads, type LoadCase } from '@baustatik/fem-loads';
 import { createFEMSolver } from '@baustatik/fem-solver';
+import { createMaterials } from '@baustatik/material';
 import { createFEMViewer, FEM_LAYERS } from '@baustatik/fem-viewer';
 import { createKonvaAdapter } from '@baustatik/konva-adapter';
 import {
@@ -33,6 +36,9 @@ export default defineModel(model => {
     category: { action: 'variable', kind: 'snow' },
   });
 
+  // Der Querschnitt gehoert zum Modell und reist mit dem Snapshot.
+  const ipe300 = model.crossSection({ kind: 'profile', profileId: 'IPE 300' });
+
   const nodes = Array.from({ length: count + 1 }, (_, i) =>
     model.node({ x: i * width, z: 0 }),
   );
@@ -42,7 +48,7 @@ export default defineModel(model => {
 
   const beams = nodes.slice(0, -1).map((node, i) =>
     model.beam(node, nodes[i + 1], {
-      crossSectionId: 'IPE200',
+      crossSectionId: ipe300.id,
       materialId: 'S235',
     }),
   );
@@ -82,6 +88,7 @@ const useFEMScriptStore = defineStore('fem-scripting', {
   state: () => ({
     nodes: [] as Node[],
     beams: [] as Beam[],
+    crossSections: [] as CrossSection[],
     supports: [] as NodeSupport[],
     loadCases: [] as LoadCase[],
     activeLoadCaseId: '',
@@ -99,6 +106,7 @@ const useFEMScriptStore = defineStore('fem-scripting', {
       this.$patch({
         nodes: [...snapshot.nodes],
         beams: [...snapshot.beams],
+        crossSections: [...snapshot.crossSections],
         supports: [...snapshot.supports],
         loadCases: snapshot.loadCases.map((loadCase) =>
           structuredClone(loadCase),
@@ -140,12 +148,17 @@ const viewer = createFEMViewer({
 viewer.requestRender();
 store.$subscribe(() => viewer.requestRender());
 
+const materials = createMaterials({ na: 'DE' });
+
 const solver = createFEMSolver({
   getNodes: () => store.nodes,
   getBeams: () => store.beams,
   getSupports: () => store.supports,
   getLoadCases: () => store.loadCases,
-  getSectionStiffness: () => ({ EA: 1e6, EI: 1000, GAs: 500 }),
+  // Ab hier rechnet die FEM ECHT. Der Snapshot ist seit v2 selbsttragend:
+  // die Querschnitte, auf die `crossSectionId` zeigt, reisen in ihm mit.
+  getSectionStiffness: (beam) =>
+    resolveSectionStiffness(beam, store.crossSections, materials),
   solveLinearSystem,
 });
 
