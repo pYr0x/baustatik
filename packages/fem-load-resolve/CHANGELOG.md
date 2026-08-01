@@ -1,5 +1,12 @@
 # @baustatik/fem-load-resolve
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [3da2409]
+  - @baustatik/fem-element@1.1.0
+
 ## 0.1.0
 
 ### Minor Changes

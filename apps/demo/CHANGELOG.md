@@ -1,5 +1,28 @@
 # demo
 
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [fe49281]
+- Updated dependencies [fe49281]
+- Updated dependencies [3da2409]
+- Updated dependencies [d66e29b]
+- Updated dependencies [e9b652b]
+- Updated dependencies [fe49281]
+- Updated dependencies [fdfa066]
+- Updated dependencies [fe49281]
+- Updated dependencies [6fb26ba]
+  - @baustatik/material@0.0.3
+  - @baustatik/cross-section@0.2.0
+  - @baustatik/script@0.1.0
+  - @baustatik/fem-element@1.1.0
+  - @baustatik/fem-solver@1.1.0
+  - @baustatik/fem-section-resolve@0.1.0
+  - @baustatik/units@0.3.0
+  - @baustatik/cross-section-viewer@0.1.1
+  - @baustatik/fem-viewer@1.0.1
+
 ## 1.0.1
 
 ### Patch Changes
