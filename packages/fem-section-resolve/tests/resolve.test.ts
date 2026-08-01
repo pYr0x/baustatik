@@ -20,7 +20,7 @@ const beam = (crossSectionId: string, materialId = 'S235'): Beam => ({
 const IPE80: CrossSection = {
   kind: 'profile',
   id: 'cs-ipe80',
-  profileId: 'IPE 80',
+  profile: 'IPE 80',
 };
 
 describe('Die Einheitenkette, ausgeschrieben', () => {
@@ -53,7 +53,7 @@ describe('Parametrische Form durch dieselbe Kette', () => {
   const rect: CrossSection = {
     kind: 'shape',
     id: 'cs-rect',
-    shape: { kind: 'rectangle', b: 0.2, h: 0.5 },
+    shape: { kind: 'rectangle', b: 200, h: 500 },
   };
 
   it('nimmt kappa = 5/6 aus der Form und nicht aus einer Tabelle', () => {
@@ -75,8 +75,8 @@ describe('Ein Profilwechsel schlaegt bis zur Verformung durch', () => {
     // 2,185 — und weil die Verformung eines Kragarms mit 1/EI geht, WAECHST
     // sie um genau denselben Faktor.
     const sections: CrossSection[] = [
-      { kind: 'profile', id: 'hea300', profileId: 'HEA 300' },
-      { kind: 'profile', id: 'ipe300', profileId: 'IPE 300' },
+      { kind: 'profile', id: 'hea300', profile: 'HEA 300' },
+      { kind: 'profile', id: 'ipe300', profile: 'IPE 300' },
     ];
     const hea = resolveSectionStiffness(beam('hea300'), sections, materials);
     const ipe = resolveSectionStiffness(beam('ipe300'), sections, materials);
@@ -100,7 +100,7 @@ describe('Was undefined heisst', () => {
     const broken: CrossSection = {
       kind: 'profile',
       id: 'cs-x',
-      profileId: 'IPE 201',
+      profile: 'IPE 201',
     };
     expect(
       resolveSectionStiffness(beam('cs-x'), [broken], materials),
@@ -138,7 +138,7 @@ describe('Was undefined heisst', () => {
     const broken: CrossSection = {
       kind: 'shape',
       id: 'cs-x',
-      shape: { kind: 'rectangle', b: -0.2, h: 0.5 },
+      shape: { kind: 'rectangle', b: -200, h: 500 },
     };
     expect(
       resolveSectionStiffness(beam('cs-x'), [broken], materials),

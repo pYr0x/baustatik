@@ -1,3 +1,4 @@
+import type { cm } from '@baustatik/units';
 import type { Idealisation } from '../section';
 import {
   bandSegments,
@@ -12,11 +13,12 @@ import { allPositive, type ShapeResult } from './kernel';
  * innen.
  *
  * Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der Oberkante.
+ * Abmessungen in ZENTIMETERN (siehe `shapeResult`).
  */
 export function hollowRectangle(
-  b: number,
-  h: number,
-  t: number,
+  b: cm,
+  h: cm,
+  t: cm,
   idealisation: Idealisation,
 ): ShapeResult | undefined {
   const bi = b - 2 * t;

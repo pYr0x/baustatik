@@ -23,21 +23,21 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
     const parsed = parseFEMModelSnapshot(
       snapshot({
         crossSections: [
-          { kind: 'profile', id: 'cs-1', profileId: 'IPE 300' },
+          { kind: 'profile', id: 'cs-1', profile: 'IPE 300' },
           {
             kind: 'shape',
             id: 'cs-2',
-            shape: { kind: 'rectangle', b: 0.2, h: 0.5 },
+            shape: { kind: 'rectangle', b: 200, h: 500 },
           },
           {
             kind: 'shape',
             id: 'cs-3',
             shape: {
               kind: 't-beam',
-              bf: 2,
-              hf: 0.2,
-              bw: 0.25,
-              h: 0.5,
+              bf: 2000,
+              hf: 200,
+              bw: 250,
+              h: 500,
               idealisation: 'solid',
             },
           },
@@ -48,7 +48,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
     expect(parsed.crossSections[0]).toEqual({
       kind: 'profile',
       id: 'cs-1',
-      profileId: 'IPE 300',
+      profile: 'IPE 300',
     });
   });
 
@@ -84,7 +84,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
             {
               kind: 'shape',
               id: 'cs-1',
-              shape: { kind: 'i-symmetric', h: 0.3, b: 0.15, tw: 0.007, tf: 0.01 },
+              shape: { kind: 'i-symmetric', h: 300, b: 150, tw: 7, tf: 10 },
             },
           ],
         }),
@@ -102,8 +102,8 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
               id: 'cs-1',
               shape: {
                 kind: 'rectangle',
-                b: 0.2,
-                h: 0.5,
+                b: 200,
+                h: 500,
                 idealisation: 'solid',
               },
             },
@@ -115,9 +115,9 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
 
   it('lehnt unsinnige Abmessungen an der Grenze ab', () => {
     for (const shape of [
-      { kind: 'rectangle', b: 0, h: 0.5 },
-      { kind: 'rectangle', b: -0.2, h: 0.5 },
-      { kind: 'rectangle', b: 'breit', h: 0.5 },
+      { kind: 'rectangle', b: 0, h: 500 },
+      { kind: 'rectangle', b: -200, h: 500 },
+      { kind: 'rectangle', b: 'breit', h: 500 },
     ]) {
       expect(() =>
         parseFEMModelSnapshot(
@@ -132,15 +132,15 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
       parseFEMModelSnapshot(
         snapshot({
           crossSections: [
-            { kind: 'profile', id: 'cs-1', profileId: 'IPE 300' },
-            { kind: 'profile', id: 'cs-1', profileId: 'IPE 200' },
+            { kind: 'profile', id: 'cs-1', profile: 'IPE 300' },
+            { kind: 'profile', id: 'cs-1', profile: 'IPE 200' },
           ],
         }),
       ),
     ).toThrow('Querschnitt-ID "cs-1" kommt mehrfach vor.');
   });
 
-  it('prueft NICHT, ob ein profileId im Katalog steht', () => {
+  it('prueft NICHT, ob ein profile im Katalog steht', () => {
     // Die Aufloesbarkeit meldet der Bericht des Solvers als Modellfehler. Eine
     // zweite Regel an dieser Stelle gaebe zwei Wahrheiten darueber, was ein
     // gueltiges Modell ist.
@@ -148,7 +148,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
       parseFEMModelSnapshot(
         snapshot({
           crossSections: [
-            { kind: 'profile', id: 'cs-1', profileId: 'gibt-es-nicht' },
+            { kind: 'profile', id: 'cs-1', profile: 'gibt-es-nicht' },
           ],
         }),
       ),
@@ -161,7 +161,7 @@ describe('Der Builder vergibt die Querschnitts-ID', () => {
     const model = createFEMModelBuilder();
     const ipe300 = model.crossSection({
       kind: 'profile',
-      profileId: 'IPE 300',
+      profile: 'IPE 300',
     });
     const left = model
       .node({ x: 0, z: 0 })
@@ -184,10 +184,10 @@ describe('Der Builder vergibt die Querschnitts-ID', () => {
       kind: 'shape',
       shape: {
         kind: 'i-symmetric',
-        h: 0.3,
-        b: 0.15,
-        tw: 0.0071,
-        tf: 0.0107,
+        h: 300,
+        b: 150,
+        tw: 7.1,
+        tf: 10.7,
         idealisation: 'thin-walled',
       },
     });

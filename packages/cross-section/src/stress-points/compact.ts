@@ -1,5 +1,6 @@
+import type { mm } from '@baustatik/units';
 import { momentBefore, type OutlineBand, widthAt } from './outline';
-import type { StressPoint } from './types';
+import { type StressPoint, stressPoint } from './types';
 
 /**
  * DIE REGEL, aus der jede Vorlage einer parametrischen Form faellt:
@@ -8,11 +9,14 @@ import type { StressPoint } from './types';
  * > SCHWERPUNKT.
  *
  * Was die Regel erledigt, sieht man am Plattenbalken mit breitem Gurt: die
- * Nulllinie kann IM GURT liegen (`bf=2,0 / hf=0,2 / bw=0,25 / h=0,5` ergibt
- * `zs = 0,1395 m` bei `hf = 0,2`). „Schwerpunkt" trifft das ohne Sonderfall und
+ * Nulllinie kann IM GURT liegen (`bf=2000 / hf=200 / bw=250 / h=500` ergibt
+ * `zs = 139,5 mm` bei `hf = 200`). „Schwerpunkt" trifft das ohne Sonderfall und
  * liefert dort `t = bf`; „Mitte Steg" haette den Punkt an die falsche Stelle
  * gesetzt. Und beim Rechteck haben die vier Ecken allein ueberall `S = 0` — das
  * Maximum `b*h^2/8` sitzt auf halber Hoehe.
+ *
+ * ALLE ABMESSUNGEN IN MILLIMETERN, wie sie aus `ShapeSpec` hereinkommen. `S`
+ * faellt damit in mm³ an; `stressPoint` macht cm³ daraus.
  *
  * `Sy` und `Sz` sind das erste Flaechenmoment des Teils OBERHALB bzw. LINKS vom
  * Punkt, beide also <= 0. Das ist eine andere Vorzeichenkonvention als beim
@@ -21,25 +25,27 @@ import type { StressPoint } from './types';
  * keinen Umlauf, also auch keine Richtung, die ein Vorzeichen tragen muesste.
  */
 export function compactStressPoints(
-  positions: readonly { y: number; z: number }[],
+  positions: readonly { y: mm; z: mm }[],
   zBands: readonly OutlineBand[],
   yBands: readonly OutlineBand[],
 ): StressPoint[] {
-  return positions.map((position, index) => ({
-    nr: index + 1,
-    y: position.y,
-    z: position.z,
-    // Der Nenner in tau gehoert zur WAAGERECHTEN Schnittflaeche: die Breite in
-    // dieser Hoehe. Beim breiten Gurt ist das `bf`, und genau das ist der
-    // Grund, warum die Regel den Schwerpunkt und nicht die Stegmitte nennt.
-    t: widthAt(zBands, position.z),
-    Sy: momentBefore(zBands, position.z),
-    Sz: momentBefore(yBands, position.y),
-  }));
+  return positions.map((position, index) =>
+    stressPoint(
+      index + 1,
+      position.y,
+      position.z,
+      // Der Nenner in tau gehoert zur WAAGERECHTEN Schnittflaeche: die Breite in
+      // dieser Hoehe. Beim breiten Gurt ist das `bf`, und genau das ist der
+      // Grund, warum die Regel den Schwerpunkt und nicht die Stegmitte nennt.
+      widthAt(zBands, position.z),
+      momentBefore(zBands, position.z),
+      momentBefore(yBands, position.y),
+    ),
+  );
 }
 
-/** Vollrechteck: 4 Ecken + Schwerpunkt. */
-export function rectanglePoints(b: number, h: number): StressPoint[] {
+/** Vollrechteck: 4 Ecken + Schwerpunkt. Abmessungen in mm. */
+export function rectanglePoints(b: mm, h: mm): StressPoint[] {
   const zBands: OutlineBand[] = [{ from: -h / 2, to: h / 2, width: b }];
   const yBands: OutlineBand[] = [{ from: -b / 2, to: b / 2, width: h }];
   return compactStressPoints(
@@ -59,14 +65,14 @@ export function rectanglePoints(b: number, h: number): StressPoint[] {
  * Plattenbalken: 8 Ecken + Schwerpunkt.
  *
  * `zs` ist der Abstand des Schwerpunkts von der GURTOBERKANTE; die Punkte
- * liegen wie ueberall SCHWERPUNKTSBEZOGEN.
+ * liegen wie ueberall SCHWERPUNKTSBEZOGEN. Alles in mm.
  */
 export function tBeamPoints(
-  bf: number,
-  hf: number,
-  bw: number,
-  h: number,
-  zs: number,
+  bf: mm,
+  hf: mm,
+  bw: mm,
+  h: mm,
+  zs: mm,
 ): StressPoint[] {
   const top = -zs;
   const flangeBottom = -zs + hf;
@@ -110,12 +116,7 @@ export function tBeamPoints(
  * und gewalztes IPE (13) lesen sich damit bewusst verschieden — es sind zwei
  * Formen.
  */
-export function iSymmetricPoints(
-  h: number,
-  b: number,
-  tw: number,
-  tf: number,
-): StressPoint[] {
+export function iSymmetricPoints(h: mm, b: mm, tw: mm, tf: mm): StressPoint[] {
   const top = -h / 2;
   const topInner = -h / 2 + tf;
   const bottomInner = h / 2 - tf;

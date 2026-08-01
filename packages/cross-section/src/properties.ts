@@ -7,9 +7,14 @@
  * `@baustatik/fem-section-resolve` und sonst niemand
  * ([ADR 0020](../../../docs/adr/0020-section-properties-versus-section-stiffness.md)).
  *
- * ALLES IN SI-METERN. Der Katalog fuehrt cm2/cm4, weil man das gegen die
- * gedruckte Tabelle diffen koennen muss; hier ist die Umrechnung bereits
- * passiert, und zwar an genau einer Stelle.
+ * ALLES IN SI-METERN — und das ist die EINZIGE Stelle im Package, an der SI
+ * steht. Innen rechnen beide Quellen in Katalogeinheiten (cm², cm⁴, cm), weil
+ * man das gegen die gedruckte Tabelle diffen koennen muss: `Iy: 8356` liest
+ * man, `8.356e-5` nicht. Umgerechnet wird an genau einer Stelle, in `toSI`
+ * ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md)).
+ *
+ * SI steht hier, weil dahinter `fem-section-resolve` `A` in m² mit `E` in
+ * kN/m² multipliziert und `EA` in kN herauskommen soll.
  */
 export type SectionProperties = {
   /** Querschnittsflaeche A [m2]. */

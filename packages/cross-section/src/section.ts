@@ -2,12 +2,15 @@ import {
   lookupProfile,
   type SteelProfileData,
 } from '@baustatik/steel-profiles';
+import type { mm } from '@baustatik/units';
 import type { SectionProperties } from './properties';
 import { hollowRectangle } from './shapes/hollow-rectangle';
 import { iSymmetric } from './shapes/i-symmetric';
 import { toProperties } from './shapes/kernel';
 import { rectangle } from './shapes/rectangle';
 import { tBeam } from './shapes/t-beam';
+import { toSI } from './to-si';
+import { MM_TO_CM } from './units';
 
 /**
  * Wie der Querschnitt fuer den SCHUB idealisiert wird.
@@ -22,8 +25,13 @@ import { tBeam } from './shapes/t-beam';
 export type Idealisation = 'solid' | 'thin-walled';
 
 /**
- * Eine parametrische Form. ABMESSUNGEN IN METERN — das Modell ist SI, der
- * Katalog ist es nicht.
+ * Eine parametrische Form. ABMESSUNGEN IN MILLIMETERN.
+ *
+ * mm ist die Einheit, in der ein Querschnitt gezeichnet, bemasst und gedruckt
+ * wird — und die Einheit, in der `SteelProfileData` daneben `h`, `b`, `tw`,
+ * `tf` und `r` fuehrt. Beide Quellen dieses Packages sprechen damit dieselbe
+ * Sprache; SI entsteht erst an der Ausgabe, in `toSI`
+ * ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md)).
  *
  * Die Form liefert WERTE, KEINE GEOMETRIE. Sollen die Formen spaeter gezeichnet
  * werden, kommt je Form ein `geometry()` dazu; die Werte bleiben aus der
@@ -34,31 +42,31 @@ export type Idealisation = 'solid' | 'thin-walled';
  */
 export type ShapeSpec =
   /** Vollrechteck. Immer kompakt, deshalb ohne `idealisation`. */
-  | { kind: 'rectangle'; b: number; h: number }
+  | { kind: 'rectangle'; b: mm; h: mm }
   /** Geschlossener Kasten mit umlaufend gleicher Wandstaerke. */
   | {
       kind: 'hollow-rectangle';
-      b: number;
-      h: number;
-      t: number;
+      b: mm;
+      h: mm;
+      t: mm;
       idealisation: Idealisation;
     }
   /** Doppeltsymmetrisches I, GESCHWEISST — ohne Ausrundung. */
   | {
       kind: 'i-symmetric';
-      h: number;
-      b: number;
-      tw: number;
-      tf: number;
+      h: mm;
+      b: mm;
+      tw: mm;
+      tf: mm;
       idealisation: Idealisation;
     }
   /** Plattenbalken: Gurt oben, Steg darunter, `h` ist die Gesamthoehe. */
   | {
       kind: 't-beam';
-      bf: number;
-      hf: number;
-      bw: number;
-      h: number;
+      bf: mm;
+      hf: mm;
+      bw: mm;
+      h: mm;
       idealisation: Idealisation;
     };
 
@@ -76,12 +84,12 @@ export type ShapeSpec =
  */
 export type CrossSection =
   | { kind: 'shape'; id: string; shape: ShapeSpec }
-  | { kind: 'profile'; id: string; profileId: string };
+  | { kind: 'profile'; id: string; profile: string };
 
 /**
  * Die Querschnittswerte eines Querschnitts — die EINE Tuer dieses Packages.
  *
- * `undefined` heisst „kenne ich nicht": ein unbekannter `profileId` oder
+ * `undefined` heisst „kenne ich nicht": ein unbekannter `profile` oder
  * unsinnige Abmessungen. Kein Wurf, weil der Wert im FEM-Strang durch den Port
  * `getSectionStiffness` laeuft, und dort ist `undefined` bereits der Vertrag
  * fuer „Querschnitt unbekannt" — daraus wird ein Modellfehler IM BERICHT statt
@@ -91,7 +99,7 @@ export function sectionProperties(
   cs: CrossSection,
 ): SectionProperties | undefined {
   if (cs.kind === 'profile') {
-    const profile = lookupProfile(cs.profileId);
+    const profile = lookupProfile(cs.profile);
     return profile === undefined ? undefined : profileProperties(profile);
   }
 
@@ -99,31 +107,53 @@ export function sectionProperties(
   return shape === undefined ? undefined : toProperties(shape);
 }
 
+/**
+ * Die EINE mm -> cm-Stelle des Packages.
+ *
+ * Danach rechnet alles unterhalb in Zentimetern: `ShapeResult` liefert cm²,
+ * cm⁴ und cm, genau wie `SteelProfileData` sie fuehrt. Die Formfunktionen
+ * selbst sind MASSSTABSFREI — sie enthalten keine Einheit, nur Formeln; was
+ * hineingeht, bestimmt, was herauskommt.
+ */
 function shapeResult(spec: ShapeSpec) {
+  const c = MM_TO_CM;
   switch (spec.kind) {
     case 'rectangle':
-      return rectangle(spec.b, spec.h);
+      return rectangle(spec.b * c, spec.h * c);
     case 'hollow-rectangle':
-      return hollowRectangle(spec.b, spec.h, spec.t, spec.idealisation);
+      return hollowRectangle(
+        spec.b * c,
+        spec.h * c,
+        spec.t * c,
+        spec.idealisation,
+      );
     case 'i-symmetric':
-      return iSymmetric(spec.h, spec.b, spec.tw, spec.tf, spec.idealisation);
+      return iSymmetric(
+        spec.h * c,
+        spec.b * c,
+        spec.tw * c,
+        spec.tf * c,
+        spec.idealisation,
+      );
     case 't-beam':
-      return tBeam(spec.bf, spec.hf, spec.bw, spec.h, spec.idealisation);
+      return tBeam(
+        spec.bf * c,
+        spec.hf * c,
+        spec.bw * c,
+        spec.h * c,
+        spec.idealisation,
+      );
   }
 }
 
-/** cm2 -> m2. */
-const CM2 = 1e-4;
-/** cm4 -> m4. */
-const CM4 = 1e-8;
-
 /**
- * Die Tabellenzeile in SI — die EINZIGE Stelle, an der aus cm2/cm4 Meter
- * werden.
+ * Die Tabellenzeile als Querschnittswerte.
  *
- * kappa faellt dimensionslos direkt aus den cm2-Werten: `Az/A` braucht keine
- * Umrechnung, und sie unterwegs zu machen hiesse, sich einen Faktor einfangen
- * zu koennen, den niemand sieht.
+ * Umgerechnet wird hier NICHTS mehr: die Tabelle fuehrt cm² und cm⁴, und das
+ * ist bereits die Sprache, die `toSI` erwartet. kappa faellt dimensionslos
+ * direkt aus den cm²-Werten — `Az/A` braucht keine Umrechnung, und sie
+ * unterwegs zu machen hiesse, sich einen Faktor einfangen zu koennen, den
+ * niemand sieht.
  *
  * `Iyz = 0` und `ys = zs = 0`: die gefuehrten Reihen sind doppeltsymmetrisch,
  * und das Eingabesystem der Tabelle IST das Schwerpunktsystem.
@@ -131,14 +161,14 @@ const CM4 = 1e-8;
 export function profileProperties(
   profile: SteelProfileData,
 ): SectionProperties {
-  return {
-    A: profile.A * CM2,
-    Iy: profile.Iy * CM4,
-    Iz: profile.Iz * CM4,
+  return toSI({
+    A: profile.A,
+    Iy: profile.Iy,
+    Iz: profile.Iz,
     Iyz: 0,
     ys: 0,
     zs: 0,
     kappaY: profile.Ay === undefined ? undefined : profile.Ay / profile.A,
     kappaZ: profile.Az === undefined ? undefined : profile.Az / profile.A,
-  };
+  });
 }

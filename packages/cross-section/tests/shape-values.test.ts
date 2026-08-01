@@ -1,6 +1,7 @@
 import { lookupProfile } from '@baustatik/steel-profiles';
 import { describe, expect, it } from 'vitest';
 import { type CrossSection, sectionProperties } from '../src/index';
+import { CM2_TO_M2, CM4_TO_M4 } from '../src/units';
 
 function values(cs: CrossSection) {
   const p = sectionProperties(cs);
@@ -8,11 +9,11 @@ function values(cs: CrossSection) {
   return p;
 }
 
-describe('Rechteck 0,2 x 0,5 m — die Handrechnung', () => {
+describe('Rechteck 200 x 500 mm — die Handrechnung', () => {
   const rect = values({
     kind: 'shape',
     id: 'r',
-    shape: { kind: 'rectangle', b: 0.2, h: 0.5 },
+    shape: { kind: 'rectangle', b: 200, h: 500 },
   });
 
   it('trifft A und Iy', () => {
@@ -37,16 +38,19 @@ describe('Rechteck 0,2 x 0,5 m — die Handrechnung', () => {
 });
 
 describe('Plattenbalken — der Fall, der Steiner prueft', () => {
-  // bf = 2,0 / hf = 0,2 / bw = 0,25 / h = 0,5:
+  // EINGABE IN MILLIMETERN, ERGEBNIS IN SI — genau das ist die Naht, die
+  // dieser Test bewacht. Die erwarteten Zahlen sind unveraendert die von Hand
+  // gerechneten Meterwerte:
+  //   bf = 2000 / hf = 200 / bw = 250 / h = 500 [mm]
   //   Af = 0,400 m2, Schwerpunkt 0,100 m unter OK
   //   As = 0,075 m2, Schwerpunkt 0,350 m unter OK
   //   zs = (0,400*0,100 + 0,075*0,350) / 0,475 = 0,06625 / 0,475 = 0,139474 m
   const wide = {
     kind: 't-beam',
-    bf: 2.0,
-    hf: 0.2,
-    bw: 0.25,
-    h: 0.5,
+    bf: 2000,
+    hf: 200,
+    bw: 250,
+    h: 500,
   } as const;
 
   it('trifft die von Hand gerechnete Schwerpunktlage', () => {
@@ -70,7 +74,8 @@ describe('Plattenbalken — der Fall, der Steiner prueft', () => {
       id: 't',
       shape: { ...wide, idealisation: 'solid' },
     });
-    expect(t.zs).toBeLessThan(wide.hf);
+    // `zs` ist SI, `hf` ist mm — deshalb hier gegen den Meterwert.
+    expect(t.zs).toBeLessThan(wide.hf * 1e-3);
   });
 
   it('rechnet Iy mit dem Steiner-Anteil beider Teile', () => {
@@ -134,17 +139,17 @@ describe('Querprobe Parametrik gegen Katalog', () => {
     id: 'i',
     shape: {
       kind: 'i-symmetric',
-      h: 0.08,
-      b: 0.046,
-      tw: 0.0038,
-      tf: 0.0052,
+      h: 80,
+      b: 46,
+      tw: 3.8,
+      tf: 5.2,
       idealisation: 'thin-walled',
     },
   });
 
   it('liegt nahe unter dem Katalogwert — die fehlende Ausrundung', () => {
-    const Acat = (ipe80?.A as number) * 1e-4;
-    const Icat = (ipe80?.Iy as number) * 1e-8;
+    const Acat = (ipe80?.A as number) * CM2_TO_M2;
+    const Icat = (ipe80?.Iy as number) * CM4_TO_M4;
     expect(welded.A).toBeLessThan(Acat);
     expect(welded.A).toBeGreaterThan(0.95 * Acat);
     expect(welded.Iy).toBeLessThan(Icat);
@@ -158,7 +163,7 @@ describe('Unsinnige Abmessungen liefern undefined statt NaN', () => {
       sectionProperties({
         kind: 'shape',
         id: 'x',
-        shape: { kind: 'rectangle', b: 0, h: 0.5 },
+        shape: { kind: 'rectangle', b: 0, h: 500 },
       }),
     ).toBeUndefined();
     expect(
@@ -168,9 +173,9 @@ describe('Unsinnige Abmessungen liefern undefined statt NaN', () => {
         // Wandstaerke groesser als die halbe Hoehe: kein Hohlkasten.
         shape: {
           kind: 'hollow-rectangle',
-          b: 0.06,
-          h: 0.06,
-          t: 0.03,
+          b: 60,
+          h: 60,
+          t: 30,
           idealisation: 'thin-walled',
         },
       }),
@@ -182,10 +187,10 @@ describe('Unsinnige Abmessungen liefern undefined statt NaN', () => {
         // Flanschdicke groesser als die halbe Hoehe: kein I.
         shape: {
           kind: 'i-symmetric',
-          h: 0.08,
-          b: 0.046,
-          tw: 0.0038,
-          tf: 0.04,
+          h: 80,
+          b: 46,
+          tw: 3.8,
+          tf: 40,
           idealisation: 'solid',
         },
       }),
@@ -197,10 +202,10 @@ describe('Unsinnige Abmessungen liefern undefined statt NaN', () => {
         // Steg breiter als der Gurt: kein Plattenbalken.
         shape: {
           kind: 't-beam',
-          bf: 0.2,
-          hf: 0.05,
-          bw: 0.3,
-          h: 0.5,
+          bf: 200,
+          hf: 50,
+          bw: 300,
+          h: 500,
           idealisation: 'solid',
         },
       }),

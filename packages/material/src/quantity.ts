@@ -1,25 +1,24 @@
 /**
- * A phantom-branded number: at runtime it is a plain `number`, but its unit is
- * visible in the type at the call site (hovering `.gamma` shows `KNm3`).
+ * Die phantom-branded Quantities leben in `@baustatik/units` — dem Package,
+ * dem das Einheiten-Vokabular ohnehin gehört (`UNITS`, `UnitCategory`,
+ * `convert`). Sie hier ein zweites Mal zu definieren hiesse, denselben Typ an
+ * zwei Stellen zu führen; genau das war der Zustand, den dieser Re-Export
+ * beendet ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md)).
  *
- * The brand is OPTIONAL, so a bare `number` assigns freely and arithmetic works
- * without unwrapping (`gamma * 1.5` is fine). This DOCUMENTS units at the call
- * site — it does not enforce them: a `KNm3` can still be passed where a `Kgm3`
- * is expected. It trades type safety for zero runtime cost and unchanged POJO
- * ergonomics. If conversion is ever needed, that belongs in `@baustatik/units`,
- * not here.
+ * Die Datei bleibt bestehen, damit die Importe innerhalb von `material`
+ * (`concrete.ts`, `steel.ts`, `reinforcement.ts`, `timber.ts`, `data/*`)
+ * unverändert auf `./quantity` zeigen und die öffentliche Oberfläche dieses
+ * Packages sich nicht ändert.
+ *
+ * Der Import ist REIN TYPSEITIG: zur Laufzeit entsteht keine Abhängigkeit auf
+ * `units`, und im Bundle steht davon nichts.
  */
-export type Quantity<U extends string> = number & { readonly __unit?: U };
-
-/** Megapascal — strengths and moduli of elasticity. */
-export type MPa = Quantity<'MPa'>;
-/** Kilonewton per cubic metre — unit weight (Wichte). */
-export type KNm3 = Quantity<'kN/m³'>;
-/** Kilogram per cubic metre — density. */
-export type Kgm3 = Quantity<'kg/m³'>;
-/** Per kelvin — coefficient of linear thermal expansion. */
-export type PerK = Quantity<'1/K'>;
-/** Per mille — strains (εc2, εcu2). */
-export type PerMille = Quantity<'‰'>;
-/** Percent — characteristic strain at maximum force (εuk). */
-export type Percent = Quantity<'%'>;
+export type {
+  Kgm3,
+  KNm3,
+  MPa,
+  Percent,
+  PerK,
+  PerMille,
+  Quantity,
+} from '@baustatik/units';

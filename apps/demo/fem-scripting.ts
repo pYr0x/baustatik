@@ -37,7 +37,7 @@ export default defineModel(model => {
   });
 
   // Der Querschnitt gehoert zum Modell und reist mit dem Snapshot.
-  const ipe300 = model.crossSection({ kind: 'profile', profileId: 'IPE 300' });
+  const ipe300 = model.crossSection({ kind: 'profile', profile: 'IPE 300' });
 
   const nodes = Array.from({ length: count + 1 }, (_, i) =>
     model.node({ x: i * width, z: 0 }),

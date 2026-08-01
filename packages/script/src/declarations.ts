@@ -7,14 +7,19 @@ declare module '@baustatik/script' {
     phiY: 'fixed' | 'free';
   };
   export type Idealisation = 'solid' | 'thin-walled';
+  /** Alle Abmessungen in MILLIMETERN. */
   export type ShapeSpec =
+    /** @param b Breite [mm] @param h Hoehe [mm] */
     | { kind: 'rectangle'; b: number; h: number }
+    /** @param b Breite [mm] @param h Hoehe [mm] @param t Wandstaerke [mm] */
     | { kind: 'hollow-rectangle'; b: number; h: number; t: number; idealisation: Idealisation }
+    /** @param h Hoehe [mm] @param b Gurtbreite [mm] @param tw Stegdicke [mm] @param tf Gurtdicke [mm] */
     | { kind: 'i-symmetric'; h: number; b: number; tw: number; tf: number; idealisation: Idealisation }
+    /** @param bf Gurtbreite [mm] @param hf Gurtdicke [mm] @param bw Stegbreite [mm] @param h Gesamthoehe [mm] */
     | { kind: 't-beam'; bf: number; hf: number; bw: number; h: number; idealisation: Idealisation };
   export type CrossSectionInput =
     | { kind: 'shape'; shape: ShapeSpec }
-    | { kind: 'profile'; profileId: string };
+    | { kind: 'profile'; profile: string };
   export interface CrossSectionHandle {
     readonly id: string;
   }

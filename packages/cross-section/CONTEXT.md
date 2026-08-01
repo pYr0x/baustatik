@@ -11,7 +11,8 @@ Das Package besitzt ausserdem den **Modellsatz `CrossSection`**: den Record, der
 neben `Node`, `Beam` und `NodeSupport` im Modell liegt und mit ihm gespeichert
 wird ([ADR 0023](../../docs/adr/0023-cross-sections-belong-to-the-model.md)).
 
-Eine einzige Abhaengigkeit: `@baustatik/steel-profiles`.
+Zwei Abhaengigkeiten: `@baustatik/steel-profiles` (die Tabelle) und
+`@baustatik/units` (die Umrechnungsfaktoren und die Quantity-Typen).
 
 ## Die Grenze zur Bemessung, mechanisch pruefbar
 
@@ -37,12 +38,33 @@ stehen in
 [ADR 0020](../../docs/adr/0020-section-properties-versus-section-stiffness.md).
 Die Multiplikation leistet `@baustatik/fem-section-resolve` und sonst niemand.
 
-## Einheiten
+## Einheiten: Katalog innen, SI an der Grenze
 
-**Alles in SI-Metern.** `ShapeSpec` nimmt Meter entgegen, `SectionProperties`
-liefert Meter. Der Katalog fuehrt cm²/cm⁴, weil man das gegen die gedruckte
-Tabelle diffen koennen muss — die Umrechnung passiert an **genau einer** Stelle,
-in `profileProperties`.
+| | Einheit | warum |
+| --- | --- | --- |
+| `ShapeSpec` (Eingabe) | **mm** | die Einheit, in der ein Querschnitt gezeichnet und bemasst wird — und in der `SteelProfileData` daneben `h`, `b`, `tw`, `tf`, `r` fuehrt |
+| `ShapeResult` (intern) | **cm², cm⁴, cm** | dieselbe Sprache wie die Tabellenzeile: `Iy: 8356` liest man, `8.356e-5` nicht |
+| `SectionProperties` (Ausgabe) | **m², m⁴, m** | dahinter multipliziert `fem-section-resolve` mit `E` in kN/m² und will kN bzw. kNm² |
+| `StressPoint` | **mm**, `S` in **cm³** | genau das, was der Ausdruck druckt und was in der Referenz-Fixture steht |
+
+Umgerechnet wird an **genau zwei** Stellen, und beide heissen so:
+
+- `shapeResult` in `src/section.ts` — mm → cm, einmal je Form.
+- **`toSI` in `src/to-si.ts` — cm → SI, fuer BEIDE Quellen.** Dass es nur eine
+  ist, ist der eigentliche Gewinn: `ShapeResult` und `SteelProfileData` fuehren
+  jetzt dieselben Einheiten, und der Katalog braucht keinen eigenen Rechenweg
+  mehr.
+
+Die Faktoren stehen nicht als Literal im Code, sondern kommen aus
+`@baustatik/units` (`src/units.ts`) — und zwar aus **`toExact`**, nicht aus
+`to`: `convert(...).to(...)` rundet atomar auf ganze mm, aus `139,5 mm` wuerde
+`0,14 m` ([ADR 0024](../../docs/adr/0024-units-at-the-package-boundary.md)).
+
+**κ ist von alldem unberuehrt.** Es ist ein Verhaeltnis zweier Flaechen und
+damit dimensionslos; skaliert man alle Laengen mit `L`, wird `I` zu `L⁴I` und
+`A_s` zu `L²A_s`, der Quotient bleibt. Deshalb ging der ganze Wechsel von
+Metern auf Zentimeter durch `tests/kappa.test.ts`, ohne eine einzige erwartete
+Zahl zu aendern — der schaerfste Beleg, dass er sauber durchgezogen ist.
 
 ## κ hat eine Definition: die Schubenergie
 
@@ -114,7 +136,7 @@ schwerpunktsbezogen.
 ## Was `undefined` heisst
 
 `sectionProperties` wirft nicht. `undefined` heisst „kenne ich nicht": ein
-unbekannter `profileId` oder unsinnige Abmessungen (nicht-positive Masse,
+unbekannter `profile` oder unsinnige Abmessungen (nicht-positive Masse,
 Wandstaerke groesser als die halbe Hoehe, Steg breiter als der Gurt). Der Wert
 laeuft im FEM-Strang durch den Port `getSectionStiffness`, und dort ist
 `undefined` bereits der Vertrag fuer „Querschnitt unbekannt" — daraus wird ein

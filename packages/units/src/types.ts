@@ -14,7 +14,20 @@ export interface UnitDefinition {
 }
 
 export interface FromChain {
+  /**
+   * Umrechnung MIT der kategoriespezifischen Rundung — die berichtsseitige
+   * Variante, und die Vorgabe.
+   */
   to(target: string): number;
+  /**
+   * Dieselbe Umrechnung OHNE jede Rundung — die Variante für RECHENKETTEN.
+   *
+   * `to('m')` rundet auf ganze Millimeter: aus `139.5` mm wird `0.14` m, aus
+   * `6.9` mm wird `0.007` m. Für einen Ausdruck ist das richtig, für eine
+   * Schwerpunktlage oder einen Spannungspunkt ist es falsch. Wer den Wert
+   * weiterrechnet, nimmt `toExact`; wer ihn druckt, nimmt `to`.
+   */
+  toExact(target: string): number;
 }
 
 export interface ConvertChain {

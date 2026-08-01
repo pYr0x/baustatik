@@ -151,7 +151,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
 /**
  * Der Querschnitt an der Snapshot-Grenze.
  *
- * NUR DIE GESTALT, nicht die Aufloesbarkeit: ob ein `profileId` im Katalog
+ * NUR DIE GESTALT, nicht die Aufloesbarkeit: ob ein `profile` im Katalog
  * steht oder ob ein Stab auf einen vorhandenen Querschnitt zeigt, prueft diese
  * Stelle NICHT. Beides meldet der Bericht des Solvers als Modellfehler
  * (`UnknownSectionStiffnessError`), und eine zweite Regel an der zweiten Stelle
@@ -167,11 +167,11 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
   const id = text(value.id, `${path}.id`);
 
   if (kind === 'profile') {
-    exactKeys(value, path, ['kind', 'id', 'profileId']);
+    exactKeys(value, path, ['kind', 'id', 'profile']);
     return {
       kind,
       id,
-      profileId: text(value.profileId, `${path}.profileId`),
+      profile: text(value.profile, `${path}.profile`),
     };
   }
 
@@ -179,6 +179,14 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
   return { kind, id, shape: parseShape(value.shape, `${path}.shape`) };
 }
 
+/**
+ * Alle Abmessungen sind MILLIMETER (`ShapeSpec` in `@baustatik/cross-section`).
+ *
+ * Geprueft wird nur „endlich und echt positiv" — die Einheit selbst ist nichts,
+ * was ein Parser feststellen koennte, und eine Plausibilitaetsgrenze („kein
+ * Querschnitt ist 10 m hoch") waere eine zweite Meinung darueber, was ein
+ * gueltiges Modell ist. Die haelt der Bericht des Solvers.
+ */
 function parseShape(input: unknown, path: string): ShapeSpec {
   const value = record(input, path);
   const kind = oneOf(

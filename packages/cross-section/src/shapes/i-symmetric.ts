@@ -1,3 +1,4 @@
+import type { cm } from '@baustatik/units';
 import type { Idealisation } from '../section';
 import { bandSegments, crossWallSegment, endMoment } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
@@ -9,12 +10,13 @@ import { allPositive, type ShapeResult } from './kernel';
  * am Steg-Gurt-Uebergang fehlt.
  *
  * Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der Oberkante.
+ * Abmessungen in ZENTIMETERN (siehe `shapeResult`).
  */
 export function iSymmetric(
-  h: number,
-  b: number,
-  tw: number,
-  tf: number,
+  h: cm,
+  b: cm,
+  tw: cm,
+  tf: cm,
   idealisation: Idealisation,
 ): ShapeResult | undefined {
   const hw = h - 2 * tf;

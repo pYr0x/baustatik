@@ -1,5 +1,5 @@
 import { type Node, type Beam, type NodeSupport, BeamEndReleases } from '@baustatik/fem';
-import type { CrossSection } from '@baustatik/cross-section';
+import { sectionProperties, type CrossSection } from '@baustatik/cross-section';
 import { resolveSectionStiffness } from '@baustatik/fem-section-resolve';
 import { createMaterials } from '@baustatik/material';
 import {
@@ -9,7 +9,7 @@ import {
     type LoadCase,
     type NodeLoad,
 } from '@baustatik/fem-loads';
-import { createFEMSolver } from '@baustatik/fem-solver';
+import { type CheckState, createFEMSolver } from '@baustatik/fem-solver';
 import { createFEMViewer, FEM_LAYERS } from '@baustatik/fem-viewer';
 import { createKonvaAdapter as createKonvaDriver } from '@baustatik/konva-adapter';
 import { Point } from '@baustatik/fem-geometry';
@@ -54,8 +54,8 @@ const useStore = defineStore('sections', {
         addNode(position: { x: number; z: number }) {
             this.nodes.push({ id: crypto.randomUUID(), position });
         },
-        addBeam(startNode: Node, endNode: Node, crossSectionId: string, materialId: string) {
-            this.beams.push({ id: crypto.randomUUID(), startNodeId: startNode.id, endNodeId: endNode.id, crossSectionId, materialId/*, releases: { start: { theta: true }, end: { theta: true } } */ });
+        addBeam(startNode: Node, endNode: Node, crossSection: CrossSection, materialId: string) {
+            this.beams.push({ id: crypto.randomUUID(), startNodeId: startNode.id, endNodeId: endNode.id, crossSectionId: crossSection.id, materialId/*, releases: { start: { theta: true }, end: { theta: true } } */ });
         },
         /**
          * Das Gelenk ist ein EIGENER Modellierschritt — wie `addSupport` am
@@ -87,8 +87,10 @@ const useStore = defineStore('sections', {
          * er liegt im Store neben Knoten und Staeben und reist mit dem
          * Snapshot. `Beam.crossSectionId` bleibt ein String und zeigt hierher.
          */
-        addCrossSection(section: CrossSection) {
-            this.crossSections.push(section);
+        addCrossSection(section: Without<CrossSection, 'id'>): Readonly<CrossSection> {
+            const created: CrossSection = { id: crypto.randomUUID(), ...section };
+            this.crossSections.push(created);
+            return created;
         },
         addSupport(node: Node, ux: 'fixed' | 'free', uz: 'fixed' | 'free', phiY: 'fixed' | 'free') {
             this.supports.push({ id: crypto.randomUUID(), nodeId: node.id, ux, uz, phiY });
@@ -170,13 +172,17 @@ const store = useStore(pinia);
 
 // Der Querschnitt ist jetzt echt: IPE 300 aus dem Walzprofil-Katalog. Bis
 // hierher stand im Solver ein erfundenes { EA: 1e6, EI: 1000, GAs: 500 }.
-store.addCrossSection({ kind: 'profile', id: 'IPE 300', profileId: 'IPE 300' });
+const IPE300 = store.addCrossSection({ kind: 'profile', profile: 'IPE 300' });
+const rc = store.addCrossSection({ kind: 'shape', shape: { kind: 'rectangle', b: 300, h: 500 } });
+const x200400 = store.addCrossSection({ kind: 'shape', shape: { kind: 'i-symmetric', h: 400, b: 200, tw: 10, tf: 10, idealisation: 'thin-walled' } });
+
+console.log(sectionProperties(x200400));
 
 store.addNode(Point.make(0, 0));
 store.addNode(Point.make(2, 0));
 store.addNode(Point.make(4, 0));
-store.addBeam(store.nodes[0], store.nodes[1], 'IPE 300', 'S235');
-store.addBeam(store.nodes[1], store.nodes[2], 'IPE 300', 'S235');
+store.addBeam(store.nodes[0], store.nodes[1], IPE300, 'S235');
+store.addBeam(store.nodes[1], store.nodes[2], IPE300, 'S235');
 store.addSupport(store.nodes[0], 'fixed', 'fixed', 'free');
 store.addSupport(store.nodes[1], 'free', 'fixed', 'free');
 store.addSupport(store.nodes[2], 'free', 'fixed', 'free');
@@ -185,7 +191,7 @@ store.addRelease(store.beams[0], "end");
 // Schraeger Stab als Sichttest: frame global/local und die Bezugslaengen
 // unterscheiden sich nur am schraegen Stab sichtbar.
 // store.addNode(Point.make(160, 40));
-// store.addBeam(store.nodes[1], store.nodes[2], 'IPE 300', 'S235');
+// store.addBeam(store.nodes[1], store.nodes[2], IPE300, 'S235');
 
 // Repräsentative Fixtures für den Demo- und Sichttest. Die vollständige
 // Sammlung der Eingabevarianten steht in
@@ -222,22 +228,28 @@ store.addBeamLoad([store.beams[0]], {
 //     q: 0.85,
 // });
 
-// Wind: waagrechte Knotenlast am Firstknoten.
-// const windFromLeft = store.addLoadCase('Wind von links');
-// store.addNodeLoad([store.nodes[2]], { fx: 5 });
+// Wind: waagrechte Knotenlast am letzten Knoten.
+const windFromLeft = store.addLoadCase('Wind von links');
+store.addNodeLoad([store.nodes[2]], { fx: 5 });
 
 // Und die Gegenrichtung als Kopie mit Faktor -1 — der Grund, warum es den
 // Faktor gibt. Die Lastwerte stehen weiter mit +5 im Fall; umgekehrt werden sie
 // erst durch `effectiveLoads`, und zwar für Viewer UND Solver gemeinsam.
-// store.copyLoadCase(windFromLeft, 'Wind von rechts', -1);
+store.copyLoadCase(windFromLeft, 'Wind von rechts', -1);
 
 // Zum Anschauen wieder in den ersten Fall wechseln.
 store.selectLoadCase(gravity.id);
 
 // 1. Driver bauen (kennt Konva). Kein onViewIntent hier — der Viewer haengt sich selbst dran.
-const stageSize = { width: window.innerWidth, height: window.innerHeight };
+//
+// Die Groesse kommt aus dem Container und nicht mehr aus `window`: rechts steht
+// jetzt die Berichtspalte, und mit `window.innerWidth` laege ein Teil der
+// Zeichenflaeche darunter.
+const container = element<HTMLDivElement>('container');
+const bounds = container.getBoundingClientRect();
+const stageSize = { width: Math.floor(bounds.width), height: Math.floor(bounds.height) };
 const driver = createKonvaDriver({
-    container: document.getElementById('container') as HTMLDivElement,
+    container,
     width: stageSize.width,
     height: stageSize.height,
     layers: FEM_LAYERS,
@@ -316,18 +328,6 @@ const solver = createFEMSolver({
 // gerade sichtbar ist, ist Sache der Anwendung (ADR 0014).
 // ---------------------------------------------------------------------------
 
-const report = solver.check(store.activeLoadCaseId);
-
-console.log(`Zustand: ${report.state}`);
-for (const problem of report.model.errors) console.error(problem.message);
-for (const hint of report.model.warnings) console.warn(hint.message);
-if (report.loads.assessed) {
-    for (const problem of report.loads.errors) console.error(problem.message);
-    for (const hint of report.loads.warnings) console.warn(hint.message);
-} else {
-    console.info('Lasten wegen Modellfehler nicht beurteilt.');
-}
-
 async function run(loadCaseId: string): Promise<void> {
     const report = solver.check(loadCaseId);
     console.log('Zustand:', report.state);
@@ -358,13 +358,177 @@ async function runAll(): Promise<void> {
     }
 }
 
-// Der Bericht veraltet, sobald sich etwas aendert. DAS zu bemerken ist Sache
-// der Anwendung, nicht des Packages — deshalb haelt der Rechenkopf ihn nicht
-// fest, und deshalb wird hier neu geprueft statt zwischengespeichert.
-store.$subscribe(() => {
+// ---------------------------------------------------------------------------
+// 5. Die rechte Spalte: der Bericht als Oberflaeche.
+//
+// Sie zeigt, was `solver.check(id)` fuer den AKTIVEN Lastfall sagt. Bis hier
+// ging das in die Konsole — der Unterschied ist nicht die Darstellung, sondern
+// dass jetzt sichtbar wird, WANN geprueft wird: bei jeder Store-Aenderung neu,
+// nicht einmal beim Laden und nicht erst beim Rechnen.
+//
+// Der Bericht wird NICHT zwischengespeichert. Er veraltet, sobald sich etwas
+// aendert, und das zu bemerken ist Sache der Anwendung, nicht des Packages —
+// deshalb haelt der Rechenkopf ihn nicht fest, und deshalb steht hier ein
+// `check()` je Anzeige statt eines Feldes.
+// ---------------------------------------------------------------------------
+
+/**
+ * Der Zustand des Berichts in einem Satz. Uebersetzt wird HIER und nicht im
+ * Package: `CheckState` ist ein Fachbegriff, der Text daneben ist Oberflaeche.
+ */
+const STATE_TEXT: Record<CheckState, string> = {
+    empty: 'Leer — kein Stab im Modell',
+    invalid: 'Nicht rechenbar — es gibt Fehler',
+    unloaded: 'Tragfaehig, aber ohne Last',
+    'ready-with-warnings': 'Rechenbar — mit Hinweisen',
+    ready: 'Rechenbar',
+};
+
+const loadCaseName = element<HTMLDivElement>('load-case-name');
+const loadCasePosition = element<HTMLDivElement>('load-case-position');
+const nextLoadCaseButton = element<HTMLButtonElement>('next-load-case');
+const stateField = element<HTMLDivElement>('state');
+const solveButton = element<HTMLButtonElement>('solve');
+const solveStatus = element<HTMLDivElement>('solve-status');
+const warningList = element<HTMLUListElement>('warnings');
+const errorList = element<HTMLUListElement>('errors');
+const warningCount = element<HTMLSpanElement>('warning-count');
+const errorCount = element<HTMLSpanElement>('error-count');
+
+// Waehrend gerechnet wird, ist der Knopf gesperrt. Der Zustand gehoert der
+// Oberflaeche, nicht dem Store: er ueberlebt kein Neuladen und geht niemanden
+// sonst etwas an.
+let solving = false;
+
+function element<T extends HTMLElement>(id: string): T {
+    const found = document.getElementById(id);
+    if (found === null) throw new Error(`Element #${id} fehlt in fem-viewer.html.`);
+    return found as T;
+}
+
+/** Ein Befund mit seiner Herkunft — im Bericht getrennt, in der Liste gemischt. */
+type Finding = { source: 'Modell' | 'Lasten'; message: string };
+
+function fill(list: HTMLUListElement, counter: HTMLSpanElement, findings: Finding[], empty: string) {
+    counter.textContent = String(findings.length);
+    list.replaceChildren(
+        ...(findings.length === 0
+            ? [item(empty, undefined)]
+            : findings.map((finding) => item(finding.message, finding.source))),
+    );
+}
+
+function item(message: string, source: Finding['source'] | undefined): HTMLLIElement {
+    const line = document.createElement('li');
+    if (source === undefined) {
+        line.className = 'muted';
+    } else {
+        const tag = document.createElement('span');
+        tag.className = 'source';
+        tag.textContent = source;
+        line.append(tag);
+    }
+    line.append(message);
+    return line;
+}
+
+function renderPanel(): void {
+    const active = store.activeLoadCase;
+    // Mehr als ein Fall, sonst waere „naechster" derselbe.
+    nextLoadCaseButton.disabled = store.loadCases.length < 2;
+
+    if (active === undefined) {
+        loadCaseName.textContent = '— kein Lastfall —';
+        loadCasePosition.textContent = '';
+        stateField.textContent = '–';
+        delete stateField.dataset.state;
+        solveButton.disabled = true;
+        fill(warningList, warningCount, [], 'Keine.');
+        fill(errorList, errorCount, [], 'Keine.');
+        return;
+    }
+
+    const position = store.loadCases.findIndex((loadCase) => loadCase.id === active.id) + 1;
+    loadCaseName.textContent =
+        active.factor === undefined ? active.name : `${active.name} (Faktor ${active.factor})`;
+    loadCasePosition.textContent = `${position} von ${store.loadCases.length} · ${active.loads.length} Last(en)`;
+
+    const report = solver.check(active.id);
+    stateField.textContent = STATE_TEXT[report.state];
+    stateField.dataset.state = report.state;
+    solveButton.disabled = !report.canSolve || solving;
+
+    const warnings: Finding[] = report.model.warnings.map((hint) => ({ source: 'Modell', message: hint.message }));
+    const errors: Finding[] = report.model.errors.map((problem) => ({ source: 'Modell', message: problem.message }));
+    if (report.loads.assessed) {
+        for (const hint of report.loads.warnings) warnings.push({ source: 'Lasten', message: hint.message });
+        for (const problem of report.loads.errors) errors.push({ source: 'Lasten', message: problem.message });
+    }
+
+    fill(warningList, warningCount, warnings, 'Keine Hinweise.');
+    // `assessed: false` ist eine Aussage und kein Fehlen von Daten: die Lasten
+    // wurden wegen eines Modellfehlers gar nicht angesehen. Das muss dastehen,
+    // sonst liest sich „keine Lastfehler" wie „geprueft und sauber".
+    fill(
+        errorList,
+        errorCount,
+        errors,
+        report.loads.assessed ? 'Keine Fehler.' : 'Lasten wegen Modellfehler nicht beurteilt.',
+    );
+}
+
+nextLoadCaseButton.addEventListener('click', () => {
+    const current = store.loadCases.findIndex((loadCase) => loadCase.id === store.activeLoadCaseId);
+    const next = store.loadCases[(current + 1) % store.loadCases.length];
+    if (next !== undefined) store.selectLoadCase(next.id);
+});
+
+solveButton.addEventListener('click', () => {
+    void solveActive();
+});
+
+/**
+ * Rechnet den aktiven Lastfall und schreibt das Ergebnis in die Spalte.
+ *
+ * Das `check()` davor spart sich diese Funktion: `renderPanel` hat den Knopf
+ * genau dann freigegeben, wenn `canSolve` galt, und `solve()` prueft ohnehin
+ * selbst nach. Der `catch`-Zweig bleibt trotzdem — zwischen Freigabe und Klick
+ * kann sich das Modell geaendert haben.
+ */
+async function solveActive(): Promise<void> {
     const active = store.activeLoadCase;
     if (active === undefined) return;
-    console.log(`Zustand nach Aenderung (${active.name}): ${solver.check(active.id).state}`);
+
+    solving = true;
+    solveButton.disabled = true;
+    solveStatus.textContent = 'Rechnet …';
+
+    try {
+        const result = await solver.solve(active.id);
+        const support = result.reactions.get(store.nodes[0].id);
+        const displacement = result.displacements.get(store.nodes[1].id);
+        solveStatus.textContent = [
+            `Auflager Knoten 1: Fx ${support?.fx.toFixed(2)} kN, Fz ${support?.fz.toFixed(2)} kN`,
+            `Knoten 2: uz ${displacement?.uz.toExponential(3)} m`,
+            ...result.warnings.map((warning) => `⚠ ${warning.message}`),
+        ].join('\n');
+        console.log(active.name, result);
+    } catch (error) {
+        solveStatus.textContent = `Fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+        solving = false;
+        renderPanel();
+    }
+}
+
+renderPanel();
+// Dasselbe Abonnement wie beim Viewer, dieselbe Begruendung: die Spalte zeigt
+// den Store, also wird sie mit ihm neu aufgebaut. Auch das Umschalten des
+// Lastfalls laeuft hier durch.
+store.$subscribe(() => {
+    // Ein Ergebnis von vorhin gehoert nicht zu einem geaenderten Modell.
+    solveStatus.textContent = '';
+    renderPanel();
 });
 
 // Zum Ausprobieren in der Konsole:

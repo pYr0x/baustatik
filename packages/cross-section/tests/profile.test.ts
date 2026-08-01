@@ -6,7 +6,7 @@ describe('Walzprofil -> SectionProperties', () => {
   const ipe80 = sectionProperties({
     kind: 'profile',
     id: 'cs-1',
-    profileId: 'IPE 80',
+    profile: 'IPE 80',
   });
 
   it('rechnet cm2/cm4 an genau EINER Stelle nach SI um', () => {
@@ -37,13 +37,13 @@ describe('Walzprofil -> SectionProperties', () => {
 
   it('meldet einen unbekannten Profilnamen als undefined', () => {
     expect(
-      sectionProperties({ kind: 'profile', id: 'x', profileId: 'IPE 201' }),
+      sectionProperties({ kind: 'profile', id: 'x', profile: 'IPE 201' }),
     ).toBeUndefined();
   });
 
   it('findet das Profil schreibweisentolerant', () => {
     expect(
-      sectionProperties({ kind: 'profile', id: 'x', profileId: 'ipe80' }),
+      sectionProperties({ kind: 'profile', id: 'x', profile: 'ipe80' }),
     ).toEqual(ipe80);
   });
 });

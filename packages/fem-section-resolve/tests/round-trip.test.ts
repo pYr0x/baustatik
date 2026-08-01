@@ -58,7 +58,7 @@ function gaussSolve(
 /** Ein Kragarm mit IPE 300 aus S235 und einer Einzellast am freien Ende. */
 function buildCantilever() {
   const model = createFEMModelBuilder();
-  const ipe300 = model.crossSection({ kind: 'profile', profileId: 'IPE 300' });
+  const ipe300 = model.crossSection({ kind: 'profile', profile: 'IPE 300' });
   const fixed = model
     .node({ x: 0, z: 0 })
     .support({ ux: 'fixed', uz: 'fixed', phiY: 'fixed' });

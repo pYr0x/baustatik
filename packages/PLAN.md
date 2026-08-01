@@ -1,478 +1,657 @@
-# Stufe 2 — Schnittgrößen rechnerisch
-
-## Kontext
-
-`packages/TODO.md` Punkt 2: `internalForces` in `fem-element` und eine
-Verlauf-API im Solver. Der Solver liefert heute Verformungen, Auflagerkräfte und
-Stabendkräfte; zwischen den Knoten gibt es nichts.
-`PreparedElement.internalForces` existiert als Vertrag
-(`fem-element/src/types.ts:171`) und wirft
-`InternalForcesNotImplementedError` (`timoshenko.ts:202`).
-
-Ziel: der Anwender gibt Modell und Lastfälle ein, rechnet einen oder alle Fälle,
-und die Ergebnisse werden abgelegt. Aus einem abgelegten Ergebnis müssen Viewer
-(Diagramm), Bemessung (Einzelwert) und Bericht (Tabelle) `N`, `V` und `M` an
-jeder Stelle `x` beantworten können. Sobald sich Modell oder Lasten ändern,
-werden alle Ergebnisse verworfen und neu gerechnet.
-
-Stufe 1a (Gelenke lokal benannt, `{ u, w, theta }`, ADR 0017) ist seit dem
-2026-07-27 fertig und ist die Grundlage für Schritt 0 unten.
-
-Nicht in diesem Schritt: Zeichnen (Stufe 5), Kombinationen und min/max
-(Stufe 6), Biegelinie, Gelenksymbol (Stufe 3a).
-
----
-
-## Die Vorzeichenkonvention
-
-**Eine Regel:** ein positiver Wert wird auf der lokalen **+z**-Seite des Stabs
-aufgetragen. Mechanisch:
-
-- `M(x) = ∫σ·z dA` — positives Moment heißt **Zug auf der +z-Seite**.
-- `V` positiv auf dem positiven Schnittufer in **+z**-Richtung.
-- `N` positiv = **Zug**, negativ = Druck.
-
-Lokale Achsen unverändert: `ex` vom Anfangs- zum Endknoten, `ez` daraus durch
-dieselbe Drehung (`fem-geometry/src/line.ts:66`), `z` abwärts.
-
-### Stabendkraft ≠ Schnittgröße
-
-`elementEndForces` enthält heute **Stabendkräfte** — die Kräfte, die die Knoten
-auf das Element ausüben, `K·d − f` in DOF-Richtung `[u1, w1, θ1, u2, w2, θ2]`.
-Der Kommentar `[N1, V1, M1, N2, V2, M2]` (`solve.ts:110`) ist irreführend, weil
-die Vorzeichen nicht übereinstimmen. Künftig heißt der Sechser
-`[Fx1, Fz1, My1, Fx2, Fz2, My2]`; `N`/`V`/`M` sind für die Schnittgröße
-reserviert.
-
-Die Umrechnung (`e` = Stabendkräfte):
-
-| | linksseitig bei x = 0 | rechtsseitig bei x = L |
-| --- | --- | --- |
-| `N` | `−e[0]` | `+e[3]` |
-| `V` | `−e[1]` | `+e[4]` |
-| `M` | `+e[2]` | `−e[5]` |
-
-Das Moment tanzt aus der Reihe, weil `theta` (Element, +x→+z) gegen `phiY`
-(Knoten) läuft — dasselbe Minus wie ADR 0005.
-
-### Die Rekonstruktion: Gleichgewicht, nicht Stoffgesetz
-
-```
-N(x) = −e[0] − ∫₀ˣ qx dξ − Σ_{a<x} px
-V(x) = −e[1] − ∫₀ˣ qz dξ − Σ_{a<x} pz
-M(x) = +e[2] + ∫₀ˣ (V + my_e) dξ + Σ_{a<x} p.my
-```
-
-Exakt für den geraden, prismatischen Stab nach Theorie I. Ordnung — die
-Stabendkräfte sind knotenexakt, Gleichgewicht kennt keinen
-Diskretisierungsfehler. Timoshenko und Euler-Bernoulli haben dieselbe Formel:
-der Schub steckt vollständig in den Stabendkräften. **Kein `EA`, `EI`, `phi`,
-keine Ansatzfunktion.**
-
-Zwei Fallen, die festgehalten gehören:
-
-- `dM/dx = V + my_e`, nicht `dM/dx = V`. `my_e` trägt bereits das Minus aus
-  `fem-load-resolve/src/resolve.ts:218`.
-- `Σ_{a<x}` ist **strikt** kleiner und liefert damit überall den linksseitigen
-  Grenzwert; die rechtsseitige Variante summiert `a ≤ x`.
-
-Der Stoffgesetz-Weg (`M = EI·θ′` aus den Ansatzfunktionen) ist ausgeschlossen:
-beim beidseitig eingespannten Träger unter Gleichlast sind alle
-Knotenfreiheitsgrade null, er liefert `M ≡ 0` statt `−qL²/12` und `+qL²/24`.
-
-Damit sind beide Auswege aus `TODO.md:375-379` genommen, aber aus verschiedenen
-Gründen: **Weg 2** (aus Endkräften integrieren) trägt die Schnittgrößen,
-**Weg 1** (den kondensierten Freiheitsgrad rekonstruieren) wird für die spätere
-Biegelinie gebraucht.
-
----
-
-## Schritt 0 — Vorbedingung: der elementinterne Mechanismus
-
-**Neue Modellregel:** dieselbe Richtung an **beiden** Stabenden freigesetzt —
-`u`/`u` oder `w`/`w` — ist ein Fehler.
-
-Ein solcher Stab hat eine Starrkörperbewegung in sich, die von nichts gehalten
-wird. Sie ist elementintern: nach der Kondensation stehen in den betroffenen
-Zeilen Nullen, das Element trägt zu diesen Knotenfreiheitsgraden nichts mehr
-bei, und `assertHeld` prüft die *globale* Diagonale. Der Solver rechnet also
-durch, alle vier Netze aus ADR 0016 bleiben still, und es kommen Zahlen heraus.
-
-**`theta`/`theta` ist ausdrücklich weiter erlaubt** — der Pendelstab. Nach dem
-ersten Schritt steht `K[θ₂][θ₂] = 3EI/L ≠ 0`, kein Pivot 0, der Stab überträgt
-weiter Normal- und Querkraft. Das muss in Meldung und Test stehen, sonst
-verbietet jemand später den Pendelstab mit.
-
-Die Regel deckt sich exakt mit dem Pivot-0-Zweig: die Diagonalglieder `EA/L`,
-`12EI/L³/(1+φ)` und `4EI/L·…` sind strikt positiv, weil `prepare()` `L`, `EA`,
-`EI` als endlich und `> 0` erzwingt. Null wird ein Pivot nur durch eine
-vorangegangene Kondensation derselben Richtung am anderen Ende.
-
-**Zwei Tore, wie bei `check()`/`solve()`:**
-
-- `@baustatik/fem`, `validateModel` — eine eigene Unterklasse von
-  `ModelValidationError` (Vorschlag: `UnrestrainedBeamError`, benennt Stab und
-  Richtung). Präzedenz: `UnsupportedComponentError` steht schon dort und ist
-  laut `validate.ts:20-24` „die eine statisch entscheidbare Hälfte" der
-  Kinematik. `check()` meldet den Befund damit **vor** jeder Rechnung.
-- `@baustatik/fem-element`, `prepare()` — eigenes Tor (Vorschlag:
-  `UnrestrainedElementError`), weil das Package öffentlich ist und `condense`
-  nicht auf einen fremden Prüfer vertrauen darf.
-
-**Doku-Korrektur, ohne die die Regel der Beschreibung widerspricht:**
-`fem/src/validate.ts:28-30` sagt heute *„Dasselbe gilt fuer die freigesetzten
-VERSCHIEBUNGEN `u` und `w`: ein Stab, der laengs gleitet, uebertraegt immer noch
-Querkraft und Moment"* — richtig für **ein** Ende, und der Satz ist ausdrücklich
-als „damit ihn niemand versehentlich verbietet" gemeint. Er bekommt die
-Einschränkung auf ein Ende.
-
-**Verhaltenswechsel:** die Tests, die Stufe 1a für den Pivot-0-Zweig geschrieben
-hat, kehren sich um — von „kehrt still zurück" zu „wirft". Der Zweig in
-`condense` bleibt als unerreichbare Zusicherung stehen, jetzt aber mit
-dokumentiertem Grund.
-
-**Warum das eine Vorbedingung von Stufe 2 ist:** danach hat jeder freigesetzte
-Freiheitsgrad einen Pivot `> 0` und ist exakt rückrechenbar. Ohne die Regel
-müsste `endDisplacements` einen unbestimmten Wert tragen und jeder spätere
-Verformungsrechner eine Fallunterscheidung.
-
----
-
-## Änderungen in `@baustatik/fem-element`
-
-### Dritte Bindungsstufe
-
-```ts
-type PreparedElement = {
-  withLoad(load: LocalElementLoad): LoadedElement;
-  stiffness(): Matrix6;                    // kondensiert, lastunabhängig
-  shapeFunctions(x: number): { Nu; Nw; Ntheta };
-};
-
-type LoadedElement = {
-  consistentLoad(): Vector6;               // kondensiert
-  evaluate(dLocal: Vector6): ElementEvaluationState;
-};
-```
-
-`prepare(props, L, releases?)` bindet `phi` **und** die Releases;
-`withLoad(load)` bindet die Last. Grund: die Rückrechnung des freigesetzten
-Freiheitsgrads `d_i = (f[i] − Σ_{j≠i} K[i,j]·d_j) / K[i,i]` greift auf `f[i]`
-der unkondensierten Last zu — `evaluate` rechnet buchstäblich mit demselben
-Vektor weiter wie `consistentLoad`. Zwei verschiedene Lasten ergäben eine
-falsche Endverformung *und* falsche Stabendkräfte, beide plausibel aussehend.
-Dieselbe Begründung wie ADR 0003 für `prepare`, eine Ebene weiter.
-
-`stiffness()` und `shapeFunctions(x)` bleiben oben, weil sie nicht von der Last
-abhängen: sonst müsste jeder Steifigkeitstest (Quervergleich geschlossen ↔
-integriert, Locking-Sweep, Rangtest) eine leere Last erfinden, ebenso jede
-spätere Eigenwert- oder Knicklastrechnung.
-
-### Kondensation zieht hierher um
-
-`condense` aus `fem-solver/src/element-matrix.ts:54` wandert nach `fem-element`,
-samt dem Doku-Block zum Pivot-0-Zweig (`element-matrix.ts:44-60`). Die
-**Mechanik** gehört zur Formulierung, die **Orchestrierung** (welche
-Freiheitsgrade freigesetzt sind) bleibt beim Solver und kommt als Argument.
-
-`fem-element` ist abhängigkeitsfrei und darf `@baustatik/fem` nicht importieren,
-spiegelt die Form also strukturell:
-
-```ts
-type ElementEndReleases = { u?: true; w?: true; theta?: true };
-type ElementReleases = { start?: ElementEndReleases; end?: ElementEndReleases };
-```
-
-Das ist bewusst formgleich mit `Beam['releases']` — ADR 0017 hat die Namen
-gerade deshalb auf `{ u, w, theta }` gelegt, weil es *fem-elements* Vokabular
-ist. Die „Übersetzung" im Solver ist damit ein Durchreichen, und die sechs
-Zeilen `solve.ts:330-335` schrumpfen auf eine.
-
-`prepare` merkt sich je freigesetztem Freiheitsgrad die Zeile `K[i,:]` und `f[i]`
-**wie sie unmittelbar vor seiner eigenen Kondensation standen**. Die
-Rückrechnung läuft dann in **umgekehrter Kondensationsreihenfolge**: bei `u1` und
-`theta1` erst `θ₁` aus der schon um `u1` kondensierten Zeile 2, dann `u₁` aus der
-Originalzeile 0, die `θ₁` bereits braucht. Das ist mehr als „die Pivotzeile
-aufheben".
-
-Reihenfolge in `evaluate`: Endverformungen aus den **unkondensierten** Zeilen,
-Stabendkräfte aus der **kondensierten** Matrix. Genau diese Falle verschwindet
-aus dem Solver, weil sie in einem Aufruf liegt.
-
-### Der Auswertungszustand
-
-```ts
-type ElementEvaluationState = {
-  /** m */
-  L: number;
-  /** [Fx1, Fz1, My1, Fx2, Fz2, My2], lokal, in DOF-Richtung */
-  endForces: Vector6;
-  /** [u1, w1, θ1, u2, w2, θ2], lokal, freigesetzte Freiheitsgrade zurückgerechnet */
-  endDisplacements: Vector6;
-  load: LocalElementLoad;
-  deformation: {
-    kind: 'timoshenko-2d-iie';
-    phi: number;
-    EI: number;
-    EA: number;
-  };
-};
-```
-
-Reine Daten, unveränderlich, serialisierbar. Keine Closure, keine
-Klasseninstanz. `deformation` ist Proviant für die spätere Biegelinie: aus
-`M/EI` (Krümmung), `V/GAs` (Schub, `GAs = 12·EI/(phi·L²)`, `phi === 0` heißt
-schubstarr) und `N/EA`. `phi` ist heute von außen unsichtbar — deshalb muss der
-Datensatz vom Element kommen, nicht vom Solver. `kind` ist der Diskriminator und
-damit zugleich der Versionsmechanismus (Muster wie `ActionCategory`,
-`BeamLoad`); kein `schemaVersion`.
-
-`Timoshenko2D` und `Timoshenko2DIntegrated` liefern **dasselbe** `kind` — sie
-unterscheiden sich nur im Bau von `K`, nicht in der Kinematik.
-
-### Die Auswertung als reine Funktionen
-
-```ts
-type SectionForces = { N: number; V: number; M: number };
-type Side = 'left' | 'right';
-
-function internalForcesAt(
-  state: ElementEvaluationState,
-  x: number,
-  side: Side = 'left',
-): SectionForces;
-
-function internalForcesStations(state: ElementEvaluationState): number[];
-```
-
-`internalForces` verschwindet als Methode aus `PreparedElement`;
-`InternalForcesNotImplementedError` entfällt aus `errors.ts` und `index.ts`.
-
-`x` ist **absolut in Metern**, `0 … L`, gemessen ab dem Anfangsknoten entlang der
-Stabachse. Kein relativer Modus — das ist eine Abfrage, keine abgelegte Eingabe.
-Außerhalb `[0, L]` wird geworfen, mit derselben relativen Schranke wie
-`requireOnElement` (`timoshenko.ts:109`): `1e-9 · max(1, L)`.
-
-`internalForcesStations` liefert die Pflichtstützstellen:
-
-1. `0` und `L`
-2. jede Segmentgrenze (`seg.from`, `seg.to`) — Knick, eine Stelle genügt
-3. jede Einzellastposition (`p.a`) — Sprung, **zwei** Werte (links/rechts)
-4. die Wurzeln von `V + my_e = 0` und `qz = 0` je Intervall
-
-Punkt 4 ist der Grund, warum das gemeldete Maximum exakt ist und nicht von der
-Rasterweite abhängt: zwischen zwei Stützstellen ist `q` linear, also `V`
-quadratisch und `M` kubisch — die Extremstellen sind ausrechenbar. Der Fall
-„Maximum liegt auf der Einzellast, `V` geht nur durch den Sprung durch null" ist
-über Punkt 3 abgedeckt.
-
-> **Abweichung von `TODO.md:364`**, das `fem-load-resolve` als „richtigen
-> Lieferanten" der Unstetigkeitsstellen nennt: sie kommen aus dem `load` im
-> Auswertungszustand, also aus `fem-element`. Die Auswertung darf nichts
-> nachlesen — das ist die Eigenschaft, die das abgelegte Ergebnis trägt.
-
----
-
-## Änderungen in `@baustatik/fem-solver`
-
-### `solve.ts`
-
-- `prepareBeam` ruft `formulation.prepare(props, L, beam.releases)` und danach
-  `.withLoad(beamLoads.get(beam.id) ?? { segments: [], points: [] })`.
-- Die sechs eigenen `condense`-Aufrufe (`solve.ts:330-335`) entfallen.
-- Nach dem Lösen je Stab `loaded.evaluate(dLocalOfBeam)`; die Zustände wandern
-  ins Ergebnis.
-- `condense` und `endForces` verschwinden aus `element-matrix.ts`;
-  `transformationMatrix`, `rotateStiffness`, `rotateVector`, `toLocalVector`
-  bleiben. Der Dateikopf (`element-matrix.ts:1-15`) spricht heute von
-  Kondensation und Gelenken und wird auf „Transformation" zugeschnitten.
-
-### `SolveResult`
-
-```ts
-type SolveResult = {
-  loadCaseId: string;
-  displacements: Map<string, NodeDisplacement>;
-  reactions: Map<string, SupportReaction>;
-  beamStates: Map<string, ElementEvaluationState>;   // NEU
-  warnings: SolveWarning[];
-};
-```
-
-`elementEndForces` **entfällt** — die Zahlen stehen im Zustand, und beim
-Serialisieren wären sie sonst zwei Kopien. Betroffen außerhalb der Tests: nur
-`apps/demo/fem-cantilever.ts:144`.
-
-Kein `modelRevision`-Stempel nötig: ein Ergebnis, das nur aus Zahlen besteht und
-nichts nachliest, kann nicht veralten. Die Löschregel der Anwendung dient dem
-Speicher und der Anzeige, nicht der Korrektheit.
-
-### Die Verlauf-API
-
-```ts
-function internalForcesAt(
-  result: SolveResult,
-  beamId: string,
-  x: number,
-  side?: Side,
-): SectionForces;
-
-function internalForcesAlong(
-  result: SolveResult,
-  beamId: string,
-  opts?: { subdivisions?: number },
-): (SectionForces & { x: number })[];
-```
-
-Freie reine Funktionen, keine Methoden am Ergebnis. Sie schlagen `beamId` in
-`beamStates` nach und delegieren an `fem-element`; unbekannte `beamId` wirft
-einen benannten Fehler. `internalForcesAlong` mischt die Pflichtstützstellen mit
-einem groben Raster und liefert an Sprungstellen zwei Einträge mit gleichem `x`
-(erst links, dann rechts).
-
-Sie lesen **niemals** `config` — weder Geometrie noch Lasten noch
-Querschnittswerte.
-
----
-
-## Testanker
-
-Geschlossene Lösungen in `fem-element`:
-
-| Fall | Prüfwert |
+# Teil 1 — Querschnittswerte: parametrische Formen + Stahlprofil-Katalog
+
+Teil 2 (beliebige dünnwandige Querschnitte) steht in
+[`PLAN-duennwandige-querschnitte.md`](PLAN-duennwandige-querschnitte.md) und
+kommt **später**. Dieser Plan ist so geschnitten, dass Teil 2 rein **additiv**
+darauf aufsetzt — keine Änderung an Typen, die hier entstehen.
+
+## Context
+
+Der FEM-Strang rechnet, aber mit erfundenen Steifigkeiten: in
+`apps/demo/fem-viewer.ts:269` und `apps/demo/fem-scripting.ts:148` steht
+`getSectionProperties: () => ({ EA: 1e6, EI: 1000, GAs: 500 })`. Der Port
+`SolverConfig.getSectionProperties` (`packages/fem-solver/src/config.ts:105`)
+ist genau dafür geschnitten, und sein Kommentar benennt die Lücke schon:
+*„Heute gibt es ihn nicht: `cross-section` exportiert nur den Typ `Segment`,
+Fläche und Trägheitsmoment rechnet nirgends jemand aus."*
+
+Ziel dieses Plans: **echte EA, EI und GAs für die FEM**, aus zwei Quellen —
+Stahlprofil aus der Tabelle und parametrischer Querschnitt aus Formeln. Dazu
+die **Spannungspunkte**, weil sie aus denselben Abmessungen fallen und die
+Profildaten sonst zur Bemessung ein zweites Mal angefasst werden müssten.
+
+Das ist Stufe 7, Schritte 1–3 aus `TODO.md`, ohne den dünnwandigen Zweig. Der
+**Editor bleibt draußen** (Schritt 4). `TODO.md` begründet die Reihenfolge, und
+sie gilt weiter: *„Ein Profilkatalog, der den Solver füttert, ist für sich
+nützlich. Ein Editor ohne Rechenkern ist ein Zeichenprogramm."*
+
+## Getroffene Entscheidungen
+
+| Frage | Entscheidung |
 | --- | --- |
-| Kragarm, Endlast `P` | `M(0) = −P·L`, `V ≡ P`, `M(L) = 0` |
-| Einfeldträger, Gleichlast `q` | `M(L/2) = +qL²/8`, `V(0) = +qL/2`, `V(L) = −qL/2` |
-| Beidseitig eingespannt, Gleichlast | `M(0) = M(L) = −qL²/12`, `M(L/2) = +qL²/24` |
-| Zug-/Druckstab | `N ≡ +P` / `N ≡ −P` |
-| Kragarm, Streckenmoment `m` | `V ≡ 0`, `M(x) = m·(L−x)` — prüft `dM/dx = V + my_e` |
+| Paketschnitt | `cross-section` (Rechnen) + **neu** `@baustatik/steel-profiles` (Tabelle) |
+| Parametrische Formen | **Closed-Form-Formeln direkt**, keine Geometrieerzeugung |
+| Schub | `SectionValues` trägt **κ**; Adapter rechnet `GAs = κ · G · A` |
+| Solver-Adapter | zunächst in `apps/demo`, kein eigenes Package |
+| Spannungspunkte | **jetzt mit**, als gerechnete Vorlage je Profilreihe — nicht als Tabellenspalten (Befund 3) |
+| Datenbasis | `IPE.md` + `HEA.md` (RSTAB-Export), HEB wird nachgeliefert; Extraktion per Skript, Ergebnis eingecheckt |
+| Herkunftsangabe | ehrlich als Programmausgabe („RSTAB 8.29 Querschnittsdatenbank"), Normabgleich später nachrüstbar |
 
-Strukturelle Anker:
+**Warum die Paketgrenze zwischen Rechnen und Tabelle liegt** (der Kern der
+Antwort auf „ein Package oder alles in `cross-section`"): `TODO.md:524` hält
+fest, dass Tabellenwerte **keine nachgerechneten Werte** sind — `Iy` von
+IPE 300 stammt aus der Norm, berücksichtigt die Ausrundungsradien und ist
+gerundet. Läge der Integrator im selben Package neben der Tabelle, würde früher
+oder später jemand die Tabelle „korrigieren", weil die Nachrechnung 0,3 %
+daneben liegt. Die Grenze plus Herkunftsangabe je Datensatz (ADR 0001) macht
+das sichtbar. Parametrische Formen sind dagegen keine Daten, sondern Formeln —
+die gehören zum Rechenkern.
 
-- **Randidentitäten** an jedem Fall: `links(0)` trifft `[−e[0], −e[1], +e[2]]`,
-  `rechts(L)` trifft `[+e[3], +e[4], −e[5]]`. Ein Vorzeichendreher schlägt hier
-  sofort durch.
-- **Gelenke, je Richtung.** Die selbstprüfende Eigenschaft, die heute an
-  `elementEndForces` hängt, wandert auf die Schnittgröße und wird dort erst
-  aussagekräftig: `releases.start.u` ⇒ `N(0) = 0` exakt, `.w` ⇒ `V(0) = 0`,
-  `.theta` ⇒ `M(0) = 0`. Dazu der Pendelstab (`theta` an beiden Enden), der
-  weiter durchgeht und `N`/`V` überträgt.
-- **Schritt 0**: `u` bzw. `w` an beiden Enden wirft in `validateModel` **und** in
-  `prepare`; `theta` an beiden Enden nicht. Die umgekehrten Pivot-0-Tests aus
-  Stufe 1a.
-- **Stabrichtung**: derselbe Stab mit vertauschten Knoten — `M` und `V` kippen
-  wie die lokale z-Achse. Analog zu `fem-load-resolve/tests/resolve.test.ts`.
-- **Sprungstelle**: Einfeldträger mit Einzellast in Feldmitte — `left ≠ right`
-  bei `V`, `M` stetig, `M`-Maximum exakt auf der Laststelle und in
-  `internalForcesStations`.
-- **Randlast**: `BeamForcePointLoad` mit `distanceFromStart = 0` bzw. `= L` —
-  `links(0)` und `rechts(0)` unterscheiden sich, das Diagramm zeigt keinen
-  Phantomsprung.
-- **Rückrechnung mehrerer Gelenke**: `u` und `theta` am selben Stabende — prüft
-  die umgekehrte Reihenfolge der Rücksubstitution.
-- **Extremstelle**: Trapezlast mit Nulldurchgang von `V` an krummer Stelle — die
-  Wurzel steht in der Stützstellenliste, das Maximum über die Liste trifft den
-  analytischen Wert.
-- **Schubunabhängigkeit**: derselbe Fall mit `GAs: 'rigid'` und mit endlichem
-  `GAs` liefert **identische** Schnittgrößen (die Verformungen unterscheiden
-  sich). Beweist, dass die Rekonstruktion theoriefrei ist.
+**Was der Wahl „Closed-Form" folgt:** Ein parametrischer Querschnitt liefert
+**Werte, keine Geometrie**. Der Editor kann einen so definierten I-Träger nicht
+zeichnen — in Ordnung, solange die Wege getrennt bleiben. Sollen die Formen
+später gezeichnet werden, kommt je Form ein `geometry()` dazu; die Werte
+bleiben trotzdem aus der Formel, sonst gibt es zwei Rechenwege.
 
-In `fem-solver`: schräger Stab (Transformation), Zweifeldträger gegen
-Handrechnung, `solveAll` über mehrere Lastfälle.
+**Was der Wahl „κ" folgt:** `kappaY`/`kappaZ` sind **optional**, `undefined`
+heißt *schubstarr* — der Adapter bildet das auf das schon vorhandene
+`GAs: 'rigid'` (`fem-element/src/types.ts:96`) ab. Ein geratenes κ wäre
+schlechter als ein ehrliches „schubstarr". Gebraucht wird das schon in Teil 1:
+nicht jede Profilreihe bringt eine Schubfläche mit (siehe unten).
 
 ---
 
-## Dokumentation
+## Befund aus `apps/demo/IPE80.pdf`
 
-**ADR 0018 — Schnittgrößen entstehen aus Gleichgewicht, nicht aus dem
-Stoffgesetz.** Verworfene Alternative mit Gegenbeispiel (eingespannter Träger,
-`M ≡ 0`). Enthält als Konsequenz den Umzug der Kondensationsmechanik nach
-`fem-element` samt `withLoad`-Bindungsstufe, mit Verweis auf ADR 0003.
+Der Ausdruck ist ein vollständiges Referenzblatt für **ein** Profil und hat drei
+Dinge geklärt, von denen zwei diesen Plan korrigieren.
 
-**ADR 0019 — Das Ergebnis trägt einen serialisierbaren Auswertungszustand.**
-Verworfen: Closures am Ergebnis (nicht klonbar) und Config-Rückgriff mit
-`modelRevision`-Stempel (mischt alten Zustand mit neuem). Nennt ausdrücklich,
-dass `LocalElementLoad` damit auf dem Rückweg sichtbar wird, obwohl ADR 0007 ihn
-auf dem Hinweg versteckt.
+### Korrektur 1 — es gibt DREI Schubflächen, und wir brauchen die dritte
 
-Schritt 0 braucht **keinen** eigenen ADR: er präzisiert ADR 0017 an einer
-Stelle, die dort nicht zu Ende gedacht war, und die Begründung passt in den
-Kommentar von `validate.ts`.
+```
+Ay    = 4,03 cm²   Az    = 2,69 cm²   „Schubfläche"
+Av,y  = 5,12 cm²   Av,z  = 3,57 cm²   „Wirksame Schubfläche nach EC 3"
+Apl,y = 4,78 cm²   Apl,z = 2,84 cm²   „Plastische Schubfläche"
+```
 
-**CONTEXT-Änderungen:**
+Bei `A = 7,64 cm²` sind das drei verschiedene Zahlen für dasselbe Wort:
 
-- `fem/CONTEXT.md`: die neue Modellregel bei den Invarianten, mit der Abgrenzung
-  zum Pendelstab.
-- `fem-element/CONTEXT.md`: Purpose („Schnittgrößen … spätere Inkremente"),
-  Known Constraints Zeile 155 (Stub) und 160 (Releases) streichen; die drei
-  Bindungsstufen, `ElementEvaluationState`, die Vorzeichentabelle und die
-  Gleichgewichtsformeln aufnehmen.
-- `fem-solver/CONTEXT.md`: Boundaries Zeile 22 — Kondensation ist nicht mehr
-  Besitz, sondern Orchestrierung, mit Zeiger auf ADR 0018. Known Constraints
-  Zeile 349 (keine Verläufe) und 352 (verlorene Verdrehung) streichen. Bei den
-  vier Netzen der Hinweis, dass der elementinterne Mechanismus davor in `fem`
-  abgefangen wird.
-- `AGENTS.md`: Zeilen zu `fem`, `fem-element` und `fem-solver` nachziehen.
-- `packages/TODO.md`: Stufe 2 als erledigt markieren, mit den Abweichungen vom
-  Entwurf (Punktabfrage mit `side`, exakte Extremstellen, `x` nur absolut,
-  Auswertungszustand statt Verlauf-API am Ergebnis, Stützstellen aus
-  `fem-element` statt `fem-load-resolve`).
+- **`Az = 2,69 cm²`** ist die Schubfläche der **schubweichen Balkentheorie**.
+  `κz = Az/A = 0,352`. **Das ist die, die unser Timoshenko-Element braucht.**
+- `Av,z = 3,57 cm²` ist EN 1993-1-1 §6.2.6, nachgerechnet
+  `A − 2·b·tf + (tw+2r)·tf = 7,64 − 4,784 + 0,718 = 3,57` ✓ — **Bemessung**.
+- `Apl,z = 2,84 cm²` geht in `Vpl,z,d` ein — ebenfalls Bemessung.
 
-**Code-Kommentare, die zurückgenommen werden:**
+Der Entwurf hatte das Feld `Avz` genannt und mit „Schubfläche für Vz"
+kommentiert. Das ist mehrdeutig und hätte beim Abtippen mit hoher
+Wahrscheinlichkeit den EC3-Wert eingesammelt: `GAs` wäre bei IPE 80 um **33 %
+zu groß** gewesen, ohne dass ein Test anschlägt — eine zu steife Rechnung
+sieht plausibel aus. Das Feld heißt jetzt `Az`, und der Unterschied steht im
+Kommentar.
 
-- `fem/src/validate.ts:28-30` — der Satz zu `u`/`w` gilt nur für **ein** Ende.
-- `fem-element/src/types.ts:169` — die Begründung „braucht die element-eigenen
-  Ansatzfunktionen" stimmt für den Gleichgewichtsweg nicht.
-- `fem-element/src/shape-functions.ts:8` — die Ableitungen braucht nicht
-  `internalForces`, sondern die spätere Biegelinie.
-- `fem-solver/src/solve.ts:110` — der Kommentar zu `[N1, V1, M1, …]`.
-- `fem-solver/src/element-matrix.ts:1-15` — der Dateikopf ohne Kondensation.
+`Ay`/`Az` stehen in gedruckten Profiltabellen **nicht** — die geben `Av` nach
+EC 3. Die Datenbasis (siehe unten) führt sie für jedes Profil, damit ist κ von
+Anfang an für alle Reihen da. Im Typ bleiben sie trotzdem **optional**: eine
+später ergänzte Reihe ohne Schubfläche soll schubstarr rechnen dürfen statt
+einen Näherungswert zu erfinden.
 
-**Changeset** für `@baustatik/fem` (neue Regel), `@baustatik/fem-element`
-(`PreparedElement`) und `@baustatik/fem-solver` (`SolveResult`) — alle drei mit
-Breaking Change.
+### Korrektur 2 — `Wpl` ist bestätigt materialfrei, die Bemessungswerte stehen daneben
+
+Die PDF trennt es selbst sauber. Materialfrei tabelliert:
+`Wpl,y = 23,22 cm³`, `Wpl,z = 5,82 cm³`, dazu der plastische Formbeiwert
+`αpl,y = Wpl,y/Wel,y = 23,22/20,03 = 1,159` ✓.
+
+Materialabhängig, und ausdrücklich mit **„für S 235"** beschriftet:
+
+| Wert | PDF | nachgerechnet |
+| --- | --- | --- |
+| `Npl,d` | 166,705 kN | `A · fy,d` = 7,64 × 21,82 = 166,70 ✓ |
+| `Vpl,z,d` | 35,808 kN | `Apl,z · fy,d/√3` = 2,84 × 12,60 = 35,78 ✓ |
+| `Mpl,y,d` | 5,067 kNm | `Wpl,y · fy,d` = 23,22 × 21,82 = 506,6 kNcm ✓ |
+
+`fy,d = 240/1,1 = 21,82 kN/cm²` — **DIN 18800-1 rechnet S235 mit 240 N/mm²,
+nicht mit 235.** Genau die Sorte stiller Abweichung, für die ADR 0001 existiert.
+
+Zweiter materialabhängiger Block: die **Knicklinien**. RSTAB löst die
+Materialabhängigkeit nicht als Funktion, sondern durch vier Spaltenpaare —
+`KLy/z,DIN`, `KLy/z,DIN,S460`, `KLy/z,EN`, `KLy/z,EN,S460`. Nicht nachbauen:
+die Knicklinie ist `(Profilform, Güte, Norm) → Linie` und gehört ins spätere
+Bemessungspaket. `steel-profiles` liefert nur die Formseite.
+
+**Alles in dieser Korrektur gehört NICHT in diesen Plan** — siehe
+„Ausdrücklich nicht in diesem Plan". Sie steht hier, weil sie beim Abtippen der
+Tabellen sonst mit hineinrutscht.
+
+### Befund 3 — Spannungspunkte kommen mit, und sie kosten keine einzige Tabellenzeile
+
+13 Punkte je Profil mit `{ nr, y, z, t, Sy, Sz, ω, Sω }`.
+
+Ich hatte das zunächst auf ein späteres Bemessungspaket geschoben. Der Einwand
+dagegen ist richtig und derselbe wie bei `Wpl`: **400 Profilzeilen fasst man
+einmal an.** Beim Nachrechnen an der PDF stellt sich allerdings heraus, dass
+die Sorge unbegründet war — es gibt hier gar nichts abzutippen.
+
+**Die Punkte sind ein Bauplan je Profilreihe, keine Daten je Profil.** Jedes
+I-Profil hat dieselben 13 Punkte in derselben Nummerierung; was sich von IPE 80
+zu HEB 300 ändert, sind nur die fünf Abmessungen, die schon in der Zeile
+stehen. Gegen die PDF nachgerechnet:
+
+| | Formel | PDF |
+| --- | --- | --- |
+| y | `±b/2`, `±(tw/2+r)`, `0` | ±23,0 ±6,9 0 ✓ |
+| z | `±h/2`, `±(h/2−tf−r)`, `0` | ±40,0 ±29,8 0 ✓ |
+| t | `tf` am Flansch, `tw` am Steg | 5,2 / 3,8 ✓ |
+| Sy(P11) | Flansch + Ausrundung, integriert | 9,92 (gerechnet 9,90) ✓ |
+| Sy(P13) | = `Sy,max` aus der Tabelle | 11,61 ✓ |
+
+**Die Datenbasis enthält die Punkte zwar tabelliert** (13 je Profil, 42 Profile
+= 546 Zeilen) — sie werden trotzdem **gerechnet**. Der Grund steht in den
+Daten selbst. IPE 220, Punkte 11 und 12, dieselbe Stelle gespiegelt:
+
+```
+11 | y=0,0 | z=−88,8 | Sy = −119,44
+12 | y=0,0 | z=+88,8 | Sy = −119,73
+```
+
+Bei einem doppelsymmetrischen Profil müssen die gleich sein. Die 0,25 % sind
+RSTABs interne Diskretisierung; dasselbe bei den Punkten 2/7 (−38,78 / −38,84).
+Diese Spalten sind also **eine Programmausgabe, keine Tabelle** — anders als
+`Iy` oder `Wpl`, die aus der Norm kommen. Ein gerechneter Wert ist exakt
+symmetrisch, gilt für jede spätere Reihe (U, Winkel, Rohr) ohne neuen Export,
+und die 546 Zeilen werden zum **Prüfstein statt zum Ballast**.
+
+Damit fällt die Entscheidung anders aus als im ersten Entwurf:
+
+1. **Kein Feld in `SteelProfileData`, sondern eine Funktion** in
+   `cross-section` über die Abmessungen der Zeile. Die Bundle-Sorge („5200
+   Zeilen in jedem Bundle, das nur `Iy` will") löst sich damit von selbst:
+   eine Funktion, die niemand importiert, fällt beim Tree-Shaking heraus.
+2. **Genau eine neue Spalte:** `Sz` (statisches Moment um z). `Sy` steht
+   ohnehin in jeder Tabelle. Beide sind ab jetzt doppelt nützlich — als
+   Eingang für τ **und** als Prüfstein: das integrierte `Sy` im Schwerpunkt
+   muss den Tabellenwert treffen, je Profil, alle 400. Ein besserer Test als
+   jede Handrechnung.
+3. **`ω` und `Sω` bleiben draußen.** Wölbkrafttorsion, und `StressPoint` kann
+   sie später als optionale Felder bekommen — das berührt weder eine
+   Tabellenzeile noch einen bestehenden Aufrufer.
+
+**Die Nummerierung ist ein veröffentlichter Vertrag.** Die PDF druckt „S-Punkt
+Nr. 1…13"; sobald unser Bericht das auch tut, ist Nummer↔Ort festgenagelt. Wir
+übernehmen die RSTAB-Reihenfolge (1–5 oberer Flansch von links, 6–10 unterer,
+11/12 Steganfang oben/unten, 13 Schwerpunkt), weil es sie schon gibt und ein
+zweiter Standard niemandem hilft. Ein Test hält sie fest, bevor der erste
+Bericht sie druckt.
+
+Nebenbei bestätigt die PDF unsere Achskonvention: das Modell steht auf
+„Positive Richtung der globalen Z-Achse: **Nach unten**", und die Punkte 1–5
+mit `z = −40,0` sind der **obere** Flansch. Dieselbe Richtung wie
+`fem-geometry` und wie `Segment {y, z}`.
+
+**Der Preis, ehrlich benannt:** die Ausrundung sauber mitzuintegrieren ist die
+fummeligste Rechnung in diesem Plan — die Fläche zwischen Flanschunterseite und
+geradem Stegteil ist `tw·r + 2·(1−π/4)·r²` mit einem Schwerpunkt, den man
+herleiten muss.
+
+Dass es geht, ist allerdings **nachgerechnet**, nicht gehofft. Dieselbe
+Integration liefert für IPE 80 aus nur `h, b, tw, tf, r`:
+
+```
+A     = 2·b·tf + (h−2tf)·tw + (4−π)·r²   = 7,643 cm²   Tabelle 7,64   ✓
+Iy    = Flansche + Steg + 4 Ausrundungen = 80,14 cm⁴   Tabelle 80,14  ✓
+Wpl,y = 2·Sy,max                         = 23,22 cm³   Tabelle 23,22  ✓
+```
+
+Die Routine, die die Spannungspunkte braucht, reproduziert also die
+Katalogwerte auf Tabellengenauigkeit. Zusammen mit dem `Sy,max`-Abgleich je
+Profil und den 546 Referenzpunkten ist das dreifach abgesichert.
 
 ---
+
+## Datenbasis
+
+`apps/demo/HEA.md` und `IPE.md` (dieselbe RSTAB-Quelle wie `IPE80.pdf`, nur als
+Markdown statt PDF) sind der Datenbestand. Geprüft:
+
+| | IPE.md | HEA.md | HEB |
+| --- | --- | --- | --- |
+| Profile | **18** — IPE 80…600, vollständige Reihe | **24** — HEA 100…1000, vollständig | **fehlt**, wird nachexportiert |
+| Werteblock je Profil | ja, ~40 Zeilen | ja | — |
+| Spannungspunkte | 13 je Profil | 13 je Profil | — |
+
+Stichproben gegen veröffentlichte Werte stimmen exakt: IPE 120
+`A = 13,21 / Iy = 317,8 / Wpl,y = 60,73 / It = 1,74`, HEA 300
+`A = 112,5 / Iy = 18260`, HEA 360 `A = 142,8`, HEA 500 `A = 197,5`.
+
+### Extraktion
+
+Ein **einmaliges Skript im Repo**, nicht Handarbeit und nicht im Build:
+`packages/steel-profiles/scripts/extract.ts` liest die `.md` und schreibt
+`src/data/*.ts`. Die erzeugten Dateien werden **eingecheckt** — der ganze Sinn
+des Katalogs ist, dass man die Zahlen im Diff sieht. Das Skript bleibt liegen,
+damit eine nachgelieferte Reihe (HEB) reproduzierbar dazukommt.
+
+Die Quelldateien ziehen dabei nach
+`packages/steel-profiles/data-source/{IPE,HEA,HEB}.md` um; in `apps/demo` haben
+sie nichts zu suchen.
+
+**Parser-Fallen, beide bereits nachgewiesen:**
+
+1. **Nicht naiv nach Label greppen.** Die Zellen enthalten `<br>` und
+   uneinheitliche Leerzeichen — `Schubfläche<br>Az` trifft nur 8 der 18
+   IPE-Zeilen. Nach Normalisierung (`<br>` → Leerzeichen, Whitespace
+   kollabieren) ist es eine saubere `| Label | Symbol | Wert | Einheit |`-Tabelle
+   und alle 18 treffen.
+2. **Nicht auf das Symbol schlüsseln.** Die Konvertierung hat die griechischen
+   Buchstaben verschluckt: `Iω` heißt jetzt `I`, `ωmax` heißt `max`,
+   `αpl,y` heißt `pl,y`. Schlüssel ist **Label + Einheit** — bei `Iw` macht
+   erst `cm⁶` es eindeutig.
+
+Das Skript muss am Ende die Zeilenzahl je Reihe gegen die erwartete Anzahl
+prüfen (18 / 24 / 24) und bei Abweichung abbrechen. Ein stillschweigend
+übersprungenes Profil ist der wahrscheinlichste Fehler dieses ganzen Plans.
+
+### Herkunftsangabe
+
+Entschieden: **ehrlich als Programmausgabe deklarieren.**
+
+```
+// Quelle: RSTAB 8.29.01 Querschnittsdatenbank (Dlubal),
+//         Ausdruck vom 29.07.2026, extrahiert mit scripts/extract.ts.
+// Tabellenwerte — NICHT nachgerechnet. Abweichungen gegen einen
+// Integrator sind erwartet (Ausrundungsradien, Rundung).
+```
+
+Für die Spannungspunkte lautet dieselbe Zeile anders — „aus den Abmessungen
+gerechnet, gegen die RSTAB-Punkte geprüft". Zwei Sorten Herkunft im selben
+Package, und genau deshalb steht sie je Datei und nicht einmal zentral.
+
+Falls das Package später wirklich veröffentlicht wird, ist ein Abgleich gegen
+EN 10365 (Abmessungen) und einen freien Herstellerkatalog (Querschnittswerte)
+nachrüstbar, ohne eine Zeile anzufassen — es wäre reine Zitierarbeit.
+
+### IPE 80 bleibt der goldene Einzelfall
+
+`apps/demo/IPE80.pdf` ist der vollständige Ausdruck für ein Profil und wird
+nicht durch die Massendaten ersetzt: an ihm sind die Werte von Hand
+nachgerechnet (Korrektur 1 und 2 oben), er ist also die einzige Stelle, an der
+nicht nur „Datei sagt X" geprüft wird, sondern „X ist richtig".
+
+---
+
+## Paket 1 (neu): `@baustatik/steel-profiles`
+
+Blatt-Package, **null Dependencies**, wie `@baustatik/actions` (ADR 0015).
+Nichts wirft: der Lookup liefert `undefined` statt eines Fehlers, damit die
+Fehlerhierarchie und damit `@baustatik/errors` gar nicht erst gebraucht wird.
+
+Aufbau nach dem Muster von `packages/material/`:
+
+```
+packages/steel-profiles/
+  data-source/IPE.md, HEA.md, HEB.md      <- Rohdaten, umgezogen aus apps/demo
+  scripts/extract.ts                      <- einmalig, erzeugt src/data/*
+  src/data/ipe.ts, hea.ts, heb.ts         <- erzeugt UND eingecheckt
+  src/types.ts                            <- SteelProfile
+  src/lookup.ts                           <- lookupProfile, profileSeries
+  src/index.ts
+  tests/
+  package.json  tsconfig.json  vite.config.ts  vitest.config.ts  CONTEXT.md
+```
+
+**Reihenfolge:** IPE und HEA können sofort laufen, HEB kommt nach, sobald der
+Export da ist. Das Skript und der Typ ändern sich dafür nicht — genau dafür ist
+die Struktur gebaut. Bis dahin fehlt in `ProfileId` schlicht die HEB-Union.
+
+**Datensatzform.** Die volle Standardzeile auf einmal, nicht das Minimum: 400
+Zeilen will man **einmal** abtippen. Eine Spalte nachzutragen heißt, jede Zeile
+erneut anzufassen — und jede Berührung ist eine Gelegenheit für einen
+Zahlendreher.
+
+```ts
+export interface SteelProfileData {
+  /** Abmessungen [mm]. */
+  readonly h: number; readonly b: number;
+  readonly tw: number; readonly tf: number; readonly r: number;
+
+  /** Querschnittsfläche [cm²]. */
+  readonly A: number;
+
+  /**
+   * Schubflächen der SCHUBWEICHEN BALKENTHEORIE [cm²] — daraus kappa = A_/A.
+   *
+   * NICHT `Av` nach EN 1993-1-1 §6.2.6 und NICHT `Apl`: bei IPE 80 ist
+   * Az = 2,69, Av,z = 3,57 und Apl,z = 2,84. Wer hier den EC3-Wert einträgt,
+   * macht den Stab um 33 % zu steif, und kein Test merkt es.
+   *
+   * Die Datenbasis fuehrt sie fuer jedes Profil. Optional bleiben sie fuer
+   * spaeter ergaenzte Reihen ohne Schubflaeche: die rechnen dann schubstarr,
+   * statt dass hier ein Naeherungswert erfunden wird.
+   */
+  readonly Ay?: number; readonly Az?: number;
+
+  /** Trägheitsmomente [cm⁴] und Trägheitsradien [cm]. */
+  readonly Iy: number; readonly Iz: number;
+  readonly iy: number; readonly iz: number;
+
+  /** Widerstandsmomente [cm³] — elastisch und plastisch. */
+  readonly Wely: number; readonly Welz: number;
+  readonly Wply: number; readonly Wplz: number;
+
+  /** Torsion: It [cm⁴], Iw [cm⁶]. */
+  readonly It: number; readonly Iw: number;
+
+  /**
+   * Statische Momente des Halbquerschnitts [cm³] — Sy,max und Sz,max.
+   *
+   * Doppelte Rolle: Eingang fuer tau = V*S/(I*t), UND der Pruefstein fuer die
+   * berechneten Spannungspunkte. Das aus den Abmessungen integrierte Sy im
+   * SCHWERPUNKT muss diesen Tabellenwert treffen — je Profil, alle 400.
+   */
+  readonly Sy: number; readonly Sz: number;
+
+  /** Masse [kg/m]. */
+  readonly mass: number;
+}
+```
+
+`Wply`/`Wplz` sind bewusst dabei, obwohl dieser Plan sie nicht benutzt: der
+IPE-80-Ausdruck belegt, dass sie **materialfrei** sind (`Mpl,y,d` entsteht erst
+durch `× fy,d`), sie stehen in jeder Tabelle, und sie später nachzutragen hieße,
+alle Zeilen anzufassen. Dazu die Einschränkung als Kommentar: `Wpl` ist nur bei
+**homogenem** Querschnitt reine Geometrie — sobald zwei Streckgrenzen im Spiel
+sind, balanciert die plastische Nulllinie Kräfte statt Flächen.
+
+**Einheiten verbatim wie in der Norm** (mm, cm², cm⁴), nicht in Metern. Der
+Grund ist Prüfbarkeit: `Iy: 8356` lässt sich gegen die Tabelle diffen,
+`8.356e-5` nicht. Die Umrechnung nach SI passiert an **genau einer** Stelle,
+beim Mapping nach `SectionValues` in `cross-section`.
+
+**Herkunft je Tabelle** als Kopfkommentar, exakt wie
+`material/src/data/steel.ts:1-5` es vormacht (Norm, Ausgabe, Quelle des
+Gegenchecks, Einheiten) — und zusätzlich der Satz, dass diese Zahlen
+**tabelliert und nicht nachgerechnet** sind, samt Grund (Ausrundungsradien,
+Rundung der Norm). Eine Abweichung gegen einen Integrator ist kein Fehler.
+
+**API:**
+
+```ts
+export type ProfileId = keyof typeof IPE | keyof typeof HEA | keyof typeof HEB;
+export function lookupProfile(id: string): SteelProfile | undefined;
+export function profileSeries(): readonly ProfileSeries[];  // für Auswahllisten
+```
+
+`SteelProfile` = `SteelProfileData` + `{ id, series }`.
+
+**Start-Umfang: IPE, HEA, HEB.** U, Winkel, RHS/SHS/CHS folgen als reine
+Datendateien, ohne dass am Rechenkern etwas anzufassen ist.
+
+---
+
+## Paket 2 (ausbauen): `@baustatik/cross-section`
+
+Bekommt **genau eine** neue Dependency: `@baustatik/steel-profiles`. Kein
+Zyklus (das Blatt hängt an nichts), und für Teil 1 wird weder `errors` noch
+`section-geometry` gebraucht — beides kommt erst mit dem dünnwandigen Zweig.
+
+### `src/values.ts` — der Wertetyp, das Rückgrat
+
+Name bewusst **`SectionValues`**, nicht `SectionProperties` — letzteres ist in
+`fem-element` schon vergeben und meint etwas anderes (Steifigkeiten, mit E und
+G drin). Zwei Namen für zwei Begriffe.
+
+```ts
+export type SectionValues = {
+  /** A [m²]. */            A: number;
+  /** Iy, Iz [m⁴] — auf den Schwerpunkt bezogen. */
+  Iy: number; Iz: number;
+  /** Iyz [m⁴]. 0 bei jeder symmetrischen Form. */
+  Iyz: number;
+  /** Schwerpunkt im Eingabesystem y/z [m]. */
+  ys: number; zs: number;
+  /**
+   * Schubkorrekturbeiwert der schubweichen Balkentheorie.
+   * `undefined` = schubstarr. Siehe die Warnung zu Az/Av,z/Apl,z.
+   */
+  kappaY?: number; kappaZ?: number;
+};
+```
+
+Alles in **SI-Metern**. Widerstandsmomente und Hauptachsenwinkel kommen erst
+mit der Bemessung — jetzt aufgenommen wären es ungenutzte Felder.
+
+### `src/shapes/` — parametrische Querschnitte, Closed-Form
+
+Je Form ein Modul mit typisierten Parametern → `SectionValues`. Vier Formen:
+
+| Form | Parameter | Besonderheit |
+| --- | --- | --- |
+| `rectangle` | `b, h` | κ = 5/6, beide Richtungen |
+| `hollowRectangle` | `b, h, t` (umlaufend) | Iy als Differenz außen − innen; κz ≈ 2·h·t/A |
+| `iSymmetric` | `h, b, tw, tf` | geschweißt, **ohne Ausrundung** — der Unterschied zum Katalog, gehört in den Kommentar |
+| `tBeam` (Plattenbalken) | `bf, hf, bw, h` | **unsymmetrisch** — der einzige Fall mit `zs ≠ h/2` und Steiner-Anteil |
+
+`tBeam` ist der wichtigste Test: der einzige, bei dem ein Vorzeichenfehler im
+Steiner-Anteil oder eine falsche z-Richtung auffällt.
+
+**κ je Form** steht als Formel neben dem Wert, mit der Quelle im Kommentar. Für
+`iSymmetric` und `hollowRectangle` ist es die Stegflächen-Näherung κ ≈ A_Steg/A.
+Hier gilt die Warnung aus Korrektur 1 sinngemäß: es ist **nicht** `Av` nach
+EC 3. Bei `iSymmetric` mit IPE-80-Maßen kommt `hi·tw/A = 6,96·0,38/7,64 =
+0,346` heraus, gegen `Az/A = 0,352` aus der PDF — 1,7 % Abweichung, und das ist
+die richtige Größenordnung. Käme etwas nahe 0,47 (= Av,z/A) heraus, wäre die
+falsche Formel im Code.
+
+### `src/section.ts` — eine Tür für alle Quellen
+
+```ts
+export type CrossSection =
+  | { kind: 'shape';   id: string; shape: ShapeSpec }
+  | { kind: 'profile'; id: string; profile: string };
+
+export function sectionValues(cs: CrossSection): SectionValues | undefined;
+```
+
+Teil 2 fügt `{ kind: 'thin-walled'; ... }` hinzu — **additiv**, kein Breaking
+Change, solange niemand vorher exhaustiv über die Union schaltet. Der Test dazu
+wird gleich mitgeschrieben.
+
+`undefined` heißt „Profil unbekannt" und passt ohne Übersetzung auf den
+bestehenden Port-Vertrag: `getSectionProperties` gibt `undefined` zurück, und
+`config.ts:96-98` begründet, warum das ein **Bericht** wird und kein Wurf.
+
+Für `kind: 'profile'` mappt eine Funktion `SteelProfileData` → `SectionValues`:
+cm²→m² (`1e-4`), cm⁴→m⁴ (`1e-8`), `kappaZ = Az/A` (dimensionslos, also direkt
+aus den cm²-Werten; `undefined`, wenn `Az` fehlt), `ys = zs = 0` (Katalogwerte
+sind schwerpunktbezogen), `Iyz = 0`.
+
+### `src/stress-points.ts` — wo gerechnet wird, wenn es an die Bemessung geht
+
+```ts
+export type StressPoint = {
+  /** Nummer im Bericht — VERTRAG, siehe Befund 3. */
+  readonly nr: number;
+  /** Lage relativ zum Schwerpunkt [m]. */
+  readonly y: number; readonly z: number;
+  /** Wanddicke an dieser Stelle [m] — Nenner in tau. */
+  readonly t: number;
+  /** Statische Momente des abgeschnittenen Teils [m³]. */
+  readonly Sy: number; readonly Sz: number;
+};
+
+export function stressPoints(cs: CrossSection): readonly StressPoint[] | undefined;
+```
+
+Je Quelle eine Herleitung, dieselbe Aufteilung wie bei `sectionValues`:
+
+- **Profil:** ein Bauplan je Reihe. Für I-Querschnitte (IPE, HEA, HEB) die 13
+  Punkte aus Befund 3, gerechnet aus `h, b, tw, tf, r`. U und Winkel bekommen
+  später eigene Baupläne — wieder ohne dass eine bestehende Zeile angefasst
+  wird.
+- **Parametrische Form:** jede Form kennt ihre Punkte. Rechteck vier Ecken,
+  `iSymmetric` dieselben 13 wie das Walzprofil (nur ohne Ausrundung), `tBeam`
+  sechs. Die Nummerierung folgt dem Profil-Bauplan, damit ein geschweißter
+  I-Träger und ein IPE im Bericht gleich zu lesen sind.
+
+Dazu die zwei Formeln, für die die Punkte überhaupt existieren — reine
+Funktionen über Zahlen, ohne Abhängigkeit zum FEM-Strang:
+
+```ts
+export function normalStress(v: SectionValues, p: StressPoint,
+  f: { N: number; My: number; Mz: number }): number;   // N/A + My/Iy*z - Mz/Iz*y
+
+export function shearStress(v: SectionValues, p: StressPoint,
+  f: { Vz: number }): number;                           // Vz*Sy / (Iy*t)
+```
+
+Sie kosten sechs Zeilen und machen die Punkte prüfbar: ohne sie wäre `Sy` an
+Punkt 11 eine Zahl, die niemand benutzt und deshalb niemand kontrolliert. Die
+Schnittgrößen kommen als schlichtes Objekt herein — `cross-section` bekommt
+dadurch **keine** Abhängigkeit auf `fem-solver` oder `fem-element`.
+
+Was hier ausdrücklich **nicht** entsteht: ein Nachweis. `sigma <= fy/gammaM0`
+braucht Material und Norm und gehört ins spätere EN-1993-Paket.
+
+---
+
+## Anschluss: `apps/demo/section-adapter.ts`
+
+```ts
+export function createSectionAdapter(
+  sections: ReadonlyMap<string, CrossSection>,
+  materials: Materials,
+): (beam: Beam) => SectionProperties | undefined
+```
+
+`Beam` trägt `crossSectionId` **und** `materialId` (`fem/src/types.ts:70-71`).
+
+**Die Einheiten-Falle, ausgeschrieben, weil sie sonst niemand sieht:**
+`material` liefert `Es` in **MPa** (`material/src/data/steel.ts:19`), also
+N/mm². `SectionProperties.EA` erwartet **kN**, `EI` **kNm²**
+(`fem-element/src/types.ts:91-96`). Damit ist `E[kN/m²] = Es[MPa] · 1000`, und
+mit `A` in m² kommt `EA` in kN heraus.
+
+Gegenprobe an der PDF: sie druckt `E = 21000 kN/cm² = 2,1e8 kN/m²` und
+`G = 8076,92 kN/cm²`. Damit ist IPE 80 aus S235:
+`EA = 2,1e8 · 7,64e-4 = 160 440 kN`, `EI = 2,1e8 · 80,14e-8 = 168,3 kNm²`.
+Das wird der Test.
+
+`GAs = kappaZ === undefined ? 'rigid' : kappaZ · G · A`.
+
+Danach `fem-viewer.ts:269` und `fem-scripting.ts:148` auf den Adapter
+umstellen und je einen echten Querschnitt eintragen (z. B. HEB 300 und einen
+Plattenbalken), damit sofort sichtbar ist, dass die Verformungen sich ändern.
+
+---
+
+## Doku
+
+- `packages/steel-profiles/CONTEXT.md` — Zweck, Grenze, und als Erstes die
+  Invariante „tabelliert, nicht nachgerechnet". Dazu die drei Schubflächen als
+  Domänensprache: `Az` (Theorie) ≠ `Av,z` (EC 3) ≠ `Apl,z` (plastisch). Und der
+  Weg von der `.md` zur `.ts` samt der beiden Parser-Fallen, damit ein
+  Nachexport nicht neu erforscht werden muss.
+- `packages/cross-section/CONTEXT.md` — neu; `SectionValues` vs.
+  `SectionProperties`, κ optional mit `undefined` = schubstarr, dass
+  parametrische Formen Werte und keine Geometrie liefern, und die
+  Spannungspunkt-Nummerierung als Vertrag (mit dem Bild aus der PDF als
+  Referenz).
+- `AGENTS.md`: Zeile für `@baustatik/steel-profiles` in die Paket-Tabelle,
+  Zeile 25 für `cross-section` aktualisieren (heute: „Cross-section domain
+  model and calculations", Dependencies leer).
+- `docs/adr/0020-section-values-separate-from-tabulated-profiles.md` — warum
+  die Tabelle ein eigenes Package ist, warum parametrische Formen Closed-Form
+  rechnen, warum κ optional ist, **und warum `Az` und nicht `Av,z`**.
+- `docs/adr/0021-stress-points-are-a-template-not-table-data.md` — warum die
+  Spannungspunkte gerechnet und nicht tabelliert werden, obwohl im selben
+  Package die Regel „tabelliert, nicht nachgerechnet" gilt: es gibt für sie
+  **keine** Tabellenquelle, die Herkunft ist deshalb ausdrücklich „aus den
+  Abmessungen gerechnet, gegen `Sy,max` geprüft". Dazu die Nummerierung als
+  Vertrag. Verhindert, dass jemand die Regeln der beiden Sorten verwechselt.
+- `TODO.md` Stufe 7: Schritte 1–3 für den parametrischen und den Katalog-Zweig
+  als erledigt markieren; den dünnwandigen Zweig auf Teil 2 verweisen.
+- Changesets für `cross-section` (minor) und `steel-profiles` (initial).
 
 ## Verifikation
 
-```text
-pnpm --filter @baustatik/fem test
-pnpm --filter @baustatik/fem-element typecheck
-pnpm --filter @baustatik/fem-element test
-pnpm --filter @baustatik/fem-solver typecheck
-pnpm --filter @baustatik/fem-solver test
-pnpm test
-pnpm build
-pnpm lint
-```
+Referenz für 1–3 und 5 ist durchgehend `apps/demo/IPE80.pdf`.
 
-Von Hand in der Demo (`apps/demo`, `pnpm dev`), Konsole:
+1. **Katalog gegen die PDF, IPE 80:** `A = 7,64 cm²`, `Iy = 80,14 cm⁴`,
+   `Iz = 8,49 cm⁴`, `Wel,y = 20,03 cm³`, `Wpl,y = 23,22 cm³`,
+   `It = 0,70 cm⁴`, `iy = 3,24 cm`, `mass = 6,0 kg/m`.
+2. **Umrechnung:** nach dem Mapping `A = 7,64e-4 m²`, `Iy = 8,014e-7 m⁴`.
+3. **κ aus der Tabelle:** `kappaZ = Az/A = 2,69/7,64 = 0,352`. Ein zweiter
+   Test hält fest, dass **`Av,z/A = 0,467` das falsche Ergebnis wäre** — der
+   Test ist der Wächter über Korrektur 1.
+4. **Handrechnung, Parametrik:** Rechteck 200×500 → `A = 0,1 m²`,
+   `Iy = 2,0833e-3 m⁴`, `κ = 5/6`. Plattenbalken gegen eine von Hand
+   gerechnete Schwerpunktlage — der Fall, der Steiner prüft.
+5. **Querprobe Parametrik ↔ Katalog:** `iSymmetric` mit den IPE-80-Maßen
+   (h=80, b=46, tw=3,8, tf=5,2) muss **nahe**, aber nicht gleich der Tabelle
+   liegen — die Ausrundung `r = 5,0` fehlt, also kommt etwas unter
+   `A = 7,64 cm²` heraus. Als Test mit großzügiger Toleranz formuliert: er
+   **belegt** die Invariante, statt sie zu verletzen.
+6. **Adapter-Einheiten:** IPE 80 aus S235 → `EA = 160 440 kN`,
+   `EI = 168,3 kNm²` (Rechnung siehe oben).
+7. **Vollzähligkeit der Extraktion:** 18 IPE, 24 HEA, 24 HEB. Das Skript
+   bricht bei Abweichung ab, und ein Test wiederholt die Zählung gegen die
+   erzeugten Dateien — ein stillschweigend übersprungenes Profil ist der
+   wahrscheinlichste Fehler dieses Plans.
+8. **Spannungspunkte gegen die PDF, IPE 80:** alle 13 Koordinaten
+   (`y ∈ {±23,0, ±6,9, 0}`, `z ∈ {±40,0, ±29,8, 0}` mm), die Dicken
+   (5,2 am Flansch, 3,8 am Steg) und `Sy` an Punkt 11 (9,92 cm³) und
+   Punkt 1 (0). Dazu ein Test, der festhält, dass es **genau 13** sind und
+   welche Nummer wo sitzt — der Vertrag aus Befund 3.
+9. **Die 546 Referenzpunkte:** `cross-section/tests/fixtures/stress-points.json`
+   entsteht aus derselben Extraktion und trägt alle 13 Punkte von 42 (später
+   66) Profilen. Der Test läuft über alle und vergleicht `y`, `z`, `t`, `Sy`,
+   `Sz`. **Toleranz 0,3 %** — hergeleitet aus der beobachteten Asymmetrie in
+   den Quelldaten (IPE 220: 119,44 vs. 119,73, also ±0,12 %), nicht geraten.
+   Der Kommentar am Test nennt diesen Grund, sonst zieht sie jemand später
+   enger und wundert sich.
+10. **Der Selbstcheck über den ganzen Katalog:** für **jedes** Profil muss das
+    gerechnete `Sy` im Schwerpunkt (Punkt 13) den tabellierten Wert `Sy` der
+    Zeile treffen, `Sz` analog — und `2·Sy = Wpl,y` als zweite, unabhängige
+    Gleichung. Deckt Tippfehler in den Abmessungen und einen Fehler in der
+    Ausrundungs-Integration gleichzeitig auf.
+11. **Die Integration reproduziert den Katalog:** für jedes Profil `A` und `Iy`
+    aus `h, b, tw, tf, r` gerechnet gegen die tabellierten Werte, Toleranz
+    0,2 %. An IPE 80 von Hand belegt (7,643 / 80,14). Dieser Test ist der
+    eigentliche Beleg dafür, dass die Ausrundung richtig sitzt — die
+    Spannungspunkte erben ihn.
+12. **Spannungsformeln:** IPE 80 unter `My = 5,067 kNm` (dem `Mpl,y,d` aus der
+    PDF) an Punkt 1 → `σ = My/Iy · z = 5,067/8,014e-7 · 0,04 = 252,9 MN/m²`.
+    Gegenprobe über `Wel,y`: `5,067/20,03e-6 = 253,0` ✓. Prüft Vorzeichen und
+    Einheiten in einem Zug.
+13. **End-to-end:** `pnpm --filter @baustatik/steel-profiles test`,
+   `pnpm --filter @baustatik/cross-section test`, dann `pnpm build` und
+   `pnpm dev` — im Demo-Kragarm den Querschnitt von HEB 300 auf IPE 300
+   umstellen und prüfen, dass die Verformung im erwarteten Verhältnis wächst
+   (`Iy` 25170 vs. 8356 cm⁴ → Faktor ≈ 3,0).
+14. `pnpm lint` und `pnpm test` über das Repo, weil `AGENTS.md` und die
+    Demo-Composition-Roots mit angefasst werden.
 
-```ts
-const r = await solver.solve(store.activeLoadCaseId);
-internalForcesAt(r, 'b1', 0);   // trifft die Stabendkraft-Identität
-internalForcesAlong(r, 'b1');   // Stützstellen enthalten Lastgrenzen
-```
+## Ausdrücklich nicht in diesem Plan
 
-Der Kragarm in `apps/demo/fem-cantilever.ts` ist der beste Handprüfstein: `M`
-läuft linear von `−P·L` auf `0`, `V` ist konstant `P`.
-
----
-
-## Bewusst nicht in diesem Schritt
-
-- **Zeichnen.** Stufe 5, braucht die ViewPolicy (Stufe 4). Die Auftragsregel
-  steht fest und gehört dann in `fem-viewer/CONTEXT.md`: positiver Wert auf der
-  lokalen +z-Seite, `M` damit auf der Zugseite.
-- **Biegelinie.** `deformation` hält den Platz frei; die Auswertung ist eine
-  eigene reine Funktion über denselben Zustand und braucht denselben
-  Gleichgewichtsweg (Interpolation über `Nw` allein wäre wieder `≡ 0` beim
-  eingespannten Träger).
-- **Kombinationen und min/max.** Stufe 6. Sie werden Summen über
-  `ElementEvaluationState`-Datensätze und benutzen dieselbe Stützstellenliste.
-- **Gelenksymbol und `releases` in der Demo.** Stufe 3a, unabhängig.
-- **Der Ergebnisspeicher selbst.** Die `Map<loadCaseId, SolveResult>` und die
-  Regel „jede Änderung löscht alles" sind Anwendungszustand und gehören zum
-  Store, nicht in ein Package. Größenordnung: 1,5–3 MB je Lastfall bei 2000
-  Knoten und 2500 Stäben.
+- **Beliebige dünnwandige Querschnitte** — Teil 2,
+  [`PLAN-duennwandige-querschnitte.md`](PLAN-duennwandige-querschnitte.md).
+- Der **Editor** (Stufe 7.4) — braucht Teil 1 und Teil 2 als Voraussetzung.
+- **Bemessungswerte**: `Npl,d`, `Vpl,z,d`, `Mpl,y,d`, Querschnittsklasse,
+  `A_eff`/`W_eff`, Knicklinien. Alle materialabhängig (siehe Korrektur 2), alle
+  in ein späteres EN-1993-Paket. Weder `steel-profiles` noch `cross-section`
+  darf `fy` kennen.
+- **Der Spannungsnachweis** — `σ` und `τ` werden gerechnet (Befund 3), aber
+  nicht gegen `fy/γM0` gestellt. Das braucht Material und Norm.
+- **Spannungspunkte für U und Winkel** — die 13-Punkte-Vorlage gilt für
+  I-Querschnitte. Andere Reihen bekommen eigene Vorlagen, sobald ihre Daten da
+  sind; bestehende Zeilen ändern sich dadurch nicht.
+- **`Av,z` und `Apl,z`** als Katalogspalten — gehören zur Bemessung, und im
+  selben Datensatz neben `Az` wären sie eine Einladung zur Verwechslung.
+- **Wölbgrößen** (`ω`, `Sω`, Schubmittelpunkt) und Hauptachsendrehung — erst
+  mit Torsion bzw. unsymmetrischen Querschnitten. `Iw` reist als Tabellenspalte
+  mit, wird aber nicht ausgewertet; `StressPoint` kann `ω`/`Sω` später als
+  optionale Felder bekommen, ohne dass eine Tabellenzeile angefasst wird.
+- **Polygon-Trägheitsmomente in `section-geometry`** — durch die
+  Closed-Form-Entscheidung hier nicht gebraucht. Fällig, sobald ein
+  Vollquerschnitt aus beliebigen Polygonen kommen soll.
+- **(c/t)-Teile** und Querschnittsklassifizierung — `c` und `c/t` sind
+  Geometrie, aber die Klasse braucht `ε = √(235/fy)`, also Material.

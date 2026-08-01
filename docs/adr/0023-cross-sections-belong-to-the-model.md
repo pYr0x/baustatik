@@ -30,7 +30,7 @@ type error.
 ```ts
 export type CrossSection =
   | { kind: 'shape';   id: string; shape: ShapeSpec }
-  | { kind: 'profile'; id: string; profileId: string };
+  | { kind: 'profile'; id: string; profile: string };
 ```
 
 Plain data, JSON-serialisable — that is the precondition for travelling in the
@@ -48,7 +48,7 @@ exists to make that refusal explicit and legible.
 
 `parseFEMModelSnapshot` validates that a cross-section is well-formed —
 discriminator, exact key set, positive dimensions, `idealisation` present where
-`ShapeSpec` requires it. It does **not** check that a `profileId` exists in the
+`ShapeSpec` requires it. It does **not** check that a `profile` exists in the
 catalogue, nor that every `beam.crossSectionId` resolves.
 
 Both are already reported: an unresolvable section becomes

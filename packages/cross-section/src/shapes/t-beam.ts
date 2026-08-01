@@ -1,3 +1,4 @@
+import type { cm } from '@baustatik/units';
 import type { Idealisation } from '../section';
 import { bandSegments, crossWallSegment, endMoment } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
@@ -10,6 +11,12 @@ import { allPositive, type ShapeResult } from './kernel';
  * Rechnungen fuer eine Zahl waeren zwei Gelegenheiten, sie verschieden zu
  * bekommen — und die Spannungspunkte liegen SCHWERPUNKTSBEZOGEN, verschoeben
  * sich also alle neun.
+ *
+ * EINHEITENFREI, und das ist Absicht: `tBeam` ruft sie in ZENTIMETERN,
+ * `stressPoints` in MILLIMETERN. Die Formel ist ein Verhaeltnis erster
+ * Flaechenmomente zu Flaechen und damit homogen vom Grad 1 — heraus kommt die
+ * Einheit, die hineingeht. Wer die Parameter auf `cm` oder `mm` brandet,
+ * bricht einen der beiden Aufrufer.
  *
  * Sie ist ausserdem die EINE Gueltigkeitspruefung der Form: `undefined` heisst
  * „das sind keine Plattenbalkenmasse", und `tBeam` wie `stressPoints` haengen
@@ -40,12 +47,13 @@ export function tBeamCentroid(
  * `bf`/`hf` sind Breite und Dicke des Gurts OBEN, `bw` die Stegbreite, `h` die
  * GESAMThoehe. Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der
  * Gurtoberkante — damit ist `zs` die Zahl, die man von Hand nachrechnet.
+ * Abmessungen in ZENTIMETERN (siehe `shapeResult`).
  */
 export function tBeam(
-  bf: number,
-  hf: number,
-  bw: number,
-  h: number,
+  bf: cm,
+  hf: cm,
+  bw: cm,
+  h: cm,
   idealisation: Idealisation,
 ): ShapeResult | undefined {
   const hs = h - hf; // Steghoehe unter dem Gurt

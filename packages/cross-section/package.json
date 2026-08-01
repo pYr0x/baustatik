@@ -36,6 +36,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@baustatik/steel-profiles": "workspace:*"
+    "@baustatik/steel-profiles": "workspace:*",
+    "@baustatik/units": "workspace:*"
   }
 }

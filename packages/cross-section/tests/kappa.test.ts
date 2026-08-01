@@ -2,6 +2,7 @@ import { profilesIn } from '@baustatik/steel-profiles';
 import { describe, expect, it } from 'vitest';
 import type { SectionProperties } from '../src/index';
 import { type CrossSection, sectionProperties } from '../src/index';
+import { CM2_TO_M2 } from '../src/units';
 import {
   acrossPiece,
   alongPiece,
@@ -15,6 +16,28 @@ function values(cs: CrossSection): SectionProperties {
   if (p === undefined) throw new Error('sectionProperties lieferte undefined');
   return p;
 }
+
+/**
+ * mm -> m.
+ *
+ * `ShapeSpec` fuehrt Millimeter, `sectionProperties` liefert SI. Das Orakel
+ * baut seinen Weg deshalb in METERN — in DERSELBEN Einheit wie `p.Iy` und
+ * `p.A`, mit denen es gleich verrechnet wird.
+ *
+ * kappa selbst ist massstabsfrei: skaliert man alle Laengen mit `L`, wird `I`
+ * zu `L^4 I`, `A_s` zu `L^2 A_s`, und der Quotient bleibt. Genau deshalb faellt
+ * ein Einheitenfehler hier NUR auf, wenn die beiden Seiten verschieden
+ * skaliert sind — was diese Konstante verhindert.
+ */
+const M = 1e-3;
+
+/**
+ * Die EXAKTE Schwerpunktlage des Plattenbalkens 2000/200/250/500 [mm]:
+ * `(400000*100 + 75000*350) / 475000`. Gedruckt wird sie als 139,5 — auf
+ * 139,5 gerundet weicht kappa aber schon in der vierten Stelle ab, und die
+ * Quadratur vergleicht auf 1e-6. Der Bruch bleibt deshalb stehen.
+ */
+const T_ZS = 66_250_000 / 475_000;
 
 // ---------------------------------------------------------------------------
 // Die Wege, unabhaengig noch einmal hingeschrieben — Eingabe fuer das Orakel.
@@ -175,39 +198,39 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
     paths: { y: OracleBranch[]; z: OracleBranch[] };
   }[] = [
     {
-      name: 'rectangle 0,2 x 0,5',
-      cs: { kind: 'shape', id: 'r', shape: { kind: 'rectangle', b: 0.2, h: 0.5 } },
-      paths: rectanglePaths(0.2, 0.5),
+      name: 'rectangle 200 x 500 mm',
+      cs: { kind: 'shape', id: 'r', shape: { kind: 'rectangle', b: 200, h: 500 } },
+      paths: rectanglePaths(200 * M, 500 * M),
     },
     {
-      name: 'hollow-rectangle solid 0,3 x 0,5 x 0,02',
+      name: 'hollow-rectangle solid 300 x 500 x 20 mm',
       cs: {
         kind: 'shape',
         id: 'b',
         shape: {
           kind: 'hollow-rectangle',
-          b: 0.3,
-          h: 0.5,
-          t: 0.02,
+          b: 300,
+          h: 500,
+          t: 20,
           idealisation: 'solid',
         },
       },
-      paths: boxSolidPaths(0.3, 0.5, 0.02),
+      paths: boxSolidPaths(300 * M, 500 * M, 20 * M),
     },
     {
-      name: 'hollow-rectangle thin-walled 0,3 x 0,5 x 0,02',
+      name: 'hollow-rectangle thin-walled 300 x 500 x 20 mm',
       cs: {
         kind: 'shape',
         id: 'b',
         shape: {
           kind: 'hollow-rectangle',
-          b: 0.3,
-          h: 0.5,
-          t: 0.02,
+          b: 300,
+          h: 500,
+          t: 20,
           idealisation: 'thin-walled',
         },
       },
-      paths: boxThinPaths(0.3, 0.5, 0.02),
+      paths: boxThinPaths(300 * M, 500 * M, 20 * M),
     },
     {
       name: 'i-symmetric solid (IPE-300-Masse)',
@@ -216,14 +239,14 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
         id: 'i',
         shape: {
           kind: 'i-symmetric',
-          h: 0.3,
-          b: 0.15,
-          tw: 0.0071,
-          tf: 0.0107,
+          h: 300,
+          b: 150,
+          tw: 7.1,
+          tf: 10.7,
           idealisation: 'solid',
         },
       },
-      paths: iSolidPaths(0.3, 0.15, 0.0071, 0.0107),
+      paths: iSolidPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M),
     },
     {
       name: 'i-symmetric thin-walled (IPE-300-Masse)',
@@ -232,14 +255,14 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
         id: 'i',
         shape: {
           kind: 'i-symmetric',
-          h: 0.3,
-          b: 0.15,
-          tw: 0.0071,
-          tf: 0.0107,
+          h: 300,
+          b: 150,
+          tw: 7.1,
+          tf: 10.7,
           idealisation: 'thin-walled',
         },
       },
-      paths: iThinPaths(0.3, 0.15, 0.0071, 0.0107),
+      paths: iThinPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M),
     },
     {
       name: 't-beam solid (breiter Gurt)',
@@ -248,14 +271,14 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
         id: 't',
         shape: {
           kind: 't-beam',
-          bf: 2.0,
-          hf: 0.2,
-          bw: 0.25,
-          h: 0.5,
+          bf: 2000,
+          hf: 200,
+          bw: 250,
+          h: 500,
           idealisation: 'solid',
         },
       },
-      paths: tSolidPaths(2.0, 0.2, 0.25, 0.5, 0.06625 / 0.475),
+      paths: tSolidPaths(2000 * M, 200 * M, 250 * M, 500 * M, T_ZS * M),
     },
     {
       name: 't-beam thin-walled (breiter Gurt)',
@@ -264,14 +287,14 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
         id: 't',
         shape: {
           kind: 't-beam',
-          bf: 2.0,
-          hf: 0.2,
-          bw: 0.25,
-          h: 0.5,
+          bf: 2000,
+          hf: 200,
+          bw: 250,
+          h: 500,
           idealisation: 'thin-walled',
         },
       },
-      paths: tThinPaths(2.0, 0.2, 0.25, 0.5),
+      paths: tThinPaths(2000 * M, 200 * M, 250 * M, 500 * M),
     },
   ];
 
@@ -294,23 +317,23 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
     // ein Gurtast eines verzweigten Weges endet an der Verzweigung und soll
     // dort gerade NICHT null sein.
     const complete: { name: string; branches: readonly OracleBranch[] }[] = [
-      { name: 'rectangle z', branches: rectanglePaths(0.2, 0.5).z },
-      { name: 'rectangle y', branches: rectanglePaths(0.2, 0.5).y },
-      { name: 'box solid z', branches: boxSolidPaths(0.3, 0.5, 0.02).z },
-      { name: 'box solid y', branches: boxSolidPaths(0.3, 0.5, 0.02).y },
-      { name: 'box thin z', branches: boxThinPaths(0.3, 0.5, 0.02).z },
-      { name: 'box thin y', branches: boxThinPaths(0.3, 0.5, 0.02).y },
-      { name: 'i solid z', branches: iSolidPaths(0.3, 0.15, 0.0071, 0.0107).z },
-      { name: 'i solid y', branches: iSolidPaths(0.3, 0.15, 0.0071, 0.0107).y },
-      { name: 'i thin y', branches: iThinPaths(0.3, 0.15, 0.0071, 0.0107).y },
-      { name: 't solid z', branches: tSolidPaths(2, 0.2, 0.25, 0.5, 0.06625 / 0.475).z },
-      { name: 't solid y', branches: tSolidPaths(2, 0.2, 0.25, 0.5, 0.06625 / 0.475).y },
-      { name: 't thin y', branches: tThinPaths(2, 0.2, 0.25, 0.5).y },
+      { name: 'rectangle z', branches: rectanglePaths(200 * M, 500 * M).z },
+      { name: 'rectangle y', branches: rectanglePaths(200 * M, 500 * M).y },
+      { name: 'box solid z', branches: boxSolidPaths(300 * M, 500 * M, 20 * M).z },
+      { name: 'box solid y', branches: boxSolidPaths(300 * M, 500 * M, 20 * M).y },
+      { name: 'box thin z', branches: boxThinPaths(300 * M, 500 * M, 20 * M).z },
+      { name: 'box thin y', branches: boxThinPaths(300 * M, 500 * M, 20 * M).y },
+      { name: 'i solid z', branches: iSolidPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M).z },
+      { name: 'i solid y', branches: iSolidPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M).y },
+      { name: 'i thin y', branches: iThinPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M).y },
+      { name: 't solid z', branches: tSolidPaths(2000 * M, 200 * M, 250 * M, 500 * M, T_ZS * M).z },
+      { name: 't solid y', branches: tSolidPaths(2000 * M, 200 * M, 250 * M, 500 * M, T_ZS * M).y },
+      { name: 't thin y', branches: tThinPaths(2000 * M, 200 * M, 250 * M, 500 * M).y },
       // Der Steg des duennwandigen T: er erbt beide Gurthaelften und laeuft
       // bis zum freien Ende. Dass er auf null schliesst, haengt daran, dass
       // `S` um den Schwerpunkt des WANDMODELLS gerechnet wird — mit dem
       // Schwerpunkt der Umrissfigur bliebe ein Rest stehen.
-      { name: 't thin z (Steg)', branches: [tThinPaths(2, 0.2, 0.25, 0.5).z[2]] },
+      { name: 't thin z (Steg)', branches: [tThinPaths(2000 * M, 200 * M, 250 * M, 500 * M).z[2]] },
     ];
 
     for (const { name, branches } of complete) {
@@ -325,7 +348,7 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
 describe('kappa: die Idealisierung ist wirksam und einseitig', () => {
   // Dieselben vier Abmessungen, zwei kappa. 18 % Unterschied, dem Ergebnis
   // nicht anzusehen — deshalb ist `idealisation` ein Pflichtfeld ohne Default.
-  const dims = { h: 0.08, b: 0.046, tw: 0.0038, tf: 0.0052 } as const;
+  const dims = { h: 80, b: 46, tw: 3.8, tf: 5.2 } as const;
   const kappaZ = (idealisation: 'solid' | 'thin-walled') =>
     values({
       kind: 'shape',
@@ -360,23 +383,18 @@ describe('kappa gegen den ganzen Katalog', () => {
   // Material sitzt am Steg-Gurt-Uebergang und traegt fuer Vz viel, fuer Vy
   // fast nichts. Genau dieses Muster steht in den Zahlen, ueber alle 42
   // Profile gleichgerichtet.
+  // Die Abmessungen reisen UNVERAENDERT aus der Tabelle in die Form: beide
+  // fuehren Millimeter. Vorher stand hier viermal `/ 1000`.
   const shearAreas = (h: number, b: number, tw: number, tf: number) => {
     const p = values({
       kind: 'shape',
       id: 'i',
-      shape: {
-        kind: 'i-symmetric',
-        h: h / 1000,
-        b: b / 1000,
-        tw: tw / 1000,
-        tf: tf / 1000,
-        idealisation: 'thin-walled',
-      },
+      shape: { kind: 'i-symmetric', h, b, tw, tf, idealisation: 'thin-walled' },
     });
-    // cm2, wie im Katalog.
+    // Zurueck nach cm2, um gegen den Katalog zu vergleichen.
     return {
-      Ay: (p.kappaY as number) * p.A * 1e4,
-      Az: (p.kappaZ as number) * p.A * 1e4,
+      Ay: ((p.kappaY as number) * p.A) / CM2_TO_M2,
+      Az: ((p.kappaZ as number) * p.A) / CM2_TO_M2,
     };
   };
 

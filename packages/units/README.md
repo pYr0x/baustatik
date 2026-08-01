@@ -19,6 +19,8 @@ Unlike generic conversion libraries, `@baustatik/units` implements **Atomic Roun
 - **Intelligent Rounding**:
   - **Atomic Rounding**: Automatic rounding based on base units for consistent engineering results.
   - **Smart Rounding**: Utilizes legacy-compatible smart rounding for derived units.
+  - **Opt out with `toExact()`**: the unrounded conversion, for calculation chains.
+- **Quantity Types**: Phantom-branded numbers (`mm`, `cm2`, `cm4`, `MPa`, …) that document a unit in the type at zero runtime cost.
 - **Unicode Support**: Recognize units like `m²`, `m³`, `m⁴` alongside ASCII equivalents like `m^2`.
 - **Zero Dependencies**: Lightweight and fast (aside from workspace internal rounding logic).
 
@@ -44,6 +46,31 @@ convert(1).from('m²').to('cm²'); // 10000
 // Force
 convert(2.5).from('kN').to('N'); // 2500
 ```
+
+### Rounded vs. exact
+
+`to()` applies **atomic rounding** — whole millimetres for lengths, whole mm²
+for areas, and so on. That is the point of the library for anything you print,
+and it is wrong for anything you keep calculating with. Use `toExact()` there:
+
+```typescript
+convert(139.5).from('mm').to('m');      // 0.14    ← rounded to whole mm
+convert(139.5).from('mm').toExact('m'); // 0.1395
+```
+
+**Rule of thumb: printing → `to`, calculating → `toExact`.**
+
+### Quantity types
+
+```typescript
+import type { mm, cm2, cm4 } from '@baustatik/units';
+
+type Section = { h: mm; A: cm2; Iy: cm4 };
+```
+
+At runtime these are plain numbers and the brand is optional — a bare `number`
+assigns freely, and `h * 2` works without unwrapping. They **document** a unit
+at the call site; they do not enforce it.
 
 ### Mass to Force (and vice versa)
 

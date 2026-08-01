@@ -16,10 +16,9 @@ const reference = (
   fixture as { profiles: Record<string, ReferencePoint[]> }
 ).profiles;
 
-/** m -> mm, fuer den Vergleich mit der in mm gedruckten Quelle. */
-const MM = 1e3;
-/** m3 -> cm3. */
-const CM3 = 1e6;
+// KEINE UMRECHNUNG MEHR: `StressPoint` fuehrt Koordinaten in mm und `S` in
+// cm3 — dieselben Einheiten, in denen die Fixture und der gedruckte Ausdruck
+// stehen. Frueher standen hier zwei Faktoren, durch die JEDER Vergleich lief.
 
 function points(cs: CrossSection): readonly StressPoint[] {
   const result = stressPoints(cs);
@@ -27,10 +26,10 @@ function points(cs: CrossSection): readonly StressPoint[] {
   return result;
 }
 
-const profile = (profileId: string): CrossSection => ({
+const profile = (name: string): CrossSection => ({
   kind: 'profile',
   id: 'x',
-  profileId,
+  profile: name,
 });
 
 describe('IPE 80 gegen den gedruckten Ausdruck', () => {
@@ -47,16 +46,16 @@ describe('IPE 80 gegen den gedruckten Ausdruck', () => {
     // y: Gurtspitze +-23 = +-b/2, Ausrundungsende +-6,9 = +-(tw/2 + r), Mitte 0.
     // z: Gurtaussenseite +-40 = +-h/2, Steganfang +-29,8 = +-(h/2 - tf - r),
     //    Schwerpunkt 0.
-    expect(pts.map((p) => Number((p.y * MM).toFixed(2)))).toEqual([
+    expect(pts.map((p) => Number((p.y).toFixed(2)))).toEqual([
       -23, -6.9, 0, 6.9, 23, -23, -6.9, 0, 6.9, 23, 0, 0, 0,
     ]);
-    expect(pts.map((p) => Number((p.z * MM).toFixed(2)))).toEqual([
+    expect(pts.map((p) => Number((p.z).toFixed(2)))).toEqual([
       -40, -40, -40, -40, -40, 40, 40, 40, 40, 40, -29.8, 29.8, 0,
     ]);
   });
 
   it('setzt die Dicken: Gurt 5,2 / Steg 3,8', () => {
-    expect(pts.map((p) => Number((p.t * MM).toFixed(2)))).toEqual([
+    expect(pts.map((p) => Number((p.t).toFixed(2)))).toEqual([
       5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 3.8, 3.8, 3.8,
     ]);
   });
@@ -72,11 +71,11 @@ describe('IPE 80 gegen den gedruckten Ausdruck', () => {
   it('trifft Sy am Steganfang (P11) mit 9,92 cm3', () => {
     // Der von Hand nachgerechnete Wert: Gurt (46*5,2 bei z = -37,4), beide
     // Ausrundungen und das Stegstueck bis z = -29,8.
-    expect(Math.abs(pts[10].Sy) * CM3).toBeCloseTo(9.92, 2);
+    expect(Math.abs(pts[10].Sy)).toBeCloseTo(9.92, 2);
   });
 
   it('trifft Sy im Schwerpunkt (P13) mit 11,61 cm3 = SyMax', () => {
-    expect(Math.abs(pts[12].Sy) * CM3).toBeCloseTo(11.61, 2);
+    expect(Math.abs(pts[12].Sy)).toBeCloseTo(11.61, 2);
   });
 });
 
@@ -154,8 +153,8 @@ describe('Die 546 Referenzpunkte', () => {
             // 9,05 gedruckt als 9,1). Eine Schwelle exakt auf dem Rand
             // entscheidet der Gleitkommazufall.
             expect(
-              Math.abs(mine[i][key] * MM - theirs[i][key]),
-              `${p.id} P${i + 1}.${key}: ${mine[i][key] * MM} vs ${theirs[i][key]}`,
+              Math.abs(mine[i][key] - theirs[i][key]),
+              `${p.id} P${i + 1}.${key}: ${mine[i][key]} vs ${theirs[i][key]}`,
             ).toBeLessThan(0.06);
           }
         }
@@ -173,7 +172,7 @@ describe('Die 546 Referenzpunkte', () => {
         for (let i = 0; i < theirs.length; i++) {
           if (i === 2 || i === 7) continue;
           for (const key of ['Sy', 'Sz'] as const) {
-            const a = mine[i][key] * CM3;
+            const a = mine[i][key];
             const b = theirs[i][key];
             expect(
               Math.abs(a - b) <= ABSOLUTE + RELATIVE * Math.abs(b),
@@ -203,14 +202,14 @@ describe('Die 546 Referenzpunkte', () => {
         const mine = points(profile(p.id));
         const theirs = reference[p.id];
         for (const i of [2, 7]) {
-          const a = mine[i].Sy * CM3;
+          const a = mine[i].Sy;
           const b = theirs[i].Sy;
           worst = Math.max(worst, Math.abs(a - b) / Math.abs(b));
         }
         // Die geschlossene Formel, unabhaengig nachgerechnet.
-        const halfFlange =
-          ((p.b / 2) * p.tf * (p.h - p.tf)) / 2 / 1000; // mm3 -> cm3
-        expect(Math.abs(mine[2].Sy) * CM3, p.id).toBeCloseTo(halfFlange, 6);
+        // Die Formel rechnet in mm3, `Sy` steht in cm3.
+        const halfFlange = ((p.b / 2) * p.tf * (p.h - p.tf)) / 2 / 1000;
+        expect(Math.abs(mine[2].Sy), p.id).toBeCloseTo(halfFlange, 6);
       }
     }
     expect(worst).toBeLessThan(0.03);
@@ -227,7 +226,7 @@ describe('Selbstcheck ueber den ganzen Katalog', () => {
     for (const series of ['IPE', 'HEA'] as const) {
       for (const p of profilesIn(series)) {
         const pts = points(profile(p.id));
-        const Sy = Math.abs(pts[12].Sy) * CM3;
+        const Sy = Math.abs(pts[12].Sy);
         expect(
           Math.abs(Sy - p.SyMax) / p.SyMax,
           `${p.id}: ${Sy.toFixed(3)} vs ${p.SyMax}`,
@@ -243,7 +242,7 @@ describe('Selbstcheck ueber den ganzen Katalog', () => {
     for (const series of ['IPE', 'HEA'] as const) {
       for (const p of profilesIn(series)) {
         const pts = points(profile(p.id));
-        const Sz = Math.abs(pts[2].Sz) * CM3;
+        const Sz = Math.abs(pts[2].Sz);
         expect(
           Math.abs(Sz - p.SzMax) / p.SzMax,
           `${p.id}: ${Sz.toFixed(3)} vs ${p.SzMax}`,
@@ -293,15 +292,16 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
     const pts = points({
       kind: 'shape',
       id: 'r',
-      shape: { kind: 'rectangle', b: 0.2, h: 0.5 },
+      shape: { kind: 'rectangle', b: 200, h: 500 },
     });
     expect(pts).toHaveLength(5);
     // Vier Ecken allein haetten ueberall S = 0 — deshalb steht der Schwerpunkt
     // in der Regel.
     for (const i of [0, 1, 2, 3]) expect(pts[i].Sy).toBeCloseTo(0, 12);
-    expect(Math.abs(pts[4].Sy)).toBeCloseTo((0.2 * 0.5 ** 2) / 8, 12);
-    expect(Math.abs(pts[4].Sz)).toBeCloseTo((0.5 * 0.2 ** 2) / 8, 12);
-    expect(pts[4].t).toBeCloseTo(0.2, 12);
+    // b*h^2/8 in mm3, umgerechnet auf die cm3 von `Sy`.
+    expect(Math.abs(pts[4].Sy)).toBeCloseTo((200 * 500 ** 2) / 8 / 1000, 9);
+    expect(Math.abs(pts[4].Sz)).toBeCloseTo((500 * 200 ** 2) / 8 / 1000, 9);
+    expect(pts[4].t).toBeCloseTo(200, 12);
   });
 
   it('gibt dem Plattenbalken 9 Punkte', () => {
@@ -310,10 +310,10 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
       id: 't',
       shape: {
         kind: 't-beam',
-        bf: 0.5,
-        hf: 0.15,
-        bw: 0.25,
-        h: 0.6,
+        bf: 500,
+        hf: 150,
+        bw: 250,
+        h: 600,
         idealisation: 'solid',
       },
     });
@@ -326,10 +326,10 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
       id: 'i',
       shape: {
         kind: 'i-symmetric',
-        h: 0.3,
-        b: 0.15,
-        tw: 0.0071,
-        tf: 0.0107,
+        h: 300,
+        b: 150,
+        tw: 7.1,
+        tf: 10.7,
         idealisation: 'solid',
       },
     });
@@ -341,27 +341,27 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
 
   it('setzt beim breiten Gurt t = bf am Schwerpunkt', () => {
     // DER TEST, DER „MITTE STEG" VON „SCHWERPUNKT" TRENNT: bei
-    // bf=2,0 / hf=0,2 / bw=0,25 / h=0,5 liegt zs = 0,1395 m und damit IM GURT.
+    // bf=2000 / hf=200 / bw=250 / h=500 mm liegt zs = 139,5 mm und damit IM GURT.
     // Der Schwerpunktpunkt sieht dort die Gurtbreite, nicht die Stegbreite.
     const pts = points({
       kind: 'shape',
       id: 't',
       shape: {
         kind: 't-beam',
-        bf: 2.0,
-        hf: 0.2,
-        bw: 0.25,
-        h: 0.5,
+        bf: 2000,
+        hf: 200,
+        bw: 250,
+        h: 500,
         idealisation: 'solid',
       },
     });
     const centroid = pts[8];
     expect(centroid.y).toBe(0);
     expect(centroid.z).toBe(0);
-    expect(centroid.t).toBeCloseTo(2.0, 12);
+    expect(centroid.t).toBeCloseTo(2000, 12);
     // Und die Gurtunterkante, wo die Breite auf bw springt: dort gilt die
     // KLEINERE Breite, weil die Schubspannung dort nach oben springt.
-    expect(pts[3].t).toBeCloseTo(0.25, 12);
+    expect(pts[3].t).toBeCloseTo(250, 12);
   });
 
   it('liefert an jedem freien Rand S = 0', () => {
@@ -373,10 +373,10 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
       id: 't',
       shape: {
         kind: 't-beam',
-        bf: 0.5,
-        hf: 0.15,
-        bw: 0.25,
-        h: 0.6,
+        bf: 500,
+        hf: 150,
+        bw: 250,
+        h: 600,
         idealisation: 'solid',
       },
     });
@@ -397,9 +397,9 @@ describe('Was undefined heisst', () => {
         id: 'b',
         shape: {
           kind: 'hollow-rectangle',
-          b: 0.06,
-          h: 0.06,
-          t: 0.0063,
+          b: 60,
+          h: 60,
+          t: 6.3,
           idealisation: 'thin-walled',
         },
       }),
@@ -412,7 +412,7 @@ describe('Was undefined heisst', () => {
       stressPoints({
         kind: 'shape',
         id: 'r',
-        shape: { kind: 'rectangle', b: 0, h: 0.5 },
+        shape: { kind: 'rectangle', b: 0, h: 500 },
       }),
     ).toBeUndefined();
     expect(
@@ -421,10 +421,10 @@ describe('Was undefined heisst', () => {
         id: 'i',
         shape: {
           kind: 'i-symmetric',
-          h: 0.02,
-          b: 0.15,
-          tw: 0.007,
-          tf: 0.02,
+          h: 20,
+          b: 150,
+          tw: 7,
+          tf: 20,
           idealisation: 'solid',
         },
       }),
@@ -435,10 +435,10 @@ describe('Was undefined heisst', () => {
         id: 't',
         shape: {
           kind: 't-beam',
-          bf: 0.2,
-          hf: 0.05,
-          bw: 0.3,
-          h: 0.5,
+          bf: 200,
+          hf: 50,
+          bw: 300,
+          h: 500,
           idealisation: 'solid',
         },
       }),

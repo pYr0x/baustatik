@@ -5,9 +5,6 @@ import { iSymmetricPoints, rectanglePoints, tBeamPoints } from './compact';
 import { rolledIStressPoints } from './rolled-i';
 import type { StressPoint } from './types';
 
-/** mm -> m fuer die Katalogabmessungen. */
-const MM = 1e-3;
-
 /**
  * Die Spannungspunkte eines Querschnitts.
  *
@@ -28,15 +25,10 @@ export function stressPoints(
   cs: CrossSection,
 ): readonly StressPoint[] | undefined {
   if (cs.kind === 'profile') {
-    const profile = lookupProfile(cs.profileId);
+    const profile = lookupProfile(cs.profile);
     if (profile === undefined) return undefined;
-    return rolledIStressPoints({
-      h: profile.h * MM,
-      b: profile.b * MM,
-      tw: profile.tw * MM,
-      tf: profile.tf * MM,
-      r: profile.r * MM,
-    });
+    // Keine Umrechnung: die Tabelle fuehrt mm, die Vorlage rechnet in mm.
+    return rolledIStressPoints(profile);
   }
 
   // EINE Gueltigkeitspruefung, nicht zwei. Die Abmessungen hier noch einmal

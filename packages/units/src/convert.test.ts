@@ -544,3 +544,49 @@ describe('error handling', () => {
     expect(() => convert(1).from('t').to('cm')).toThrow();
   });
 });
+
+// ============================================================
+// toExact — die rundungsfreie Variante
+// ============================================================
+
+describe('toExact', () => {
+  it('behaelt die Nachkommastellen, die `to` atomar wegrundet', () => {
+    // Die zwei Zahlen, an denen es aufgefallen ist: die Schwerpunktlage eines
+    // Plattenbalkens und der IPE-80-Spannungspunkt am Ausrundungsende.
+    expect(convert(139.5).from('mm').toExact('m')).toBeCloseTo(0.1395, 12);
+    expect(convert(6.9).from('mm').toExact('m')).toBeCloseTo(0.0069, 12);
+  });
+
+  it('haelt `to` und `toExact` auseinander', () => {
+    // Der Waechter: wuerde `to` spaeter aufhoeren zu runden, faellt es hier
+    // auf, und nicht erst an einer um 0,5 mm verschobenen Nulllinie.
+    expect(convert(139.5).from('mm').to('m')).toBe(0.14);
+    expect(convert(139.5).from('mm').toExact('m')).not.toBe(0.14);
+  });
+
+  it('rechnet Querschnittswerte exakt um', () => {
+    expect(convert(7.64).from('cm^2').toExact('m^2')).toBeCloseTo(7.64e-4, 15);
+    expect(convert(80.14).from('cm^4').toExact('m^4')).toBeCloseTo(8.014e-7, 18);
+    expect(convert(11.61).from('cm^3').toExact('m^3')).toBeCloseTo(1.161e-5, 15);
+    // Der Faktor selbst — so wird er in `cross-section` gezogen.
+    expect(convert(1).from('cm^2').toExact('m^2')).toBeCloseTo(1e-4, 15);
+    expect(convert(1).from('mm^3').toExact('cm^3')).toBeCloseTo(1e-3, 15);
+  });
+
+  it('stimmt mit `to` ueberein, wo nichts zu runden ist', () => {
+    expect(convert(1).from('m').toExact('cm')).toBe(100);
+    expect(convert(2.5).from('kN').toExact('N')).toBe(2500);
+  });
+
+  it('prueft die Kompatibilitaet wie `to`', () => {
+    expect(() => convert(1).from('kg').toExact('m')).toThrow();
+    expect(() => convert(1).from('m^2').toExact('m^4')).toThrow();
+    expect(() => convert(1).from('m').toExact('nonsense')).toThrow();
+  });
+
+  it('laesst Masse <-> Kraft ungerundet', () => {
+    // `to` rundet hier auf ganze Gramm, weil / 9,81 irrational ist.
+    expect(convert(1).from('kN').toExact('kg')).toBeCloseTo(1000 / 9.81, 9);
+    expect(convert(100).from('kg').toExact('kN')).toBeCloseTo(0.981, 12);
+  });
+});

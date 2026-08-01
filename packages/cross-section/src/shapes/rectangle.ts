@@ -1,3 +1,4 @@
+import type { cm } from '@baustatik/units';
 import { bandSegments } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
 
@@ -10,8 +11,10 @@ import { allPositive, type ShapeResult } from './kernel';
  * deshalb belegt er, dass die Definition stimmt.
  *
  * Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der Oberkante.
+ * Abmessungen in ZENTIMETERN; `shapeResult` hat die mm der `ShapeSpec` bereits
+ * umgerechnet.
  */
-export function rectangle(b: number, h: number): ShapeResult | undefined {
+export function rectangle(b: cm, h: cm): ShapeResult | undefined {
   if (!allPositive(b, h)) return undefined;
 
   return {

@@ -1,4 +1,5 @@
-import type { StressPoint } from './types';
+import type { mm } from '@baustatik/units';
+import { type StressPoint, stressPoint } from './types';
 
 /**
  * Die Vorlage des GEWALZTEN I-Profils — 13 Punkte, und die Nummerierung ist ein
@@ -23,13 +24,17 @@ import type { StressPoint } from './types';
  * uebernommen wird sie, weil die Zahlen so gedruckt sind.
  */
 
-/** Abmessungen in METERN. */
+/**
+ * Abmessungen in MILLIMETERN — genau so, wie `SteelProfileData` sie fuehrt und
+ * wie die Norm sie druckt. Es gibt deshalb zwischen Tabelle und Vorlage keine
+ * Umrechnung mehr.
+ */
 export type RolledIDimensions = {
-  readonly h: number;
-  readonly b: number;
-  readonly tw: number;
-  readonly tf: number;
-  readonly r: number;
+  readonly h: mm;
+  readonly b: mm;
+  readonly tw: mm;
+  readonly tf: mm;
+  readonly r: mm;
 };
 
 /**
@@ -144,11 +149,11 @@ export function rolledIStressPoints(d: RolledIDimensions): StressPoint[] {
 
   const flange = (
     nr: number,
-    y: number,
-    z: number,
+    y: mm,
+    z: mm,
     Sy: number,
     Sz: number,
-  ): StressPoint => ({ nr, y, z, t: tf, Sy, Sz });
+  ): StressPoint => stressPoint(nr, y, z, tf, Sy, Sz);
 
   // Ausgeschrieben statt ueber eine Symmetrieregel gebaut: die 13 Zeilen SIND
   // der Vertrag, und beim Lesen soll neben jeder Nummer stehen, was dort steht.
@@ -165,8 +170,8 @@ export function rolledIStressPoints(d: RolledIDimensions): StressPoint[] {
     flange(8, 0, hh, halfFlangeMoment, -halfFlangeMomentZ),
     flange(9, yFillet, hh, outstandMoment, outstandMomentZ),
     flange(10, bb, hh, 0, 0),
-    { nr: 11, y: 0, z: -zWeb, t: tw, Sy: aboveWebStart, Sz: 0 },
-    { nr: 12, y: 0, z: zWeb, t: tw, Sy: aboveWebStart, Sz: 0 },
-    { nr: 13, y: 0, z: 0, t: tw, Sy: aboveCentroid, Sz: 0 },
+    stressPoint(11, 0, -zWeb, tw, aboveWebStart, 0),
+    stressPoint(12, 0, zWeb, tw, aboveWebStart, 0),
+    stressPoint(13, 0, 0, tw, aboveCentroid, 0),
   ];
 }

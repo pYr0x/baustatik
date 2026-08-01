@@ -26,11 +26,51 @@ convert(1).from('kN');
 
 ### FromChain.to()
 **Signature:** `to(unit: string): number`
-**Description:** Converts the value to the target unit and applies category-specific rounding.
+**Description:** Converts the value to the target unit and applies category-specific rounding. This is the **report-facing** variant and the default.
 **Example:**
 ```typescript
 convert(2.5).from('MN/m²').to('N/mm²'); // 2.5
 ```
+
+### FromChain.toExact()
+**Signature:** `toExact(unit: string): number`
+**Description:** The same conversion **without any rounding** — the variant for calculation chains. Compatibility is checked exactly as in `to()`.
+
+> ⚠️ **Use `toExact` whenever the result is calculated with, not printed.**
+> `to()` rounds to whole millimetres (and mm², mm³, mm⁴). That is correct for a
+> printed value and wrong for a centroid or a stress-point coordinate.
+
+**Example:**
+```typescript
+convert(139.5).from('mm').to('m');      // 0.14    ← atomically rounded
+convert(139.5).from('mm').toExact('m'); // 0.1395
+
+convert(6.9).from('mm').to('m');        // 0.007
+convert(6.9).from('mm').toExact('m');   // 0.0069
+```
+
+Typical use — pull the factor once at module level, so its provenance stays in
+the code and no regex runs per value:
+
+```typescript
+const CM4_TO_M4 = convert(1).from('cm^4').toExact('m^4'); // 1e-8
+```
+
+### Quantity types
+**Description:** Phantom-branded numbers that document a unit at the call site.
+At runtime each is a plain `number`; the brand is **optional**, so a bare
+`number` assigns freely and arithmetic works without unwrapping. This documents
+units — it does **not** enforce them.
+
+```typescript
+import type { mm, cm2, cm4, MPa } from '@baustatik/units';
+
+type Beam = { h: mm; A: cm2; Iy: cm4; E: MPa };
+```
+
+Available: `mm`, `cm`, `m`, `mm2`, `cm2`, `m2`, `mm3`, `cm3`, `m3`, `mm4`,
+`cm4`, `m4`, `MPa`, `KNm3`, `Kgm3`, `PerK`, `PerMille`, `Percent`, and the
+generic `Quantity<U>`.
 
 ## Supported Units
 
