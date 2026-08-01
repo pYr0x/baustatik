@@ -1,5 +1,6 @@
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type { FEMLoad } from '@baustatik/fem-loads';
+import type { SupportReaction } from '@baustatik/fem-solver';
 import { type GridOptions, gridSpecs } from '@baustatik/grid-2d';
 import type { RenderDriver } from '@baustatik/render-core';
 import {
@@ -19,6 +20,10 @@ interface ViewerConfig {
   getBeams: () => readonly Beam[]; // PULL der Rohdaten aus dem Store
   getSupports: () => readonly NodeSupport[]; // PULL der Rohdaten aus dem Store
   getLoads: () => readonly FEMLoad[]; // PULL der Rohdaten aus dem Store
+  // PULL wie die Rohdaten, aber aus dem ERGEBNIS: `undefined` heisst „noch nicht
+  // gerechnet". Der Aufrufer verwirft sein Ergebnis bei jeder Modelaenderung,
+  // und das Bild folgt ihm, ohne dass hier ein zweiter Zustand mitlaeuft.
+  getReactions?: () => ReadonlyMap<string, SupportReaction> | undefined;
   getScreenSize: () => Size; // PULL wie die Rohdaten — resize-faehig
   grid?: GridOptions; // weggelassen = kein Grid
   initialViewport?: Viewport;
@@ -45,6 +50,7 @@ export function createFEMViewer(config: ViewerConfig) {
         beams: getBeams(),
         supports: getSupports(),
         loads: getLoads(),
+        reactions: config.getReactions?.(),
         viewport: vp,
         style: config.style,
       }),

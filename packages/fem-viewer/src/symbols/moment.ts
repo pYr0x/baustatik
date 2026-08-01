@@ -7,7 +7,9 @@
  * den Uhrzeigersinn (`fem-loads/src/types.ts`, Abschnitt DREHSINN). Auf dem
  * Schirm waechst der Winkel von +u nach +v, also mit v nach unten IM
  * Uhrzeigersinn — ein positives Moment bekommt damit einen NEGATIVEN
- * `sweepAngle`. Das ist der einzige Vorzeichenwechsel in dieser Datei.
+ * `sweepAngle`. Das ist der einzige Vorzeichenwechsel in dieser Datei. Fuer die
+ * Einspannreaktion `my` gilt dieselbe Regel, sie ist ebenso um global y definiert
+ * (`fem-solver/src/solve.ts`, `SupportReaction`).
  *
  * WO DIE LUECKE SITZT: unten, bei beiden Vorzeichen. Festgehalten wird die
  * LUECKE, nicht der Kopf — haelt man stattdessen den Kopf fest, wandert die
@@ -24,13 +26,16 @@ import { Point, Vector } from '@baustatik/fem-geometry';
 import type { ArcPathSpec, PolygonSpec, Spec } from '@baustatik/render-core';
 import { type Viewport, worldPoint } from '@baustatik/viewport-2d';
 
-import { loadLabelSpec, momentLabelText } from './label';
-import type { LoadStyle } from './style';
+import type { FEMLayer } from '../layers';
+import { momentLabelText, symbolLabelSpec } from './label';
+import type { SymbolStyle } from './style';
 
 /** Ein gezeichnetes Moment: wo es angreift, wie herum es dreht, wie gross es ist. */
 export interface Moment {
-  /** Global eindeutig, aus Last-ID, Ziel-ID und ggf. Komponente. */
+  /** Global eindeutig, aus Last- bzw. Knoten-ID und ggf. Komponente. */
   readonly id: string;
+  /** Malband — das sagt die Quelle, nicht das Symbol. */
+  readonly layer: FEMLayer;
   /** Angriffspunkt — MITTELPUNKT des Bogens, nicht sein Anfang. */
   readonly at: Point;
   /** +1 = gegen den Uhrzeigersinn (positives Moment), -1 = mit dem Uhrzeigersinn. */
@@ -59,11 +64,18 @@ const HALF_GAP = (2 * Math.PI - SWEEP) / 2;
  */
 export function moment(
   id: string,
+  layer: FEMLayer,
   at: Point,
   value: number | undefined,
 ): Moment | undefined {
   if (value === undefined || value === 0) return undefined;
-  return { id, at, sense: value > 0 ? 1 : -1, magnitude: Math.abs(value) };
+  return {
+    id,
+    layer,
+    at,
+    sense: value > 0 ? 1 : -1,
+    magnitude: Math.abs(value),
+  };
 }
 
 /**
@@ -109,7 +121,7 @@ function onCircle(center: Point, radius: number, angle: number): Point {
  * aussen eine halbe Strichbreite auf, an der spitzen Ecke durch die Gehrung
  * sogar `strokeWidth / 2 / sin(halber Spitzenwinkel)`, bei diesen Massen also
  * fast drei Pixel. Mit demselben Strich bedeuten die beiden Zahlen in
- * `LoadStyle` in beiden Symbolen dasselbe, statt dass Faktoren den Unterschied
+ * `SymbolStyle` in beiden Symbolen dasselbe, statt dass Faktoren den Unterschied
  * nachstellen muessten.
  */
 function headSpec(
@@ -118,7 +130,7 @@ function headSpec(
   baseAngle: number,
   sweepSign: number,
   length: number,
-  style: Required<LoadStyle>,
+  style: SymbolStyle,
   vp: Viewport,
 ): PolygonSpec {
   const base = onCircle(m.at, radius, baseAngle);
@@ -133,7 +145,7 @@ function headSpec(
   return {
     kind: 'polygon',
     id: `${m.id}:head`,
-    layer: 'loads',
+    layer: m.layer,
     points: [
       worldPoint(base.x + tx * length, base.z + tz * length),
       worldPoint(base.x - tz * half, base.z + tx * half),
@@ -152,14 +164,14 @@ function arcSpec(
   radius: number,
   startAngle: number,
   sweepAngle: number,
-  style: Required<LoadStyle>,
+  style: SymbolStyle,
 ): ArcPathSpec {
   return {
     kind: 'arcPath',
     // Die ID benennt den TEIL der Figur, nicht das Primitive: der Bogen des
     // Momentsymbols. Sie folgt deshalb nicht dem Umbenennen von `kind`.
     id: `${m.id}:arc`,
-    layer: 'loads',
+    layer: m.layer,
     center: worldPoint(m.at.x, m.at.z),
     radius,
     startAngle,
@@ -173,7 +185,7 @@ function arcSpec(
 export function momentSpecs(
   m: Moment,
   vp: Viewport,
-  style: Required<LoadStyle>,
+  style: SymbolStyle,
 ): readonly Spec[] {
   const radius = style.momentRadiusPx / vp.scale;
   const pointerLength = style.momentPointerLengthPx / vp.scale;
@@ -197,8 +209,9 @@ export function momentSpecs(
     // Die Basis liegt dort, wo der gekuerzte Bogen endet — einmal gerechnet,
     // damit zwischen Bogenende und Dreieck keine Fuge entstehen kann.
     headSpec(m, radius, start + shortened, sweepSign, pointerLength, style, vp),
-    loadLabelSpec({
+    symbolLabelSpec({
       id: `${m.id}:label`,
+      layer: m.layer,
       text: momentLabelText(m.magnitude),
       // Anker auf dem Bogenkreis, senkrecht UEBER dem Angriffspunkt: derselbe
       // Abstand zum Knoten wie beim Kraftpfeil das aeussere Pfeilende, und

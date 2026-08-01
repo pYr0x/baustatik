@@ -2,25 +2,31 @@
 
 ## Purpose
 
-Maps a planar FEM frame model — nodes, beams and loads — to render-agnostic `Spec`
-objects and drives a `RenderDriver` with viewport state. Beams draw as thin black
-lines, nodes as small red circles, node supports as grouped symbols, concentrated
-forces as blue arrows and moments as blue curved arrows, both with a labelled
-magnitude.
+Maps a planar FEM frame model — nodes, beams, loads and the **result** — to
+render-agnostic `Spec` objects and drives a `RenderDriver` with viewport state.
+Beams draw as thin black lines, nodes as small red circles, node supports as
+grouped symbols, concentrated forces as blue arrows and moments as blue curved
+arrows, both with a labelled magnitude. Support reactions draw as the *same*
+symbols in green, one band higher.
 
 ## Boundaries
 
-- Owns: model-to-spec mapping for nodes, beams, supports and loads, the x/z → u/v
-  coordinate mapping, paint-band assignment, screen-constant symbol sizing, and
-  viewport state (pan/zoom/reset).
+- Owns: model-to-spec mapping for nodes, beams, supports, loads and support
+  reactions, the x/z → u/v coordinate mapping, paint-band assignment,
+  screen-constant symbol sizing, and viewport state (pan/zoom/reset).
 - Does not own: Konva or canvas rendering execution, FEM solving, grid line
   calculation (delegated to `@baustatik/grid-2d`), model validation beyond
-  resolving beam endpoints, or **where a beam load sits and which way it points** —
-  that is `@baustatik/fem-load-resolve`'s answer, already given for the solver.
+  resolving beam endpoints, **where a beam load sits and which way it points** —
+  that is `@baustatik/fem-load-resolve`'s answer, already given for the solver —
+  or **which load case a result belongs to**: the viewer draws one result, and
+  which one is the application's decision (ADR 0014).
 
 ## Dependencies
 
 - `@baustatik/fem`: `Node` and `Beam` model types.
+- `@baustatik/fem-solver`: the `SupportReaction` type. The edge runs viewer →
+  solver and never the other way; today it is a pure type import, and
+  `internalForcesAlong` becomes a runtime one when the N/V/M diagrams land.
 - `@baustatik/errors`: base `BaustatikError` class for package error hierarchy.
 - `@baustatik/render-core`: `Spec`, `LineSpec`, `CircleSpec`, `ArrowSpec`,
   `ArcPathSpec`, `PolygonSpec`, `LabelSpec`, `RenderDriver`.
@@ -36,15 +42,32 @@ magnitude.
 
 ## Navigation
 
-`model/` and `loads/` are built the same way on purpose — each has an `index.ts`
-that only distributes, a `style.ts` holding its slice of the style, and one file
-per symbol. Both are split along **two levels**: which thing produces which
-symbol, and what that symbol looks like. A new kind therefore touches the first
-level only, a changed symbol the second.
+`model/`, `loads/` and `results/` are built the same way on purpose — each has an
+`index.ts` that only distributes and a `style.ts` holding its slice of the style.
+All three are split along **two levels**: which thing produces which symbol, and
+what that symbol looks like. A new kind therefore touches the first level only, a
+changed symbol the second. For the arrow, the curved arrow and the label the
+second level is **shared** and lives in `symbols/`; `model/` keeps its own because
+a support symbol has no counterpart anywhere else.
 
-- [`src/scene.ts`](src/scene.ts): `femSpecs` — composition only, model + loads.
-- [`src/style.ts`](src/style.ts): `FEMStyle` and `DEFAULT_STYLE` — the two style
-  slices assembled, resolved once and handed to both halves.
+- [`src/scene.ts`](src/scene.ts): `femSpecs` — composition only, model + loads +
+  result.
+- [`src/style.ts`](src/style.ts): `FEMStyle` and `DEFAULT_STYLE` — the three style
+  slices assembled, resolved once and handed to all three.
+- [`src/symbols/`](src/symbols): the shared second level — what an arrow, a
+  curved arrow and a label look like. Knows neither whose symbol it draws nor
+  which band it belongs to; both arrive with the symbol.
+  - [`point-force.ts`](src/symbols/point-force.ts) /
+    [`moment.ts`](src/symbols/moment.ts): straight arrow, curved arrow.
+  - [`label.ts`](src/symbols/label.ts): the label rule and the two unit texts.
+  - [`style.ts`](src/symbols/style.ts): `SymbolStyle` — the **resolved** look with
+    neutral names, plus the two schematic sizes.
+- [`src/results/`](src/results): result → specs.
+  - [`index.ts`](src/results/index.ts): `resultSpecs` — distribution, and the one
+    place that turns "no result" into "no specs".
+  - [`reactions.ts`](src/results/reactions.ts): what hangs at a supported node —
+    components, reading direction, node lookup.
+  - [`style.ts`](src/results/style.ts): the `ResultStyle` slice and its defaults.
 - [`src/model/`](src/model): model → specs.
   - [`index.ts`](src/model/index.ts): `modelSpecs` — distribution, and the one
     place that resolves node references.
@@ -62,10 +85,7 @@ level only, a changed symbol the second.
   - [`node-loads.ts`](src/loads/node-loads.ts) /
     [`beam-loads.ts`](src/loads/beam-loads.ts): what hangs where — targets,
     components, position on the beam axis.
-  - [`point-force.ts`](src/loads/point-force.ts) /
-    [`moment.ts`](src/loads/moment.ts): the symbols — straight arrow, curved arrow.
-  - [`label.ts`](src/loads/label.ts) / [`style.ts`](src/loads/style.ts): what both
-    share — the label rule, the `LoadStyle` slice and its defaults.
+  - [`style.ts`](src/loads/style.ts): the `LoadStyle` slice and its defaults.
 - [`src/layers.ts`](src/layers.ts): `FEM_LAYERS` paint bands and `FEMLayer` type.
 - [`src/viewer.ts`](src/viewer.ts): `createFEMViewer` — viewport state and driver wiring.
 - [`src/errors.ts`](src/errors.ts): `UnknownNodeReferenceError`,
@@ -73,18 +93,20 @@ level only, a changed symbol the second.
   error hierarchy, and `index.ts` exports both directly.
 - [`docs/usage.md`](docs/usage.md): canonical API usage documentation.
 
-Tests mirror this layout — `tests/model/`, `tests/loads/`, plus
-`tests/scene.test.ts` for what only exists once both halves meet (band coverage,
-ID uniqueness, one style object reaching both). Fixtures live in
-`tests/helpers.ts` and `tests/loads/helpers.ts`; the load side keeps its own
-because it needs a **skewed** beam, otherwise no test proves that the rotation
-into the beam frame happens at all.
+Tests mirror this layout — `tests/model/`, `tests/loads/`, `tests/results/`, plus
+`tests/scene.test.ts` for what only exists once the parts meet (band coverage, ID
+uniqueness across a load *and* a reaction at the same node, one style object
+reaching all three, and that an absent result adds exactly nothing). Fixtures
+live in `tests/helpers.ts` and `tests/loads/helpers.ts`; the load side keeps its
+own because it needs a **skewed** beam, otherwise no test proves that the rotation
+into the beam frame happens at all. `tests/results/` builds its own inline — it
+needs a support and a result, not a skewed beam.
 
 **Types live with the thing they belong to, and there is no `types.ts`.** The
 types here are option objects and style slices, not a vocabulary of their own —
-that comes from `@baustatik/fem`. A type earns its own file when someone needs it
-without the implementation; the style slices qualify because they also break the
-import cycle between the mappings and `scene.ts`.
+that comes from `@baustatik/fem` and `@baustatik/fem-solver`. A type earns its own
+file when someone needs it without the implementation; the style slices qualify
+because they also break the import cycle between the mappings and `scene.ts`.
 
 ## Invariants and conventions
 
@@ -101,10 +123,14 @@ import cycle between the mappings and `scene.ts`.
   are therefore zoom-dependent local values that remain screen-constant.
 - **Paint bands guarantee z-order, array order does not**: renderers append newly
   built shapes, so a beam added after the nodes exist would otherwise draw over
-  them. `FEM_LAYERS` (`['grid','supports','beams','nodes','hinges','loads']`,
-  last = topmost) is passed to the driver at construction. Loads sit topmost
-  because they are the statement of the picture, and an arrow hidden by a beam is
-  not one. Hinges sit above `nodes`: the hinge is a white disc that has to read
+  them. `FEM_LAYERS`
+  (`['grid','supports','beams','nodes','hinges','loads','reactions']`,
+  last = topmost) is passed to the driver at construction. Loads sit near the top
+  because they are the statement of the input, and an arrow hidden by a beam is
+  not one. Reactions sit above them: they are only in the picture at all once
+  something has been solved, and then they are what one is looking at — a support
+  arrow underneath the load arrow of the same node would be the one that is
+  missing. Hinges sit above `nodes`: the hinge is a white disc that has to read
   as a **hole** in the beam, and underneath the node circle it would stop being
   one. The tuple is simultaneously the name list, the type source and the
   z-order — one declaration, one truth. Bands coarsen array order rather than
@@ -123,7 +149,10 @@ import cycle between the mappings and `scene.ts`.
   node loads, the component: `load:{loadId}:{targetId}[:fx|:fz|:my]` plus the part
   of the symbol — `:arrow`/`:label` for a force, `:arc`/`:head`/`:label` for a
   moment. One load on several targets therefore stays distinguishable, which the
-  fan-out needs.
+  fan-out needs. A support reaction gets its own namespace,
+  `reaction:{nodeId}:{fx|fz|my}` plus the same symbol part: a node can carry a
+  load *and* a reaction with the same component, and without the two prefixes
+  that would be the same ID twice.
 - **The hinge sits next to the node, not on it, and every release is the same
   symbol**: it is offset two node radii along the beam axis, into its own beam.
   Drawn *at* the node it would hide under the node circle, and at a node where
@@ -141,10 +170,14 @@ import cycle between the mappings and `scene.ts`.
   `UnknownNodeReferenceError`. A load pointing at a missing node **or beam** is a
   **load** error and raises `fem-loads`' existing `UnknownLoadTargetError` — the
   same split `fem-loads/src/model-geometry.ts` already documents, so a caller keeps
-  catching one group class for "some load is broken". This package deliberately
-  adds no third error type. Unlike the transient `maxLines` condition in `grid-2d`,
-  both are data errors that do not resolve by panning, and a silently skipped
-  element disappears without trace.
+  catching one group class for "some load is broken". A **reaction** at a node the
+  model does not have is a model error again and takes the same
+  `UnknownNodeReferenceError`: a result naming a foreign node does not belong to
+  this model. Its element id and node id coincide, because a reaction has no
+  identity of its own — it *is* the node. This package deliberately adds no third
+  error type. Unlike the transient `maxLines` condition in `grid-2d`, all of them
+  are data errors that do not resolve by panning, and a silently skipped element
+  disappears without trace.
 - **The load arrow is a schema, its length says nothing**: every concentrated force
   gets the same 48 px arrow with the **tip on the point of application**; the
   magnitude lives in the label. A negative value flips the direction, the label
@@ -196,6 +229,33 @@ tip angle)`, nearly 3 px at these sizes. A fill-only triangle with the same
 - **Position and direction of a beam load come from `fem-load-resolve`**, not from
   a second derivation here. Derived twice, picture and calculation drift apart in
   exactly the pair one looks at the picture for.
+- **A reaction is the force the support exerts on the STRUCTURE**, exactly as
+  `SupportReaction` defines it: a prop under a downward load reports a negative
+  `fz`, and the arrow points up. It is drawn by the same rule as a load — **tip on
+  the node** — and precisely that makes `Σ loads + Σ reactions = 0` legible in the
+  picture, because every arrow at a node means the same thing. The other reading
+  ("what the structure pushes onto the support") would be a second sign convention
+  inside one drawing. `my` follows the load moment: positive turns
+  counter-clockwise.
+- **Colour is what separates a reaction from a load**, and it has to be: the two
+  sit at the same node, use the same symbol, and point opposite ways. Green
+  (`#15803d`) against the load's blue (`#1d4ed8`), plus a slightly heavier stroke
+  (3 px against 2). **Length and head stay identical** — a different arrow length
+  would suggest a magnitude comparison that does not exist, while stroke width
+  says nothing about a magnitude and only lifts the result off the input where
+  the two arrows overlap. A test pins the two default colours apart.
+- **What is held is stated by the result, not by the support**: a released
+  direction carries exactly `0`, and `pointForce`/`moment` already drop zero. A
+  two-value bearing therefore produces two symbols and no third one, without
+  `results/` ever branching on `NodeSupport`. One less place where the picture and
+  the calculation could disagree about what is fixed.
+- **No result is the off state, and there is no switch beside it**:
+  `reactions === undefined` yields an empty list. A separate "show results" flag
+  would be a second state that can desynchronise from the first — there is either
+  a computed result or none. The caller discards its result on every model change;
+  that serves the display, not correctness, since a `SolveResult` carries
+  everything it needs to be evaluated (ADR 0019) and cannot go stale. But a
+  support arrow at a node one has just moved asserts something.
 
 ## Validation
 
@@ -214,7 +274,9 @@ pnpm --filter @baustatik/fem-viewer build
 - **Coincident loads are neither summed nor fanned out.** A node carrying both `fx`
   and `fz` produces two arrows at right angles whose labels can overlap. Known and
   accepted for now; a resolution needs a placement rule over _all_ labels, not a
-  local fix.
+  local fix. A supported node carrying a load **and** its reaction is the same
+  problem one step worse: the two arrows run through each other and the labels
+  stack. The colours keep it readable, but not composed.
 - **Only concentrated loads are drawn**: all distributed loads (line forces and
   line moments) produce no specs yet. They need an answer to the scaling question
   first — one reference size over all visible loads, otherwise 5 kN/m and 50 kN/m
@@ -224,5 +286,14 @@ pnpm --filter @baustatik/fem-viewer build
   downward force arrow runs — and both labels stack above the node. Legible, but
   not composed. Same open placement question as above, and the reason the gap
   could be worth making direction-dependent later.
-- Result diagrams are not rendered yet; they would become an additional band in
-  `FEM_LAYERS`.
+- **Of the results, only the support reactions are drawn.** The `N`, `V` and `M`
+  diagrams belong in the same `results/` directory and a second band, but they
+  need the reference size across all beams first — the same open question the
+  distributed loads hang on. The data side is already done:
+  `internalForcesAlong` delivers the stations including the doubled entries at a
+  jump.
+- The deformed shape is not drawn either. It needs the shape functions from
+  `@baustatik/fem-element`, not just the result type.
+- **One result at a time.** `getReactions` returns one map; which load case it
+  belongs to is the application's decision (ADR 0014), and the viewer has no
+  notion of a load case — deliberately the same limitation as on the load side.

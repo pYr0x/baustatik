@@ -1,8 +1,9 @@
 /**
- * Die Beschriftung — gemeinsam fuer Kraft und Moment.
+ * Die Beschriftung — gemeinsam fuer Kraft und Moment, und gemeinsam fuer Last
+ * und Auflagerreaktion.
  *
  * Beide Symbole sind ein SCHEMA: Pfeillaenge und Bogenradius sagen nichts ueber
- * den Betrag, sie sind fuer jede Last dieselben. Den Betrag traegt allein das
+ * den Betrag, sie sind fuer jede Groesse dieselben. Den Betrag traegt allein das
  * Label, und deshalb gibt es hier genau eine Stelle, die es baut.
  */
 
@@ -11,7 +12,8 @@ import type { LabelSpec } from '@baustatik/render-core';
 import { roundSmart } from '@baustatik/round';
 import { type Viewport, worldPoint } from '@baustatik/viewport-2d';
 
-import type { LoadStyle } from './style';
+import type { FEMLayer } from '../layers';
+import type { SymbolStyle } from './style';
 
 /**
  * Der Labeltext.
@@ -33,36 +35,38 @@ export function momentLabelText(magnitude: number, unit = 'kNm'): string {
   return `${roundSmart(magnitude)} ${unit}`;
 }
 
-interface LoadLabelOptions {
+interface SymbolLabelOptions {
   readonly id: string;
+  /** Dasselbe Band wie das Symbol, an dem das Label haengt. */
+  readonly layer: FEMLayer;
   readonly text: string;
   /** Anker: der Punkt, von dem aus der Adapter `gap` abtraegt. */
   readonly anchor: Point;
   /** Seite, auf der das Label liegt. Nur die Richtung zaehlt, nicht die Laenge. */
   readonly direction: Vector;
   readonly viewport: Viewport;
-  readonly style: Required<LoadStyle>;
+  readonly style: SymbolStyle;
 }
 
-export function loadLabelSpec(options: LoadLabelOptions): LabelSpec {
-  const { id, text, anchor, direction, viewport: vp, style } = options;
+export function symbolLabelSpec(options: SymbolLabelOptions): LabelSpec {
+  const { id, layer, text, anchor, direction, viewport: vp, style } = options;
 
   return {
     kind: 'label',
     id,
-    layer: 'loads',
+    layer,
     text,
     anchor: worldPoint(anchor.x, anchor.z),
     direction: worldPoint(direction.dx, direction.dz),
-    gap: style.loadLabelGapPx / vp.scale,
-    fontSize: style.loadLabelFontSizePx / vp.scale,
-    fontFamily: style.loadLabelFontFamily,
-    textColor: style.loadLabelTextColor,
-    padding: style.loadLabelPaddingPx / vp.scale,
-    backgroundColor: style.loadLabelBackgroundColor,
-    borderColor: style.loadLabelBorderColor,
+    gap: style.labelGapPx / vp.scale,
+    fontSize: style.labelFontSizePx / vp.scale,
+    fontFamily: style.labelFontFamily,
+    textColor: style.labelTextColor,
+    padding: style.labelPaddingPx / vp.scale,
+    backgroundColor: style.labelBackgroundColor,
+    borderColor: style.labelBorderColor,
     // Wie strokeWidth am Symbol: Screen-Pixel, deshalb ungeteilt.
-    borderWidth: style.loadLabelBorderWidthPx,
-    cornerRadius: style.loadLabelCornerRadiusPx / vp.scale,
+    borderWidth: style.labelBorderWidthPx,
+    cornerRadius: style.labelCornerRadiusPx / vp.scale,
   };
 }

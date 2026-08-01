@@ -14,15 +14,19 @@ import { type NodeLoad, UnknownLoadTargetError } from '@baustatik/fem-loads';
 import type { Spec } from '@baustatik/render-core';
 import type { Viewport } from '@baustatik/viewport-2d';
 
-import { moment, momentSpecs } from './moment';
-import { pointForce, pointForceSpecs } from './point-force';
-import type { LoadStyle } from './style';
+import {
+  moment,
+  momentSpecs,
+  pointForce,
+  pointForceSpecs,
+  type SymbolStyle,
+} from '../symbols';
 
 export function nodeLoadSpecs(
   load: NodeLoad,
   nodeById: ReadonlyMap<string, Node>,
   vp: Viewport,
-  style: Required<LoadStyle>,
+  style: SymbolStyle,
 ): readonly Spec[] {
   const specs: Spec[] = [];
 
@@ -39,6 +43,7 @@ export function nodeLoadSpecs(
     // bleibt die Darstellung eine Richtung statt einer Resultierenden.
     const fx = pointForce(
       `load:${load.id}:${nodeId}:fx`,
+      'loads',
       node.position,
       Vector.make(1, 0),
       load.fx,
@@ -47,13 +52,19 @@ export function nodeLoadSpecs(
 
     const fz = pointForce(
       `load:${load.id}:${nodeId}:fz`,
+      'loads',
       node.position,
       Vector.make(0, 1),
       load.fz,
     );
     if (fz) specs.push(...pointForceSpecs(fz, vp, style));
 
-    const my = moment(`load:${load.id}:${nodeId}:my`, node.position, load.my);
+    const my = moment(
+      `load:${load.id}:${nodeId}:my`,
+      'loads',
+      node.position,
+      load.my,
+    );
     if (my) specs.push(...momentSpecs(my, vp, style));
   }
 

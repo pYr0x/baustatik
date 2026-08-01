@@ -9,7 +9,7 @@ import {
     type LoadCase,
     type NodeLoad,
 } from '@baustatik/fem-loads';
-import { type CheckState, createFEMSolver } from '@baustatik/fem-solver';
+import { type CheckState, createFEMSolver, type SupportReaction } from '@baustatik/fem-solver';
 import { createFEMViewer, FEM_LAYERS } from '@baustatik/fem-viewer';
 import { createKonvaAdapter as createKonvaDriver } from '@baustatik/konva-adapter';
 import { Point } from '@baustatik/fem-geometry';
@@ -255,6 +255,19 @@ const driver = createKonvaDriver({
     layers: FEM_LAYERS,
 });
 
+/**
+ * Die Auflagerkraefte des zuletzt gerechneten Lastfalls — oder `undefined`,
+ * solange nicht gerechnet ist.
+ *
+ * NICHT im Store: ein Ergebnis ist keine Eingabe. Es gehoert zu genau dem
+ * Modell und dem Lastfall, aus denen es entstanden ist, und wird deshalb bei
+ * jeder Store-Aenderung verworfen. Das dient der Anzeige, nicht der Korrektheit
+ * — ein `SolveResult` traegt alles bei sich, was es zum Auswerten braucht
+ * (ADR 0019), es koennte gar nicht falsch werden. Aber ein Auflagerpfeil an
+ * einem Knoten, den man gerade verschoben hat, behauptet etwas.
+ */
+let reactions: ReadonlyMap<string, SupportReaction> | undefined;
+
 // 2. Viewer: Driver injizieren, Segmente per PULL aus dem Store.
 const viewer = createFEMViewer({
     driver,
@@ -270,6 +283,10 @@ const viewer = createFEMViewer({
         const active = store.activeLoadCase;
         return active === undefined ? [] : effectiveLoads(active);
     },
+    // Dasselbe PULL-Muster wie bei den Rohdaten, nur aus dem Ergebnis statt aus
+    // dem Store. `undefined` heisst „noch nicht gerechnet", und dann steht im
+    // Bild kein Ergebnis — es braucht keinen Schalter daneben.
+    getReactions: () => reactions,
     getScreenSize: () => stageSize,
     grid: { spacing: 1 }, // Weltkoordinaten; Segmente sind 60–100 Einheiten gross
 });
@@ -278,7 +295,13 @@ const viewer = createFEMViewer({
 viewer.requestRender();
 
 // Bei Store-Aenderung neu zeichnen:
-store.$subscribe(() => viewer.requestRender());
+store.$subscribe(() => {
+    // Das Verwerfen steht VOR dem Neuzeichnen und in DIESEM Abonnement, nicht im
+    // zweiten weiter unten: die beiden laufen in Registrierungsreihenfolge, und
+    // andersherum haenge fuer einen Frame die alte Auflagerkraft am neuen Modell.
+    reactions = undefined;
+    viewer.requestRender();
+});
 
 // 4. Rechenkopf: dasselbe PULL-Muster wie der Viewer, nur andere Fragen.
 //    Er haelt keine Kopie — spaeter hinzugefuegte Knoten und Lasten sieht er
@@ -502,9 +525,18 @@ async function solveActive(): Promise<void> {
     solving = true;
     solveButton.disabled = true;
     solveStatus.textContent = 'Rechnet …';
+    // Erst weg, dann rechnen: so gibt es keinen Zweig, in dem ein alter
+    // Auflagerpfeil eine fehlgeschlagene Rechnung ueberlebt.
+    reactions = undefined;
 
     try {
         const result = await solver.solve(active.id);
+        // Ab hier stehen die Auflagerkraefte auch IM BILD, gruen und mit der
+        // Spitze am Knoten: `fz` negativ heisst „die Stuetze drueckt nach oben",
+        // und die Gleichgewichtsprobe gegen die blauen Lastpfeile ist damit
+        // ablesbar, ohne die Zahlen hier daneben zu lesen.
+        reactions = result.reactions;
+
         const support = result.reactions.get(store.nodes[0].id);
         const displacement = result.displacements.get(store.nodes[1].id);
         solveStatus.textContent = [
@@ -517,6 +549,10 @@ async function solveActive(): Promise<void> {
         solveStatus.textContent = `Fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
         solving = false;
+        // Neu zeichnen in BEIDEN Faellen: nach dem Erfolg, damit die Reaktionen
+        // erscheinen, nach dem Fehlschlag, damit sie verschwinden. Der Store hat
+        // sich nicht geaendert, sein Abonnement feuert also nicht.
+        viewer.requestRender();
         renderPanel();
     }
 }

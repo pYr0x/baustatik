@@ -19,9 +19,13 @@ import { type BeamLoad, UnknownLoadTargetError } from '@baustatik/fem-loads';
 import type { Spec } from '@baustatik/render-core';
 import type { Viewport } from '@baustatik/viewport-2d';
 
-import { moment, momentSpecs } from './moment';
-import { pointForce, pointForceSpecs } from './point-force';
-import type { LoadStyle } from './style';
+import {
+  moment,
+  momentSpecs,
+  pointForce,
+  pointForceSpecs,
+  type SymbolStyle,
+} from '../symbols';
 
 /** Die Stabachse eines Ziels, oder `undefined`, wenn es sie nicht gibt. */
 export type BeamAxis = (beamId: string) => Line | undefined;
@@ -44,7 +48,7 @@ export function beamLoadSpecs(
   load: BeamLoad,
   beamAxis: BeamAxis,
   vp: Viewport,
-  style: Required<LoadStyle>,
+  style: SymbolStyle,
 ): readonly Spec[] {
   if (load.distribution !== 'point') return [];
 
@@ -70,6 +74,7 @@ export function beamLoadSpecs(
     if (load.kind === 'force') {
       const force = pointForce(
         `load:${load.id}:${beamId}`,
+        'loads',
         at,
         loadDirection(load.frame, load.axis, axis),
         load.p,
@@ -79,7 +84,7 @@ export function beamLoadSpecs(
       // Das Einzelmoment auf dem Stab traegt weder `frame` noch `axis`: ein
       // ebenes Moment dreht immer um y, und beide Wahlmoeglichkeiten waeren
       // dieselbe Achse (siehe `fem-loads/src/types.ts`).
-      const m = moment(`load:${load.id}:${beamId}`, at, load.m);
+      const m = moment(`load:${load.id}:${beamId}`, 'loads', at, load.m);
       if (m) specs.push(...momentSpecs(m, vp, style));
     }
   }

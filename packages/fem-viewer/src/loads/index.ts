@@ -1,15 +1,17 @@
 /**
  * Lasten als Zeichen-Specs.
  *
- * Die Aufteilung dieses Ordners hat zwei Ebenen, und die Trennung ist der ganze
- * Punkt:
+ * Die Aufteilung hat zwei Ebenen, und die Trennung ist der ganze Punkt:
  *
  *   node-loads.ts / beam-loads.ts  WAS haengt wo — Lastarten, Ziele, Lage
- *   point-force.ts / moment.ts     WIE ein Symbol aussieht — Pfeil, Bogen
- *   label.ts / style.ts            was sich beide teilen
+ *   ../symbols/                    WIE ein Symbol aussieht — Pfeil, Bogen, Label
  *
  * Eine neue Lastart beruehrt damit nur die erste Ebene, ein geaendertes Symbol
- * nur die zweite. Diese Datei verteilt bloss.
+ * nur die zweite. Die zweite Ebene liegt nicht mehr in diesem Ordner, seit die
+ * Auflagerreaktionen (`../results/`) dieselben Symbole bespielen.
+ *
+ * Diese Datei verteilt bloss — und loest den Stil EINMAL auf die neutralen
+ * Symbolnamen auf, damit beide Lasthaelften denselben Wert sehen.
  */
 
 import type { Beam, Node } from '@baustatik/fem';
@@ -19,14 +21,9 @@ import type { Viewport } from '@baustatik/viewport-2d';
 
 import { beamLoadSpecs } from './beam-loads';
 import { nodeLoadSpecs } from './node-loads';
-import type { LoadStyle } from './style';
+import { type LoadStyle, loadSymbolStyle } from './style';
 
-export {
-  DEFAULT_LOAD_STYLE,
-  DEFAULT_MOMENT_RADIUS_PX,
-  DEFAULT_POINT_FORCE_ARROW_LENGTH_PX,
-  type LoadStyle,
-} from './style';
+export { DEFAULT_LOAD_STYLE, type LoadStyle } from './style';
 
 interface LoadSpecOptions {
   readonly nodes: readonly Node[];
@@ -40,6 +37,7 @@ interface LoadSpecOptions {
 export function loadSpecs(options: LoadSpecOptions): readonly Spec[] {
   const { nodes, beams, loads, viewport: vp, style } = options;
 
+  const symbols = loadSymbolStyle(style);
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   // Die Stabachse kommt aus `fem-loads`, samt der fachlichen Reihenfolge
   // p1 = Anfangs-, p2 = Endknoten — daran haengt `distanceFromStart`.
@@ -49,8 +47,8 @@ export function loadSpecs(options: LoadSpecOptions): readonly Spec[] {
   for (const load of loads) {
     specs.push(
       ...(load.target === 'node'
-        ? nodeLoadSpecs(load, nodeById, vp, style)
-        : beamLoadSpecs(load, beamAxis, vp, style)),
+        ? nodeLoadSpecs(load, nodeById, vp, symbols)
+        : beamLoadSpecs(load, beamAxis, vp, symbols)),
     );
   }
 

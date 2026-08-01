@@ -1,7 +1,8 @@
 /**
- * Die SZENE als Ganzes: was nur entsteht, wenn Modell und Lasten
+ * Die SZENE als Ganzes: was nur entsteht, wenn Modell, Lasten und Ergebnis
  * zusammenkommen. Was ein einzelner Stab, Knoten, Gelenk oder ein Auflager
- * zeichnet, steht in `model/`; was eine Last zeichnet, in `loads/`.
+ * zeichnet, steht in `model/`; was eine Last zeichnet, in `loads/`; was eine
+ * Auflagerreaktion zeichnet, in `results/`.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -27,6 +28,10 @@ import {
 
 const NODE_LOAD = { id: 'nl', target: 'node', nodeIds: ['b'], fz: 10 };
 
+// Das Ergebnis zu `supportA`: die Stuetze haelt gegen die Last nach unten, `fz`
+// ist deshalb negativ (die Kraft AUF das Tragwerk zeigt nach oben).
+const REACTIONS = new Map([['a', { fx: 0, fz: -10, my: 0 }]]);
+
 /** Eine Szene, in der jede Sorte Spec genau einmal vorkommt. */
 function fullScene(rest: Record<string, unknown> = {}) {
   return specsOf(
@@ -35,6 +40,7 @@ function fullScene(rest: Record<string, unknown> = {}) {
     {
       supports: [supportA],
       loads: [NODE_LOAD as never],
+      reactions: REACTIONS,
       ...rest,
     },
   );
@@ -54,6 +60,23 @@ describe('IDs bleiben ueber die ganze Szene eindeutig', () => {
 
   it('produces specs that pass render-core validation', () => {
     expect(() => validateSpecs(fullScene())).not.toThrow();
+  });
+
+  it('keeps load and reaction apart at the SAME node', () => {
+    // Der Fall, den die Namensraeume tragen muessen: an einem Knoten haengt eine
+    // Last und eine Auflagerkraft, beide mit derselben Komponente `fz`. Ohne die
+    // Praefixe `load:` und `reaction:` waeren es zweimal dieselbe ID, und
+    // validateSpecs schluege zu.
+    const specs = specsOf([nodeA, nodeB], [beamAB], {
+      supports: [supportA],
+      loads: [{ id: 'nl', target: 'node', nodeIds: ['a'], fz: 10 } as never],
+      reactions: new Map([['a', { fx: 0, fz: -10, my: 0 }]]),
+    });
+
+    const ids = specs.map((s) => s.id);
+    expect(ids).toContain('load:nl:a:fz:arrow');
+    expect(ids).toContain('reaction:a:fz:arrow');
+    expect(() => validateSpecs(specs)).not.toThrow();
   });
 
   it('keeps ids stable across pan and zoom so the renderer patches', () => {
@@ -84,7 +107,7 @@ describe('Szene und Baender passen zusammen', () => {
     expect(() => validateSpecs(specs)).not.toThrow();
   });
 
-  it('covers every band except grid from the model and its loads alone', () => {
+  it('covers every band except grid from the model, its loads and the result', () => {
     // Die Gegenrichtung: nicht nur „kein unbekanntes Band", sondern auch
     // „kein Band im Tupel, das nie jemand bespielt".
     const used = new Set(fullScene().map((s) => s.layer));
@@ -95,25 +118,63 @@ describe('Szene und Baender passen zusammen', () => {
   });
 });
 
-describe('Der Stil erreicht beide Haelften', () => {
-  it('applies caller overrides to model AND loads from one object', () => {
-    // Die Vorgaben werden EINMAL aufgeloest und an beide Seiten durchgereicht.
-    // Wirkte ein Override nur auf einer Haelfte, faende man es erst im Bild.
-    const style: FEMStyle = { nodeColor: '#00f', pointForceColor: '#0f0' };
+describe('Ohne Ergebnis bleibt die Szene die alte', () => {
+  it('adds not a single spec when reactions are absent', () => {
+    // Der AUS-Zustand hat keinen eigenen Schalter: es gibt ein Ergebnis oder
+    // keines. Waere `undefined` nicht exakt neutral, haette das Bild vor dem
+    // ersten Rechnen einen anderen Inhalt als danach ohne Ergebnis.
+    const withResult = fullScene();
+    const without = fullScene({ reactions: undefined });
+
+    expect(without.map((s) => s.id)).toEqual(
+      withResult.map((s) => s.id).filter((id) => !id.startsWith('reaction:')),
+    );
+    expect(without.some((s) => s.layer === 'reactions')).toBe(false);
+  });
+});
+
+describe('Der Stil erreicht alle drei Scheiben', () => {
+  it('applies caller overrides to model, loads AND results from one object', () => {
+    // Die Vorgaben werden EINMAL aufgeloest und an alle Teile durchgereicht.
+    // Wirkte ein Override nur auf einem Drittel, faende man es erst im Bild.
+    const style: FEMStyle = {
+      nodeColor: '#00f',
+      pointForceColor: '#0f0',
+      reactionForceColor: '#f0f',
+    };
     const specs = fullScene({ style });
 
     expect(specById(specs, 'node:a')).toMatchObject({ fillColor: '#00f' });
     expect(specById(specs, 'load:nl:b:fz:arrow')).toMatchObject({
       strokeColor: '#0f0',
     });
+    expect(specById(specs, 'reaction:a:fz:arrow')).toMatchObject({
+      strokeColor: '#f0f',
+    });
   });
 
-  it('leaves untouched fields at their defaults on both halves', () => {
+  it('leaves untouched fields at their defaults on all three', () => {
     const specs = fullScene({ style: { nodeColor: '#00f' } });
 
     expect(specById(specs, 'beam:ab')).toMatchObject({ strokeColor: '#000' });
     expect(specById(specs, 'load:nl:b:fz:arrow')).toMatchObject({
       strokeColor: '#1d4ed8',
     });
+    expect(specById(specs, 'reaction:a:fz:arrow')).toMatchObject({
+      strokeColor: '#15803d',
+    });
+  });
+
+  it('gives load and reaction DIFFERENT colours by default', () => {
+    // Die eine Eigenschaft, die die beiden im Bild trennt. Faerbte jemand sie
+    // gleich ein, saehe ein Auflager unter einer Last wie eine doppelte Last aus
+    // — und die Gleichgewichtsprobe waere nicht mehr abzulesen.
+    const specs = fullScene();
+    const load = specById(specs, 'load:nl:b:fz:arrow') as { strokeColor: string };
+    const reaction = specById(specs, 'reaction:a:fz:arrow') as {
+      strokeColor: string;
+    };
+
+    expect(reaction.strokeColor).not.toBe(load.strokeColor);
   });
 });
