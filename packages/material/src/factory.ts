@@ -17,8 +17,17 @@ export interface CreateMaterialsConfig {
   readonly na: NationalAnnexId | NationalAnnexParams;
 }
 
-/** Material factories bound to a single National Annex. */
-export interface Materials {
+/**
+ * Material factories bound to a single National Annex.
+ *
+ * Heisst `MaterialCatalog` und nicht `Materials`, weil `Material` seit
+ * [ADR 0026](../../../docs/adr/0026-materials-belong-to-the-model.md) der
+ * MODELLSATZ ist. Ein Aufruf, an dem `model.materials` (Records) neben
+ * `materials: Materials` (Fabriken) steht, hat zwei fast gleiche Namen fuer
+ * zwei verschiedene Dinge. Den schlichten Namen behaelt der Modellsatz — wie
+ * `CrossSection` ihn behaelt.
+ */
+export interface MaterialCatalog {
   /** The resolved National Annex these factories are bound to. */
   readonly na: NationalAnnexParams;
   concrete(grade: ConcreteGrade, options?: ConcreteOptions): Concrete;
@@ -32,7 +41,7 @@ export interface Materials {
  * factories are closures over the resolved Annex — there is no global mutable
  * configuration (see docs/adr/0002).
  */
-export function createMaterials(config: CreateMaterialsConfig): Materials {
+export function createMaterials(config: CreateMaterialsConfig): MaterialCatalog {
   const na = resolveNationalAnnex(config.na);
   return {
     na,

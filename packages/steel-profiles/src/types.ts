@@ -91,3 +91,62 @@ export interface SteelProfile extends SteelProfileData {
   readonly id: string;
   readonly series: ProfileSeries;
 }
+
+/**
+ * Woraus eine Tabellenzeile besteht — die Feldnamen als Wert.
+ *
+ * Seit [ADR 0027](../../../docs/adr/0027-catalogues-are-import-sources.md) reist
+ * die Zeile IM MODELL mit, und der Snapshot-Parser muss ihre Gestalt pruefen.
+ * Er braucht dafuer die Liste zur Laufzeit. Sie steht hier, weil dieses Package
+ * die Zeile besitzt.
+ *
+ * BEIDE RICHTUNGEN sind zur Uebersetzungszeit belegt: `satisfies` verbietet
+ * einen Namen, den es nicht gibt, und `NoColumnMissing` darunter verbietet eine
+ * Spalte, die fehlt. Wer `SteelProfileData` erweitert und die Liste vergisst,
+ * bekommt einen Typfehler und keinen Parser, der die neue Spalte stillschweigend
+ * ablehnt.
+ *
+ * `Ay`/`Az` sind optional — Reihen ohne Schubflaeche rechnen schubstarr, statt
+ * dass ein Naeherungswert erfunden wird (siehe `SteelProfileData`).
+ */
+export const PROFILE_DATA_KEYS = [
+  'h',
+  'b',
+  'tw',
+  'tf',
+  'r',
+  'A',
+  'Ay',
+  'Az',
+  'Iy',
+  'Iz',
+  'iy',
+  'iz',
+  'Wely',
+  'Welz',
+  'Wply',
+  'Wplz',
+  'It',
+  'Iw',
+  'SyMax',
+  'SzMax',
+  'mass',
+] as const satisfies readonly (keyof SteelProfileData)[];
+
+/** Schlaegt fehl, sobald `SteelProfileData` eine Spalte hat, die oben fehlt. */
+type NoColumnMissing<T extends never> = T;
+type _ProfileDataKeysAreComplete = NoColumnMissing<
+  Exclude<keyof SteelProfileData, (typeof PROFILE_DATA_KEYS)[number]>
+>;
+
+/**
+ * Die Zeile ohne ihre Herkunft — `id` und `series` bleiben zurueck.
+ *
+ * Der Modellsatz fuehrt die Bezeichnung bereits als eigenes Feld (`profile`),
+ * und `series` ist eine Aussage ueber den KATALOG, nicht ueber den Querschnitt.
+ * Beide mitzukopieren hiesse, die Bezeichnung zweimal im Satz zu haben.
+ */
+export function profileData(profile: SteelProfile): SteelProfileData {
+  const { id: _id, series: _series, ...data } = profile;
+  return data;
+}

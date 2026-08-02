@@ -26,6 +26,16 @@ Geometrie, keine Spannungspunkte und vor allem **keine Festigkeit**: `fy`,
 Querschnittsklasse, `Npl,d` gehoeren in das spaetere EN-1993-Paket. Ein Profil
 ist hier eine Zeile aus Zahlen, kein Bauteil.
 
+Der Katalog ist eine **Importquelle, keine Live-Referenz**
+([ADR 0027](../../docs/adr/0027-catalogues-are-import-sources.md)): `lookupProfile`
+wird gerufen, wenn ein Querschnitt ANGELEGT wird, und die Zeile geht als Kopie
+ins Modell. Dieses Package weiss davon nichts — es liefert nur zwei Dinge dazu:
+`profileData(p)` streift `id` und `series` ab, und `PROFILE_DATA_KEYS` sagt,
+woraus eine Zeile besteht, damit der Snapshot-Parser keine zweite Spaltenliste
+fuehren muss. Beide Richtungen der Liste sind zur Uebersetzungszeit belegt:
+`satisfies` verbietet einen Namen, den es nicht gibt, `NoColumnMissing` eine
+Spalte, die fehlt.
+
 Wer daraus `A`, `Iy` und κ in SI-Einheiten braucht, geht ueber
 `@baustatik/cross-section`; wer daraus `EA`, `EI`, `GAs` braucht, ueber
 `@baustatik/fem-section-resolve`.

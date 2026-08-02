@@ -24,8 +24,11 @@ describe('FEM model builder', () => {
       .node({ x: 5, z: 0 })
       .support({ ux: 'free', uz: 'fixed', phiY: 'free' });
     const beam = model.beam(left, right, {
-      crossSectionId: 'IPE200',
-      materialId: 'S235',
+      crossSectionId: model.crossSection({
+        kind: 'profile',
+        profile: 'IPE 200',
+      }).id,
+      materialId: model.material({ kind: 'steel', grade: 'S235' }).id,
     });
 
     loadCase.nodeLoad([left, right], { fz: 10 }).beamLoad([beam], {
@@ -39,7 +42,7 @@ describe('FEM model builder', () => {
     const snapshot = model.finish();
     const parsed = parseFEMModelSnapshot(structuredClone(snapshot));
 
-    expect(parsed.schemaVersion).toBe(2);
+    expect(parsed.schemaVersion).toBe(4);
     expect(parsed.nodes).toHaveLength(2);
     expect(parsed.beams[0]).toMatchObject({
       startNodeId: parsed.nodes[0].id,
@@ -112,10 +115,11 @@ describe('snapshot validation', () => {
   it('rejects malformed snapshots before domain validation', () => {
     expect(() =>
       parseFEMModelSnapshot({
-        schemaVersion: 2,
+        schemaVersion: 4,
         nodes: [{ id: 'n1', position: { x: Number.NaN, z: 0 } }],
         beams: [],
         crossSections: [],
+        materials: [],
         supports: [],
         loadCases: [],
       }),
@@ -125,10 +129,11 @@ describe('snapshot validation', () => {
   it('rejects unknown fields and duplicate load targets', () => {
     expect(() =>
       parseFEMModelSnapshot({
-        schemaVersion: 2,
+        schemaVersion: 4,
         nodes: [],
         beams: [],
         crossSections: [],
+        materials: [],
         supports: [],
         loadCases: [],
         internal: true,
@@ -146,7 +151,7 @@ describe('snapshot validation', () => {
   it('applies the existing model validation rules', () => {
     expect(() =>
       parseFEMModelSnapshot({
-        schemaVersion: 2,
+        schemaVersion: 4,
         nodes: [{ id: 'n1', position: { x: 0, z: 0 } }],
         beams: [
           {
@@ -158,6 +163,7 @@ describe('snapshot validation', () => {
           },
         ],
         crossSections: [],
+        materials: [],
         supports: [],
         loadCases: [],
       }),

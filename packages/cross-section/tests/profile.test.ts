@@ -1,13 +1,20 @@
-import { lookupProfile } from '@baustatik/steel-profiles';
+import { lookupProfile, profileData } from '@baustatik/steel-profiles';
 import { describe, expect, it } from 'vitest';
-import { profileProperties, sectionProperties } from '../src/index';
+import {
+  type CrossSection,
+  profileProperties,
+  sectionProperties,
+} from '../src/index';
+
+/** Ein Profilsatz, wie ihn der Builder anlegt: Bezeichnung PLUS Tabellenzeile. */
+function profile(name: string, id = 'cs-1'): CrossSection {
+  const row = lookupProfile(name);
+  if (row === undefined) throw new Error(`${name} fehlt im Katalog`);
+  return { kind: 'profile', id, profile: row.id, data: profileData(row) };
+}
 
 describe('Walzprofil -> SectionProperties', () => {
-  const ipe80 = sectionProperties({
-    kind: 'profile',
-    id: 'cs-1',
-    profile: 'IPE 80',
-  });
+  const ipe80 = sectionProperties(profile('IPE 80'));
 
   it('rechnet cm2/cm4 an genau EINER Stelle nach SI um', () => {
     // Katalog: A = 7,64 cm2, Iy = 80,14 cm4, Iz = 8,49 cm4.
@@ -35,15 +42,21 @@ describe('Walzprofil -> SectionProperties', () => {
     expect(ipe80?.kappaZ).not.toBeCloseTo(3.57 / 7.64, 2);
   });
 
-  it('meldet einen unbekannten Profilnamen als undefined', () => {
-    expect(
-      sectionProperties({ kind: 'profile', id: 'x', profile: 'IPE 201' }),
-    ).toBeUndefined();
-  });
+  it('liest `data` und nicht den Namen — die Aussage von ADR 0027', () => {
+    // Der Katalog wird hier gar nicht mehr befragt: derselbe Datensatz unter
+    // einem Namen, den es nirgends gibt, liefert dieselben Werte. Genau das
+    // heisst „das Modell besitzt seine Werte" — eine geaenderte Tabellenzeile
+    // erreicht diesen Querschnitt nicht mehr.
+    const row = lookupProfile('IPE 80');
+    if (row === undefined) throw new Error('IPE 80 fehlt im Katalog');
 
-  it('findet das Profil schreibweisentolerant', () => {
     expect(
-      sectionProperties({ kind: 'profile', id: 'x', profile: 'ipe80' }),
+      sectionProperties({
+        kind: 'profile',
+        id: 'x',
+        profile: 'Sonderprofil aus einem Altprojekt',
+        data: profileData(row),
+      }),
     ).toEqual(ipe80);
   });
 });

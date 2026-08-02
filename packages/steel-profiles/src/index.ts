@@ -6,8 +6,10 @@ export {
   profileSeries,
   profilesIn,
 } from './lookup';
-export type {
-  ProfileSeries,
-  SteelProfile,
-  SteelProfileData,
+export {
+  PROFILE_DATA_KEYS,
+  type ProfileSeries,
+  profileData,
+  type SteelProfile,
+  type SteelProfileData,
 } from './types';

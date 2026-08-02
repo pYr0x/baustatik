@@ -418,6 +418,30 @@ mit den Grenzen, die aus ihm hervorgegangen sind, bewiese es nur sich selbst.
   rechnen die Faelle NEBENEINANDER. Sie zu einer Kombination zu UEBERLAGERN ist
   etwas anderes und kommt spaeter; solange die Rechnung linear ist, kann der
   Aufrufer die Ergebnisse auch selbst summieren.
+
+  **„Solange die Rechnung linear ist" ist eine Bedingung, keine Floskel** — und
+  sie faellt auf zwei Wegen:
+
+  1. **Theorie II. Ordnung.** Die Steifigkeit haengt am Verformungszustand.
+     (`fem-element/CONTEXT.md` haelt den Platz dafuer frei.)
+  2. **Zustand II beim Stahlbeton.** Rissbildung ist LASTABHAENGIG. Heute
+     rechnet `fem-section-resolve` Beton im Zustand I (ungerissen); sobald der
+     gerissene Zustand mitgerechnet wird, haengt `EI` nicht mehr am Stab
+     allein, sondern am Paar (Stab, Lastniveau).
+
+  In beiden Faellen darf der Aufrufer NICHT mehr summieren — es muss die
+  **Kombination selbst** gerechnet werden. Und in beiden Faellen ist es
+  dasselbe fehlende Stueck: eine Angabe an dem, was gerechnet wird, welche
+  Theorie und welcher Zustand gelten sollen. Die beiden Schalter sind vom selben
+  Typ und sollten zusammen entschieden werden — nicht als globale
+  `AnalysisPolicy`, denn im selben Projekt wird der GZT anders gerechnet als der
+  Verformungsnachweis im GZG.
+
+  Der Port `getSectionStiffness(beam)` bekommt heute bewusst keinen Lastfall;
+  das ist die Bauform von Theorie I. Ordnung im Zustand I. Wenn einer der beiden
+  Schalter kommt, aendert sich diese Signatur mit — siehe
+  `fem-section-resolve/CONTEXT.md`, „Zustand I ist die stillschweigende
+  Annahme".
 - **Ergebnisse werden nicht aufgehoben.** `SolveResult` sagt ueber
   `loadCaseId`, WOVON es das Ergebnis ist, aber nicht, gegen welchen Stand des
   Modells oder welchen Faktor gerechnet wurde. Ein Ergebnis veraltet still,

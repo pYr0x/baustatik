@@ -24,8 +24,10 @@ export {
   UnknownGradeError,
   UnknownNationalAnnexError,
 } from './errors';
-export type { CreateMaterialsConfig, Materials } from './factory';
+export type { CreateMaterialsConfig, MaterialCatalog } from './factory';
 export { createMaterials } from './factory';
+export type { ElasticModuli, Material, MaterialKind } from './model';
+export { lookupMaterial, type MaterialLookup } from './moduli';
 export {
   DE,
   EN,

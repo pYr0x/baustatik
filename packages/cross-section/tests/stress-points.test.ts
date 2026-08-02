@@ -1,4 +1,4 @@
-import { profilesIn } from '@baustatik/steel-profiles';
+import { lookupProfile, profileData, profilesIn } from '@baustatik/steel-profiles';
 import { describe, expect, it } from 'vitest';
 import { type CrossSection, type StressPoint, stressPoints } from '../src/index';
 import { rolledIGeometry } from '../src/stress-points/rolled-i';
@@ -26,11 +26,11 @@ function points(cs: CrossSection): readonly StressPoint[] {
   return result;
 }
 
-const profile = (name: string): CrossSection => ({
-  kind: 'profile',
-  id: 'x',
-  profile: name,
-});
+const profile = (name: string): CrossSection => {
+  const row = lookupProfile(name);
+  if (row === undefined) throw new Error(`${name} fehlt im Katalog`);
+  return { kind: 'profile', id: 'x', profile: row.id, data: profileData(row) };
+};
 
 describe('IPE 80 gegen den gedruckten Ausdruck', () => {
   const pts = points(profile('IPE 80'));
@@ -406,8 +406,10 @@ describe('Was undefined heisst', () => {
     ).toBeUndefined();
   });
 
-  it('meldet ein unbekanntes Profil und unsinnige Masse', () => {
-    expect(stressPoints(profile('IPE 201'))).toBeUndefined();
+  // „Unbekanntes Profil" steht hier nicht mehr: seit ADR 0027 traegt der Satz
+  // die Zeile, der Profilzweig ist also total. Der Tippfehler wird beim
+  // ANLEGEN gemeldet — siehe `@baustatik/script`, `builder.test.ts`.
+  it('meldet unsinnige Masse', () => {
     expect(
       stressPoints({
         kind: 'shape',

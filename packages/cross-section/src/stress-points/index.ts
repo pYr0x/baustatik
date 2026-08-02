@@ -1,4 +1,3 @@
-import { lookupProfile } from '@baustatik/steel-profiles';
 import { type CrossSection, sectionProperties } from '../section';
 import { tBeamCentroid } from '../shapes/t-beam';
 import { iSymmetricPoints, rectanglePoints, tBeamPoints } from './compact';
@@ -24,12 +23,10 @@ import type { StressPoint } from './types';
 export function stressPoints(
   cs: CrossSection,
 ): readonly StressPoint[] | undefined {
-  if (cs.kind === 'profile') {
-    const profile = lookupProfile(cs.profile);
-    if (profile === undefined) return undefined;
-    // Keine Umrechnung: die Tabelle fuehrt mm, die Vorlage rechnet in mm.
-    return rolledIStressPoints(profile);
-  }
+  // Keine Umrechnung: die Tabelle fuehrt mm, die Vorlage rechnet in mm. Und
+  // kein Nachschlagen mehr: die Zeile steht seit ADR 0027 im Satz, der Zweig
+  // ist damit total.
+  if (cs.kind === 'profile') return rolledIStressPoints(cs.data);
 
   // EINE Gueltigkeitspruefung, nicht zwei. Die Abmessungen hier noch einmal
   // von Hand zu pruefen hiesse, zwei Antworten auf „ist dieser Querschnitt

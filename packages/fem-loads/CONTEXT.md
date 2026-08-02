@@ -378,6 +378,31 @@ ersetzt. `assertValidLoads` blieb unveraendert und ignoriert die Warnungen.
 
 ## Known constraints
 
+- **Der Lastfall sagt nicht, WIE er gerechnet werden soll.** `LoadCase` traegt
+  Name, Faktor und Einwirkungskategorie — also woraus die Last stammt und wie
+  sie kombiniert wird. Er traegt **nicht**, unter welcher Annahme er gerechnet
+  wird. Zwei solche Angaben fehlen, und sie sind vom selben Typ:
+
+  | | heute fest auf | bricht bei |
+  | --- | --- | --- |
+  | Theorie | I. Ordnung | Stabilitaet, grosse Verformungen |
+  | Zustand (Stahlbeton) | I — ungerissen | Rissbildung im Gebrauchszustand |
+
+  Beide brechen dieselbe Annahme: die **Superposition**. Rissbildung ist
+  lastabhaengig, Theorie II. Ordnung verformungsabhaengig — in beiden Faellen
+  darf man Lastfaelle nicht mehr getrennt rechnen und summieren, sondern muss
+  die Kombination selbst rechnen.
+
+  Deshalb gehoert die Angabe an das, was gerechnet wird — den Lastfall bzw. die
+  Kombination — und **nicht** in eine globale `AnalysisPolicy`: im selben
+  Projekt wird der GZT anders gerechnet als der Verformungsnachweis im GZG, wo
+  Zustand II in der Regel massgebend ist. Sie gehoert auch nicht an das
+  Material: `Material` nennt eine Sorte, keinen Rechenzustand.
+
+  Was heute daran haengt, steht in `fem-section-resolve/CONTEXT.md` unter
+  „Zustand I ist die stillschweigende Annahme" — kurz: Betondurchbiegungen sind
+  unbrauchbar, und eine nichtlineare Bemessung im GZT (EN 1992-1-1 §5.7) ist
+  ausgeschlossen. Die beiden Schalter sollten zusammen entschieden werden.
 - **Keine ABLEHNUNG fast entarteter Bezugslaengen** — abgelehnt wird nur bis zur
   harten Mindest-Projektionsrate (Voreinstellung praktisch der Faktor 0). Unter
   der Warnschwelle gibt es einen Hinweis, dazwischen und darueber geht alles

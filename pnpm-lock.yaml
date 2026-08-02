@@ -68,6 +68,9 @@ importers:
       '@baustatik/section-geometry':
         specifier: workspace:*
         version: link:../../packages/section-geometry
+      '@baustatik/steel-profiles':
+        specifier: workspace:*
+        version: link:../../packages/steel-profiles
       '@baustatik/units':
         specifier: workspace:*
         version: link:../../packages/units
@@ -370,6 +373,9 @@ importers:
       '@baustatik/script':
         specifier: workspace:*
         version: link:../script
+      '@baustatik/steel-profiles':
+        specifier: workspace:*
+        version: link:../steel-profiles
       '@vitest/coverage-istanbul':
         specifier: ^4.1.5
         version: 4.1.10(supports-color@8.1.1)(vitest@4.1.10)
@@ -682,6 +688,12 @@ importers:
       '@baustatik/fem-loads':
         specifier: workspace:*
         version: link:../fem-loads
+      '@baustatik/material':
+        specifier: workspace:*
+        version: link:../material
+      '@baustatik/steel-profiles':
+        specifier: workspace:*
+        version: link:../steel-profiles
     devDependencies:
       '@vitest/coverage-istanbul':
         specifier: ^4.1.5

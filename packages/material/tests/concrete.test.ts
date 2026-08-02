@@ -46,6 +46,28 @@ describe('concrete (DE default)', () => {
     expect(concrete('C90/105').fck).toBe(90);
   });
 
+  it('accepts inner whitespace, like lookupProfile does', () => {
+    // Dieselbe Faltungsregel wie `@baustatik/steel-profiles`: ALLE Leerzeichen
+    // weg, dann Grossschreibung. `'C 30/37'` ist, wie Normtabellen setzen und
+    // wie ein Anwender tippt — zwei Kataloge desselben Programms sollen
+    // dieselbe Schreibweise annehmen.
+    expect(concrete('C 30/37').fck).toBe(30);
+    expect(concrete(' c 30 / 37 ').fck).toBe(30);
+    expect(concrete('C 30/37').grade).toBe('C30/37');
+  });
+
+  it('exposes G = Ecm / (2(1+ν)) — den Quotienten fuehrt der Katalog', () => {
+    // Wie `STEEL_SHEAR_MODULUS`: `G` wird von einer Rechnung verbraucht
+    // (`GAs = κ·G·A`), nicht von einem Leser. Ohne diese Stelle bildete ihn
+    // jeder Verbraucher neu — Stahl und Holz bekommen ihn ja fertig.
+    //
+    // ν = 0,2 gilt fuer UNGERISSENEN Beton (EN 1992-1-1 §3.1.3(4)).
+    const c = concrete('C30/37');
+    expect(c.Ecm).toBe(33000);
+    expect(c.G).toBeCloseTo(33000 / 2.4, 9); // 13 750
+    expect(c.G).toBeCloseTo(c.Ecm / (2 * (1 + c.nu)), 9);
+  });
+
   it('throws UnknownGradeError for an unknown grade', () => {
     expect(() => concrete('C33/40' as never)).toThrow(UnknownGradeError);
   });

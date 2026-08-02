@@ -3,13 +3,41 @@ import type {
   SectionProperties,
 } from '@baustatik/cross-section';
 import type { Beam } from '@baustatik/fem';
-import { createMaterials } from '@baustatik/material';
+import {
+  lookupMaterial,
+  type Material,
+  type MaterialKind,
+} from '@baustatik/material';
+import { lookupProfile, profileData } from '@baustatik/steel-profiles';
 import { describe, expect, it } from 'vitest';
-import { resolveSectionStiffness, sectionStiffness } from '../src/index';
+import {
+  resolveSectionStiffness,
+  type SectionModel,
+  sectionStiffness,
+} from '../src/index';
 
-const materials = createMaterials({ na: 'DE' });
+/**
+ * Beide Fabriken tun genau das, was der Builder in `@baustatik/script` tut:
+ * einmal nachschlagen, dann die Werte in den Satz legen. Danach ist kein
+ * Katalog mehr im Spiel — hier so wenig wie im Solver.
+ */
+function material(kind: MaterialKind, grade: string, id: string): Material {
+  const found = lookupMaterial(kind, grade);
+  if (found === undefined) throw new Error(`${grade} fehlt im Katalog`);
+  return { kind, id, grade: found.grade, moduli: found.moduli };
+}
 
-const beam = (crossSectionId: string, materialId = 'S235'): Beam => ({
+function profile(name: string, id: string): CrossSection {
+  const row = lookupProfile(name);
+  if (row === undefined) throw new Error(`${name} fehlt im Katalog`);
+  return { kind: 'profile', id, profile: row.id, data: profileData(row) };
+}
+
+const S235 = material('steel', 'S235', 'mat-s235');
+const C30 = material('concrete', 'C30/37', 'mat-c30');
+const C24 = material('timber', 'C24', 'mat-c24');
+
+const beam = (crossSectionId: string, materialId = S235.id): Beam => ({
   id: 'b1',
   startNodeId: 'n1',
   endNodeId: 'n2',
@@ -17,19 +45,21 @@ const beam = (crossSectionId: string, materialId = 'S235'): Beam => ({
   materialId,
 });
 
-const IPE80: CrossSection = {
-  kind: 'profile',
-  id: 'cs-ipe80',
-  profile: 'IPE 80',
-};
+const IPE80 = profile('IPE 80', 'cs-ipe80');
+
+/** Ein Modell aus Querschnitten; die drei Materialien sind immer dabei. */
+const model = (
+  crossSections: readonly CrossSection[],
+  materials: readonly Material[] = [S235, C30, C24],
+): SectionModel => ({ crossSections, materials });
 
 describe('Die Einheitenkette, ausgeschrieben', () => {
-  // material liefert Es in MPa (N/mm2), SectionStiffness erwartet kN und kNm2.
+  // material liefert E in MPa (N/mm2), SectionStiffness erwartet kN und kNm2.
   //   E   = 210000 MPa * 1000        = 2,1e8 kN/m2
   //   A   = 7,64 cm2                 = 7,64e-4 m2
   //   Iy  = 80,14 cm4                = 8,014e-7 m4
   //   G   = 80769 MPa * 1000         = 8,0769e7 kN/m2
-  const stiffness = resolveSectionStiffness(beam('cs-ipe80'), [IPE80], materials);
+  const stiffness = resolveSectionStiffness(beam('cs-ipe80'), model([IPE80]));
 
   it('rechnet EA und EI aus IPE 80 in S235', () => {
     expect(stiffness?.EA).toBeCloseTo(160440, 0); // 2,1e8 * 7,64e-4
@@ -57,7 +87,7 @@ describe('Parametrische Form durch dieselbe Kette', () => {
   };
 
   it('nimmt kappa = 5/6 aus der Form und nicht aus einer Tabelle', () => {
-    const s = resolveSectionStiffness(beam('cs-rect'), [rect], materials);
+    const s = resolveSectionStiffness(beam('cs-rect'), model([rect]));
     // A = 0,1 m2, Iy = b*h^3/12 = 0,025/12 m4
     //   EA  = 2,1e8 * 0,1        = 2,1e7 kN
     //   EI  = 2,1e8 * 0,025/12   = 437 500 kNm2  (glatt)
@@ -74,12 +104,9 @@ describe('Ein Profilwechsel schlaegt bis zur Verformung durch', () => {
     // umstellen. Iy faellt von 18260 auf 8356 cm4, EI also um den Faktor
     // 2,185 — und weil die Verformung eines Kragarms mit 1/EI geht, WAECHST
     // sie um genau denselben Faktor.
-    const sections: CrossSection[] = [
-      { kind: 'profile', id: 'hea300', profile: 'HEA 300' },
-      { kind: 'profile', id: 'ipe300', profile: 'IPE 300' },
-    ];
-    const hea = resolveSectionStiffness(beam('hea300'), sections, materials);
-    const ipe = resolveSectionStiffness(beam('ipe300'), sections, materials);
+    const sections = [profile('HEA 300', 'hea300'), profile('IPE 300', 'ipe300')];
+    const hea = resolveSectionStiffness(beam('hea300'), model(sections));
+    const ipe = resolveSectionStiffness(beam('ipe300'), model(sections));
 
     expect((hea?.EI as number) / (ipe?.EI as number)).toBeCloseTo(
       18260 / 8356,
@@ -89,49 +116,93 @@ describe('Ein Profilwechsel schlaegt bis zur Verformung durch', () => {
   });
 });
 
+describe('Drei Familien, drei Moduln', () => {
+  // Derselbe Querschnitt, drei Materialien. Vorher war das nicht moeglich:
+  // `materialId as SteelGrade` erklaerte JEDEN Stab zu Baustahl, und ein Holz-
+  // oder Betonstab rechnete stillschweigend mit E = 210 000 MPa.
+  const rect: CrossSection = {
+    kind: 'shape',
+    id: 'cs-rect',
+    shape: { kind: 'rectangle', b: 200, h: 500 },
+  };
+  const A = 0.1; // m2
+  const stiffnessFor = (m: Material) =>
+    resolveSectionStiffness(beam('cs-rect', m.id), model([rect]));
+
+  it('nimmt fuer Stahl Es und G', () => {
+    expect(stiffnessFor(S235)?.EA).toBeCloseTo(210000 * 1000 * A, 0);
+  });
+
+  it('nimmt fuer Beton Ecm und das daraus gebildete G', () => {
+    // C30/37: Ecm = 33 000 MPa, G = 33 000 / 2,4 = 13 750 MPa.
+    expect(stiffnessFor(C30)?.EA).toBeCloseTo(33000 * 1000 * A, 0);
+    expect(stiffnessFor(C30)?.GAs as number).toBeCloseTo(
+      (5 / 6) * 13750 * 1000 * A,
+      3,
+    );
+  });
+
+  it('nimmt fuer Holz E0,mean und G,mean', () => {
+    // C24: E0,mean = 11 000 MPa, Gmean = 690 MPa.
+    expect(stiffnessFor(C24)?.EA).toBeCloseTo(11000 * 1000 * A, 0);
+    expect(stiffnessFor(C24)?.GAs as number).toBeCloseTo(
+      (5 / 6) * 690 * 1000 * A,
+      3,
+    );
+  });
+
+  it('verwechselt die Familien nicht — Beton ist weicher als Stahl', () => {
+    const steel = stiffnessFor(S235)?.EI as number;
+    const concrete = stiffnessFor(C30)?.EI as number;
+    const timber = stiffnessFor(C24)?.EI as number;
+    expect(steel).toBeGreaterThan(concrete);
+    expect(concrete).toBeGreaterThan(timber);
+    expect(steel / concrete).toBeCloseTo(210000 / 33000, 6);
+  });
+});
+
+describe('Der Resolver rechnet ohne jede aeussere Quelle', () => {
+  // Frueher stand hier der DE/EN-Test: derselbe Stab unter zwei Anhaengen,
+  // dieselbe Steifigkeit. Er ist ersatzlos entfallen, weil es den Parameter
+  // nicht mehr gibt, an dem ein Anhang haengen koennte — die Aussage ist von
+  // einer Zusicherung zu einer Bauform geworden (ADR 0027). Was von ihr zu
+  // pruefen bleibt, steht in `material/tests/moduli.test.ts`: die Kopie und
+  // der Katalog stimmen ueberein, unter beiden Anhaengen.
+  it('nimmt die Moduln aus dem Satz und nicht aus einer Sorte', () => {
+    // Eine Guete, die es nirgends gibt, mit Zahlen, die es gibt: rechnet.
+    // Genau das heisst „das Modell besitzt seine Werte" — eine geaenderte
+    // Sortentabelle erreicht diesen Stab nicht mehr.
+    const eigenbau: Material = {
+      kind: 'steel',
+      id: 'mat-eigen',
+      grade: 'Werksbescheinigung 2019/17',
+      moduli: { E: 205000, G: 78846 },
+    };
+    const s = resolveSectionStiffness(
+      beam('cs-ipe80', eigenbau.id),
+      model([IPE80], [eigenbau]),
+    );
+    expect(s?.EA).toBeCloseTo(205000 * 1000 * 7.64e-4, 0);
+  });
+});
+
 describe('Was undefined heisst', () => {
   it('meldet einen unbekannten crossSectionId', () => {
     expect(
-      resolveSectionStiffness(beam('gibt-es-nicht'), [IPE80], materials),
+      resolveSectionStiffness(beam('gibt-es-nicht'), model([IPE80])),
     ).toBeUndefined();
   });
 
-  it('meldet einen unbekannten Profilnamen im Querschnitt', () => {
-    const broken: CrossSection = {
-      kind: 'profile',
-      id: 'cs-x',
-      profile: 'IPE 201',
-    };
+  it('meldet einen materialId, der auf nichts zeigt', () => {
+    // Der Fall, den es vor dem Modellsatz gar nicht geben konnte: `materialId`
+    // WAR die Guete. Jetzt ist er ein Verweis, und ein Verweis kann ins Leere
+    // gehen — wie `crossSectionId` es immer konnte.
     expect(
-      resolveSectionStiffness(beam('cs-x'), [broken], materials),
+      resolveSectionStiffness(
+        beam('cs-ipe80', 'gibt-es-nicht'),
+        model([IPE80]),
+      ),
     ).toBeUndefined();
-  });
-
-  it('meldet eine unbekannte Materialsorte, statt zu werfen', () => {
-    // `materials.steel('S234')` wirft — an dieser Grenze ist das aber eine
-    // Aussage ueber das MODELL und gehoert in den Bericht, nicht in einen
-    // Stacktrace.
-    expect(() =>
-      resolveSectionStiffness(beam('cs-ipe80', 'S234'), [IPE80], materials),
-    ).not.toThrow();
-    expect(
-      resolveSectionStiffness(beam('cs-ipe80', 'S234'), [IPE80], materials),
-    ).toBeUndefined();
-  });
-
-  it('verschluckt aber NICHT jeden Fehler des Materialkatalogs', () => {
-    // Nur `UnknownGradeError` ist eine Aussage ueber das Modell. Ein kaputter
-    // Katalog ist ein echter Fehler und muss durchschlagen — sonst raechte
-    // sich der try/catch als stiller Ausfall.
-    const broken = {
-      ...materials,
-      steel: () => {
-        throw new TypeError('Katalog kaputt');
-      },
-    } as unknown as typeof materials;
-    expect(() =>
-      resolveSectionStiffness(beam('cs-ipe80'), [IPE80], broken),
-    ).toThrow(TypeError);
   });
 
   it('meldet unsinnige Abmessungen', () => {
@@ -141,9 +212,15 @@ describe('Was undefined heisst', () => {
       shape: { kind: 'rectangle', b: -200, h: 500 },
     };
     expect(
-      resolveSectionStiffness(beam('cs-x'), [broken], materials),
+      resolveSectionStiffness(beam('cs-x'), model([broken])),
     ).toBeUndefined();
   });
+
+  // „Unbekanntes Profil" und „unbekannte Sorte" stehen hier NICHT mehr. Seit
+  // ADR 0027 traegt der Satz seine Zahlen, also gibt es sie; der Tippfehler
+  // wird beim Anlegen gemeldet, wo er steht (`script/tests/builder.test.ts`).
+  // Dass ein Verweis ins Leere gehen kann, bleibt — das ist eine Aussage ueber
+  // das Modell und keine ueber einen Katalog.
 });
 
 describe('Schubstarr statt NaN', () => {
@@ -159,13 +236,13 @@ describe('Schubstarr statt NaN', () => {
     ys: 0,
     zs: 0,
   };
-  const steel = materials.steel('S235');
+  const moduli = S235.moduli;
 
   it('liefert GAs = "rigid" und kein NaN', () => {
     // `'rigid'` ist der kanonische, JSON-serialisierbare Weg. Ein `NaN` fiele
     // erst im Gleichungssystem auf, und dort ist es keinem Stab mehr
     // zuzuordnen.
-    const s = sectionStiffness(withoutKappa, steel);
+    const s = sectionStiffness(withoutKappa, moduli);
     expect(s.GAs).toBe('rigid');
     expect(Number.isFinite(s.EA)).toBe(true);
     expect(Number.isFinite(s.EI)).toBe(true);
@@ -175,7 +252,7 @@ describe('Schubstarr statt NaN', () => {
     // Ein Querschnitt mit kappa = 0 haette KEINE Schubsteifigkeit — das
     // Gegenteil von schubstarr. Dass die beiden Faelle verschieden aussehen,
     // ist der ganze Grund fuer `undefined` statt 0.
-    const zero = sectionStiffness({ ...withoutKappa, kappaZ: 0 }, steel);
+    const zero = sectionStiffness({ ...withoutKappa, kappaZ: 0 }, moduli);
     expect(zero.GAs).toBe(0);
     expect(zero.GAs).not.toBe('rigid');
   });

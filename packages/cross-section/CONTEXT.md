@@ -10,9 +10,16 @@ Frage, sondern dieselbe Frage aus einer dritten Quelle.
 Das Package besitzt ausserdem den **Modellsatz `CrossSection`**: den Record, der
 neben `Node`, `Beam` und `NodeSupport` im Modell liegt und mit ihm gespeichert
 wird ([ADR 0023](../../docs/adr/0023-cross-sections-belong-to-the-model.md)).
+Die Profil-Variante traegt seit
+[ADR 0027](../../docs/adr/0027-catalogues-are-import-sources.md) die
+**Tabellenzeile als Kopie** (`data`); `profile` ist nur noch die Herkunft.
+Damit schlaegt dieses Package **nichts mehr nach** — `sectionProperties` und
+`stressPoints` sind im Profilzweig total, und `undefined` heisst nur noch
+„unsinnige Abmessungen" bzw. „fuer diese Form gibt es keine Vorlage".
 
-Zwei Abhaengigkeiten: `@baustatik/steel-profiles` (die Tabelle) und
-`@baustatik/units` (die Umrechnungsfaktoren und die Quantity-Typen).
+Zwei Abhaengigkeiten: `@baustatik/steel-profiles` (nur noch der **Typ**
+`SteelProfileData`, kein `lookupProfile` mehr im `src`) und `@baustatik/units`
+(die Umrechnungsfaktoren und die Quantity-Typen).
 
 ## Die Grenze zur Bemessung, mechanisch pruefbar
 

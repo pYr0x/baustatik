@@ -42,6 +42,28 @@ export interface Concrete {
   readonly fctk05: MPa;
   /** Ecm — secant modulus of elasticity [MPa]. */
   readonly Ecm: MPa;
+  /**
+   * G — Schubmodul [MPa]. `Ecm / (2(1+ν))` mit ν = 0,2.
+   *
+   * Der Katalog fuehrt den Quotienten selbst, aus demselben Grund wie
+   * `STEEL_SHEAR_MODULUS`: `G` wird von einer Rechnung verbraucht
+   * (`GAs = κ·G·A`), nicht von einem Leser, und ohne diese Stelle bildet ihn
+   * jeder Verbraucher neu — Holz und Stahl bekommen ihn ja fertig.
+   *
+   * ZUSTAND I. ν = 0,2 gilt nach EN 1992-1-1 §3.1.3(4) fuer den UNGERISSENEN
+   * Querschnitt; zusammen mit `Ecm` beschreibt der Wert einen linear-elastischen
+   * Beton mit voll mitwirkender Zugzone. Das ist eine Aussage ueber die
+   * RECHNUNG, nicht ueber den Werkstoff — der Werkstoff reisst, sobald `fctm`
+   * ueberschritten wird.
+   *
+   * Der Zustand gehoert deshalb NICHT in diesen Wert, sondern in eine
+   * Analyse-Einstellung von der Bauart `AnalysisPolicy.shearDeformation`
+   * ([ADR 0011](../../../docs/adr/0011-analysis-settings-split-into-versioned-policy-and-ports.md)).
+   * Was daran haengt, steht in `fem-section-resolve/CONTEXT.md` unter
+   * „Zustand I ist die stillschweigende Annahme" — kurz: Durchbiegungen sind
+   * damit unbrauchbar, und die Superposition faellt.
+   */
+  readonly G: MPa;
   /** εc2 — strain at maximum strength [‰]. */
   readonly epsc2: PerMille;
   /** εcu2 — ultimate strain [‰]. */
@@ -60,6 +82,20 @@ export interface Concrete {
   readonly fcd: MPa;
   /** Design values for an explicit design situation. */
   designValues(options?: ConcreteDesignOptions): ConcreteDesignValues;
+}
+
+/**
+ * G = Ecm / (2(1+ν)) mit ν = 0,2 — die EINE Stelle, an der der Quotient steht.
+ *
+ * Sie ist eigens herausgezogen, weil ihn zwei Wege brauchen: `makeConcrete` fuer
+ * den Katalog und `lookupMaterial` fuer die Kopie im Modellsatz. Zweimal
+ * hingeschrieben waeren es zwei Wahrheiten ueber eine Zahl, und die eine wuerde
+ * beim naechsten Anfassen von der anderen abweichen.
+ *
+ * Zur Bedeutung von ν = 0,2 — UNGERISSENER Beton — siehe `Concrete.G`.
+ */
+export function concreteShearModulus(Ecm: MPa): MPa {
+  return Ecm / (2 * (1 + CONCRETE_POISSON));
 }
 
 function computeDesign(
@@ -93,6 +129,7 @@ export function makeConcrete(
     fctm: data.fctm,
     fctk05: data.fctk05,
     Ecm: data.Ecm,
+    G: concreteShearModulus(data.Ecm),
     epsc2: data.epsc2,
     epscu2: data.epscu2,
     n: data.n,

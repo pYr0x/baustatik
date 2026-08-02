@@ -1,4 +1,8 @@
-import type { CrossSection, Idealisation, ShapeSpec } from '@baustatik/cross-section';
+import type {
+  CrossSection,
+  Idealisation,
+  ShapeSpec,
+} from '@baustatik/cross-section';
 import { BaustatikError } from '@baustatik/errors';
 import { assertValidModel } from '@baustatik/fem';
 import {
@@ -10,6 +14,15 @@ import {
   modelGeometry,
   type NodeLoad,
 } from '@baustatik/fem-loads';
+import type {
+  ElasticModuli,
+  Material,
+  MaterialKind,
+} from '@baustatik/material';
+import {
+  PROFILE_DATA_KEYS,
+  type SteelProfileData,
+} from '@baustatik/steel-profiles';
 import type { FEMModelSnapshot } from './types';
 
 export class SnapshotValidationError extends BaustatikError {}
@@ -21,15 +34,22 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
     'nodes',
     'beams',
     'crossSections',
+    'materials',
     'supports',
     'loadCases',
   ]);
-  // Ein v1-Snapshot wird ABGELEHNT und nicht um ein leeres `crossSections`
-  // ergaenzt: er beschreibt ein Modell, dessen `crossSectionId` ins Leere
-  // zeigt. Ein stillschweigendes Ergaenzen taeuschte vor, es liesse sich
-  // rechnen.
-  if (snapshot.schemaVersion !== 2) {
-    fail('Snapshot.schemaVersion muss 2 sein.');
+  // Ein aelterer Snapshot wird ABGELEHNT und nicht ergaenzt. Bei v1 zeigte
+  // `crossSectionId` ins Leere; bei v2 BEDEUTET `materialId` etwas anderes als
+  // hier — dort die Guete selbst (`'S235'`), hier ein Verweis auf
+  // `Material.id`; bei v3 fehlen die kopierten Zahlen.
+  //
+  // Gerade v3 waere verfuehrerisch zu ergaenzen: die Bezeichnungen stehen
+  // darin, ein Lookup laege nahe. Genau das ist die stille Aufloesung, die
+  // ADR 0027 abschafft — hier einmal ausgefuehrt, im unguenstigsten Moment,
+  // und danach nicht mehr von einer bewussten Wahl zu unterscheiden. Eine
+  // Migration ist ein Werkzeug, das jemand AUFRUFT, sieht und ablehnen kann.
+  if (snapshot.schemaVersion !== 4) {
+    fail('Snapshot.schemaVersion muss 4 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -86,6 +106,10 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
     parseCrossSection(value, `Snapshot.crossSections[${index}]`),
   );
 
+  const materials = array(snapshot.materials, 'Snapshot.materials').map(
+    (value, index) => parseMaterial(value, `Snapshot.materials[${index}]`),
+  );
+
   const supports = array(snapshot.supports, 'Snapshot.supports').map(
     (value, index) => {
       const support = record(value, `Snapshot.supports[${index}]`);
@@ -135,6 +159,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   unique(nodes, 'Knoten');
   unique(beams, 'Stab');
   unique(crossSections, 'Querschnitt');
+  unique(materials, 'Material');
   unique(supports, 'Lager');
   unique(loadCases, 'Lastfall');
 
@@ -145,17 +170,86 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
     assertValidLoads(geometry, loadCase.loads);
   }
 
-  return { schemaVersion: 2, nodes, beams, crossSections, supports, loadCases };
+  return {
+    schemaVersion: 4,
+    nodes,
+    beams,
+    crossSections,
+    materials,
+    supports,
+    loadCases,
+  };
+}
+
+/**
+ * Das Material an der Snapshot-Grenze.
+ *
+ * NUR DIE GESTALT, nicht die Aufloesbarkeit — dieselbe Regel wie beim
+ * Querschnitt, und aus denselben zwei Gruenden: dass ein Stab auf ein
+ * vorhandenes Material zeigt, meldet der Bericht des Solvers; ob die Sorte im
+ * Katalog steht und ob `moduli` noch zu ihr passt, ist seit ADR 0027 keine
+ * Frage dieses Parsers. Die Zahlen im Satz sind die Wahrheit.
+ *
+ * `kind` wird dagegen hart geprueft: er ist der Diskriminator, an dem beim
+ * ANLEGEN der Katalog gewaehlt wurde. Ein unbekanntes `kind` ist keine
+ * unbekannte Sorte, sondern ein kaputter Satz.
+ */
+function parseMaterial(input: unknown, path: string): Material {
+  const value = record(input, path);
+  exactKeys(value, path, ['kind', 'id', 'grade', 'moduli']);
+  return {
+    kind: oneOf(
+      value.kind,
+      [
+        'steel',
+        'concrete',
+        'timber',
+      ] as const satisfies readonly MaterialKind[],
+      `${path}.kind`,
+    ),
+    id: text(value.id, `${path}.id`),
+    grade: text(value.grade, `${path}.grade`),
+    moduli: parseModuli(value.moduli, `${path}.moduli`),
+  };
+}
+
+/**
+ * Die kopierten Moduln — als GESTALT, nicht gegen den Katalog.
+ *
+ * Sie hier nachzuschlagen und zu vergleichen waere die stille Aufloesung durch
+ * die Hintertuer, und zwar an der Stelle, an der ein Nutzer am wenigsten
+ * Gelegenheit haette, sie zu bemerken. Ein Abgleich gehoert in ein Werkzeug,
+ * das jemand aufruft und dessen Diff er sieht (ADR 0027).
+ *
+ * Positiv und nicht nur endlich: ein Modul von 0 oder darunter ist kein
+ * Werkstoff, sondern ein Tippfehler — und `EA = 0` faende erst das
+ * Gleichungssystem, wo es keinem Stab mehr zuzuordnen ist.
+ */
+function parseModuli(input: unknown, path: string): ElasticModuli {
+  const value = record(input, path);
+  exactKeys(value, path, ['E', 'G']);
+  return {
+    E: positive(value.E, `${path}.E`),
+    G: positive(value.G, `${path}.G`),
+  };
 }
 
 /**
  * Der Querschnitt an der Snapshot-Grenze.
  *
- * NUR DIE GESTALT, nicht die Aufloesbarkeit: ob ein `profile` im Katalog
- * steht oder ob ein Stab auf einen vorhandenen Querschnitt zeigt, prueft diese
- * Stelle NICHT. Beides meldet der Bericht des Solvers als Modellfehler
- * (`UnknownSectionStiffnessError`), und eine zweite Regel an der zweiten Stelle
- * gaebe zwei Wahrheiten darueber, was ein gueltiges Modell ist.
+ * NUR DIE GESTALT, nicht die Aufloesbarkeit. Zwei Dinge prueft diese Stelle
+ * ausdruecklich NICHT, aus zwei verschiedenen Gruenden:
+ *
+ * - Ob ein Stab auf einen vorhandenen Querschnitt zeigt. Das meldet der Bericht
+ *   des Solvers als Modellfehler (`UnknownSectionStiffnessError`), und eine
+ *   zweite Regel an einer zweiten Stelle gaebe zwei Wahrheiten darueber, was
+ *   ein gueltiges Modell ist.
+ * - Ob `profile` im Katalog steht und ob `data` noch zur heutigen Tabelle
+ *   passt. Das ist seit ADR 0027 gar keine Frage mehr, die dieser Parser
+ *   stellen darf: die Zeile IM SATZ ist die Wahrheit. Ein Vergleich hier waere
+ *   die stille Aufloesung durch die Hintertuer — an der Stelle, an der ein
+ *   Nutzer sie am wenigsten bemerken kann. Ein Tippfehler in der Bezeichnung
+ *   ist beim Anlegen aufgefallen (`FEMScriptError`), lange vorher.
  *
  * `idealisation` ist Pflicht, wo `ShapeSpec` es verlangt — ein fehlendes Feld
  * hier stillschweigend auf `'solid'` zu setzen, waere genau der Default, den
@@ -167,16 +261,61 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
   const id = text(value.id, `${path}.id`);
 
   if (kind === 'profile') {
-    exactKeys(value, path, ['kind', 'id', 'profile']);
+    exactKeys(value, path, ['kind', 'id', 'profile', 'data']);
     return {
       kind,
       id,
       profile: text(value.profile, `${path}.profile`),
+      data: parseProfileData(value.data, `${path}.data`),
     };
   }
 
   exactKeys(value, path, ['kind', 'id', 'shape']);
   return { kind, id, shape: parseShape(value.shape, `${path}.shape`) };
+}
+
+/** Die beiden Spalten, die eine Zeile weglassen darf. Siehe unten. */
+const OPTIONAL_PROFILE_KEYS = new Set(['Ay', 'Az']);
+
+/**
+ * Die kopierte Tabellenzeile — wieder als GESTALT, nicht gegen den Katalog.
+ *
+ * Der Spaltensatz kommt aus `PROFILE_DATA_KEYS` und nicht aus einer Liste
+ * hier: `@baustatik/steel-profiles` besitzt die Zeile und sagt deshalb auch,
+ * woraus sie besteht. Wer eine Spalte ergaenzt, tut es dort, und dieser Parser
+ * laesst sie ohne weiteres Zutun durch.
+ *
+ * `Ay`/`Az` duerfen fehlen — eine Reihe ohne tabellierte Schubflaeche rechnet
+ * schubstarr, statt dass ein Naeherungswert erfunden wird. `r` darf 0 sein:
+ * ein geschweisstes Profil hat keine Ausrundung. Alles Uebrige ist echt
+ * positiv, denn eine Flaeche oder ein Traegheitsmoment von 0 ist kein Profil.
+ */
+function parseProfileData(input: unknown, path: string): SteelProfileData {
+  const value = record(input, path);
+  exactKeys(value, path, [...PROFILE_DATA_KEYS]);
+
+  const parsed: Partial<Record<(typeof PROFILE_DATA_KEYS)[number], number>> =
+    {};
+  for (const key of PROFILE_DATA_KEYS) {
+    const at = `${path}.${key}`;
+    if (value[key] === undefined && OPTIONAL_PROFILE_KEYS.has(key)) continue;
+    // Der Ausrundungsradius ist die einzige Spalte, die 0 sein DARF.
+    parsed[key] =
+      key === 'r' ? nonNegative(value[key], at) : positive(value[key], at);
+  }
+  // Der Cast geht von `Partial` auf vollstaendig, und er ist belegt: die
+  // Schleife laeuft ueber ALLE Spalten und laesst nur die aus, die
+  // `SteelProfileData` selbst optional fuehrt. Ausgeschrieben stuenden hier
+  // 21 Zeilen — eine zweite Liste neben `PROFILE_DATA_KEYS`, die auseinander
+  // laufen kann.
+  return parsed as SteelProfileData;
+}
+
+/** Eine Groesse, die verschwinden darf, aber nicht negativ werden. */
+function nonNegative(value: unknown, path: string): number {
+  const number = finite(value, path);
+  if (number < 0) fail(`${path} darf nicht negativ sein.`);
+  return number;
 }
 
 /**

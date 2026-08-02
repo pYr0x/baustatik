@@ -1,7 +1,13 @@
-import { BaustatikError } from '@baustatik/errors';
 import type { CrossSection } from '@baustatik/cross-section';
+import { BaustatikError } from '@baustatik/errors';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type { BeamLoad, LoadCase, NodeLoad } from '@baustatik/fem-loads';
+import { lookupMaterial, type Material } from '@baustatik/material';
+import {
+  lookupProfile,
+  profileData,
+  type SteelProfileData,
+} from '@baustatik/steel-profiles';
 import type {
   BeamHandle,
   BeamInput,
@@ -12,6 +18,8 @@ import type {
   FEMModelSnapshotBuilder,
   LoadCaseHandle,
   LoadCaseInput,
+  MaterialHandle,
+  MaterialInput,
   ModelDefinition,
   NodeHandle,
   NodeLoadInput,
@@ -20,6 +28,13 @@ import type {
 } from './types';
 
 export class FEMScriptError extends BaustatikError {}
+
+/** Damit die Fehlermeldung sagt, WELCHER Katalog die Sorte nicht kennt. */
+const KIND_LABEL = {
+  steel: 'Stahl',
+  concrete: 'Beton',
+  timber: 'Holz',
+} as const;
 
 export function defineModel(definition: ModelDefinition): ModelDefinition {
   return definition;
@@ -74,6 +89,10 @@ class CrossSectionHandleImpl implements CrossSectionHandle {
   constructor(readonly id: string) {}
 }
 
+class MaterialHandleImpl implements MaterialHandle {
+  constructor(readonly id: string) {}
+}
+
 class LoadCaseHandleImpl implements LoadCaseHandle {
   readonly #owner: FEMModelBuilderImpl;
 
@@ -106,6 +125,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
   readonly #nodes: Node[] = [];
   readonly #beams: Beam[] = [];
   readonly #crossSections: CrossSection[] = [];
+  readonly #materials: Material[] = [];
   readonly #supports: NodeSupport[] = [];
   readonly #loadCases: LoadCase[] = [];
   readonly #nodeHandles = new WeakSet<NodeHandleImpl>();
@@ -151,15 +171,46 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
    * Anders als Knoten und Staebe reist der Griff NICHT als Argument weiter:
    * `Beam.crossSectionId` bleibt ein String, damit `@baustatik/fem` weiterhin
    * nur an `errors` haengt (ADR 0023). Aufgerufen wird also
-   * `model.beam(a, b, { crossSectionId: ipe300.id, materialId: 'S235' })`.
+   * `model.beam(a, b, { crossSectionId: ipe300.id, materialId: s235.id })`.
+   *
+   * HIER, und nur hier, wird der Profilkatalog befragt (ADR 0027). Die Zeile
+   * geht als Kopie in den Satz; gespeichert wird ausserdem die KANONISCHE
+   * Bezeichnung, `'ipe300'` also als `'IPE 300'`.
    */
   crossSection(input: CrossSectionInput): CrossSectionHandle {
-    const record = {
-      ...structuredClone(input),
-      id: crypto.randomUUID(),
-    } as CrossSection;
+    const id = crypto.randomUUID();
+    const record: CrossSection =
+      input.kind === 'profile'
+        ? { kind: 'profile', id, ...this.requireProfile(input.profile) }
+        : { kind: 'shape', id, shape: structuredClone(input.shape) };
     this.#crossSections.push(record);
-    return new CrossSectionHandleImpl(record.id);
+    return new CrossSectionHandleImpl(id);
+  }
+
+  /**
+   * Legt ein Material ins Modell und gibt seine ID heraus — dieselbe Mechanik
+   * wie bei `crossSection`, aus demselben Grund (ADR 0026), und seit ADR 0027
+   * auch dasselbe Nachschlagen.
+   *
+   * OHNE NATIONALEN ANHANG: `E` und `G` sind charakteristische Werte, also
+   * braucht der Builder keinen Katalog und `createFEMModelBuilder()` keinen
+   * Parameter.
+   */
+  material(input: MaterialInput): MaterialHandle {
+    const found = lookupMaterial(input.kind, input.grade);
+    if (found === undefined) {
+      throw new FEMScriptError(
+        `Die Sorte "${input.grade}" steht nicht im ${KIND_LABEL[input.kind]}-Katalog.`,
+      );
+    }
+    const record: Material = {
+      kind: input.kind,
+      id: crypto.randomUUID(),
+      grade: found.grade,
+      moduli: found.moduli,
+    };
+    this.#materials.push(record);
+    return new MaterialHandleImpl(record.id);
   }
 
   loadCase(input: LoadCaseInput): LoadCaseHandle {
@@ -229,13 +280,34 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
 
   finish(): FEMModelSnapshot {
     return structuredClone({
-      schemaVersion: 2,
+      schemaVersion: 4,
       nodes: this.#nodes,
       beams: this.#beams,
       crossSections: this.#crossSections,
+      materials: this.#materials,
       supports: this.#supports,
       loadCases: this.#loadCases,
     });
+  }
+
+  /**
+   * Die Tabellenzeile zu einer Bezeichnung — oder ein Fehler an dieser Zeile.
+   *
+   * Der Wurf ist die Gegenseite von ADR 0027: weil der Katalog jetzt nur noch
+   * BEIM ANLEGEN befragt wird, gibt es genau einen Moment, in dem ein
+   * Tippfehler auffallen kann, und das ist dieser. Frueher wanderte er als
+   * `undefined` bis in den Solver-Bericht und stand dort neben echten
+   * Modellfehlern.
+   */
+  private requireProfile(name: string): {
+    profile: string;
+    data: SteelProfileData;
+  } {
+    const row = lookupProfile(name);
+    if (row === undefined) {
+      throw new FEMScriptError(`Das Profil "${name}" steht nicht im Katalog.`);
+    }
+    return { profile: row.id, data: profileData(row) };
   }
 
   private requireNode(handle: NodeHandle, label: string): NodeHandleImpl {

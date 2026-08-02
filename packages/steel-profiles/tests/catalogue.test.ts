@@ -3,6 +3,8 @@ import {
   HEA,
   IPE,
   lookupProfile,
+  PROFILE_DATA_KEYS,
+  profileData,
   type ProfileSeries,
   profileSeries,
   profilesIn,
@@ -108,6 +110,23 @@ describe('lookupProfile', () => {
   });
 });
 
+describe('profileData', () => {
+  // Seit ADR 0027 reist die Zeile im Modell mit. Was dabei ZURUECKBLEIBT, ist
+  // die Herkunft: `profile` steht im Modellsatz schon als eigenes Feld, und
+  // `series` ist eine Aussage ueber den Katalog, nicht ueber den Querschnitt.
+  it('streift id und series ab und laesst sonst nichts liegen', () => {
+    const ipe200 = lookupProfile('IPE 200');
+    expect(ipe200).toBeDefined();
+    if (ipe200 === undefined) return;
+
+    const data = profileData(ipe200);
+    expect(Object.keys(data).sort()).toEqual([...PROFILE_DATA_KEYS].sort());
+    for (const key of PROFILE_DATA_KEYS) {
+      expect(data[key], key).toBe(ipe200[key]);
+    }
+  });
+});
+
 describe('Vollzaehligkeit', () => {
   // Das Extraktionsskript bricht bei abweichender Zeilenzahl ab; dieser Test
   // wiederholt die Zaehlung gegen die ERZEUGTEN Dateien. Ein stillschweigend
@@ -126,29 +145,9 @@ describe('Vollzaehligkeit', () => {
       const profiles = profilesIn(series);
       expect(profiles).toHaveLength(expected[series]);
       for (const p of profiles) {
-        for (const key of [
-          'h',
-          'b',
-          'tw',
-          'tf',
-          'r',
-          'A',
-          'Ay',
-          'Az',
-          'Iy',
-          'Iz',
-          'iy',
-          'iz',
-          'Wely',
-          'Welz',
-          'Wply',
-          'Wplz',
-          'It',
-          'Iw',
-          'SyMax',
-          'SzMax',
-          'mass',
-        ] as const) {
+        // Aus `PROFILE_DATA_KEYS` statt aus einer zweiten Liste hier: die
+        // Spalten einer Zeile sind eine Aussage, und sie steht in `types.ts`.
+        for (const key of PROFILE_DATA_KEYS) {
           expect(
             Number.isFinite(p[key]),
             `${p.id}.${key} = ${String(p[key])}`,

@@ -1,4 +1,4 @@
-import type { CrossSection } from '@baustatik/cross-section';
+import type { CrossSection, ShapeSpec } from '@baustatik/cross-section';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type {
   BeamLoad,
@@ -7,6 +7,7 @@ import type {
   LoadCase,
   NodeLoad,
 } from '@baustatik/fem-loads';
+import type { Material, MaterialKind } from '@baustatik/material';
 
 type Without<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
@@ -25,11 +26,29 @@ export type BeamLoadInput = WithOptionalReferenceLength<
 >;
 export type LoadCaseInput = Omit<LoadCase, 'id' | 'loads'>;
 /**
- * Ein Querschnitt ohne ID — die vergibt das Modell, wie bei Knoten und Staeben.
- * `CrossSectionHandle.id` reicht sie wieder heraus, damit `BeamInput` sie
- * eintragen kann.
+ * Ein Querschnitt, wie man ihn HINSCHREIBT — nicht der Satz ohne seine ID.
+ *
+ * Zwei Dinge beschafft das Modell: die ID, wie bei Knoten und Staeben, und
+ * seit [ADR 0027](../../../docs/adr/0027-catalogues-are-import-sources.md) die
+ * TABELLENZEILE. Der Autor nennt weiterhin nur `'IPE 300'`; `crossSection()`
+ * schlaegt nach und legt die Zeile daneben in den Satz. Deshalb steht hier
+ * nicht mehr `Without<CrossSection, 'id'>`: die Eingabe ist echt kleiner als
+ * der Satz geworden.
+ *
+ * Ein Profil, das der Katalog nicht kennt, ist ab hier ein Fehler AN DIESER
+ * ZEILE (`FEMScriptError`) und nicht mehr ein `undefined` im Solver-Bericht.
  */
-export type CrossSectionInput = Without<CrossSection, 'id'>;
+export type CrossSectionInput =
+  | { kind: 'shape'; shape: ShapeSpec }
+  | { kind: 'profile'; profile: string };
+/**
+ * Ein Material, wie man es hinschreibt — dieselbe Regel wie beim Querschnitt.
+ *
+ * Das Modell beschafft ID und Moduln. Fuer das Nachschlagen braucht es KEINEN
+ * Nationalen Anhang: `E` und `G` sind charakteristische Werte (ADR 0026), und
+ * `lookupMaterial` hat deshalb gar keinen Parameter dafuer.
+ */
+export type MaterialInput = { kind: MaterialKind; grade: string };
 export type ActionCategory = NonNullable<LoadCaseInput['category']>;
 export type LoadOrigin = FEMLoadOrigin;
 export type ReferenceLength = FEMReferenceLength;
@@ -63,6 +82,19 @@ export interface CrossSectionHandle {
   readonly id: string;
 }
 
+/**
+ * Der Griff auf ein Material im Modell — wortgleich zu `CrossSectionHandle`
+ * und aus demselben Grund.
+ *
+ * `Beam.materialId` bleibt ein String (ADR 0026), also reicht der Griff seine
+ * ID heraus, statt selbst als Argument zu reisen. Ein Stab darf ein Material
+ * nennen, das es (noch) nicht gibt; der Bericht des Solvers meldet den
+ * unaufloesbaren Verweis, nicht der Compiler.
+ */
+export interface MaterialHandle {
+  readonly id: string;
+}
+
 export interface LoadCaseHandle {
   readonly name: string;
 
@@ -88,6 +120,8 @@ export interface FEMModelBuilder {
 
   crossSection(input: CrossSectionInput): CrossSectionHandle;
 
+  material(input: MaterialInput): MaterialHandle;
+
   loadCase(input: LoadCaseInput): LoadCaseHandle;
 }
 
@@ -98,21 +132,29 @@ export interface FEMModelSnapshotBuilder extends FEMModelBuilder {
 /**
  * Das serialisierbare Modell.
  *
- * SEIT v2 SELBSTTRAGEND: `crossSections` traegt die Querschnitte mit, auf die
- * `Beam.crossSectionId` zeigt. Bis v1 zeigte dieser Verweis ins Leere — der
- * Snapshot beschrieb ein Modell, das sich ohne einen zweiten, nirgends
- * genannten Datenbestand nicht rechnen liess.
+ * SELBSTTRAGEND IN DEN VERWEISEN seit v2/v3: `crossSections` und `materials`
+ * tragen mit, worauf `Beam.crossSectionId` und `Beam.materialId` zeigen. Bis v1
+ * zeigte der erste Verweis ins Leere, bis v2 der zweite — `materialId` war die
+ * Guete-Bezeichnung selbst und wurde am Ende der Kette blind als Stahlsorte
+ * gelesen.
  *
- * `schemaVersion` ist eine feste Zahl und kein Bereich: ein v1-Snapshot wird
- * ABGELEHNT, nicht stillschweigend um ein leeres `crossSections` ergaenzt.
- * Ein Modell ohne Querschnitte rechnet nicht, und ein Ergaenzen taeuschte
- * vor, es koennte.
+ * SELBSTTRAGEND IN DEN ZAHLEN seit v4: die Saetze fuehren die Profilzeile und
+ * die Moduln als KOPIE. Bis v3 rechnete ein gespeichertes Modell gegen die
+ * Tabellen der gerade laufenden Programmversion — eine korrigierte Zeile, und
+ * jedes alte Modell antwortete still anders
+ * ([ADR 0027](../../../docs/adr/0027-catalogues-are-import-sources.md)).
+ *
+ * `schemaVersion` ist eine feste Zahl und kein Bereich: ein aelterer Snapshot
+ * wird ABGELEHNT. Ein v3 per Lookup zu ergaenzen waere genau die stille
+ * Aufloesung, die v4 abschafft — einmal ausgefuehrt im unguenstigsten Moment
+ * und danach nicht mehr von einer bewussten Wahl zu unterscheiden.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 4;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];
+  readonly materials: readonly Material[];
   readonly supports: readonly NodeSupport[];
   readonly loadCases: readonly LoadCase[];
 }

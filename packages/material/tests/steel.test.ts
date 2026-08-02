@@ -37,4 +37,12 @@ describe('steel / Baustahl (DE default)', () => {
   it('throws for an unknown grade', () => {
     expect(() => steel('S999' as never)).toThrow(UnknownGradeError);
   });
+
+  it('accepts inner whitespace and case, like lookupProfile does', () => {
+    // `'S 235'` steht so in Normtabellen. Die Faltung ist dieselbe wie in
+    // `@baustatik/steel-profiles`, damit ein Anwender nicht lernen muss, an
+    // welcher Stelle des Programms welche Schreibweise gilt.
+    expect(steel('s 235').grade).toBe('S235');
+    expect(steel('  S 355  ').fyk).toBe(355);
+  });
 });

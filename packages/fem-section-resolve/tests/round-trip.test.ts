@@ -19,12 +19,10 @@ import {
   type LinearSolveOutcome,
   type SolveResult,
 } from '@baustatik/fem-solver';
-import { createMaterials } from '@baustatik/material';
+import type { Material } from '@baustatik/material';
 import { createFEMModelBuilder, parseFEMModelSnapshot } from '@baustatik/script';
 import { describe, expect, it } from 'vitest';
 import { resolveSectionStiffness } from '../src/index';
-
-const materials = createMaterials({ na: 'DE' });
 
 /** Dichtes Gauss ohne Pivotierung — `K` ist symmetrisch positiv definit. */
 function gaussSolve(
@@ -59,11 +57,12 @@ function gaussSolve(
 function buildCantilever() {
   const model = createFEMModelBuilder();
   const ipe300 = model.crossSection({ kind: 'profile', profile: 'IPE 300' });
+  const s235 = model.material({ kind: 'steel', grade: 'S235' });
   const fixed = model
     .node({ x: 0, z: 0 })
     .support({ ux: 'fixed', uz: 'fixed', phiY: 'fixed' });
   const tip = model.node({ x: 2, z: 0 });
-  model.beam(fixed, tip, { crossSectionId: ipe300.id, materialId: 'S235' });
+  model.beam(fixed, tip, { crossSectionId: ipe300.id, materialId: s235.id });
   model.loadCase({ name: 'P' }).nodeLoad(tip, { fz: 10 });
   return model.finish();
 }
@@ -72,6 +71,7 @@ async function solve(snapshot: {
   nodes: readonly { id: string }[];
   beams: readonly Beam[];
   crossSections: readonly CrossSection[];
+  materials: readonly Material[];
   supports: readonly unknown[];
   loadCases: readonly { id: string }[];
 }): Promise<SolveResult> {
@@ -80,8 +80,10 @@ async function solve(snapshot: {
     getBeams: () => snapshot.beams,
     getSupports: () => snapshot.supports as never,
     getLoadCases: () => snapshot.loadCases as never,
+    // Der Snapshot ERFUELLT `SectionModel` strukturell: er fuehrt
+    // `crossSections` und `materials`, und beide reisen mit ihm.
     getSectionStiffness: (beam) =>
-      resolveSectionStiffness(beam, snapshot.crossSections, materials),
+      resolveSectionStiffness(beam, snapshot),
     solveLinearSystem: gaussSolve,
   });
   return solver.solve(snapshot.loadCases[0].id);
@@ -142,7 +144,11 @@ describe('Ein Snapshot ist selbsttragend', () => {
       getBeams: () => built.beams,
       getSupports: () => built.supports as never,
       getLoadCases: () => built.loadCases as never,
-      getSectionStiffness: (beam) => resolveSectionStiffness(beam, [], materials),
+      getSectionStiffness: (beam) =>
+        resolveSectionStiffness(beam, {
+          crossSections: [],
+          materials: built.materials,
+        }),
       solveLinearSystem: gaussSolve,
     });
     const report = solver.check(built.loadCases[0].id);

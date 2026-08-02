@@ -1,7 +1,8 @@
 import { type Node, type Beam, type NodeSupport, BeamEndReleases } from '@baustatik/fem';
-import { sectionProperties, type CrossSection } from '@baustatik/cross-section';
+import { sectionProperties, type CrossSection, type ShapeSpec } from '@baustatik/cross-section';
 import { resolveSectionStiffness } from '@baustatik/fem-section-resolve';
-import { createMaterials } from '@baustatik/material';
+import { lookupMaterial, type Material, type MaterialKind } from '@baustatik/material';
+import { lookupProfile, profileData } from '@baustatik/steel-profiles';
 import {
     assertValidLoadCase,
     type BeamLoad,
@@ -39,6 +40,7 @@ const useStore = defineStore('sections', {
         nodes: [] as Node[],
         beams: [] as Beam[],
         crossSections: [] as CrossSection[],
+        materials: [] as Material[],
         supports: [] as NodeSupport[],
         loadCases: [] as LoadCase[],
         activeLoadCaseId: '',
@@ -54,8 +56,26 @@ const useStore = defineStore('sections', {
         addNode(position: { x: number; z: number }) {
             this.nodes.push({ id: crypto.randomUUID(), position });
         },
-        addBeam(startNode: Node, endNode: Node, crossSection: CrossSection, materialId: string) {
-            this.beams.push({ id: crypto.randomUUID(), startNodeId: startNode.id, endNodeId: endNode.id, crossSectionId: crossSection.id, materialId/*, releases: { start: { theta: true }, end: { theta: true } } */ });
+        /**
+         * Das Material kommt als MODELLSATZ herein, nicht als Guete-String
+         * (ADR 0026) — genau wie der Querschnitt. Vorher stand hier `'S235'`,
+         * und am Ende der Kette las ein ungeprueftes `as SteelGrade` das
+         * wieder als Stahlsorte; ein Holz- oder Betonstab war so gar nicht
+         * modellierbar.
+         *
+         * HIER wird der Sortenkatalog befragt und NIRGENDS SONST (ADR 0027):
+         * die Moduln gehen als Kopie in den Satz. Ein Nationaler Anhang wird
+         * dafuer nicht gebraucht — `E` und `G` sind charakteristische Werte.
+         */
+        addMaterial(input: { kind: MaterialKind; grade: string }): Material {
+            const found = lookupMaterial(input.kind, input.grade);
+            if (found === undefined) throw new Error(`Die Sorte "${input.grade}" steht nicht im Katalog.`);
+            const material: Material = { kind: input.kind, id: crypto.randomUUID(), grade: found.grade, moduli: found.moduli };
+            this.materials.push(material);
+            return material;
+        },
+        addBeam(startNode: Node, endNode: Node, crossSection: CrossSection, material: Material) {
+            this.beams.push({ id: crypto.randomUUID(), startNodeId: startNode.id, endNodeId: endNode.id, crossSectionId: crossSection.id, materialId: material.id/*, releases: { start: { theta: true }, end: { theta: true } } */ });
         },
         /**
          * Das Gelenk ist ein EIGENER Modellierschritt — wie `addSupport` am
@@ -87,8 +107,19 @@ const useStore = defineStore('sections', {
          * er liegt im Store neben Knoten und Staeben und reist mit dem
          * Snapshot. `Beam.crossSectionId` bleibt ein String und zeigt hierher.
          */
-        addCrossSection(section: Without<CrossSection, 'id'>): Readonly<CrossSection> {
-            const created: CrossSection = { id: crypto.randomUUID(), ...section };
+        addCrossSection(section: { kind: 'shape'; shape: ShapeSpec } | { kind: 'profile'; profile: string }): Readonly<CrossSection> {
+            const id = crypto.randomUUID();
+            // Der Profilkatalog wird BEIM ANLEGEN befragt, und die Zeile geht
+            // als Kopie in den Satz (ADR 0027). Ein Tippfehler faellt damit
+            // hier auf statt spaeter im Bericht.
+            let created: CrossSection;
+            if (section.kind === 'profile') {
+                const row = lookupProfile(section.profile);
+                if (row === undefined) throw new Error(`Das Profil "${section.profile}" steht nicht im Katalog.`);
+                created = { kind: 'profile', id, profile: row.id, data: profileData(row) };
+            } else {
+                created = { kind: 'shape', id, shape: section.shape };
+            }
             this.crossSections.push(created);
             return created;
         },
@@ -181,8 +212,9 @@ console.log(sectionProperties(x200400));
 store.addNode(Point.make(0, 0));
 store.addNode(Point.make(2, 0));
 store.addNode(Point.make(4, 0));
-store.addBeam(store.nodes[0], store.nodes[1], IPE300, 'S235');
-store.addBeam(store.nodes[1], store.nodes[2], IPE300, 'S235');
+const S235 = store.addMaterial({ kind: 'steel', grade: 'S235' });
+store.addBeam(store.nodes[0], store.nodes[1], IPE300, S235);
+store.addBeam(store.nodes[1], store.nodes[2], IPE300, S235);
 store.addSupport(store.nodes[0], 'fixed', 'fixed', 'free');
 store.addSupport(store.nodes[1], 'free', 'fixed', 'free');
 store.addSupport(store.nodes[2], 'free', 'fixed', 'free');
@@ -191,7 +223,7 @@ store.addRelease(store.beams[0], "end");
 // Schraeger Stab als Sichttest: frame global/local und die Bezugslaengen
 // unterscheiden sich nur am schraegen Stab sichtbar.
 // store.addNode(Point.make(160, 40));
-// store.addBeam(store.nodes[1], store.nodes[2], IPE300, 'S235');
+// store.addBeam(store.nodes[1], store.nodes[2], IPE300, S235);
 
 // Repräsentative Fixtures für den Demo- und Sichttest. Die vollständige
 // Sammlung der Eingabevarianten steht in
@@ -310,10 +342,6 @@ store.$subscribe(() => {
 //    Die drei Ports (Steifigkeiten, Linearsolver, Formulierung) sind das, was
 //    das Package bewusst nicht selbst weiss. Hier bleiben sie schlicht: das
 //    Rechnen selbst zeigt `fem-cantilever.ts` gegen die Handrechnung.
-// Deutscher Nationaler Anhang — dieselbe Fabrik, die auch der Eingabedialog
-// bekaeme. Kein globaler Zustand (ADR 0002).
-const materials = createMaterials({ na: 'DE' });
-
 const solver = createFEMSolver({
     getNodes: () => store.nodes,
     getBeams: () => store.beams,
@@ -324,8 +352,11 @@ const solver = createFEMSolver({
     // Ab hier rechnet die FEM ECHT: Querschnitt x Material -> EA, EI, GAs.
     // `undefined` (unbekannter Querschnitt oder unbekanntes Material) wird vom
     // Bericht als Modellfehler gemeldet, nicht geworfen.
-    getSectionStiffness: (beam) =>
-        resolveSectionStiffness(beam, store.crossSections, materials),
+    // Der Store fuehrt `crossSections` UND `materials` und erfuellt damit die
+    // Form von `SectionModel` strukturell — er reist als EIN Stueck hinein.
+    // Ein Katalog kommt hier NICHT mehr dazu: die Saetze tragen ihre Zahlen
+    // selbst (ADR 0027), und der Rechenweg sieht keinen Nationalen Anhang.
+    getSectionStiffness: (beam) => resolveSectionStiffness(beam, store),
     solveLinearSystem,
 });
 

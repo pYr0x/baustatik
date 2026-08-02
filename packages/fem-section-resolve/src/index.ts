@@ -6,7 +6,15 @@
  * Anwendungszustand war, brauchte der Adapter eine Sammlung und musste deshalb
  * `createSectionAdapter(...)` sein. Als MODELLSATZ braucht er sie nicht: die
  * Querschnitte reisen mit dem Modell, und eine reine Funktion, die sie
- * entgegennimmt, hat keinen Zustand, der veralten koennte.
+ * entgegennimmt, hat keinen Zustand, der veralten koennte. Seit ADR 0026 gilt
+ * dasselbe fuer das Material — beide Listen kommen als `SectionModel` herein.
+ *
+ * ZWEI PARAMETER, EINE HERKUNFT. Bis ADR 0027 waren es drei: neben dem Modell
+ * kam ein `catalog` herein, und die Naht zwischen „was gespeichert wird" und
+ * „was am Nationalen Anhang haengt" lag genau hier. Seit die Moduln als Kopie
+ * im Modellsatz stehen, gibt es diese Naht nicht mehr — der ganze FEM-Strang
+ * sieht den Anhang nicht einmal. ADR 0026 hielt per Test fest, dass der Anhang
+ * die Rechnung nicht bewegt; jetzt kann er es nicht mehr.
  *
  * Warum der Adapter hier und nicht in `cross-section` lebt: `cross-section`
  * bleibt damit frei von `material` und `fem-element`. Der Wertekern haengt
@@ -27,11 +35,7 @@ import {
 } from '@baustatik/cross-section';
 import type { Beam } from '@baustatik/fem';
 import type { SectionStiffness } from '@baustatik/fem-element';
-import {
-  type Materials,
-  type SteelGrade,
-  UnknownGradeError,
-} from '@baustatik/material';
+import type { ElasticModuli, Material } from '@baustatik/material';
 
 /**
  * MPa -> kN/m2.
@@ -48,13 +52,16 @@ import {
  */
 const MPA_TO_KN_PER_M2 = 1000;
 
-/** Was die Rechnung vom Material braucht: zwei Moduln, beide in MPa. */
-export type ElasticModuli = {
-  /** Elastizitaetsmodul [MPa]. */
-  readonly Es: number;
-  /** Schubmodul [MPa]. */
-  readonly G: number;
-};
+/**
+ * Was die Rechnung vom Material braucht: zwei Moduln, beide in MPa.
+ *
+ * Der Typ ist seit ADR 0027 in `@baustatik/material` zu Hause, weil er dort ein
+ * FELD DES MODELLSATZES ist und nicht mehr nur ein Rechenzwischenwert. Er wird
+ * hier weiter herausgereicht: `sectionStiffness(props, moduli)` nimmt ihn, und
+ * ein Aufrufer, der nur diese eine Funktion braucht, soll dafuer nicht zwei
+ * Packages importieren muessen.
+ */
+export type { ElasticModuli };
 
 /**
  * Die Multiplikation — Geometrie mal Material.
@@ -77,7 +84,7 @@ export function sectionStiffness(
   props: SectionProperties,
   moduli: ElasticModuli,
 ): SectionStiffness {
-  const E = moduli.Es * MPA_TO_KN_PER_M2;
+  const E = moduli.E * MPA_TO_KN_PER_M2;
   const G = moduli.G * MPA_TO_KN_PER_M2;
 
   return {
@@ -88,52 +95,70 @@ export function sectionStiffness(
 }
 
 /**
+ * Was der Resolver vom Modell braucht: die beiden Satzlisten, auf die
+ * `Beam.crossSectionId` und `Beam.materialId` zeigen.
+ *
+ * Ein Objekt statt drei Positionsargumenten — drei Positionen waeren
+ * verwechselbar, und ein Store, der beide Listen ohnehin fuehrt, passt so als
+ * EIN Stueck hinein: `resolveSectionStiffness(beam, store)`.
+ */
+export type SectionModel = {
+  readonly crossSections: readonly CrossSection[];
+  readonly materials: readonly Material[];
+};
+
+/**
  * Die Steifigkeiten eines Stabs, oder `undefined`.
  *
  * `undefined` heisst „kenne ich nicht" — unbekannter `crossSectionId`,
  * unbekannter `materialId`, oder ein Querschnitt, dessen Werte sich nicht
- * bilden lassen. Der Solver-Port `getSectionStiffness` hat genau dieses
- * Vokabular; daraus wird ein Modellfehler IM BERICHT statt einer Ausnahme
- * mitten in `solve()`.
+ * bilden lassen. „Unbekannte Sorte" steht seit ADR 0027 NICHT mehr in dieser
+ * Liste: die Moduln stehen im Satz, also gibt es sie. Ein Tippfehler in der
+ * Sorte wird beim ANLEGEN gemeldet, wo er steht. Der Solver-Port
+ * `getSectionStiffness` hat genau dieses Vokabular; daraus wird ein
+ * Modellfehler IM BERICHT statt einer Ausnahme mitten in `solve()`.
  *
- * `materialId` wird als Stahlsorte gelesen (`'S235'`). Das ist heute die
- * einzige Sorte, deren `Es` UND `G` der Katalog fuehrt; Beton und Holz
- * brauchen je einen eigenen Zweig, sobald ein Querschnitt sie meint.
+ * Die Auswahl der Familie — frueher ein `switch` ueber `material.kind` mit
+ * einem `as SteelGrade` je Zweig — ist hier ersatzlos verschwunden. Sie ist
+ * beim Anlegen einmal getroffen worden und im Satz festgehalten.
+ *
+ * BETON WIRD IN ZUSTAND I GERECHNET — linear-elastisch, Zugzone voll
+ * mitwirkend. `Material.moduli` traegt fuer Beton `Ecm` und `G` (ν = 0,2), und
+ * das beschreibt genau das. Diese Zeile ist die Stelle, an der die Annahme
+ * VOLLZOGEN wird, und sie ist teurer, als sie aussieht:
+ *
+ * - **Durchbiegungen stimmen nicht.** Im Gebrauchszustand ist beim Stahlbeton
+ *   in der Regel ZUSTAND II massgebend; `EI` liegt hier also zu hoch, und die
+ *   Verformung faellt zu klein aus. Fuer Schnittgroessen am statisch
+ *   bestimmten System ist das folgenlos, fuer einen Verformungsnachweis nicht.
+ * - **Es gibt keine nichtlineare Bemessung im GZT.** Ein Verfahren nach
+ *   EN 1992-1-1 §5.7 braucht eine last- und rissabhaengige Steifigkeit; die
+ *   gibt es hier nicht.
+ * - **Die Superposition faellt.** Rissbildung ist LASTABHAENGIG. Sobald sie
+ *   mitgerechnet wird, haengt `EI` nicht mehr am Stab allein, sondern am Paar
+ *   (Stab, Lastniveau) — und Lastfaelle lassen sich nicht mehr getrennt
+ *   rechnen und hinterher summieren.
+ *
+ * Der letzte Punkt trifft die SIGNATUR, nicht nur den Zahlenwert: der Port
+ * `getSectionStiffness(beam)` bekommt keinen Lastfall und kann keinen
+ * bekommen, solange die Steifigkeit eine Eigenschaft des Stabes ist. Das ist
+ * kein Versaeumnis — es ist die Bauform der Theorie I. Ordnung im Zustand I.
+ * Siehe CONTEXT.md, „Zustand I ist die stillschweigende Annahme".
  */
 export function resolveSectionStiffness(
   beam: Beam,
-  sections: readonly CrossSection[],
-  materials: Materials,
+  model: SectionModel,
 ): SectionStiffness | undefined {
-  const section = sections.find((cs) => cs.id === beam.crossSectionId);
+  const section = model.crossSections.find(
+    (cs) => cs.id === beam.crossSectionId,
+  );
   if (section === undefined) return undefined;
 
   const props = sectionProperties(section);
   if (props === undefined) return undefined;
 
-  const steel = resolveSteel(beam.materialId, materials);
-  if (steel === undefined) return undefined;
+  const material = model.materials.find((m) => m.id === beam.materialId);
+  if (material === undefined) return undefined;
 
-  return sectionStiffness(props, steel);
-}
-
-/**
- * Die Uebersetzung „unbekannte Sorte" -> `undefined`.
- *
- * `materials.steel` WIRFT bei unbekannter Sorte, und das ist dort richtig: wer
- * `steel('S234')` hinschreibt, hat sich vertippt. An dieser Grenze ist es aber
- * kein Fehler des Aufrufers, sondern eine Aussage ueber das MODELL — und die
- * gehoert in den Bericht. Genau solche Uebersetzungen sind die Aufgabe eines
- * Adapters.
- */
-function resolveSteel(
-  materialId: string,
-  materials: Materials,
-): ElasticModuli | undefined {
-  try {
-    return materials.steel(materialId as SteelGrade);
-  } catch (error) {
-    if (error instanceof UnknownGradeError) return undefined;
-    throw error;
-  }
+  return sectionStiffness(props, material.moduli);
 }

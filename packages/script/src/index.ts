@@ -17,6 +17,8 @@ export type {
   LoadCaseHandle,
   LoadCaseInput,
   LoadOrigin,
+  MaterialHandle,
+  MaterialInput,
   ModelDefinition,
   NodeHandle,
   NodeLoadInput,

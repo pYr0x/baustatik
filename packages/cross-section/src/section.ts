@@ -1,7 +1,4 @@
-import {
-  lookupProfile,
-  type SteelProfileData,
-} from '@baustatik/steel-profiles';
+import type { SteelProfileData } from '@baustatik/steel-profiles';
 import type { mm } from '@baustatik/units';
 import type { SectionProperties } from './properties';
 import { hollowRectangle } from './shapes/hollow-rectangle';
@@ -84,24 +81,48 @@ export type ShapeSpec =
  */
 export type CrossSection =
   | { kind: 'shape'; id: string; shape: ShapeSpec }
-  | { kind: 'profile'; id: string; profile: string };
+  | {
+      kind: 'profile';
+      id: string;
+      /**
+       * Die HERKUNFT, z. B. `'IPE 300'` — nicht mehr der Schluessel, mit dem
+       * gerechnet wird. Die Zahlen stehen daneben in `data`.
+       */
+      profile: string;
+      /**
+       * Die KOPIE der Tabellenzeile, hereingeholt beim Anlegen
+       * ([ADR 0027](../../../docs/adr/0027-catalogues-are-import-sources.md)).
+       *
+       * Ohne sie rechnete ein gespeichertes Modell gegen die Tabelle der gerade
+       * laufenden Programmversion: eine korrigierte Zeile, und jedes alte
+       * Modell antwortet still anders.
+       *
+       * DIE GANZE ZEILE, nicht die fuenf Zahlen der Steifigkeit. Zwei
+       * Verbraucher lesen heute schon DISJUNKTE Teilmengen —
+       * `profileProperties` liest `A`/`Ay`/`Az`/`Iy`/`Iz`, die Spannungspunkte
+       * lesen `h`/`b`/`tw`/`tf`/`r` — und die Bemessung liest spaeter `Wply`
+       * und `It`. Jede Teilmenge waere eine weitere Meinung darueber, was ein
+       * Profil ist.
+       */
+      data: SteelProfileData;
+    };
 
 /**
  * Die Querschnittswerte eines Querschnitts — die EINE Tuer dieses Packages.
  *
- * `undefined` heisst „kenne ich nicht": ein unbekannter `profile` oder
- * unsinnige Abmessungen. Kein Wurf, weil der Wert im FEM-Strang durch den Port
- * `getSectionStiffness` laeuft, und dort ist `undefined` bereits der Vertrag
- * fuer „Querschnitt unbekannt" — daraus wird ein Modellfehler IM BERICHT statt
- * einer Ausnahme mitten in `solve()`.
+ * `undefined` heisst „kenne ich nicht" — und seit ADR 0027 heisst es NUR NOCH
+ * „unsinnige Abmessungen". Der Fall „unbekanntes Profil" ist hier
+ * verschwunden: die Zeile steht im Satz, also gibt es sie. Wer sich vertippt,
+ * merkt es beim ANLEGEN, wo der Tippfehler steht, und nicht im Solver-Bericht.
+ *
+ * Kein Wurf, weil der Wert im FEM-Strang durch den Port `getSectionStiffness`
+ * laeuft, und dort ist `undefined` bereits der Vertrag — daraus wird ein
+ * Modellfehler IM BERICHT statt einer Ausnahme mitten in `solve()`.
  */
 export function sectionProperties(
   cs: CrossSection,
 ): SectionProperties | undefined {
-  if (cs.kind === 'profile') {
-    const profile = lookupProfile(cs.profile);
-    return profile === undefined ? undefined : profileProperties(profile);
-  }
+  if (cs.kind === 'profile') return profileProperties(cs.data);
 
   const shape = shapeResult(cs.shape);
   return shape === undefined ? undefined : toProperties(shape);

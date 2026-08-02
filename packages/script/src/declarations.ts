@@ -23,6 +23,14 @@ declare module '@baustatik/script' {
   export interface CrossSectionHandle {
     readonly id: string;
   }
+  /** Die Guete ist ein freier String; ob es sie gibt, entscheidet der Katalog. */
+  export type MaterialInput =
+    | { kind: 'steel'; grade: string }
+    | { kind: 'concrete'; grade: string }
+    | { kind: 'timber'; grade: string };
+  export interface MaterialHandle {
+    readonly id: string;
+  }
   export type BeamInput = {
     crossSectionId: string;
     materialId: string;
@@ -87,6 +95,7 @@ declare module '@baustatik/script' {
     node(position: Position): NodeHandle;
     beam(startNode: NodeHandle, endNode: NodeHandle, input: BeamInput): BeamHandle;
     crossSection(input: CrossSectionInput): CrossSectionHandle;
+    material(input: MaterialInput): MaterialHandle;
     loadCase(input: LoadCaseInput): LoadCaseHandle;
   }
   export type ModelDefinition = (model: FEMModelBuilder) => void;
