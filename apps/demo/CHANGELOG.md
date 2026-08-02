@@ -1,5 +1,24 @@
 # demo
 
+## 1.0.4
+
+### Patch Changes
+
+- Updated dependencies [5f543a4]
+- Updated dependencies [5f543a4]
+- Updated dependencies [5f543a4]
+- Updated dependencies [5f543a4]
+- Updated dependencies [5f543a4]
+- Updated dependencies [5f543a4]
+- Updated dependencies [5f543a4]
+- Updated dependencies [5f543a4]
+  - @baustatik/cross-section@0.3.0
+  - @baustatik/material@0.1.0
+  - @baustatik/steel-profiles@0.2.0
+  - @baustatik/fem-section-resolve@0.2.0
+  - @baustatik/script@0.2.0
+  - @baustatik/cross-section-viewer@0.1.2
+
 ## 1.0.3
 
 ### Patch Changes
