@@ -6,7 +6,7 @@
 
 - **Was der Schreibende tippt, aendert sich NICHT.** `model.crossSection({ kind:
   'profile', profile: 'IPE 300' })` und `model.material({ kind: 'steel', grade:
-  'S235' })' bleiben Wort fuer Wort dieselben, und `femScriptDeclarations` musste
+  'S235' })` bleiben Wort fuer Wort dieselben, und `femScriptDeclarations` musste
   nicht angefasst werden. Ein Test haelt das fest — der wahrscheinlichste Weg,
   die Ergonomie kaputtzumachen, ist gut gemeint.
 - **Der Builder befragt den Katalog, und nur er**

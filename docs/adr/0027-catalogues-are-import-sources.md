@@ -125,9 +125,11 @@ them; the copy is what `finish()` writes, not what the author types. This is
 RSTAB's split precisely: choose by name in the dialog, store numbers in the file.
 
 Building a model therefore needs **no National Annex**. `material` gains an
-Annex-free `materialModuli(kind, grade)` beside `createMaterials`, reading the
+Annex-free `lookupMaterial(kind, grade)` beside `createMaterials`, reading the
 same tables and the same `G` quotients that `makeSteel`/`makeConcrete`/
-`makeTimber` use. ADR 0026 established by test that the Annex does not move the
+`makeTimber` use. It is named for its twin `lookupProfile` and behaves like it —
+same folding rule, `undefined` instead of a throw, and the canonical designation
+handed back with the values. ADR 0026 established by test that the Annex does not move the
 FEM; now the FEM path cannot see the Annex at all.
 
 ## The failure moves with the lookup, and splits in two
@@ -185,7 +187,9 @@ Nothing on disk is affected; no snapshot has ever been persisted.
   required `data`. `sectionProperties`/`stressPoints` no longer look anything up;
   the dependency on `steel-profiles` becomes type-only in `src`.
 - Breaking change to `@baustatik/material`: `Material` gains a required
-  `moduli`; `ElasticModuli` and `materialModuli` are new exports.
+  `moduli`; `ElasticModuli`, `lookupMaterial` and `MaterialLookup` are new
+  exports. `ElasticModuli` lives in `model.ts` next to `Material`, because it is
+  a field of the record rather than a computation's intermediate.
   `createMaterials` and `MaterialCatalog` are untouched — ADR 0002 stands.
 - Breaking change to `@baustatik/script`: `schemaVersion: 4`;
   `CrossSectionInput`/`MaterialInput` become explicit types rather than

@@ -106,8 +106,10 @@ export interface SteelProfile extends SteelProfileData {
  * bekommt einen Typfehler und keinen Parser, der die neue Spalte stillschweigend
  * ablehnt.
  *
- * `Ay`/`Az` sind optional — Reihen ohne Schubflaeche rechnen schubstarr, statt
- * dass ein Naeherungswert erfunden wird (siehe `SteelProfileData`).
+ * WELCHE Spalten fehlen duerfen, sagt `OPTIONAL_PROFILE_DATA_KEYS` darunter —
+ * nicht der Parser. Sonst stuende die Optionalitaet als zweite Liste an einer
+ * zweiten Stelle, und eine dritte optionale Spalte hier liesse den Parser
+ * Snapshots ablehnen, die sie weglassen.
  */
 export const PROFILE_DATA_KEYS = [
   'h',
@@ -137,6 +139,37 @@ export const PROFILE_DATA_KEYS = [
 type NoColumnMissing<T extends never> = T;
 type _ProfileDataKeysAreComplete = NoColumnMissing<
   Exclude<keyof SteelProfileData, (typeof PROFILE_DATA_KEYS)[number]>
+>;
+
+/** Die Spalten, die `SteelProfileData` mit `?` fuehrt — abgeleitet, nicht getippt. */
+type OptionalColumn = {
+  [K in keyof SteelProfileData]-?: Record<string, never> extends Pick<
+    SteelProfileData,
+    K
+  >
+    ? K
+    : never;
+}[keyof SteelProfileData];
+
+/**
+ * Welche Spalten eine Zeile weglassen darf.
+ *
+ * Heute `Ay`/`Az`: eine Reihe ohne tabellierte Schubflaeche rechnet schubstarr,
+ * statt dass ein Naeherungswert erfunden wird (siehe `SteelProfileData`).
+ *
+ * Die Liste steht HIER und nicht im Snapshot-Parser, weil das `?` an
+ * `SteelProfileData` haengt und sonst zwei Stellen wuessten, welche Spalte
+ * fehlen darf. Sie ist an den Typ gekettet: `satisfies` verbietet eine Spalte,
+ * die gar nicht optional ist, `NoColumnMissing` eine optionale, die hier fehlt.
+ * Wer ein `?` setzt oder streicht, aendert genau eine Datei.
+ */
+export const OPTIONAL_PROFILE_DATA_KEYS = [
+  'Ay',
+  'Az',
+] as const satisfies readonly OptionalColumn[];
+
+type _OptionalKeysAreComplete = NoColumnMissing<
+  Exclude<OptionalColumn, (typeof OPTIONAL_PROFILE_DATA_KEYS)[number]>
 >;
 
 /**

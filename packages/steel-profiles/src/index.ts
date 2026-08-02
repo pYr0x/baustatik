@@ -7,6 +7,7 @@ export {
   profilesIn,
 } from './lookup';
 export {
+  OPTIONAL_PROFILE_DATA_KEYS,
   PROFILE_DATA_KEYS,
   type ProfileSeries,
   profileData,

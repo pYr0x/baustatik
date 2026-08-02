@@ -3,6 +3,7 @@ import {
   HEA,
   IPE,
   lookupProfile,
+  OPTIONAL_PROFILE_DATA_KEYS,
   PROFILE_DATA_KEYS,
   profileData,
   type ProfileSeries,
@@ -123,6 +124,17 @@ describe('profileData', () => {
     expect(Object.keys(data).sort()).toEqual([...PROFILE_DATA_KEYS].sort());
     for (const key of PROFILE_DATA_KEYS) {
       expect(data[key], key).toBe(ipe200[key]);
+    }
+  });
+
+  it('sagt selbst, welche Spalten fehlen duerfen', () => {
+    // Die Optionalitaet gehoert zu `SteelProfileData` und ist aus dem `?`
+    // ABGELEITET — sonst fuehrte der Snapshot-Parser in `@baustatik/script`
+    // eine zweite Liste, und eine dritte optionale Spalte hier liesse ihn
+    // Snapshots ablehnen, die sie zu Recht weglassen.
+    expect([...OPTIONAL_PROFILE_DATA_KEYS]).toEqual(['Ay', 'Az']);
+    for (const key of OPTIONAL_PROFILE_DATA_KEYS) {
+      expect(PROFILE_DATA_KEYS, key).toContain(key);
     }
   });
 });

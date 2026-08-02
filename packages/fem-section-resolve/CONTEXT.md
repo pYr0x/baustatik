@@ -128,8 +128,10 @@ Bericht landeten.
 
 Beton wird hier **linear-elastisch im Zustand I** gerechnet: ungerissener
 Querschnitt, Zugzone voll mitwirkend, `Ecm` und `G = Ecm/(2(1+ν))` mit ν = 0,2
-(EN 1992-1-1 §3.1.3(4)). Die drei Zeilen in `resolveModuli` sind die Stelle, an
-der diese Annahme vollzogen wird.
+(EN 1992-1-1 §3.1.3(4)). Seit ADR 0027 stehen diese beiden Zahlen als Kopie in
+`Material.moduli`; ausgewaehlt hat sie `lookupMaterial`, VOLLZOGEN wird die
+Annahme hier — in dem Moment, in dem `sectionStiffness` sie mit `A` und `Iy`
+multipliziert.
 
 Sie ist teurer, als sie aussieht, und die Kosten gehoeren hierhin geschrieben —
 sonst liest jemand spaeter eine Verformung ab und glaubt ihr.
@@ -191,5 +193,10 @@ brechen dieselbe Annahme, und sie sollten zusammen entschieden werden.
 
 Vermerkt in `fem-solver/CONTEXT.md` („Keine Kombinationen") und
 `fem-loads/CONTEXT.md` („Known constraints").
+
+## Was hier ausserdem NICHT entschieden wird
+
 - **Eigengewicht.** `selfWeight` aus `A × gamma` ist der naechste Schritt und
-  gehoert hierher — die Zutaten stehen bereits beide auf dem Tisch.
+  gehoert hierher — die Zutaten stehen bereits beide auf dem Tisch. `gamma`
+  fehlt allerdings noch in `Material.moduli`; es kommt additiv mit diesem
+  Schritt (ADR 0027).

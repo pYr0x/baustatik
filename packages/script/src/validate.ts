@@ -20,6 +20,7 @@ import type {
   MaterialKind,
 } from '@baustatik/material';
 import {
+  OPTIONAL_PROFILE_DATA_KEYS,
   PROFILE_DATA_KEYS,
   type SteelProfileData,
 } from '@baustatik/steel-profiles';
@@ -274,8 +275,15 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
   return { kind, id, shape: parseShape(value.shape, `${path}.shape`) };
 }
 
-/** Die beiden Spalten, die eine Zeile weglassen darf. Siehe unten. */
-const OPTIONAL_PROFILE_KEYS = new Set(['Ay', 'Az']);
+/**
+ * WELCHE Spalten fehlen duerfen, sagt `@baustatik/steel-profiles` — nicht diese
+ * Datei. Eine eigene Liste hier waere eine zweite Wahrheit ueber das `?` an
+ * `SteelProfileData`, und eine dritte optionale Spalte drueben liesse diesen
+ * Parser Snapshots ablehnen, die sie voellig zu Recht weglassen.
+ */
+const OPTIONAL_PROFILE_KEYS: ReadonlySet<string> = new Set(
+  OPTIONAL_PROFILE_DATA_KEYS,
+);
 
 /**
  * Die kopierte Tabellenzeile — wieder als GESTALT, nicht gegen den Katalog.
