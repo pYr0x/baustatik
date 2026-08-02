@@ -245,6 +245,31 @@ describe('render-core errors and validation', () => {
     expect(() => validateSpec({ id: 't3', kind: 'triangle', center: { u: 0, v: 0 }, sideLength: NaN })).toThrow(InvalidSpecError);
   });
 
+  it('accepts a Rectangle and rejects a degenerate one', () => {
+    // Die Spec stand in der Union und der Adapter konnte sie, aber `validateSpec`
+    // kannte sie nicht — jedes Rechteck fiel in den Unbekannt-Zweig.
+    expect(() => validateSpec({
+      id: 'r0',
+      kind: 'rectangle',
+      topLeft: { u: 0, v: 0 },
+      width: 6,
+      height: 6,
+      fillColor: '#f00'
+    })).not.toThrow();
+
+    expect(() => validateSpec({ id: 'r1', kind: 'rectangle', topLeft: { u: 0, v: 0 }, width: 0, height: 6 })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ id: 'r2', kind: 'rectangle', topLeft: { u: 0, v: 0 }, width: 6, height: -1 })).toThrow(InvalidSpecError);
+    expect(() => validateSpec({ id: 'r3', kind: 'rectangle', topLeft: { u: NaN, v: 0 }, width: 6, height: 6 })).toThrow(InvalidWorldPointError);
+    expect(() => validateSpec({
+      id: 'r4',
+      kind: 'rectangle',
+      topLeft: { u: 0, v: 0 },
+      width: 6,
+      height: 6,
+      cornerRadius: [1, -1, 1, 1]
+    })).toThrow(InvalidSpecError);
+  });
+
   it('throws InvalidSpecError for invalid stroke and fill settings', () => {
     expect(() => validateSpec({
       id: 'l1',

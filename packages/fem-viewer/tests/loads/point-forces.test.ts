@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { FEMLoad } from '@baustatik/fem-loads';
 import { UnknownLoadTargetError } from '@baustatik/fem-loads';
-import type { ArrowSpec, LabelSpec } from '@baustatik/render-core';
+import type { ArrowSpec, LabelSpec, RectangleSpec } from '@baustatik/render-core';
 import { validateSpecs } from '@baustatik/render-core';
 import { pan, type Viewport } from '@baustatik/viewport-2d';
 
@@ -20,6 +20,12 @@ import {
 const NODES = [nodeA, nodeB, nodeC];
 const BEAMS = [beamAB, beamBC];
 const S = Math.SQRT1_2;
+/** Abstand zwischen Angriffspunkt und Pfeilspitze. */
+const GAP = 10;
+/** Schematische Pfeillaenge — fuer jede Kraft dieselbe. */
+const FULL = 48;
+/** Kantenlaenge der Marke; sie sitzt mittig, also zaehlt ueberall die Haelfte. */
+const MARKER = 4;
 
 const { specsFor, loadOnly, specById } = drawingOf(NODES, BEAMS);
 
@@ -40,6 +46,16 @@ function label(
 ): LabelSpec {
   const spec = specById<LabelSpec>(loads, id, vp);
   expect(spec.kind).toBe('label');
+  return spec;
+}
+
+function marker(
+  loads: readonly FEMLoad[],
+  id: string,
+  vp: Viewport = vp1,
+): RectangleSpec {
+  const spec = specById<RectangleSpec>(loads, id, vp);
+  expect(spec.kind).toBe('rectangle');
   return spec;
 }
 
@@ -67,20 +83,22 @@ const beamPointLoad = (fields: Record<string, unknown> = {}): FEMLoad =>
   }) as FEMLoad;
 
 describe('Knotenkraefte', () => {
-  it('puts the arrow tip on the node and its tail 48 px against the direction', () => {
+  it('haelt die Spitze GAP vor dem Knoten und traegt die Laenge dahinter ab', () => {
     const spec = arrow([nodeLoad()], 'load:nl:b:fz:arrow');
 
-    expect(spec.tip).toEqual({ u: 100, v: 0 });
-    // fz positiv = nach unten, die Spitze liegt unten, der Schaft daher oben.
-    expect(spec.tail).toEqual({ u: 100, v: -48 });
+    // fz positiv = nach unten: die Spitze steht ueber dem Knoten, der Schaft
+    // darueber. Der Pfeil beruehrt den Knoten nicht — wie die Streckenlast den
+    // Stab nicht beruehrt.
+    expect(spec.tip).toEqual({ u: 100, v: -GAP });
+    expect(spec.tail).toEqual({ u: 100, v: -(GAP + FULL) });
   });
 
   it('flips the arrow for a negative value but labels the plain magnitude', () => {
     const spec = arrow([nodeLoad({ fz: -10 })], 'load:nl:b:fz:arrow');
     const text = label([nodeLoad({ fz: -10 })], 'load:nl:b:fz:label');
 
-    expect(spec.tip).toEqual({ u: 100, v: 0 });
-    expect(spec.tail).toEqual({ u: 100, v: 48 });
+    expect(spec.tip).toEqual({ u: 100, v: GAP });
+    expect(spec.tail).toEqual({ u: 100, v: GAP + FULL });
     expect(text.text).toBe('10 kN');
   });
 
@@ -88,8 +106,17 @@ describe('Knotenkraefte', () => {
     const positive = arrow([nodeLoad({ fx: 10, fz: undefined })], 'load:nl:b:fx:arrow');
     const negative = arrow([nodeLoad({ fx: -10, fz: undefined })], 'load:nl:b:fx:arrow');
 
-    expect(positive.tail).toEqual({ u: 52, v: 0 });
-    expect(negative.tail).toEqual({ u: 148, v: 0 });
+    expect(positive.tip).toEqual({ u: 100 - GAP, v: 0 });
+    expect(positive.tail).toEqual({ u: 100 - GAP - FULL, v: 0 });
+    expect(negative.tail).toEqual({ u: 100 + GAP + FULL, v: 0 });
+  });
+
+  it('setzt an einem Knoten KEINE Marke — der Knoten ist die Stelle', () => {
+    // Sie laege unter dem groesseren roten Knotenkreis und sagte nichts, was das
+    // Bild nicht schon sagt.
+    const ids = loadOnly([nodeLoad()]).map((s) => s.id);
+
+    expect(ids).toEqual(['load:nl:b:fz:arrow', 'load:nl:b:fz:label']);
   });
 
   it('emits one arrow-label pair per effective component', () => {
@@ -145,28 +172,53 @@ describe('Punktuelle Stabkraefte', () => {
   it('interpolates the point of application along the beam axis', () => {
     const spec = arrow([beamPointLoad()], 'load:bl:ab:arrow');
 
-    expect(spec.tip).toEqual({ u: 50, v: 0 });
-    expect(spec.tail).toEqual({ u: 50, v: -48 });
+    // Der Angriffspunkt ist (50|0); der Pfeil endet GAP darueber.
+    expect(spec.tip).toEqual({ u: 50, v: -GAP });
+    expect(spec.tail).toEqual({ u: 50, v: -(GAP + FULL) });
+  });
+
+  it('setzt die Marke IN den Angriffspunkt, auf die Stabachse', () => {
+    // Die Gegenrechnung zum Gap: der Pfeil endet daneben, die Stelle sagt die
+    // Marke — genau wie bei der Streckenlast an den Enden ihres Abschnitts.
+    const spec = marker([beamPointLoad()], 'load:bl:ab:marker');
+
+    expect(spec.topLeft).toEqual({ u: 50 - MARKER / 2, v: 0 - MARKER / 2 });
+    expect(spec.width).toBe(MARKER);
+    expect(spec.height).toBe(MARKER);
   });
 
   it('reads a relative station as PERCENT of the beam length', () => {
-    const spec = arrow(
+    const spec = marker(
       [beamPointLoad({ distanceFromStart: 25, relativeDistances: true })],
-      'load:bl:ab:arrow',
+      'load:bl:ab:marker',
     );
 
-    expect(spec.tip).toEqual({ u: 25, v: 0 });
+    expect(spec.topLeft.u).toBeCloseTo(25 - MARKER / 2, 10);
   });
 
   it('measures the station from the start node along a skewed beam', () => {
     // b — c faellt unter 45 Grad, halbe Laenge liegt bei (150, 50).
-    const spec = arrow(
+    const spec = marker(
       [beamPointLoad({ beamIds: ['bc'], relativeDistances: true, distanceFromStart: 50 })],
-      'load:bl:bc:arrow',
+      'load:bl:bc:marker',
     );
 
-    expect(spec.tip.u).toBeCloseTo(150, 10);
-    expect(spec.tip.v).toBeCloseTo(50, 10);
+    expect(spec.topLeft.u).toBeCloseTo(150 - MARKER / 2, 10);
+    expect(spec.topLeft.v).toBeCloseTo(50 - MARKER / 2, 10);
+  });
+
+  it('haelt die Marke im Angriffspunkt, egal wohin die Last zeigt', () => {
+    // Der Pfeil dreht sich mit der Richtung, die Marke nicht: sie zeigt eine
+    // STELLE. Bei umgekehrtem Vorzeichen steht der Pfeil auf der anderen Seite
+    // des Stabs, die Marke bleibt, wo sie ist.
+    const down = marker([beamPointLoad()], 'load:bl:ab:marker');
+    const up = marker([beamPointLoad({ p: -10 })], 'load:bl:ab:marker');
+
+    expect(up.topLeft).toEqual(down.topLeft);
+    expect(arrow([beamPointLoad({ p: -10 })], 'load:bl:ab:arrow').tip).toEqual({
+      u: 50,
+      v: GAP,
+    });
   });
 
   it('keeps a global direction global on a skewed beam', () => {
@@ -208,9 +260,17 @@ describe('Punktuelle Stabkraefte', () => {
     expect(specs.map((s) => s.id)).toEqual([
       'load:bl:ab:arrow',
       'load:bl:ab:label',
+      'load:bl:ab:marker',
       'load:bl:bc:arrow',
       'load:bl:bc:label',
+      'load:bl:bc:marker',
     ]);
+  });
+
+  it('laesst mit der Last auch ihre Marke weg, wenn p 0 ist', () => {
+    // Ein Wert ohne Betrag hat keine Richtung — und keine Stelle, die zu
+    // markieren waere. Die Marke allein saehe aus wie eine Last ohne Pfeil.
+    expect(loadOnly([beamPointLoad({ p: 0 })])).toHaveLength(0);
   });
 
   it('throws UnknownLoadTargetError for a beam that does not exist', () => {
@@ -221,32 +281,10 @@ describe('Punktuelle Stabkraefte', () => {
 });
 
 describe('Noch nicht dargestellte Lastarten', () => {
-  it('ignores distributed loads instead of failing', () => {
+  it('ignores line moments instead of failing', () => {
+    // Streckenlasten als KRAFT werden gezeichnet (`distributed-forces.test.ts`);
+    // uebrig bleiben die Streckenmomente, fuer die es kein Symbol gibt.
     const ignored: FEMLoad[] = [
-      {
-        id: 'q1',
-        target: 'beam',
-        beamIds: ['bc'],
-        kind: 'force',
-        distribution: 'constant',
-        frame: 'global',
-        axis: 'z',
-        referenceLength: 'horizontalProjection',
-        q: 0.85,
-      },
-      {
-        id: 'q2',
-        target: 'beam',
-        beamIds: ['ab'],
-        kind: 'force',
-        distribution: 'trapezoidal',
-        frame: 'global',
-        axis: 'z',
-        referenceLength: 'trueLength',
-        fullLength: true,
-        q1: 1,
-        q2: 2,
-      },
       {
         id: 'm1',
         target: 'beam',
@@ -255,15 +293,26 @@ describe('Noch nicht dargestellte Lastarten', () => {
         distribution: 'constant',
         m: 3,
       },
+      {
+        id: 'm2',
+        target: 'beam',
+        beamIds: ['bc'],
+        kind: 'moment',
+        distribution: 'trapezoidal',
+        fullLength: true,
+        m1: 1,
+        m2: 2,
+      },
     ];
 
-    // Eine vorhandene Streckenlast darf das Zeichnen der Einzellast nicht
-    // verhindern.
+    // Ein nicht darstellbares Streckenmoment darf das Zeichnen der Einzellast
+    // nicht verhindern.
     const specs = loadOnly([...ignored, beamPointLoad()]);
 
     expect(specs.map((s) => s.id)).toEqual([
       'load:bl:ab:arrow',
       'load:bl:ab:label',
+      'load:bl:ab:marker',
     ]);
   });
 });
@@ -311,12 +360,23 @@ describe('Schema statt Abbild', () => {
 
     expect(at1.tip.v - at1.tail.v).toBe(48);
     expect(at4.tip.v - at4.tail.v).toBe(12);
+    // Der Gap zoomt mit — sonst risse die Luecke beim Herauszoomen auf.
+    expect(at1.tip.v).toBe(-GAP);
+    expect(at4.tip.v).toBe(-GAP / 4);
     expect(at4.pointerLength).toBe(at1.pointerLength / 4);
     expect(at4.pointerWidth).toBe(at1.pointerWidth / 4);
     expect(text4.gap).toBe(text1.gap / 4);
     expect(text4.fontSize).toBe(text1.fontSize / 4);
     expect(text4.padding).toBe(text1.padding / 4);
     expect(text4.cornerRadius!).toBe(text1.cornerRadius! / 4);
+  });
+
+  it('haelt auch die Marke bildschirmkonstant, mittig auf dem Angriffspunkt', () => {
+    const near = marker([beamPointLoad()], 'load:bl:ab:marker');
+    const far = marker([beamPointLoad()], 'load:bl:ab:marker', vp4);
+
+    expect(far.width).toBe(near.width / 4);
+    expect(far.topLeft).toEqual({ u: 50 - MARKER / 8, v: -MARKER / 8 });
   });
 
   it('leaves stroke and border widths untouched — the adapter draws them in screen px', () => {
@@ -342,7 +402,8 @@ describe('Szene bleibt gueltig', () => {
   it('puts loads into the topmost paint band', () => {
     const specs = loadOnly([nodeLoad(), beamPointLoad()]);
 
-    expect(specs).toHaveLength(4);
+    // Knotenlast: Pfeil und Label. Stablast: dazu die Marke.
+    expect(specs).toHaveLength(5);
     expect(specs.every((s) => s.layer === 'loads')).toBe(true);
   });
 

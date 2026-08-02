@@ -10,6 +10,7 @@
  */
 
 import {
+  DEFAULT_FORCE_GAP_PX,
   DEFAULT_MOMENT_RADIUS_PX,
   DEFAULT_POINT_FORCE_ARROW_LENGTH_PX,
   type SymbolStyle,
@@ -17,6 +18,7 @@ import {
 
 export interface ResultStyle {
   readonly reactionForceColor?: string;
+  readonly reactionForceGapPx?: number;
   readonly reactionForceArrowLengthPx?: number;
   readonly reactionForceArrowWidthPx?: number;
   readonly reactionForcePointerLengthPx?: number;
@@ -51,11 +53,12 @@ const REACTION_COLOR = '#15803d';
 
 export const DEFAULT_RESULT_STYLE: Required<ResultStyle> = {
   reactionForceColor: REACTION_COLOR,
-  // LAENGE und KOPF wie bei der Last: der Pfeil ist auch hier ein Schema, und
-  // zwei verschiedene Laengen im selben Bild liessen einen Groessenvergleich
-  // vermuten, den es nicht gibt. Der STRICH ist breiter (3 statt 2) — er sagt
-  // nichts ueber einen Betrag, sondern hebt das Ergebnis von der Eingabe ab,
-  // dort wo Last- und Reaktionspfeil am selben Knoten uebereinanderliegen.
+  // LAENGE, GAP und KOPF wie bei der Last: der Pfeil ist auch hier ein Schema,
+  // und zwei verschiedene Laengen im selben Bild liessen einen Groessenvergleich
+  // vermuten, den es nicht gibt. Beim Gap kommt ein zweiter Grund dazu — er ist
+  // der Abstand zum Knoten, und stuende die Reaktion naeher daran als die Last,
+  // saehe es aus, als griffen die beiden an verschiedenen Stellen an.
+  reactionForceGapPx: DEFAULT_FORCE_GAP_PX,
   reactionForceArrowLengthPx: DEFAULT_POINT_FORCE_ARROW_LENGTH_PX,
   reactionForceArrowWidthPx: 3,
   reactionForcePointerLengthPx: 10,
@@ -80,6 +83,7 @@ export const DEFAULT_RESULT_STYLE: Required<ResultStyle> = {
 export function reactionSymbolStyle(style: Required<ResultStyle>): SymbolStyle {
   return {
     forceColor: style.reactionForceColor,
+    forceGapPx: style.reactionForceGapPx,
     forceArrowLengthPx: style.reactionForceArrowLengthPx,
     forceArrowWidthPx: style.reactionForceArrowWidthPx,
     forcePointerLengthPx: style.reactionForcePointerLengthPx,

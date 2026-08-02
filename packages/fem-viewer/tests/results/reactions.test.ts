@@ -24,6 +24,11 @@ import { femSpecs } from '../../src/scene';
 const vp1 = viewport(screenPoint(0, 0), 1);
 const vp4 = viewport(screenPoint(0, 0), 4);
 
+/** Abstand zwischen Knoten und Pfeilspitze — derselbe wie bei der Last. */
+const GAP = 10;
+/** Schematische Pfeillaenge — dieselbe wie bei der Last. */
+const FULL = 48;
+
 const nodeA: Node = { id: 'a', position: { x: 0, z: 0 } };
 const nodeB: Node = { id: 'b', position: { x: 100, z: 0 } };
 
@@ -91,26 +96,27 @@ const at = (r: Partial<Reaction>) => new Map([['a', reaction(r)]]);
 
 describe('Leserichtung: die Kraft AUF das Tragwerk', () => {
   it('points the arrow UP for a support that carries a downward load', () => {
-    // `fz` negativ = die Stuetze drueckt nach oben. Spitze am Knoten wie bei der
-    // Last, Schaft daher UNTERHALB — der Pfeil zeigt nach oben.
+    // `fz` negativ = die Stuetze drueckt nach oben. Dieselbe Regel wie bei der
+    // Last: die Spitze steht `GAP` vor dem Knoten, der Schaft dahinter — also
+    // UNTERHALB, der Pfeil zeigt nach oben.
     const spec = specById<ArrowSpec>(at({ fz: -10 }), 'reaction:a:fz:arrow');
 
-    expect(spec.tip).toEqual({ u: 0, v: 0 });
-    expect(spec.tail).toEqual({ u: 0, v: 48 });
+    expect(spec.tip).toEqual({ u: 0, v: GAP });
+    expect(spec.tail).toEqual({ u: 0, v: GAP + FULL });
   });
 
   it('flips with the sign and labels the plain magnitude', () => {
     const down = specById<ArrowSpec>(at({ fz: 10 }), 'reaction:a:fz:arrow');
     const text = specById<LabelSpec>(at({ fz: -10 }), 'reaction:a:fz:label');
 
-    expect(down.tail).toEqual({ u: 0, v: -48 });
+    expect(down.tail).toEqual({ u: 0, v: -(GAP + FULL) });
     expect(text.text).toBe('10 kN');
   });
 
   it('reads equilibrium off the picture: load and reaction point opposite ways', () => {
     // Die eigentliche Aussage der Leserichtung. Last `fz = +10` nach unten,
-    // Reaktion `fz = -10` nach oben — beide mit der Spitze am Knoten, also mit
-    // dem Schaft auf der jeweils anderen Seite.
+    // Reaktion `fz = -10` nach oben — beide nach DERSELBEN Regel gezeichnet, also
+    // spiegelbildlich um den Knoten: gleicher Abstand, entgegengesetzte Seite.
     const specs = femSpecs({
       nodes: [nodeA, nodeB],
       beams: [beamAB],
@@ -123,9 +129,20 @@ describe('Leserichtung: die Kraft AUF das Tragwerk', () => {
     const load = specs.find((s) => s.id === 'load:nl:a:fz:arrow') as ArrowSpec;
     const held = specs.find((s) => s.id === 'reaction:a:fz:arrow') as ArrowSpec;
 
-    expect(load.tip).toEqual(held.tip);
-    expect(load.tail.v).toBe(-48);
-    expect(held.tail.v).toBe(48);
+    // Derselbe Gap fuer beide: die zwei Pfeile liegen zum Knoten hin gleich weit
+    // ab. Waere er verschieden, saehe es aus, als griffen sie an verschiedenen
+    // Stellen an.
+    expect(load.tip.v).toBe(-GAP);
+    expect(held.tip.v).toBe(GAP);
+    expect(load.tail.v).toBe(-(GAP + FULL));
+    expect(held.tail.v).toBe(GAP + FULL);
+  });
+
+  it('setzt an einer Reaktion keine Marke — sie sitzt auf einem Knoten', () => {
+    // Die Marke gibt es nur fuer eine Last AUF einem Stab (`beam-loads.ts`).
+    const ids = reactionOnly(at({ fz: -10 })).map((s) => s.id);
+
+    expect(ids).toEqual(['reaction:a:fz:arrow', 'reaction:a:fz:label']);
   });
 
   it('turns the moment counter-clockwise for a positive my', () => {

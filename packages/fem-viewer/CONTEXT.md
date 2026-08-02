@@ -6,8 +6,12 @@ Maps a planar FEM frame model — nodes, beams, loads and the **result** — to
 render-agnostic `Spec` objects and drives a `RenderDriver` with viewport state.
 Beams draw as thin black lines, nodes as small red circles, node supports as
 grouped symbols, concentrated forces as blue arrows and moments as blue curved
-arrows, both with a labelled magnitude. Support reactions draw as the *same*
-symbols in green, one band higher.
+arrows, both with a labelled magnitude. Distributed forces draw as a filled area
+with an arrow at each end. Every force symbol stands off the place it refers to
+by the same gap and names that place with a red marker on the beam axis — the
+line load at both ends of its segment, the point load on a beam at its point of
+application. Support reactions draw as the *same* symbols in green, one band
+higher.
 
 ## Boundaries
 
@@ -29,7 +33,7 @@ symbols in green, one band higher.
   `internalForcesAlong` becomes a runtime one when the N/V/M diagrams land.
 - `@baustatik/errors`: base `BaustatikError` class for package error hierarchy.
 - `@baustatik/render-core`: `Spec`, `LineSpec`, `CircleSpec`, `ArrowSpec`,
-  `ArcPathSpec`, `PolygonSpec`, `LabelSpec`, `RenderDriver`.
+  `ArcPathSpec`, `PolygonSpec`, `RectangleSpec`, `LabelSpec`, `RenderDriver`.
 - `@baustatik/grid-2d`: `gridSpecs`, `GridOptions` for the background grid.
 - `@baustatik/viewport-2d`: `Viewport`, `Size`, `worldPoint`, `pan`, `zoomAround`.
 - `@baustatik/fem-loads`: the load types, `modelGeometry` (beam axis with the
@@ -59,9 +63,21 @@ a support symbol has no counterpart anywhere else.
   which band it belongs to; both arrive with the symbol.
   - [`point-force.ts`](src/symbols/point-force.ts) /
     [`moment.ts`](src/symbols/moment.ts): straight arrow, curved arrow.
+  - [`distributed-force.ts`](src/symbols/distributed-force.ts): the whole line-load
+    figure — baseline, area, both arrows, both labels, both markers, and the
+    parallel case. It shares `symbolLabelSpec`, `markerSpec` and the colours with
+    its siblings, because the arrow *length* means the opposite thing here.
+  - [`marker.ts`](src/symbols/marker.ts): the small square on the beam axis. Its
+    own file because two symbols place it, and **neither of them decides who gets
+    one**: for the line load it is constitutive and drawn inside the figure, for
+    the point force it is the "on a beam" case and therefore the caller's
+    (`loads/beam-loads.ts`).
   - [`label.ts`](src/symbols/label.ts): the label rule and the two unit texts.
   - [`style.ts`](src/symbols/style.ts): `SymbolStyle` — the **resolved** look with
-    neutral names, plus the two schematic sizes.
+    neutral names, plus the three schematic sizes. `MarkerStyle` and
+    `DistributedStyle` sit beside it rather than inside it: `SymbolStyle` is
+    shared with `results/`, and a reaction is never distributed and never sits on
+    a place *within* a beam.
 - [`src/results/`](src/results): result → specs.
   - [`index.ts`](src/results/index.ts): `resultSpecs` — distribution, and the one
     place that turns "no result" into "no specs".
@@ -147,8 +163,9 @@ because they also break the import cycle between the mappings and `scene.ts`.
   can meet hinged at one node, and the picture has to say *which* of them is
   hinged. Loads add the target and, for
   node loads, the component: `load:{loadId}:{targetId}[:fx|:fz|:my]` plus the part
-  of the symbol — `:arrow`/`:label` for a force, `:arc`/`:head`/`:label` for a
-  moment. One load on several targets therefore stays distinguishable, which the
+  of the symbol — `:arrow`/`:label`(`:marker`) for a force, `:arc`/`:head`/`:label`
+  for a moment, and `:area`/`:q1:*`/`:q2:*`/`:start`/`:end` for a line load. One
+  load on several targets therefore stays distinguishable, which the
   fan-out needs. A support reaction gets its own namespace,
   `reaction:{nodeId}:{fx|fz|my}` plus the same symbol part: a node can carry a
   load *and* a reaction with the same component, and without the two prefixes
@@ -179,10 +196,18 @@ because they also break the import cycle between the mappings and `scene.ts`.
   are data errors that do not resolve by panning, and a silently skipped element
   disappears without trace.
 - **The load arrow is a schema, its length says nothing**: every concentrated force
-  gets the same 48 px arrow with the **tip on the point of application**; the
-  magnitude lives in the label. A negative value flips the direction, the label
-  keeps the unsigned input. Distributed loads will not be able to afford this —
-  their height has to scale, or 5 kN/m and 50 kN/m look alike.
+  gets the same 48 px arrow, laid off against its direction; the magnitude lives
+  in the label. A negative value flips the direction, the label keeps the unsigned
+  input. The distributed load is the deliberate opposite and that is why it is a
+  symbol of its own: there the arrow length is the ordinate and says everything.
+- **Every force symbol stands off the place it refers to, by one and the same
+  gap**: the arrow tip sits `forceGapPx` *before* the point of application, the
+  line load's baseline the same distance from the beam. It is one number
+  (`DEFAULT_FORCE_GAP_PX`, 10 px) because it is one question — how much air the
+  figure leaves over the thing it is about — and a second one would exist only so
+  that it could disagree with the first. The consequence is that the picture no
+  longer says where a force acts by *touching* that place; on a beam the marker
+  says it, at a node the node itself does.
 - **The moment symbol turns the way the sign says**: a positive moment turns
   **counter-clockwise** in the picture, because global y points out of the plane
   (`fem-loads/src/types.ts`, section DREHSINN). On screen the angle grows
@@ -210,10 +235,53 @@ tip angle)`, nearly 3 px at these sizes. A fill-only triangle with the same
   arrow's head. With the same stroke, both numbers in `LoadStyle` mean the same
   thing in both symbols instead of factors reproducing the difference.
   `pointerWidth` is the **full** base width, as in Konva.
-- **Unsupported load kinds are skipped, not rejected**: distributed loads produce
-  no specs, and so does a force component or moment that is absent or zero.
+- **A distributed load stands on its shadow** (ADR 0028): the baseline of the
+  figure is the loaded segment's shadow, cast by parallel light travelling in the
+  load direction; for `trueLength` it is the beam axis itself. All nine
+  combinations of `frame`, `axis` and `referenceLength` follow from that one rule
+  without a case distinction, because a shadow is by definition perpendicular to
+  the light — so the area, laid off *against* the load direction, can never
+  collapse into a line. Two consequences are deliberate and both are visible:
+  `horizontalProjection` and `verticalProjection` draw **identically** for a given
+  direction (they differ in `referenceFactor`, which the picture does not show),
+  and the gap sits at the **least** clearance, measured along the load direction —
+  the end nearest the figure keeps exactly `forceGapPx`, the other gets more.
+- **A beam the reference length measures 0 on gets no figure at all** (ADR 0028):
+  `verticalProjection` on a horizontal beam, `horizontalProjection` on a vertical
+  one. The picture does not scale with `referenceFactor`, but *none* is not a
+  scale — the load puts nothing on that beam, and with the ordinate normalised per
+  load the figure would otherwise stand there at full height. Decided **per beam**,
+  at the exact 0: a nearly horizontal beam keeps its figure.
+- **The line-load figure has no height of its own**: the arrow tips sit on the
+  baseline and the outer edge of the polygon *is* the line joining the arrow tails.
+  Its length is therefore `forceArrowLengthPx`, and the only new number is the gap.
+  A second constant would exist only so that it could disagree with the first.
+- **The ordinate is normalised per load, not across the picture**: `max(|q1|,
+  |q2|)` maps to the full arrow length. The height shows the course *within* one
+  load — a triangular load has to look like a triangle — but two loads are not
+  comparable by it. See *Known constraints*.
+- **The load direction parallel to the beam axis is the one case left over**: the
+  shadow is a point, and `local x` hits it always. There the height is laid off
+  perpendicular to the beam on the local −z side, and the two arrows lie
+  *lengthwise inside* the block; without them a load and its opposite would be the
+  same picture. The switch is a visibility threshold, not an angle: it trips when
+  the built height would be thinner than the stroke drawing it.
+- **Unsupported load kinds are skipped, not rejected**: line *moments* produce no
+  specs, and so does a force component that is absent or zero — including one end
+  of a triangular load, which therefore gets neither arrow nor label there.
   Objecting to them would stop an otherwise drawable model from drawing at all,
   and a zero-length arrow is a point, not a picture.
+- **The marker says where on the beam a load acts**: a small red axis-aligned
+  square on the beam axis — at both ends of a line load's segment, and at the
+  point of application of a **point load on a beam**. It is not decoration but the
+  counterweight to the fact that the figure does not touch the beam: under a
+  projection the line load no longer stands above it at all, and since the gap the
+  arrow tip does not land on it either. Not rotated into the beam: it marks a
+  *place*, not a direction. **Only on a beam** — a node load and a reaction hang
+  on a node, which is drawn already, and there the marker would sit under the
+  bigger red node circle saying nothing new. Which is why the point force does not
+  place its own marker: whether there is one is a question of *what carries the
+  load*, and that is `loads/beam-loads.ts`' knowledge, not the symbol's.
 - **The label hangs on the symbol, not on the point of application**: a force
   labels its outer arrow end, a moment the topmost point of its arc circle — both
   at the same `loadLabelGapPx` beyond it. The moment's radius is therefore
@@ -231,9 +299,12 @@ tip angle)`, nearly 3 px at these sizes. A fill-only triangle with the same
   exactly the pair one looks at the picture for.
 - **A reaction is the force the support exerts on the STRUCTURE**, exactly as
   `SupportReaction` defines it: a prop under a downward load reports a negative
-  `fz`, and the arrow points up. It is drawn by the same rule as a load — **tip on
-  the node** — and precisely that makes `Σ loads + Σ reactions = 0` legible in the
-  picture, because every arrow at a node means the same thing. The other reading
+  `fz`, and the arrow points up. It is drawn by the same rule as a load — **tip
+  one gap short of the node**, the same gap — and precisely that makes `Σ loads +
+  Σ reactions = 0` legible in the picture, because every arrow at a node means the
+  same thing. A load and its reaction therefore stand mirror-imaged about the
+  node, equally far off; a different gap on the result side would look as though
+  the two attacked at different places. The other reading
   ("what the structure pushes onto the support") would be a second sign convention
   inside one drawing. `my` follows the load moment: positive turns
   counter-clockwise.
@@ -277,10 +348,20 @@ pnpm --filter @baustatik/fem-viewer build
   local fix. A supported node carrying a load **and** its reaction is the same
   problem one step worse: the two arrows run through each other and the labels
   stack. The colours keep it readable, but not composed.
-- **Only concentrated loads are drawn**: all distributed loads (line forces and
-  line moments) produce no specs yet. They need an answer to the scaling question
-  first — one reference size over all visible loads, otherwise 5 kN/m and 50 kN/m
-  are indistinguishable.
+- **Two line loads are not comparable by height.** The ordinate is normalised per
+  load, so a trapezoid `q1=10 → q2=40` beside a constant `q=10` shows the same
+  value once 12 px and once 48 px high. Deliberate for now, but it is genuinely
+  half a rule: as long as the height means *something* locally — and it must, or a
+  triangular load could not look like one — the picture invites a comparison it
+  then breaks. The resolution is the open **scaling question**: one reference size
+  over all visible loads, computed in a pass over them before any is drawn.
+- **Line moments are still not drawn.** `BeamMomentConstantLoad` and
+  `BeamMomentTrapezoidalLoad` produce no specs. They need a symbol of their own —
+  a row of small curved arrows, presumably — for which there is neither precedent
+  in this package nor a reference drawing.
+- **A marker at the very start of a beam hides under the node.** Both are red and
+  the node circle is bigger. Accepted: that is precisely the case where the marker
+  says nothing the picture did not already say.
 - **A node carrying `fz` and `my` at once draws them through each other**: with the
   gap at the bottom, the arc is closed at the top, exactly where the shaft of a
   downward force arrow runs — and both labels stack above the node. Legible, but

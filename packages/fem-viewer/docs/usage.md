@@ -114,6 +114,10 @@ interface ModelStyle {
 
 interface LoadStyle {
   readonly pointForceColor?: string;
+  // Distance to the loaded place: arrow tip to point of application, and beam to
+  // the line load's baseline. One number for both force symbols, like
+  // pointForceArrowLengthPx, which doubles as the line load's ordinate.
+  readonly pointForceGapPx?: number;
   readonly pointForceArrowLengthPx?: number;
   readonly pointForceArrowWidthPx?: number;
   readonly pointForcePointerLengthPx?: number;
@@ -123,6 +127,10 @@ interface LoadStyle {
   readonly momentArcWidthPx?: number;
   readonly momentPointerLengthPx?: number;
   readonly momentPointerWidthPx?: number;
+  readonly distributedLoadFillColor?: string;
+  // The marker on the beam axis — line load and beam point load alike.
+  readonly loadMarkerColor?: string;
+  readonly loadMarkerSizePx?: number;
   readonly loadLabelGapPx?: number;
   readonly loadLabelFontSizePx?: number;
   readonly loadLabelFontFamily?: string;
@@ -138,6 +146,9 @@ interface LoadStyle {
 // colour and a different band.
 interface ResultStyle {
   readonly reactionForceColor?: string;
+  // Same value as pointForceGapPx by default: a load and its reaction stand
+  // mirror-imaged about the node, equally far off.
+  readonly reactionForceGapPx?: number;
   readonly reactionForceArrowLengthPx?: number;
   readonly reactionForceArrowWidthPx?: number;
   readonly reactionForcePointerLengthPx?: number;

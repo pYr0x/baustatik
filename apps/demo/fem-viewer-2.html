@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FEM-Viewer</title>
+    <script src="./fem-viewer-2.ts" type="module"></script>
+    <style>
+        :root {
+            font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+            color: #1c1f24;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 320px;
+            height: 100%;
+        }
+
+        #container {
+            min-width: 0;
+        }
+
+        #panel {
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+            min-width: 0;
+            padding: 0.9rem;
+            overflow: auto;
+            border-left: 1px solid #d5d8dd;
+            background: #f7f8fa;
+            font-size: 0.82rem;
+        }
+
+        h2 {
+            margin: 0 0 0.4rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #5c636d;
+        }
+
+        .block {
+            padding: 0.7rem;
+            border: 1px solid #dfe2e7;
+            border-radius: 5px;
+            background: white;
+        }
+
+        .value {
+            font-weight: 700;
+        }
+
+        .muted {
+            color: #6b727c;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 0.55rem;
+            border: 1px solid #b9bec6;
+            border-radius: 4px;
+            padding: 0.45rem 0.7rem;
+            background: #eceef1;
+            color: inherit;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button:hover:not(:disabled) {
+            background: #e0e3e8;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        #solve {
+            border-color: #74b88a;
+            background: #28613d;
+            color: white;
+        }
+
+        #solve:hover:not(:disabled) {
+            background: #347c4f;
+        }
+
+        /* Der Zustand ist die Kernaussage des Berichts — er faerbt, nicht der
+           Zaehler daneben. */
+        #state[data-state="ready"] {
+            color: #1d7a45;
+        }
+
+        #state[data-state="ready-with-warnings"] {
+            color: #9a6400;
+        }
+
+        #state[data-state="invalid"] {
+            color: #b3261e;
+        }
+
+        .count {
+            float: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .findings {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .findings li {
+            padding: 0.3rem 0;
+            border-top: 1px solid #eef0f3;
+            line-height: 1.35;
+        }
+
+        .findings li:first-child {
+            border-top: 0;
+        }
+
+        .findings .source {
+            display: inline-block;
+            margin-right: 0.35rem;
+            padding: 0 0.3rem;
+            border-radius: 3px;
+            background: #eceef1;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #5c636d;
+        }
+
+        #solve-status {
+            margin-top: 0.55rem;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            font-size: 0.75rem;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <div id="container"></div>
+        <aside id="panel" aria-label="Berichtspalte">
+            <section class="block">
+                <h2>Aktiver Lastfall</h2>
+                <div id="load-case-name" class="value">–</div>
+                <div id="load-case-position" class="muted"></div>
+                <button id="next-load-case" type="button">Nächster Lastfall</button>
+            </section>
+
+            <section class="block">
+                <h2>Zustand</h2>
+                <div id="state" class="value">–</div>
+                <button id="solve" type="button">Berechnen</button>
+                <div id="solve-status" class="muted"></div>
+            </section>
+
+            <section class="block">
+                <h2>Warnungen <span id="warning-count" class="count">0</span></h2>
+                <ul id="warnings" class="findings" aria-live="polite"></ul>
+            </section>
+
+            <section class="block">
+                <h2>Fehler <span id="error-count" class="count">0</span></h2>
+                <ul id="errors" class="findings" aria-live="polite"></ul>
+            </section>
+        </aside>
+    </main>
+</body>
+
+</html>

@@ -152,6 +152,29 @@ export function validateSpec(spec: Spec): void {
       }
       break;
 
+    case 'rectangle':
+      checkStrokeAndFill(spec);
+      checkWorldPoint(spec.topLeft, spec.id, 'topLeft');
+      // POSITIV, nicht bloss nicht-negativ: ein Rechteck ohne Breite oder Hoehe
+      // zeichnet nichts und ist damit dasselbe wie eine fehlende Spec — nur
+      // eine, die man im Bild vergeblich sucht.
+      checkNumber(spec.width, spec.id, 'width', { positive: true });
+      checkNumber(spec.height, spec.id, 'height', { positive: true });
+      if (spec.cornerRadius !== undefined) {
+        if (!Array.isArray(spec.cornerRadius)) {
+          throw new InvalidSpecError(
+            spec.id,
+            'cornerRadius muss ein Array sein',
+          );
+        }
+        for (const [index, radius] of spec.cornerRadius.entries()) {
+          checkNumber(radius, spec.id, `cornerRadius[${index}]`, {
+            positive: false,
+          });
+        }
+      }
+      break;
+
     case 'triangle':
       checkStrokeAndFill(spec);
       checkWorldPoint(spec.center, spec.id, 'center');
