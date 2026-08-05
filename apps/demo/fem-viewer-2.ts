@@ -17,6 +17,7 @@ import { Point } from '@baustatik/fem-geometry';
 import { defineStore, createPinia } from 'pinia';
 import { viewport, screenPoint } from '@baustatik/viewport-2d';
 import { solveLinearSystem } from './linear-solver-port';
+import { round } from '@baustatik/round';
 
 const pinia = createPinia();
 
@@ -292,21 +293,21 @@ store.addBeamLoad([store.beams[1]], {
 // wo genau der liegt. Die Knotenlast bekommt keine — dort ist der Knoten selbst
 // die Marke.
 store.addLoadCase('Einzellasten · Gap und Marke');
-store.addBeamLoad([store.beams[0]], {
+/*store.addBeamLoad([store.beams[0]], {
     kind: 'force', distribution: 'point',
     frame: 'global', axis: 'z',
     distanceFromStart: 40, relativeDistances: true,
     p: 10,
-});
+});*/
 // Am schraegen Stab, lokal: der Pfeil steht schraeg ab, die Marke bleibt
 // achsparallel — sie zeigt eine Stelle, keine Richtung.
 store.addBeamLoad([store.beams[1]], {
     kind: 'force', distribution: 'point',
-    frame: 'local', axis: 'z',
+    frame: 'global', axis: 'z',
     distanceFromStart: 60, relativeDistances: true,
     p: 10,
 });
-store.addNodeLoad([store.nodes[2]], { fx: 8 });
+//store.addNodeLoad([store.nodes[2]], { fx: 8 });
 
 store.selectLoadCase(store.loadCases[0].id);
 
@@ -357,7 +358,20 @@ const viewer = createFEMViewer({
     // Dasselbe PULL-Muster wie bei den Rohdaten, nur aus dem Ergebnis statt aus
     // dem Store. `undefined` heisst „noch nicht gerechnet", und dann steht im
     // Bild kein Ergebnis — es braucht keinen Schalter daneben.
-    getReactions: () => reactions,
+    getReactions: () => {
+        if(reactions === undefined) {return undefined}
+        return new Map(
+        Array.from(reactions, ([id, reaction]) => [
+                id,
+                {
+                fx: round(reaction.fx).toDecimals(2),
+                fz: round(reaction.fz).toDecimals(2),
+                my: round(reaction.my).toDecimals(2)
+                }
+            ])
+        );
+
+    },
     getScreenSize: () => stageSize,
     grid: { spacing: 1 }, // Weltkoordinaten; Segmente sind 60–100 Einheiten gross
 });

@@ -62,6 +62,9 @@ importers:
       '@baustatik/material':
         specifier: workspace:*
         version: link:../../packages/material
+      '@baustatik/round':
+        specifier: workspace:*
+        version: link:../../packages/round
       '@baustatik/script':
         specifier: workspace:*
         version: link:../../packages/script

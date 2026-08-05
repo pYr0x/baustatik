@@ -31,7 +31,7 @@ interface ViewerConfig {
 }
 
 export function createFEMViewer(config: ViewerConfig) {
-  const { driver, getNodes, getBeams, getSupports, getLoads } = config;
+  const { driver, getNodes, getBeams, getSupports, getLoads, getReactions} = config;
 
   let vp: Viewport = config.initialViewport ?? viewport(screenPoint(0, 0), 1);
 
@@ -50,7 +50,7 @@ export function createFEMViewer(config: ViewerConfig) {
         beams: getBeams(),
         supports: getSupports(),
         loads: getLoads(),
-        reactions: config.getReactions?.(),
+        reactions: getReactions?.(),
         viewport: vp,
         style: config.style,
       }),

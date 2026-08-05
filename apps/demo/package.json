@@ -30,6 +30,7 @@
     "@baustatik/steel-profiles": "workspace:*",
     "@baustatik/units": "workspace:*",
     "@baustatik/viewport-2d": "workspace:*",
+    "@baustatik/round": "workspace:*",
     "konva": "^10.3.0",
     "monaco-editor": "^0.56.0",
     "pinia": "^3.0.4",
