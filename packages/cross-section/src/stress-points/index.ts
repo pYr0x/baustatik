@@ -16,12 +16,12 @@ import type { StressPoint } from './types';
  *
  * | Form | `solid` | `thin-walled` |
  * | --- | --- | --- |
- * | `rectangle` | Bandmaschine | — (traegt kein `idealisation`) |
- * | `i-symmetric` | Bandmaschine | Wandmodell |
- * | `t-section` | Bandmaschine | Wandmodell |
+ * | `rectangle` | Umrissmodell | — (traegt kein `idealisation`) |
+ * | `i-symmetric` | Umrissmodell | Wandmodell |
+ * | `t-section` | Umrissmodell | Wandmodell |
  * | `hollow-rectangle` | `undefined` | `undefined` |
  *
- * `solid` behaelt die Bandmaschine, und das ist keine Uebergangsloesung:
+ * `solid` behaelt das Umrissmodell, und das ist keine Uebergangsloesung:
  * Grashof IST fuer Vollquerschnitte richtig, die Rechteckparabel faellt genau
  * daraus.
  *

@@ -1,9 +1,9 @@
 import type { cm } from '@baustatik/units';
 import type { Idealisation } from '../section';
 import {
-  bandSegments,
   crossWallSegment,
   endMoment,
+  partSegments,
   type ShearSegment,
 } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
@@ -34,12 +34,12 @@ export function hollowRectangle(
       ? {
           // Kompakt: waagerechte bzw. senkrechte Schnitte durch die Umrissfigur.
           // In der Mitte schneidet man BEIDE Waende, daher die Breite 2t.
-          pathZ: bandSegments(-h / 2, [
+          pathZ: partSegments(-h / 2, [
             { extent: t, width: b },
             { extent: hi, width: 2 * t },
             { extent: t, width: b },
           ]).segments,
-          pathY: bandSegments(-b / 2, [
+          pathY: partSegments(-b / 2, [
             { extent: t, width: h },
             { extent: bi, width: 2 * t },
             { extent: t, width: h },
@@ -77,7 +77,7 @@ function closedBoxPath(
   // Vom Symmetrieschnitt bis zur Ecke: quer zur Schubrichtung, Hebelarm fest.
   const first = crossWallSegment(-arm, t, across / 2);
   // Die Wand laengs der Schubrichtung.
-  const side = bandSegments(
+  const side = partSegments(
     -arm,
     [{ extent: along, width: t }],
     endMoment(first),

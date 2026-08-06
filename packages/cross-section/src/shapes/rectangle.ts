@@ -1,5 +1,5 @@
 import type { cm } from '@baustatik/units';
-import { bandSegments } from '../shear';
+import { partSegments } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
 
 /**
@@ -24,8 +24,8 @@ export function rectangle(b: cm, h: cm): ShapeResult | undefined {
     Iyz: 0,
     ys: 0,
     zs: h / 2,
-    // Ein einziges Band ueber die volle Hoehe bzw. Breite.
-    pathZ: bandSegments(-h / 2, [{ extent: h, width: b }]).segments,
-    pathY: bandSegments(-b / 2, [{ extent: b, width: h }]).segments,
+    // Eine einzige Teilflaeche ueber die volle Hoehe bzw. Breite.
+    pathZ: partSegments(-h / 2, [{ extent: h, width: b }]).segments,
+    pathY: partSegments(-b / 2, [{ extent: b, width: h }]).segments,
   };
 }

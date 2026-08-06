@@ -43,39 +43,39 @@ const T_ZS = 66_250_000 / 475_000;
 // Die Wege, unabhaengig noch einmal hingeschrieben — Eingabe fuer das Orakel.
 // ---------------------------------------------------------------------------
 
-/** Eine Bandfolge laengs der Schubrichtung als EIN Ast. */
-function bandBranch(
+/** Eine Folge von Teilflaechen laengs der Schubrichtung als EIN Ast. */
+function partBranch(
   start: number,
-  bands: readonly { extent: number; width: number }[],
+  parts: readonly { extent: number; width: number }[],
 ): OracleBranch {
   return {
     S0: 0,
-    pieces: bands.map((band, i) => {
-      const offset = bands
+    pieces: parts.map((part, i) => {
+      const offset = parts
         .slice(0, i)
-        .reduce((sum, b) => sum + b.extent, start);
-      return alongPiece(offset, band.extent, band.width);
+        .reduce((sum, p) => sum + p.extent, start);
+      return alongPiece(offset, part.extent, part.width);
     }),
   };
 }
 
 const rectanglePaths = (b: number, h: number) => ({
-  z: [bandBranch(-h / 2, [{ extent: h, width: b }])],
-  y: [bandBranch(-b / 2, [{ extent: b, width: h }])],
+  z: [partBranch(-h / 2, [{ extent: h, width: b }])],
+  y: [partBranch(-b / 2, [{ extent: b, width: h }])],
 });
 
 const iSolidPaths = (h: number, b: number, tw: number, tf: number) => {
   const hw = h - 2 * tf;
   return {
     z: [
-      bandBranch(-h / 2, [
+      partBranch(-h / 2, [
         { extent: tf, width: b },
         { extent: hw, width: tw },
         { extent: tf, width: b },
       ]),
     ],
     y: [
-      bandBranch(-b / 2, [
+      partBranch(-b / 2, [
         { extent: (b - tw) / 2, width: 2 * tf },
         { extent: tw, width: h },
         { extent: (b - tw) / 2, width: 2 * tf },
@@ -101,22 +101,22 @@ const iThinPaths = (h: number, b: number, tw: number, tf: number) => {
       flange(zf),
     ],
     y: [
-      bandBranch(-b / 2, [{ extent: b, width: tf }]),
-      bandBranch(-b / 2, [{ extent: b, width: tf }]),
+      partBranch(-b / 2, [{ extent: b, width: tf }]),
+      partBranch(-b / 2, [{ extent: b, width: tf }]),
     ],
   };
 };
 
 const boxSolidPaths = (b: number, h: number, t: number) => ({
   z: [
-    bandBranch(-h / 2, [
+    partBranch(-h / 2, [
       { extent: t, width: b },
       { extent: h - 2 * t, width: 2 * t },
       { extent: t, width: b },
     ]),
   ],
   y: [
-    bandBranch(-b / 2, [
+    partBranch(-b / 2, [
       { extent: t, width: h },
       { extent: b - 2 * t, width: 2 * t },
       { extent: t, width: h },
@@ -154,13 +154,13 @@ const tSolidPaths = (
   zs: number,
 ) => ({
   z: [
-    bandBranch(-zs, [
+    partBranch(-zs, [
       { extent: hf, width: bf },
       { extent: h - hf, width: bw },
     ]),
   ],
   y: [
-    bandBranch(-bf / 2, [
+    partBranch(-bf / 2, [
       { extent: (bf - bw) / 2, width: hf },
       { extent: bw, width: h },
       { extent: (bf - bw) / 2, width: hf },
@@ -181,7 +181,7 @@ const tThinPaths = (bf: number, hf: number, bw: number, h: number) => {
       flange,
       { S0: 2 * armF * hf * (bf / 2), pieces: [alongPiece(armF, webLength, bw)] },
     ],
-    y: [bandBranch(-bf / 2, [{ extent: bf, width: hf }])],
+    y: [partBranch(-bf / 2, [{ extent: bf, width: hf }])],
   };
 };
 

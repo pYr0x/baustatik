@@ -1,5 +1,5 @@
 import type { mm } from '@baustatik/units';
-import { momentBefore, type OutlineBand, widthAt } from './outline';
+import { momentBefore, type OutlinePart, widthAt } from './outline';
 import { type StressPoint, stressPoint } from './types';
 
 /**
@@ -26,8 +26,8 @@ import { type StressPoint, stressPoint } from './types';
  */
 export function compactStressPoints(
   positions: readonly { y: mm; z: mm }[],
-  zBands: readonly OutlineBand[],
-  yBands: readonly OutlineBand[],
+  zParts: readonly OutlinePart[],
+  yParts: readonly OutlinePart[],
 ): StressPoint[] {
   return positions.map((position, index) =>
     stressPoint(
@@ -37,17 +37,17 @@ export function compactStressPoints(
       // Der Nenner in tau gehoert zur WAAGERECHTEN Schnittflaeche: die Breite in
       // dieser Hoehe. Beim breiten Gurt ist das `bf`, und genau das ist der
       // Grund, warum die Regel den Schwerpunkt und nicht die Stegmitte nennt.
-      widthAt(zBands, position.z),
-      momentBefore(zBands, position.z),
-      momentBefore(yBands, position.y),
+      widthAt(zParts, position.z),
+      momentBefore(zParts, position.z),
+      momentBefore(yParts, position.y),
     ),
   );
 }
 
 /** Vollrechteck: 4 Ecken + Schwerpunkt. Abmessungen in mm. */
 export function rectanglePoints(b: mm, h: mm): StressPoint[] {
-  const zBands: OutlineBand[] = [{ from: -h / 2, to: h / 2, width: b }];
-  const yBands: OutlineBand[] = [{ from: -b / 2, to: b / 2, width: h }];
+  const zParts: OutlinePart[] = [{ from: -h / 2, to: h / 2, width: b }];
+  const yParts: OutlinePart[] = [{ from: -b / 2, to: b / 2, width: h }];
   return compactStressPoints(
     [
       { y: -b / 2, z: -h / 2 },
@@ -56,8 +56,8 @@ export function rectanglePoints(b: mm, h: mm): StressPoint[] {
       { y: b / 2, z: h / 2 },
       { y: 0, z: 0 },
     ],
-    zBands,
-    yBands,
+    zParts,
+    yParts,
   );
 }
 
@@ -78,11 +78,11 @@ export function tSectionPoints(
   const flangeBottom = -zs + hf;
   const bottom = h - zs;
 
-  const zBands: OutlineBand[] = [
+  const zParts: OutlinePart[] = [
     { from: top, to: flangeBottom, width: bf },
     { from: flangeBottom, to: bottom, width: bw },
   ];
-  const yBands: OutlineBand[] = [
+  const yParts: OutlinePart[] = [
     { from: -bf / 2, to: -bw / 2, width: hf },
     { from: -bw / 2, to: bw / 2, width: h },
     { from: bw / 2, to: bf / 2, width: hf },
@@ -100,8 +100,8 @@ export function tSectionPoints(
       { y: bw / 2, z: bottom },
       { y: 0, z: 0 },
     ],
-    zBands,
-    yBands,
+    zParts,
+    yParts,
   );
 }
 
@@ -122,12 +122,15 @@ export function iSymmetricPoints(h: mm, b: mm, tw: mm, tf: mm): StressPoint[] {
   const bottomInner = h / 2 - tf;
   const bottom = h / 2;
 
-  const zBands: OutlineBand[] = [
+  const zParts: OutlinePart[] = [
     { from: top, to: topInner, width: b },
     { from: topInner, to: bottomInner, width: tw },
     { from: bottomInner, to: bottom, width: b },
   ];
-  const yBands: OutlineBand[] = [
+  // `2*tf` ist eine SUMME ueber zwei getrennte Flaechen: der senkrechte Schnitt
+  // ausserhalb des Stegs trifft Ober- UND Untergurt. Warum das fuer `S` und
+  // fuer den Nenner von Grashof richtig ist, steht bei `OutlinePart`.
+  const yParts: OutlinePart[] = [
     { from: -b / 2, to: -tw / 2, width: 2 * tf },
     { from: -tw / 2, to: tw / 2, width: h },
     { from: tw / 2, to: b / 2, width: 2 * tf },
@@ -151,7 +154,7 @@ export function iSymmetricPoints(h: mm, b: mm, tw: mm, tf: mm): StressPoint[] {
       { y: b / 2, z: bottom },
       { y: 0, z: 0 },
     ],
-    zBands,
-    yBands,
+    zParts,
+    yParts,
   );
 }

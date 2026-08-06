@@ -1,6 +1,6 @@
 import type { cm } from '@baustatik/units';
 import type { Idealisation } from '../section';
-import { bandSegments, crossWallSegment, endMoment } from '../shear';
+import { crossWallSegment, endMoment, partSegments } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
 
 /**
@@ -30,7 +30,8 @@ export function tSectionCentroid(
 ): number | undefined {
   const hs = h - hf;
   // `bf === bw` ist erlaubt (dann ist es ein Rechteck), `bw > bf` nicht: das
-  // waere kein T mehr, und die Bandfolge fuer Vy bekaeme eine negative Laenge.
+  // waere kein T mehr, und die Teilflaechen fuer Vy bekaemen eine negative
+  // Laenge.
   if (!allPositive(bf, hf, bw, h, hs) || bw > bf) return undefined;
   const Af = bf * hf;
   const As = bw * hs;
@@ -96,13 +97,13 @@ function solidPaths(
   return {
     // Waagerecht von der Gurtoberkante nach unten: erst der breite Gurt, dann
     // der schmale Steg.
-    pathZ: bandSegments(-zs, [
+    pathZ: partSegments(-zs, [
       { extent: hf, width: bf },
       { extent: hs, width: bw },
     ]).segments,
     // Senkrecht: ausserhalb des Stegs nur der Gurt, ueber dem Steg die volle
     // Hoehe.
-    pathY: bandSegments(-bf / 2, [
+    pathY: partSegments(-bf / 2, [
       { extent: (bf - bw) / 2, width: hf },
       { extent: bw, width: h },
       { extent: (bf - bw) / 2, width: hf },
@@ -149,7 +150,7 @@ function thinPaths(bf: number, hf: number, bw: number, h: number) {
   const armF = hf / 2 - zsWall; // Gurtmittellinie relativ zum Wandschwerpunkt
 
   const flangeHalf = crossWallSegment(armF, hf, bf / 2);
-  const web = bandSegments(
+  const web = partSegments(
     armF,
     [{ extent: webLength, width: bw }],
     2 * endMoment(flangeHalf),
@@ -159,6 +160,6 @@ function thinPaths(bf: number, hf: number, bw: number, h: number) {
     pathZ: [flangeHalf, flangeHalf, web],
     // Wie beim I: der Steg traegt fuer Vy nichts, der Gurt alles — nur gibt es
     // hier eben nur EINEN Gurt.
-    pathY: [bandSegments(-bf / 2, [{ extent: bf, width: hf }]).segments[0]],
+    pathY: [partSegments(-bf / 2, [{ extent: bf, width: hf }]).segments[0]],
   };
 }

@@ -79,7 +79,7 @@ export function shearAreaNumeric(
   return (I * I) / shearIntegralNumeric(branches).total;
 }
 
-/** Ein Band laengs der Schubrichtung: der Hebelarm waechst mit `s`. */
+/** Eine Teilflaeche laengs der Schubrichtung: der Hebelarm waechst mit `s`. */
 export function alongPiece(
   start: number,
   length: number,

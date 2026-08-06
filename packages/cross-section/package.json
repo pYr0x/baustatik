@@ -18,11 +18,12 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
+    "example": "vite build && node examples/index.ts",
     "test": "vitest run --project Unit --project Browser --passWithNoTests",
     "test:node": "vitest run --project Unit",
     "test:browser": "vitest --project Browser",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p examples/tsconfig.json",
     "lint": "biome check --fix ."
   },
   "devDependencies": {

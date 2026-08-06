@@ -99,7 +99,7 @@ describe('Die dünnwandige I-Vorlage gegen das gewalzte Profil mit r = 0', () =>
   });
 
   it('setzt an allen 14 Gurtstationen t = tf, nicht b', () => {
-    // DER ZWEITE TEIL DES BEFUNDS: die Bandmaschine setzte dort `t = b`, also
+    // DER ZWEITE TEIL DES BEFUNDS: das Umrissmodell setzte dort `t = b`, also
     // die SENKRECHTE Schubkomponente durch den ganzen Gurt. Am Gurt eines
     // dünnwandigen Profils bedeutet die nichts — der Schubfluss läuft LÄNGS
     // der Wand und verteilt sich über `tf`.
@@ -142,7 +142,7 @@ describe('Der Schwerpunkt des dünnwandigen I: der behobene Widerspruch', () => 
   // DER BEFUND, um den es in diesem Schritt geht. Ein `i-symmetric` mit
   // `idealisation: 'thin-walled'` bekam sein kappa aus dem Wandweg, dessen
   // `Sy,max` 11,60 cm³ ist — und einen Spannungspunkt am Schwerpunkt aus der
-  // Bandmaschine mit 11,25 cm³. Zwei Antworten auf EINE Zahl, in einem
+  // Umrissmodell mit 11,25 cm³. Zwei Antworten auf EINE Zahl, in einem
   // Querschnitt.
   const IPE_80 = { h: 80, b: 46, tw: 3.8, tf: 5.2 } as const;
 

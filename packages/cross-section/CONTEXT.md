@@ -111,7 +111,7 @@ darf nicht zwei Maschinen haben
 ([ADR 0029](../../docs/adr/0029-stress-points-follow-the-idealisation.md)). Bis
 dahin steuerte sie nur κ; die Spannungspunkte verzweigten ausschliesslich ueber
 `shape.kind`, und ein `thin-walled`-I bekam sein κ aus dem Wandweg (`Sy,max`
-11,60 cm³) und seinen Schwerpunktpunkt aus der Bandmaschine (11,25 cm³) — zwei
+11,60 cm³) und seinen Schwerpunktpunkt aus dem Umrissmodell (11,25 cm³) — zwei
 Antworten auf eine Zahl.
 
 **Bekannte Luecke:** `A`, `Iy`, `Iz`, `Iyz`, `ys` und `zs` werden weiterhin in
@@ -183,12 +183,12 @@ entscheidet die Idealisierung — dieselbe Angabe, die auch κ steuert:
 
 | Form | `solid` | `thin-walled` |
 | --- | --- | --- |
-| `rectangle` | Bandmaschine | — (traegt kein `idealisation`) |
-| `i-symmetric` | Bandmaschine | **Wandmodell** |
-| `t-section` | Bandmaschine | **Wandmodell** |
+| `rectangle` | Umrissmodell | — (traegt kein `idealisation`) |
+| `i-symmetric` | Umrissmodell | **Wandmodell** |
+| `t-section` | Umrissmodell | **Wandmodell** |
 | `hollow-rectangle` | `undefined` | `undefined` |
 
-`solid` behaelt die Bandmaschine, und das ist keine Uebergangsloesung: Grashof
+`solid` behaelt das Umrissmodell, und das ist keine Uebergangsloesung: Grashof
 **ist** fuer Vollquerschnitte richtig, die Rechteckparabel faellt genau daraus.
 Im Wandmodell wechseln nur `t` und `S` — die Koordinaten und die Nummern bleiben
 Ziffer fuer Ziffer dieselben. Am Gurt heisst das `t = tf` statt `t = b`: der
@@ -282,8 +282,41 @@ Signatur wie bei κ, wo `Az` ebenfalls immer zu klein ist.
 Build-Schritt. Sie liegt hier, weil sie das **Orakel** fuer die Rechnung dieses
 Packages ist und nicht Teil des Katalogs.
 
+## Beispiele statt Prosa fuer die Aufrufseite
+
+`examples/` erzeugt jede Querschnittsart einmal und druckt Querschnittswerte,
+κ und Spannungspunkte:
+
+```text
+pnpm --filter @baustatik/cross-section example
+```
+
+Es sind **keine Tests** — sie behaupten nichts. Sie zeigen die Aufrufseite,
+also wie ein `CrossSection` entsteht und was die beiden Tueren darauf
+zurueckgeben, einschliesslich der Faelle, in denen das `undefined` ist. Die
+Zusicherungen stehen in `tests/`, und der Ordner haengt an `typecheck`, damit
+ein Beispiel nicht unbemerkt veraltet. Details in
+[`examples/README.md`](examples/README.md).
+
 ## Domaenensprache
 
+- **Teilflaeche** ist das Stueck konstanter Breite, aus dem die kompakten
+  Schubwege und die kompakten Spannungspunkt-Vorlagen zusammengesetzt sind — im
+  Code `OutlinePart` (`from`/`to`) und `Part` (`extent`). Der Begriff steht so in
+  der Literatur: „das statische Moment der Teilflaeche mal Abstand
+  Teilschwerpunkt bis Gesamtschwerpunkt". Er behauptet **keine Gestalt**, und das
+  ist der Punkt — der Gurt eines I ist flach und breit, der Steg hoch und schmal
+  (183 von 200 mm in EINEM Eintrag), und die Breite darf eine **Summe ueber
+  getrennte Bereiche** sein (`2*tf`, wenn ein senkrechter Schnitt beide Gurte
+  trifft). Nicht „Band" (kein Fachbegriff), nicht „Streifen" (das ist Hillerborgs
+  Plattenverfahren) und nicht „Lamelle": die Lamelle ist im Stahl- und Betonbau
+  das aufgeschweisste bzw. aufgeklebte Blech.
+- **Umrissmodell** und **Wandmodell** sind die beiden Antworten auf „wie fliesst
+  der Schub", und `idealisation` waehlt zwischen ihnen. Das **Umrissmodell**
+  (`stress-points/outline.ts`) schneidet quer durch die volle Umrissfigur —
+  Grashof, und fuer Vollquerschnitte richtig. Das **Wandmodell**
+  (`stress-points/thin.ts`) laesst den Schubfluss laengs der Wandmittellinien
+  laufen. Beide sind **Modelle**, keine Verfahrensnamen und keine Maschinen.
 - **`t-section`** nennt die **Form**, nicht den Baustoff. Dieselben vier Zahlen
   heissen im Betonbau **Plattenbalken** und im Stahlbau **T-Profil**; getrennt
   werden die beiden von `idealisation`, nicht vom Formnamen. Der frueher

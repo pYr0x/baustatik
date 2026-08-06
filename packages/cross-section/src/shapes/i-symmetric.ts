@@ -1,6 +1,6 @@
 import type { cm } from '@baustatik/units';
 import type { Idealisation } from '../section';
-import { bandSegments, crossWallSegment, endMoment } from '../shear';
+import { crossWallSegment, endMoment, partSegments } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
 
 /**
@@ -37,14 +37,14 @@ export function iSymmetric(
 /** Kompakt: Schnitte quer zur Schubrichtung durch die volle Umrissfigur. */
 function solidPaths(h: number, b: number, tw: number, tf: number, hw: number) {
   return {
-    pathZ: bandSegments(-h / 2, [
+    pathZ: partSegments(-h / 2, [
       { extent: tf, width: b },
       { extent: hw, width: tw },
       { extent: tf, width: b },
     ]).segments,
     // Senkrechte Schnitte: ausserhalb des Stegs trifft man beide Gurte
     // (Hoehe 2*tf), ueber dem Steg zusaetzlich den Steg (Hoehe h).
-    pathY: bandSegments(-b / 2, [
+    pathY: partSegments(-b / 2, [
       { extent: (b - tw) / 2, width: 2 * tf },
       { extent: tw, width: h },
       { extent: (b - tw) / 2, width: 2 * tf },
@@ -66,7 +66,7 @@ function thinPaths(h: number, b: number, tw: number, tf: number) {
   // Vier Gurthaelften, alle mit demselben |S|-Verlauf: vom freien Ende zur
   // Stegachse waechst S linear auf zf*tf*b/2.
   const flangeHalf = crossWallSegment(-zf, tf, b / 2);
-  const web = bandSegments(
+  const web = partSegments(
     -zf,
     [{ extent: 2 * zf, width: tw }],
     2 * endMoment(flangeHalf),
@@ -80,8 +80,8 @@ function thinPaths(h: number, b: number, tw: number, tf: number) {
     // symmetrisch, sein erstes Flaechenmoment um z also null. Die Querkraft in
     // y laeuft vollstaendig ueber die Gurte.
     pathY: [
-      bandSegments(-b / 2, [{ extent: b, width: tf }]).segments[0],
-      bandSegments(-b / 2, [{ extent: b, width: tf }]).segments[0],
+      partSegments(-b / 2, [{ extent: b, width: tf }]).segments[0],
+      partSegments(-b / 2, [{ extent: b, width: tf }]).segments[0],
     ],
   };
 }

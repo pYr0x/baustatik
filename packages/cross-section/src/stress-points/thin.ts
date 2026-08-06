@@ -4,9 +4,9 @@ import { type StressPoint, stressPoint } from './types';
 /**
  * DIE DÜNNWANDIGEN VORLAGEN — dasselbe Wandmodell, aus dem kappa fällt.
  *
- * Der Unterschied zur Bandmaschine in `outline.ts` ist keine Genauigkeitsfrage,
- * sondern eine andere Vorstellung davon, WIE DER SCHUB FLIESST. Die
- * Bandmaschine legt in jeder Höhe einen waagerechten Schnitt durch die volle
+ * Der Unterschied zum Umrissmodell in `outline.ts` ist keine Genauigkeitsfrage,
+ * sondern eine andere Vorstellung davon, WIE DER SCHUB FLIESST. Das
+ * Umrissmodell legt in jeder Höhe einen waagerechten Schnitt durch die volle
  * Umrissfigur; das Wandmodell lässt den Schubfluss LÄNGS der Wände laufen,
  * über ihre Mittellinien. Beim Vollquerschnitt fallen beide zusammen — die
  * Rechteckparabel IST Grashof —, beim I liegen sie 3 % auseinander.
@@ -54,7 +54,7 @@ function alongFlange(arm: number, t: number, halfWidth: number, y: number) {
  * `S0` ist, was der Steg von den Gurten erbt; ab da wächst es quadratisch,
  * weil der Hebelarm mit der Laufkoordinate wächst. `start` ist die Stelle, an
  * der der Steg beginnt — die GURTMITTELLINIE, nicht die Gurtunterkante. Genau
- * daran hängt der Unterschied zur Bandmaschine.
+ * daran hängt der Unterschied zum Umrissmodell.
  */
 function alongWeb(S0: number, t: number, start: number, zeta: number): number {
   return S0 + (t * (zeta * zeta - start * start)) / 2;
@@ -137,7 +137,7 @@ export function iSymmetricThinPoints(
     flange(13, 0, bottom),
     flange(14, b / 2, bottom),
     // Der Schwerpunkt sitzt am STEG, und hier trennen sich Wandmodell und
-    // Bandmaschine: der Steg läuft von Gurtmitte zu Gurtmitte (`±zf`), nicht
+    // Umrissmodell: der Steg läuft von Gurtmitte zu Gurtmitte (`±zf`), nicht
     // über die lichte Höhe. Bei IPE-80-Massen sind das 11,60 statt 11,25 cm³
     // — und der Katalog sagt 11,61.
     stressPoint(15, 0, 0, tw, alongWeb(fromFlange, tw, -zf, 0), 0),

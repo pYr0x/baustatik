@@ -10,12 +10,12 @@ Die Spannungspunkte folgen der Idealisierung (ADR 0029), und `t-beam` heißt
   Schubmodelle, und `idealisation` steuerte nur eines. Ein `i-symmetric` mit
   `thin-walled` und IPE-80-Massen bekam sein κ aus dem Wandweg (`Sy,max`
   11,60 cm³, Katalog 11,61) und seinen Schwerpunkt-Spannungspunkt aus der
-  Bandmaschine (11,25 cm³) — zwei Antworten auf EINE Zahl, in einem Querschnitt.
+  Umrissmodell (11,25 cm³) — zwei Antworten auf EINE Zahl, in einem Querschnitt.
   Dazu stand am Gurtpunkt `t = b` statt `t = tf`, also die senkrechte
   Schubkomponente, die an einer dünnwandigen Wand nichts bedeutet.
 - **`stressPoints` verzweigt jetzt über Form UND Idealisierung.** Neu ist
   `src/stress-points/thin.ts` mit den dünnwandigen Vorlagen für `i-symmetric`
-  (15 Punkte) und `t-section` (9 Punkte). `solid` behält die Bandmaschine, und
+  (15 Punkte) und `t-section` (9 Punkte). `solid` behält das Umrissmodell, und
   das ist keine Übergangslösung: Grashof IST für Vollquerschnitte richtig.
 - **Koordinaten und Nummern bewegen sich nicht**, nur `t` und `S`. Die
   Nummerierung ist ein veröffentlichter Vertrag.

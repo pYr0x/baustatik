@@ -34,8 +34,17 @@ export type ShearSegment = {
   readonly c2: number;
 };
 
-/** Ein Band quer zur Schubrichtung: konstante Breite ueber die Laenge `extent`. */
-export type Band = {
+/**
+ * Eine TEILFLAECHE laengs der Schubrichtung: ueber die Laufkoordinate reicht sie
+ * `extent` weit, quer dazu hat sie die konstante Breite `width`.
+ *
+ * Sie hat keine feste Gestalt — der Gurt eines I ist flach und breit, der Steg
+ * hoch und schmal, und `width` darf eine SUMME ueber getrennte Bereiche sein
+ * (`2*tf`, wenn ein senkrechter Schnitt beide Gurte trifft). Das Gegenstueck
+ * fuer Flaechenschnitte ist `OutlinePart` in `stress-points/outline.ts`, das
+ * dasselbe mit `from`/`to` statt mit `extent` beschreibt.
+ */
+export type Part = {
   readonly extent: number;
   readonly width: number;
 };
@@ -74,30 +83,30 @@ export function shearArea(
 }
 
 /**
- * Baender LAENGS der Schubrichtung, aneinandergereiht ab der Koordinate
+ * Teilflaechen LAENGS der Schubrichtung, aneinandergereiht ab der Koordinate
  * `start` (relativ zum Schwerpunkt gemessen, also negativ am oberen bzw.
  * linken freien Rand).
  *
- * Innerhalb eines Bandes konstanter Breite `w`, das bei `a` beginnt, ist
+ * Innerhalb einer Teilflaeche konstanter Breite `w`, die bei `a` beginnt, ist
  *
  *     S(a + s) = S(a) + w*a*s + (w/2)*s^2
  *
  * — das ist die ganze Herleitung, und sie gilt fuer den kompakten
  * Flaechenschnitt genauso wie fuer eine Wand, die in Schubrichtung laeuft.
  *
- * SELBSTPRUEFEND: laeuft die Bandfolge ueber den ganzen Querschnitt, muss `S`
+ * SELBSTPRUEFEND: laeuft die Folge ueber den ganzen Querschnitt, muss `S`
  * am Ende 0 sein — das erste Flaechenmoment um den Schwerpunkt verschwindet.
  * `closingMoment` gibt den Restwert zurueck, damit ein Test ihn pruefen kann.
  */
-export function bandSegments(
+export function partSegments(
   start: number,
-  bands: readonly Band[],
+  parts: readonly Part[],
   S0 = 0,
 ): { segments: ShearSegment[]; closingMoment: number } {
   const segments: ShearSegment[] = [];
   let a = start;
   let S = S0;
-  for (const { extent: L, width: w } of bands) {
+  for (const { extent: L, width: w } of parts) {
     segments.push({ length: L, t: w, c0: S, c1: w * a, c2: w / 2 });
     S = S + w * a * L + (w / 2) * L * L;
     a += L;

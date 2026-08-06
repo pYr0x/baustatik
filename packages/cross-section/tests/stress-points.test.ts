@@ -365,7 +365,7 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
   });
 
   it('liefert an jedem freien Rand S = 0', () => {
-    // Selbstpruefung der Bandmaschine: am oberen Rand ist nichts abgeschnitten,
+    // Selbstpruefung des Umrissmodells: am oberen Rand ist nichts abgeschnitten,
     // am unteren alles — und das erste Flaechenmoment des GANZEN Querschnitts
     // um seinen Schwerpunkt ist null.
     const pts = points({
