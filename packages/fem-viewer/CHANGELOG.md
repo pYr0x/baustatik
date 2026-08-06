@@ -1,5 +1,85 @@
 # @baustatik/fem-viewer
 
+## 1.2.0
+
+### Minor Changes
+
+- e6a9a4e: Der Kraftpfeil steht ab und sagt, wo er angreift — die zwei Dinge, die die
+  Streckenlast schon konnte, gelten jetzt fuer jede Punktlast.
+
+  - **Der Gap gilt fuer JEDEN Kraftpfeil:** die Spitze sitzt `forceGapPx` VOR dem
+    Angriffspunkt statt darin. Es ist dieselbe Groesse, mit der die Streckenlast
+    ueber dem Stab schwebt — wieviel Luft die Figur ueber der Stelle laesst, auf die
+    sie sich bezieht —, und deshalb ist es EINE Zahl (`DEFAULT_FORCE_GAP_PX`, 10 px)
+    und nicht zwei, die voneinander abweichen koennen.
+  - **Auch die Auflagerreaktion**, und zwar mit demselben Wert: Last und Reaktion
+    stehen damit spiegelbildlich um den Knoten, gleich weit ab. Die
+    Gleichgewichtsprobe bleibt ablesbar, weil die Regel fuer beide dieselbe ist —
+    ein anderer Gap auf der Ergebnisseite saehe aus, als griffen die beiden an
+    verschiedenen Stellen an.
+  - **Marke fuer die Stab-Einzellast**, an ihrem Angriffspunkt auf der Stabachse.
+    Nur dort: eine Knotenlast und eine Reaktion haengen an einem Knoten, der schon
+    gezeichnet ist, und die Marke laege unter seinem groesseren roten Kreis. Ob es
+    eine Marke gibt, entscheidet deshalb `loads/beam-loads.ts` und nicht das
+    Kraftsymbol — es ist die Frage, WORAN die Last haengt.
+  - **Neues Symbol `symbols/marker.ts`:** die Marke hat jetzt zwei Aufrufer. Bei der
+    Streckenlast ist sie konstitutiv und steht in der Figur, bei der Einzellast ist
+    sie der Fall „auf einem Stab" und steht beim Aufrufer.
+  - **Stilschluessel zusammengelegt** (die Streckenlast ist noch nicht
+    veroeffentlicht, es bricht also nichts): `distributedLoadGapPx` →
+    `pointForceGapPx` plus neu `reactionForceGapPx`, `distributedLoadMarkerColor`/
+    `-SizePx` → `loadMarkerColor`/`loadMarkerSizePx`. In `symbols/style.ts` heissen
+    sie `forceGapPx` (in `SymbolStyle`, weil die Reaktion ihn teilt) und
+    `MarkerStyle` (eigene Scheibe, weil die Reaktion sie NICHT teilt).
+
+- e6a9a4e: Streckenlasten werden gezeichnet — und stehen auf ihrem Schatten (ADR 0028).
+
+  - **Die Regel, aus der alle neun Faelle folgen:** die Grundlinie der Figur ist der
+    Schatten des belasteten Abschnitts, geworfen von Parallellicht in
+    Lastrichtung; bei `trueLength` die Stabachse selbst. Damit braucht die Matrix
+    aus `frame` x `axis` x `referenceLength` keine einzige Fallunterscheidung — ein
+    Schatten steht per Definition senkrecht auf dem Licht, und das entgegen der
+    Lastrichtung abgetragene Polygon kann deshalb nicht flach werden. Die
+    naheliegende Regel „die Bezugslaenge nennt die Grundlinie" ist an
+    `Linienlast4` und `Linienlast8` widerlegt.
+  - **Zwei Folgen, beide gewollt:** `horizontalProjection` und `verticalProjection`
+    zeichnen bei gleicher Lastrichtung IDENTISCH (sie unterscheiden sich im Wert,
+    den das Bild nicht skaliert), und die Luecke sitzt an der geringsten Stelle,
+    gemessen laengs der Lastrichtung.
+  - **Die eine Ausnahme davon:** misst die Bezugslaenge am Stab EXAKT 0 —
+    `verticalProjection` am waagrechten, `horizontalProjection` am senkrechten —,
+    wird dort gar nichts gezeichnet, so wie RSTAB es haelt. Das Bild skaliert nicht
+    mit dem Faktor, aber „nichts" ist keine Skalierung: die Last traegt an diesem
+    Stab nichts ein, und weil die Ordinate je Last normiert ist, stuende die Figur
+    sonst ausgerechnet dort in voller Hoehe. Entschieden wird JE STAB, am exakten 0
+    — der fast waagrechte Stab wird weiter gezeichnet.
+  - **Der eine Sonderfall:** Lastrichtung parallel zur Stabachse — `lokal x` immer,
+    `global x`/`global z` am waagrechten beziehungsweise senkrechten Stab. Dort
+    steht der Block quer und die zwei Pfeile liegen laengs darin; ohne sie waeren
+    eine Last und ihr Gegenstueck dasselbe Bild.
+  - **Neues Symbol `symbols/distributed-force.ts`**, nicht `pointForceSpecs` mit
+    einem Parameter mehr: beim Kraftpfeil sagt die Laenge laut Invariante nichts
+    ueber den Betrag, hier ist sie die Ordinate. Die Figur hat trotzdem keine
+    eigene Hoehenzahl — die Aussenkante des Polygons IST die Verbindung der
+    Pfeilenden.
+  - **Marker auf dem Stab** an Anfang und Ende des Abschnitts. Unter der
+    Schattenregel steht die Figur bei einer Projektion nicht mehr ueber dem Stab;
+    ohne die Marken saehe man nicht, welches Stueck belastet ist.
+  - **Bekannte Einschraenkung, jetzt bewusst:** die Ordinate ist JE LAST normiert.
+    Die Hoehe zeigt den Verlauf innerhalb einer Last, nie zwischen zweien. Der
+    Bezugsmassstab ueber alle sichtbaren Lasten bleibt offen.
+  - **Behoben nebenbei:** `beam-loads.ts` las `distanceFromStart` vor der
+    Verzweigung — an einer Streckenlast gibt es das Feld nicht, `loadStation`
+    machte daraus stillschweigend `NaN`. Und `render-core` validierte
+    `RectangleSpec` gar nicht: die Spec stand in der Union und der Konva-Adapter
+    konnte sie, aber `validateSpec` fiel in den Unbekannt-Zweig.
+
+### Patch Changes
+
+- Updated dependencies [e6a9a4e]
+  - @baustatik/render-core@0.1.1
+  - @baustatik/grid-2d@0.0.3
+
 ## 1.1.0
 
 ### Minor Changes

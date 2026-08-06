@@ -1,5 +1,13 @@
 # @baustatik/cross-section-viewer
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [e6a9a4e]
+  - @baustatik/render-core@0.1.1
+  - @baustatik/grid-2d@0.0.3
+
 ## 0.1.2
 
 ### Patch Changes
