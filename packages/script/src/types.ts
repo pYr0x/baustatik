@@ -144,13 +144,20 @@ export interface FEMModelSnapshotBuilder extends FEMModelBuilder {
  * jedes alte Modell antwortete still anders
  * ([ADR 0027](../../../docs/adr/0027-catalogues-are-import-sources.md)).
  *
+ * v5 benennt EINE FORM UM: `ShapeSpec.kind` heisst `'t-section'` statt
+ * `'t-beam'` — der Name nennt jetzt die Form und nicht den Baustoff. Ein v4
+ * traegt das alte Literal und ist damit kein gueltiger v5-Satz.
+ *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein aelterer Snapshot
  * wird ABGELEHNT. Ein v3 per Lookup zu ergaenzen waere genau die stille
  * Aufloesung, die v4 abschafft — einmal ausgefuehrt im unguenstigsten Moment
- * und danach nicht mehr von einer bewussten Wahl zu unterscheiden.
+ * und danach nicht mehr von einer bewussten Wahl zu unterscheiden. Beim
+ * Formnamen waere die Umschreibung sogar trivial, und genau deshalb steht sie
+ * hier nicht: eine Migration ist ein Werkzeug, das jemand AUFRUFT, sieht und
+ * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 4;
+  readonly schemaVersion: 5;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];

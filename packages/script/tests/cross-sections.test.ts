@@ -7,10 +7,10 @@ import {
   SnapshotValidationError,
 } from '../src';
 
-/** Ein vollstaendiger, gueltiger v4-Rumpf zum Ueberschreiben einzelner Felder. */
+/** Ein vollstaendiger, gueltiger v5-Rumpf zum Ueberschreiben einzelner Felder. */
 function snapshot(overrides: Record<string, unknown> = {}) {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     nodes: [],
     beams: [],
     crossSections: [],
@@ -51,7 +51,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
             kind: 'shape',
             id: 'cs-3',
             shape: {
-              kind: 't-beam',
+              kind: 't-section',
               bf: 2000,
               hf: 200,
               bw: 250,
@@ -76,7 +76,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
     // biome-ignore lint/performance/noDelete: v1 kannte `materials` nicht.
     delete (v1 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v1, schemaVersion: 1 })).toThrow(
-      'Snapshot.schemaVersion muss 4 sein.',
+      'Snapshot.schemaVersion muss 5 sein.',
     );
   });
 
@@ -92,7 +92,60 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
           crossSections: [{ kind: 'profile', id: 'cs-1', profile: 'IPE 300' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 4 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 5 sein.');
+  });
+
+  it('lehnt v4 AB, statt `t-beam` in `t-section` umzuschreiben', () => {
+    // DER GRUND FUER v5. Ein v4 ist bis auf EIN Literal ein gueltiger v5-Satz,
+    // und genau das macht ihn gefaehrlich: die Umschreibung waere zwei Zeilen
+    // und danach nicht mehr von einer bewussten Wahl zu unterscheiden. v4 wird
+    // abgewiesen wie v3 — aus demselben Grund, nur billiger zu uebersehen.
+    expect(() =>
+      parseFEMModelSnapshot(
+        snapshot({
+          schemaVersion: 4,
+          crossSections: [
+            {
+              kind: 'shape',
+              id: 'cs-1',
+              shape: {
+                kind: 't-beam',
+                bf: 2000,
+                hf: 200,
+                bw: 250,
+                h: 500,
+                idealisation: 'solid',
+              },
+            },
+          ],
+        }),
+      ),
+    ).toThrow('Snapshot.schemaVersion muss 5 sein.');
+  });
+
+  it('kennt `t-beam` auch in einem v5-Satz nicht mehr', () => {
+    // Die Version allein reicht nicht: das alte Literal ist auch dann kein
+    // gueltiger Formname, wenn jemand die Zahl von Hand auf 5 setzt.
+    expect(() =>
+      parseFEMModelSnapshot(
+        snapshot({
+          crossSections: [
+            {
+              kind: 'shape',
+              id: 'cs-1',
+              shape: {
+                kind: 't-beam',
+                bf: 2000,
+                hf: 200,
+                bw: 250,
+                h: 500,
+                idealisation: 'solid',
+              },
+            },
+          ],
+        }),
+      ),
+    ).toThrow(SnapshotValidationError);
   });
 
   it('verlangt crossSections auch dann, wenn es leer bleibt', () => {

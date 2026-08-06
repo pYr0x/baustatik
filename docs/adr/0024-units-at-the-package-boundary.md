@@ -100,6 +100,11 @@ Repo, das ohnehin schon 25 hat.
   im Typ, nicht in einer Formel. `tBeamCentroid` wird bewusst aus beiden
   Einheiten gerufen (cm aus `tBeam`, mm aus `stressPoints`) und darf deshalb
   gar nicht gebrandet werden; ein Kommentar sagt das.
+  *(Nachtrag: die Form heisst seit
+  [ADR 0029](0029-stress-points-follow-the-idealisation.md) `t-section`, die
+  beiden Funktionen `tSectionCentroid` und `tSection`. Die Aussage gilt
+  unveraendert und ist mit `tSectionWall` um eine dritte einheitenfreie
+  Funktion gewachsen.)*
 - **κ ist unberuehrt.** Es ist dimensionslos, und `tests/kappa.test.ts` ging
   ohne eine einzige geaenderte Erwartung durch den Umbau — der schaerfste
   Beleg, dass er sauber ist. Umgekehrt heisst das: kappa-Tests koennen einen

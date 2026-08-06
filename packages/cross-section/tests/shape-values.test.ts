@@ -46,7 +46,7 @@ describe('Plattenbalken — der Fall, der Steiner prueft', () => {
   //   As = 0,075 m2, Schwerpunkt 0,350 m unter OK
   //   zs = (0,400*0,100 + 0,075*0,350) / 0,475 = 0,06625 / 0,475 = 0,139474 m
   const wide = {
-    kind: 't-beam',
+    kind: 't-section',
     bf: 2000,
     hf: 200,
     bw: 250,
@@ -201,7 +201,7 @@ describe('Unsinnige Abmessungen liefern undefined statt NaN', () => {
         id: 'x',
         // Steg breiter als der Gurt: kein Plattenbalken.
         shape: {
-          kind: 't-beam',
+          kind: 't-section',
           bf: 200,
           hf: 50,
           bw: 300,

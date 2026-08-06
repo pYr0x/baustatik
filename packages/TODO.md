@@ -102,9 +102,25 @@ Ein Profilkatalog, der den Solver versorgt, ist bereits ein sinnvoller
 Zwischenstand. Ein Editor ohne Rechenkern nicht.
 
 Offen geblieben ist außerdem: der geschlossene Kasten hat noch keine
-Spannungspunkt-Vorlage (wartet auf die QRO-Daten mit ihren Bogentangenten), und
-`It` fehlt — dort wirkt die `idealisation` wieder, und zwischen `⅓Σl·t³` und
-Bredt liegen drei Zehnerpotenzen.
+Spannungspunkt-Vorlage — ihm fehlen die **Referenzdaten**, nicht die Theorie
+(`closedBoxPath` hat den umlaufenden Weg, κ fällt daraus); er wartet auf die
+QRO-Daten mit ihren Bogentangenten. Und `It` fehlt — dort wirkt die
+`idealisation` wieder, und zwischen `⅓Σl·t³` und Bredt liegen drei
+Zehnerpotenzen.
+
+Die Idealisierung steuert seit
+[ADR 0029](../docs/adr/0029-stress-points-follow-the-idealisation.md) κ **und**
+die Spannungspunkte. Bewusst noch nicht angefasst:
+
+- **Das positionierte Wandmodell.** `ShearSegment` ist heute ein lageloser
+  Energieakkumulator — `pathZ` benutzt dasselbe Gurtobjekt viermal —, also
+  können κ und die Spannungspunkte nicht denselben Weg lesen. Ein Weg, der
+  beides speist, bräuchte Startpunkt und Richtung je Abschnitt, und `Sy`/`Sz`
+  kämen aus zwei verschieden parametrisierten Wegen, deren Stationen korreliert
+  werden müssten. Danach blieben zwei Maschinen — aber jede nur noch für ihren
+  Fall zuständig.
+- **`i-shape` mit unabhängigen Gurten**, das I und T subsumiert (T = Grenzfall
+  `tf,unten = 0`). Das ist eine Formänderung im Modellsatz, kein Aufräumen.
 
 ## Dauerhafte Leitplanken
 

@@ -1,14 +1,34 @@
 import { type CrossSection, sectionProperties } from '../section';
-import { tBeamCentroid } from '../shapes/t-beam';
-import { iSymmetricPoints, rectanglePoints, tBeamPoints } from './compact';
+import { tSectionCentroid, tSectionWall } from '../shapes/t-section';
+import { iSymmetricPoints, rectanglePoints, tSectionPoints } from './compact';
 import { rolledIStressPoints } from './rolled-i';
+import { iSymmetricThinPoints, tSectionThinPoints } from './thin';
 import type { StressPoint } from './types';
 
 /**
  * Die Spannungspunkte eines Querschnitts.
  *
+ * DIE VERZWEIGUNG GEHT UEBER FORM UND IDEALISIERUNG, nicht ueber die Form
+ * allein. `idealisation` beantwortet die Frage „wie fliesst der Schub", und
+ * dieselbe Frage darf nicht zwei Maschinen haben: sie steuert kappa UND die
+ * Spannungspunkte, oder keines von beiden
+ * ([ADR 0029](../../../docs/adr/0029-stress-points-follow-the-idealisation.md)).
+ *
+ * | Form | `solid` | `thin-walled` |
+ * | --- | --- | --- |
+ * | `rectangle` | Bandmaschine | — (traegt kein `idealisation`) |
+ * | `i-symmetric` | Bandmaschine | Wandmodell |
+ * | `t-section` | Bandmaschine | Wandmodell |
+ * | `hollow-rectangle` | `undefined` | `undefined` |
+ *
+ * `solid` behaelt die Bandmaschine, und das ist keine Uebergangsloesung:
+ * Grashof IST fuer Vollquerschnitte richtig, die Rechteckparabel faellt genau
+ * daraus.
+ *
  * `undefined` heisst „fuer diese Form gibt es (noch) keine Vorlage" — heute der
- * geschlossene Kasten. Eine Vorlage ohne Referenzdaten, gegen die sie zu pruefen
+ * geschlossene Kasten. Ihm fehlen die REFERENZDATEN, nicht die Theorie: den
+ * umlaufenden Weg hat `closedBoxPath` in `shapes/hollow-rectangle.ts` bereits,
+ * und kappa faellt daraus. Eine Vorlage ohne Referenz, gegen die sie zu pruefen
  * waere, ist geraten und nicht gerechnet; der Kasten kommt zusammen mit den
  * QRO-Daten, die ausserdem Bogentangenten mitbringen und deshalb eine eigene
  * Herleitung brauchen.
@@ -37,21 +57,34 @@ export function stressPoints(
   const shape = cs.shape;
   switch (shape.kind) {
     case 'rectangle':
+      // Ein duennwandiges Vollrechteck gibt es nicht, also traegt die Form
+      // kein `idealisation` — und hier gibt es nichts zu verzweigen.
       return rectanglePoints(shape.b, shape.h);
     case 'i-symmetric':
-      return iSymmetricPoints(shape.h, shape.b, shape.tw, shape.tf);
-    case 't-beam':
-      return tBeamPoints(
-        shape.bf,
-        shape.hf,
-        shape.bw,
-        shape.h,
-        // `sectionProperties` hat die Masse eben erst durchgelassen; der
-        // Schwerpunkt ist damit bestimmt.
-        tBeamCentroid(shape.bf, shape.hf, shape.bw, shape.h) as number,
-      );
+      return shape.idealisation === 'solid'
+        ? iSymmetricPoints(shape.h, shape.b, shape.tw, shape.tf)
+        : iSymmetricThinPoints(shape.h, shape.b, shape.tw, shape.tf);
+    case 't-section': {
+      const { bf, hf, bw, h } = shape;
+      // `sectionProperties` hat die Masse eben erst durchgelassen; beide
+      // Schwerpunkte sind damit bestimmt.
+      const zs = tSectionCentroid(bf, hf, bw, h) as number;
+      return shape.idealisation === 'solid'
+        ? tSectionPoints(bf, hf, bw, h, zs)
+        : // `S` laeuft um den Schwerpunkt des WANDMODELLS, die Koordinaten um
+          // den der Umrissfigur. Beide kommen aus `shapes/t-section.ts`, damit
+          // kappa und die Spannungspunkte dieselben Zahlen benutzen.
+          tSectionThinPoints(
+            bf,
+            hf,
+            bw,
+            h,
+            zs,
+            tSectionWall(bf, hf, bw, h).zsWall,
+          );
+    }
     case 'hollow-rectangle':
-      // Siehe oben: der geschlossene Kasten wartet auf die QRO-Daten.
+      // Siehe oben: dem Kasten fehlen die Referenzdaten, nicht der Weg.
       return undefined;
   }
 }

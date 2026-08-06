@@ -105,19 +105,36 @@ dem Ergebnis nicht anzusehen — deshalb **Pflichtfeld ohne Default**.
 
 Nur `rectangle` traegt keins: ein duennwandiges Vollrechteck gibt es nicht.
 
-**Bekannte Luecke:** die Idealisierung wirkt heute auf **genau eine** Groesse, κ.
-`A`, `Iy`, `Iz`, `Iyz`, `ys` und `zs` werden in beiden Faellen exakt aus der
-Umrissfigur gerechnet — die klassische duennwandige Naeherung (Mittellinie,
-`t³`-Anteil entfaellt) brauchen wir nicht, weil geschlossene Formeln vorliegen.
-Mit `It` kommt sie wieder, und dort liegen zwischen `⅓Σl·t³` und Bredt drei
-Zehnerpotenzen.
+Die Idealisierung wirkt auf **zwei** Groessen: κ und die **Spannungspunkte**.
+Beide beantworten dieselbe Frage — „wie fliesst der Schub" —, und dieselbe Frage
+darf nicht zwei Maschinen haben
+([ADR 0029](../../docs/adr/0029-stress-points-follow-the-idealisation.md)). Bis
+dahin steuerte sie nur κ; die Spannungspunkte verzweigten ausschliesslich ueber
+`shape.kind`, und ein `thin-walled`-I bekam sein κ aus dem Wandweg (`Sy,max`
+11,60 cm³) und seinen Schwerpunktpunkt aus der Bandmaschine (11,25 cm³) — zwei
+Antworten auf eine Zahl.
+
+**Bekannte Luecke:** `A`, `Iy`, `Iz`, `Iyz`, `ys` und `zs` werden weiterhin in
+beiden Faellen exakt aus der Umrissfigur gerechnet — die klassische duennwandige
+Naeherung (Mittellinie, `t³`-Anteil entfaellt) brauchen wir nicht, weil
+geschlossene Formeln vorliegen. Mit `It` kommt sie wieder, und dort liegen
+zwischen `⅓Σl·t³` und Bredt drei Zehnerpotenzen.
 
 Ein Sonderfall, der beim Lesen der Formeln auffaellt: beim **unsymmetrischen**
-Plattenbalken rechnet der duennwandige Weg `S` um den Schwerpunkt des
+T-Querschnitt rechnet der duennwandige Weg `S` um den Schwerpunkt des
 **Wandmodells**, nicht um den der Umrissfigur. Sonst schloesse der Weg am freien
 Stegende nicht auf null, und `S` waere zweideutig — je nachdem, von welcher Seite
 man schneidet. Bei den doppeltsymmetrischen Formen fallen beide Schwerpunkte
 zusammen, dort faellt es nicht auf.
+
+Der **Versatz `zs − zsWall`** ist damit die Naeherung dieser Form: die
+Koordinaten liegen um `zs` (σ braucht dieselbe Achse wie `A` und `Iy`), `S` um
+`zsWall`. Er ist klein — 0,30 mm bei einem 200 mm hohen geschweissten T — und
+kostet, weil `S` an seinem Maximum flach ist, 3·10⁻⁶ von `S`. Er kann das
+Vorzeichen wechseln (beim breiten Gurt liegt der Umrissschwerpunkt *ueber* dem
+Wandschwerpunkt); deshalb bekommt die Vorlage `zs` und `zsWall` **getrennt** und
+nicht eine Differenz mit angenommenem Vorzeichen. Ein Charakterisierungstest
+haelt ihn mit Zahl fest.
 
 ## Parametrische Formen liefern Werte, keine Geometrie
 
@@ -157,16 +174,36 @@ Modellfehler **im Bericht** statt einer Ausnahme mitten in `solve()`.
 | Form | Punkte | |
 | --- | --- | --- |
 | `rectangle` | **5** | 4 Ecken + Schwerpunkt |
-| `t-beam` | **9** | 8 Ecken + Schwerpunkt |
+| `t-section` | **9** | 8 Ecken + Schwerpunkt |
 | `i-symmetric` (geschweisst) | **15** | 12 Ecken + Schwerpunkt + 2 auf der Stegachse `(0, ±h/2)` |
 | Walzprofil (IPE/HEA) | **13** | RSTAB: 5 + 5 Gurt, 2 Steganfang, 1 Schwerpunkt |
 
-Was die Regel erledigt: beim **Plattenbalken mit breitem Gurt** kann die
+Die Punkte **liegen**, wo die Regel sie hinsetzt; **welche Werte** sie tragen,
+entscheidet die Idealisierung — dieselbe Angabe, die auch κ steuert:
+
+| Form | `solid` | `thin-walled` |
+| --- | --- | --- |
+| `rectangle` | Bandmaschine | — (traegt kein `idealisation`) |
+| `i-symmetric` | Bandmaschine | **Wandmodell** |
+| `t-section` | Bandmaschine | **Wandmodell** |
+| `hollow-rectangle` | `undefined` | `undefined` |
+
+`solid` behaelt die Bandmaschine, und das ist keine Uebergangsloesung: Grashof
+**ist** fuer Vollquerschnitte richtig, die Rechteckparabel faellt genau daraus.
+Im Wandmodell wechseln nur `t` und `S` — die Koordinaten und die Nummern bleiben
+Ziffer fuer Ziffer dieselben. Am Gurt heisst das `t = tf` statt `t = b`: der
+Schubfluss laeuft **laengs** der Wand, die senkrechte Komponente durch den ganzen
+Gurt bedeutet dort nichts.
+
+Was die Regel erledigt: beim **T-Querschnitt mit breitem Gurt** kann die
 Nulllinie *im Gurt* liegen (`bf=2,0 / hf=0,2 / bw=0,25 / h=0,5` → `zs = 0,1395`
 bei `hf = 0,2`). „Schwerpunkt" trifft das ohne Sonderfall und liefert dort
-`t = bf`; „Mitte Steg" haette den Punkt an die falsche Stelle gesetzt. Und beim
-**Rechteck** haben die vier Ecken allein ueberall `S = 0`; das Maximum
-`b·h²/8` sitzt auf halber Hoehe.
+kompakt `t = bf`; „Mitte Steg" haette den Punkt an die falsche Stelle gesetzt.
+(Im Wandmodell ist der Gurt eine Linie, es gibt dort also keinen waagerechten
+Schnitt durch ihn: der Punkt sitzt am Steg und traegt `t = bw`. `zs > hf/2` gilt
+immer, solange es unter dem Gurt einen Steg gibt — der Fall braucht auch dort
+keinen Sonderfall.) Und beim **Rechteck** haben die vier Ecken allein ueberall
+`S = 0`; das Maximum `b·h²/8` sitzt auf halber Hoehe.
 
 Dass das Walzprofil bei RSTABs 13 bleibt und die Gurtunterseiten-Ecken auslaesst,
 ist eine **begruendete Ausnahme**: bei homogenem Querschnitt koennen sie nie
@@ -215,8 +252,28 @@ zu 0,56 % (Spannungspunkt 13 gegen das eigene `Sy,max`, HEA 260) und druckt
 spiegelbildliche Punkte verschieden (IPE 220: 119,44 gegen 119,73).
 
 Fuer den **geschlossenen Kasten** gibt es noch keine Vorlage: `stressPoints`
-liefert `undefined`. Eine Vorlage ohne Referenzdaten waere geraten und nicht
-gerechnet; er kommt mit den QRO-Daten, die ausserdem Bogentangenten mitbringen.
+liefert `undefined`. Ihm fehlen die **Referenzdaten, nicht die Theorie** — den
+umlaufenden Weg hat `closedBoxPath` in `shapes/hollow-rectangle.ts` bereits, und
+κ faellt daraus. Eine Vorlage ohne Referenz, gegen die sie zu pruefen waere, ist
+geraten und nicht gerechnet; er kommt mit den QRO-Daten, die ausserdem
+Bogentangenten mitbringen.
+
+### Das Orakel der duennwandigen Vorlagen: `r = 0`
+
+Ein geschweisstes I ohne Ausrundung **ist** das gewalzte Profil mit `r = 0`. Die
+duennwandige I-Vorlage erbt damit die Gueltigkeit der 546 validierten Punkte,
+ohne eine neue Fixture zu kosten — an den **14 Gurtstationen**, und dort auf
+Gleitkommarauschen genau.
+
+Am **Steg** gilt das Orakel nicht, und diese Grenze ist die Aussage: `rolled-i.ts`
+fuehrt den Gurt bereits als Wand (`t = tf`, Hebelarm auf der Mittellinie), den
+Steg aber als Umrissfigur ueber die **lichte** Hoehe `h/2 − tf`, waehrend das
+Wandmodell von Gurtmitte zu Gurtmitte laeuft (`±zf`). Bei IPE-80-Massen sind das
+11,25 gegen 11,60 cm³. Keine der beiden Zahlen ist falsch; sie gehoeren zwei
+Idealisierungen. Der Schwerpunkt hat deshalb seine **eigene** Referenz, `Sy,max`
+des Katalogs: 11,60 gegen 11,61. Ueber den ganzen Katalog liegt das Wandmodell
+**immer** unter der Tabelle, um 0,05 % (IPE 80) bis 4,6 % (HEA 260) — dieselbe
+Signatur wie bei κ, wo `Az` ebenfalls immer zu klein ist.
 
 ## Fixture aus dem Nachbarpackage
 
@@ -227,6 +284,11 @@ Packages ist und nicht Teil des Katalogs.
 
 ## Domaenensprache
 
+- **`t-section`** nennt die **Form**, nicht den Baustoff. Dieselben vier Zahlen
+  heissen im Betonbau **Plattenbalken** und im Stahlbau **T-Profil**; getrennt
+  werden die beiden von `idealisation`, nicht vom Formnamen. Der frueher
+  gefuehrte `t-beam` trug den Baustoff im Schluessel und ist mit
+  `schemaVersion: 5` verschwunden.
 - **`SyMax`/`SzMax`** (im Katalog) ist das statische Moment des
   **Halbquerschnitts**. **`StressPoint.Sy`/`Sz`** (hier) gilt **am Ort**. Die
   Namen sind bewusst verschieden.

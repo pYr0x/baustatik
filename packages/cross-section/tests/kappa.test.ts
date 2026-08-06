@@ -265,12 +265,12 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
       paths: iThinPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M),
     },
     {
-      name: 't-beam solid (breiter Gurt)',
+      name: 't-section solid (breiter Gurt)',
       cs: {
         kind: 'shape',
         id: 't',
         shape: {
-          kind: 't-beam',
+          kind: 't-section',
           bf: 2000,
           hf: 200,
           bw: 250,
@@ -281,12 +281,12 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
       paths: tSolidPaths(2000 * M, 200 * M, 250 * M, 500 * M, T_ZS * M),
     },
     {
-      name: 't-beam thin-walled (breiter Gurt)',
+      name: 't-section thin-walled (breiter Gurt)',
       cs: {
         kind: 'shape',
         id: 't',
         shape: {
-          kind: 't-beam',
+          kind: 't-section',
           bf: 2000,
           hf: 200,
           bw: 250,

@@ -16,7 +16,7 @@ declare module '@baustatik/script' {
     /** @param h Hoehe [mm] @param b Gurtbreite [mm] @param tw Stegdicke [mm] @param tf Gurtdicke [mm] */
     | { kind: 'i-symmetric'; h: number; b: number; tw: number; tf: number; idealisation: Idealisation }
     /** @param bf Gurtbreite [mm] @param hf Gurtdicke [mm] @param bw Stegbreite [mm] @param h Gesamthoehe [mm] */
-    | { kind: 't-beam'; bf: number; hf: number; bw: number; h: number; idealisation: Idealisation };
+    | { kind: 't-section'; bf: number; hf: number; bw: number; h: number; idealisation: Idealisation };
   export type CrossSectionInput =
     | { kind: 'shape'; shape: ShapeSpec }
     | { kind: 'profile'; profile: string };

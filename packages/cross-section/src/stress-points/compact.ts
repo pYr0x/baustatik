@@ -8,7 +8,7 @@ import { type StressPoint, stressPoint } from './types';
  * > Jede Vorlage enthaelt mindestens ALLE ECKEN der Umrissfigur und den
  * > SCHWERPUNKT.
  *
- * Was die Regel erledigt, sieht man am Plattenbalken mit breitem Gurt: die
+ * Was die Regel erledigt, sieht man am T-Querschnitt mit breitem Gurt: die
  * Nulllinie kann IM GURT liegen (`bf=2000 / hf=200 / bw=250 / h=500` ergibt
  * `zs = 139,5 mm` bei `hf = 200`). „Schwerpunkt" trifft das ohne Sonderfall und
  * liefert dort `t = bf`; „Mitte Steg" haette den Punkt an die falsche Stelle
@@ -62,12 +62,12 @@ export function rectanglePoints(b: mm, h: mm): StressPoint[] {
 }
 
 /**
- * Plattenbalken: 8 Ecken + Schwerpunkt.
+ * T-Querschnitt: 8 Ecken + Schwerpunkt.
  *
  * `zs` ist der Abstand des Schwerpunkts von der GURTOBERKANTE; die Punkte
  * liegen wie ueberall SCHWERPUNKTSBEZOGEN. Alles in mm.
  */
-export function tBeamPoints(
+export function tSectionPoints(
   bf: mm,
   hf: mm,
   bw: mm,

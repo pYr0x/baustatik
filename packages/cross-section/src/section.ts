@@ -5,7 +5,7 @@ import { hollowRectangle } from './shapes/hollow-rectangle';
 import { iSymmetric } from './shapes/i-symmetric';
 import { toProperties } from './shapes/kernel';
 import { rectangle } from './shapes/rectangle';
-import { tBeam } from './shapes/t-beam';
+import { tSection } from './shapes/t-section';
 import { toSI } from './to-si';
 import { MM_TO_CM } from './units';
 
@@ -57,9 +57,15 @@ export type ShapeSpec =
       tf: mm;
       idealisation: Idealisation;
     }
-  /** Plattenbalken: Gurt oben, Steg darunter, `h` ist die Gesamthoehe. */
+  /**
+   * T-Querschnitt: Gurt oben, Steg darunter, `h` ist die Gesamthoehe.
+   *
+   * Der Name nennt die FORM, nicht den Baustoff: dieselben vier Zahlen heissen
+   * im Betonbau Plattenbalken und im Stahlbau T-Profil. Getrennt werden die
+   * beiden von `idealisation`, nicht vom Formnamen.
+   */
   | {
-      kind: 't-beam';
+      kind: 't-section';
       bf: mm;
       hf: mm;
       bw: mm;
@@ -156,8 +162,8 @@ function shapeResult(spec: ShapeSpec) {
         spec.tf * c,
         spec.idealisation,
       );
-    case 't-beam':
-      return tBeam(
+    case 't-section':
+      return tSection(
         spec.bf * c,
         spec.hf * c,
         spec.bw * c,

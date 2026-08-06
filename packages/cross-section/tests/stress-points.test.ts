@@ -309,7 +309,7 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
       kind: 'shape',
       id: 't',
       shape: {
-        kind: 't-beam',
+        kind: 't-section',
         bf: 500,
         hf: 150,
         bw: 250,
@@ -347,7 +347,7 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
       kind: 'shape',
       id: 't',
       shape: {
-        kind: 't-beam',
+        kind: 't-section',
         bf: 2000,
         hf: 200,
         bw: 250,
@@ -372,7 +372,7 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
       kind: 'shape',
       id: 't',
       shape: {
-        kind: 't-beam',
+        kind: 't-section',
         bf: 500,
         hf: 150,
         bw: 250,
@@ -436,7 +436,7 @@ describe('Was undefined heisst', () => {
         kind: 'shape',
         id: 't',
         shape: {
-          kind: 't-beam',
+          kind: 't-section',
           bf: 200,
           hf: 50,
           bw: 300,

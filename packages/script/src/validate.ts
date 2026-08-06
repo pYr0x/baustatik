@@ -42,15 +42,17 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // Ein aelterer Snapshot wird ABGELEHNT und nicht ergaenzt. Bei v1 zeigte
   // `crossSectionId` ins Leere; bei v2 BEDEUTET `materialId` etwas anderes als
   // hier — dort die Guete selbst (`'S235'`), hier ein Verweis auf
-  // `Material.id`; bei v3 fehlen die kopierten Zahlen.
+  // `Material.id`; bei v3 fehlen die kopierten Zahlen; bei v4 heisst die
+  // T-Form `'t-beam'` statt `'t-section'`.
   //
-  // Gerade v3 waere verfuehrerisch zu ergaenzen: die Bezeichnungen stehen
-  // darin, ein Lookup laege nahe. Genau das ist die stille Aufloesung, die
-  // ADR 0027 abschafft — hier einmal ausgefuehrt, im unguenstigsten Moment,
-  // und danach nicht mehr von einer bewussten Wahl zu unterscheiden. Eine
-  // Migration ist ein Werkzeug, das jemand AUFRUFT, sieht und ablehnen kann.
-  if (snapshot.schemaVersion !== 4) {
-    fail('Snapshot.schemaVersion muss 4 sein.');
+  // Verfuehrerisch zu ergaenzen waeren gleich zwei: bei v3 stehen die
+  // Bezeichnungen darin, ein Lookup laege nahe, und bei v4 waere es ein
+  // ersetztes Literal. Genau das ist die stille Aufloesung, die ADR 0027
+  // abschafft — hier einmal ausgefuehrt, im unguenstigsten Moment, und danach
+  // nicht mehr von einer bewussten Wahl zu unterscheiden. Eine Migration ist
+  // ein Werkzeug, das jemand AUFRUFT, sieht und ablehnen kann.
+  if (snapshot.schemaVersion !== 5) {
+    fail('Snapshot.schemaVersion muss 5 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -172,7 +174,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     nodes,
     beams,
     crossSections,
@@ -338,7 +340,7 @@ function parseShape(input: unknown, path: string): ShapeSpec {
   const value = record(input, path);
   const kind = oneOf(
     value.kind,
-    ['rectangle', 'hollow-rectangle', 'i-symmetric', 't-beam'] as const,
+    ['rectangle', 'hollow-rectangle', 'i-symmetric', 't-section'] as const,
     `${path}.kind`,
   );
   const size = (key: string) => positive(value[key], `${path}.${key}`);
@@ -368,7 +370,7 @@ function parseShape(input: unknown, path: string): ShapeSpec {
         tf: size('tf'),
         idealisation: parseIdealisation(value.idealisation, path),
       };
-    case 't-beam':
+    case 't-section':
       exactKeys(value, path, ['kind', 'bf', 'hf', 'bw', 'h', 'idealisation']);
       return {
         kind,

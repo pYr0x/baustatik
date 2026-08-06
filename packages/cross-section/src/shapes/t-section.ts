@@ -12,17 +12,17 @@ import { allPositive, type ShapeResult } from './kernel';
  * bekommen — und die Spannungspunkte liegen SCHWERPUNKTSBEZOGEN, verschoeben
  * sich also alle neun.
  *
- * EINHEITENFREI, und das ist Absicht: `tBeam` ruft sie in ZENTIMETERN,
+ * EINHEITENFREI, und das ist Absicht: `tSection` ruft sie in ZENTIMETERN,
  * `stressPoints` in MILLIMETERN. Die Formel ist ein Verhaeltnis erster
  * Flaechenmomente zu Flaechen und damit homogen vom Grad 1 — heraus kommt die
  * Einheit, die hineingeht. Wer die Parameter auf `cm` oder `mm` brandet,
  * bricht einen der beiden Aufrufer.
  *
  * Sie ist ausserdem die EINE Gueltigkeitspruefung der Form: `undefined` heisst
- * „das sind keine Plattenbalkenmasse", und `tBeam` wie `stressPoints` haengen
- * beide daran.
+ * „das sind keine T-Querschnittsmasse", und `tSection` wie `stressPoints`
+ * haengen beide daran.
  */
-export function tBeamCentroid(
+export function tSectionCentroid(
   bf: number,
   hf: number,
   bw: number,
@@ -30,8 +30,7 @@ export function tBeamCentroid(
 ): number | undefined {
   const hs = h - hf;
   // `bf === bw` ist erlaubt (dann ist es ein Rechteck), `bw > bf` nicht: das
-  // waere kein Plattenbalken mehr, und die Bandfolge fuer Vy bekaeme eine
-  // negative Laenge.
+  // waere kein T mehr, und die Bandfolge fuer Vy bekaeme eine negative Laenge.
   if (!allPositive(bf, hf, bw, h, hs) || bw > bf) return undefined;
   const Af = bf * hf;
   const As = bw * hs;
@@ -39,17 +38,21 @@ export function tBeamCentroid(
 }
 
 /**
- * Der Plattenbalken — die einzige UNSYMMETRISCHE Form dieses Standes und damit
+ * Der T-Querschnitt — die einzige UNSYMMETRISCHE Form dieses Standes und damit
  * der einzige Fall mit `zs != h/2` und einem Steiner-Anteil. Ein
  * Vorzeichenfehler im Steiner-Anteil oder eine verkehrte z-Richtung faellt nur
  * hier auf.
+ *
+ * DER NAME NENNT DIE FORM, NICHT DEN BAUSTOFF: dieselben vier Zahlen heissen im
+ * Betonbau Plattenbalken und im Stahlbau T-Profil. Was die beiden trennt, ist
+ * `idealisation`, nicht der Formname — deshalb `t-section` und nicht `t-beam`.
  *
  * `bf`/`hf` sind Breite und Dicke des Gurts OBEN, `bw` die Stegbreite, `h` die
  * GESAMThoehe. Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der
  * Gurtoberkante — damit ist `zs` die Zahl, die man von Hand nachrechnet.
  * Abmessungen in ZENTIMETERN (siehe `shapeResult`).
  */
-export function tBeam(
+export function tSection(
   bf: cm,
   hf: cm,
   bw: cm,
@@ -57,7 +60,7 @@ export function tBeam(
   idealisation: Idealisation,
 ): ShapeResult | undefined {
   const hs = h - hf; // Steghoehe unter dem Gurt
-  const zs = tBeamCentroid(bf, hf, bw, h);
+  const zs = tSectionCentroid(bf, hf, bw, h);
   if (zs === undefined) return undefined;
 
   const Af = bf * hf;
@@ -108,7 +111,8 @@ function solidPaths(
 }
 
 /**
- * Duennwandig: Gurt- und Stegmittellinie.
+ * Der Schwerpunkt des WANDMODELLS, ebenfalls von der Gurtoberkante gemessen —
+ * und die Laenge des Stegs in diesem Modell.
  *
  * EIN UNTERSCHIED ZU DEN SYMMETRISCHEN FORMEN, und er ist der Grund fuer die
  * eigene Schwerpunktrechnung hier: das Wandmodell hat eine andere Flaeche als
@@ -118,14 +122,29 @@ function solidPaths(
  * nicht auf null — `S` waere zweideutig, je nachdem, von welcher Seite man
  * schneidet.
  *
- * `Iy` bleibt das der Umrissfigur (siehe `ShapeResult`); nur `S` lebt
- * vollstaendig im Wandmodell.
+ * Eigene Funktion aus demselben Grund wie `tSectionCentroid`: kappa und die
+ * duennwandige Spannungspunkt-Vorlage brauchen DENSELBEN Wert, und zwei
+ * Rechnungen fuer eine Zahl waeren zwei Gelegenheiten, sie verschieden zu
+ * bekommen. EINHEITENFREI, weil kappa in cm und die Vorlage in mm ruft.
  */
-function thinPaths(bf: number, hf: number, bw: number, h: number) {
+export function tSectionWall(bf: number, hf: number, bw: number, h: number) {
   const webLength = h - hf / 2; // Gurtmitte bis Stegunterkante
   const Af = bf * hf;
   const Aw = bw * webLength;
-  const zsWall = (Af * (hf / 2) + Aw * (hf / 2 + webLength / 2)) / (Af + Aw);
+  return {
+    webLength,
+    zsWall: (Af * (hf / 2) + Aw * (hf / 2 + webLength / 2)) / (Af + Aw),
+  };
+}
+
+/**
+ * Duennwandig: Gurt- und Stegmittellinie.
+ *
+ * `Iy` bleibt das der Umrissfigur (siehe `ShapeResult`); nur `S` lebt
+ * vollstaendig im Wandmodell — siehe `tSectionWall`.
+ */
+function thinPaths(bf: number, hf: number, bw: number, h: number) {
+  const { webLength, zsWall } = tSectionWall(bf, hf, bw, h);
 
   const armF = hf / 2 - zsWall; // Gurtmittellinie relativ zum Wandschwerpunkt
 
