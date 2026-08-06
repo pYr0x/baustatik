@@ -8,7 +8,7 @@ This is a pnpm/turbo monorepo. Each package under `packages/*` and each app unde
 
 ## Before exploring, read these
 
-- **`CONTEXT-MAP.md`** at the repo root — it points at one `CONTEXT.md` per context. Read each one relevant to the topic.
+- **`AGENTS.md`** at the repo root — its repository map is this repo's context map, one line per package. Read the `CONTEXT.md` of each package relevant to the topic.
 - **`packages/<pkg>/CONTEXT.md`** / **`apps/<app>/CONTEXT.md`** — the glossary for the context you're working in.
 - **`docs/adr/`** — system-wide decisions; read ADRs that touch the area you're about to work in. Also check `packages/<pkg>/docs/adr/` (or `apps/<app>/docs/adr/`) for context-scoped decisions.
 
@@ -18,7 +18,7 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 
 ```
 /
-├── CONTEXT-MAP.md
+├── AGENTS.md                          ← repository map
 ├── docs/adr/                          ← system-wide decisions
 ├── packages/
 │   ├── section-geometry/

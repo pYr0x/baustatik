@@ -1,113 +1,136 @@
 # baustatik
 
+A 2D frame FEM engine in TypeScript, as a pnpm/Turborepo monorepo. Scope and
+non-goals: [`MISSION.md`](MISSION.md).
+
 ## Repository map
 
-This repository is a pnpm/Turborepo monorepo. The workspace includes the
-packages below. Keep this file short and update it when package ownership or
-dependencies change.
+One line per package. The detail — boundaries, invariants, domain language —
+lives in `packages/<pkg>/CONTEXT.md`; keep it there rather than growing this
+table. Confirm a package's `package.json` before adding a dependency.
 
 ### Active packages
 
 | Package | Purpose | Internal dependencies |
 | --- | --- | --- |
-| `@baustatik/actions` | EN 1990 action vocabulary (`ActionCategory`): classification × concrete action, plus imposed-load use categories. Terms only — no ψ values, no combination rules ([ADR 0015](docs/adr/0015-action-categories-live-in-a-leaf-package.md)). | — |
-| `@baustatik/errors` | Shared error types and error helpers. | — |
-| `@baustatik/core` | Core domain and infrastructure primitives. | `errors` |
+| `@baustatik/actions` | EN 1990 action vocabulary (`ActionCategory`): classification × concrete action, plus imposed-load use categories. Terms only. | — |
+| `@baustatik/errors` | `BaustatikError`, the root of every error class in the repo. | — |
+| `@baustatik/core` | Core domain and infrastructure primitives, including `atOrThrow`. | `errors` |
 | `@baustatik/round` | Numeric rounding utilities. | — |
-| `@baustatik/units` | Unit-related value and conversion utilities, plus the phantom-branded quantity types (`Quantity<U>`, `mm`, `cm2`, `cm4`, `MPa`, …) that document a unit at the call site without enforcing it. `convert(x).from(a).to(b)` rounds **atomically** — for report output; `toExact(b)` is the unrounded variant every calculation must use ([ADR 0024](docs/adr/0024-units-at-the-package-boundary.md)). | `round`, `errors` |
+| `@baustatik/units` | Unit conversion (`convert(x).from(a).to(b)` rounds, `toExact(b)` does not) and the phantom-branded quantity types `Quantity<U>`, `mm`, `cm2`, `MPa`. | `errors`, `round` |
 | `@baustatik/geometry-2d` | 2D geometry primitives and polygon operations. | `core`, `errors` |
-| `@baustatik/material` | Eurocode material data (concrete, steel, reinforcement, timber) and National-Annex design values. `createMaterials({ na })` returns a `MaterialCatalog` — factories closed over one Annex, never a global setter ([ADR 0002](docs/adr/0002-national-annex-via-factory-not-singleton.md)). Also owns the model record `Material` (`kind`/`id`/`grade`/`moduli`, no reinforcement — that is a section inlay, not a member material) ([ADR 0026](docs/adr/0026-materials-belong-to-the-model.md)) and the **Annex-free** `lookupMaterial(kind, grade)`, which fills `moduli` when a record is created ([ADR 0027](docs/adr/0027-catalogues-are-import-sources.md)). Grades resolve tolerantly with the same folding rule as `lookupProfile`. `Concrete.G` is `Ecm/(2(1+ν))` with ν = 0,2 — i.e. **Zustand I**, uncracked. The state is an analysis question, not a material value; what that costs today (deflections, non-linear ULS, superposition) is in `fem-section-resolve/CONTEXT.md`. | `errors`, `units` |
+| `@baustatik/material` | Eurocode material data and National-Annex design values via `createMaterials({ na })`, plus the model record `Material` and the Annex-free `lookupMaterial`. | `errors`, `units` |
 | `@baustatik/viewport-2d` | 2D viewport and coordinate-view state. | `errors` |
 | `@baustatik/render-core` | Rendering abstractions shared by visual adapters. | `core`, `errors`, `viewport-2d` |
 | `@baustatik/grid-2d` | 2D grid rendering and grid behavior. | `errors`, `render-core`, `viewport-2d` |
 | `@baustatik/konva-adapter` | Konva-based rendering adapter. | `render-core`, `viewport-2d` |
 | `@baustatik/section-geometry` | Geometry and calculations for cross-sections. | `core`, `errors`, `geometry-2d` |
-| `@baustatik/steel-profiles` | Rolled steel profile catalogue (IPE, HEA) as vendored data plus `lookupProfile`. Leaf package, **no dependencies at all** — nothing throws, so not even `errors` ([ADR 0015](docs/adr/0015-action-categories-live-in-a-leaf-package.md)). Values are **tabulated, not recomputed**, in the units the standard prints (mm, cm², cm⁴). The shear areas are `Ay`/`Az` of shear-flexible theory, deliberately **not** `Av` (EC 3) or `Apl` ([ADR 0021](docs/adr/0021-section-values-separate-from-tabulated-profiles.md)). An **import source, not a live reference**: `profileData` and `PROFILE_DATA_KEYS` serve the copy that travels in the model ([ADR 0027](docs/adr/0027-catalogues-are-import-sources.md)). | — |
-| `@baustatik/cross-section` | **Section-value engine.** `sectionProperties(cs)` yields `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` and κ in SI metres, from four closed-form parametric shapes (dimensions in **mm**) or from a catalogue profile. κ has one definition, the shear energy `A_s = I²/∫(S/t)²dA`; `idealisation` is a required field without default (ADR 0021). Also owns `stressPoints(cs)` — computed from a per-source template, "all corners plus the centroid" ([ADR 0022](docs/adr/0022-stress-points-are-computed-from-a-template.md)) — and the model record `CrossSection` ([ADR 0023](docs/adr/0023-cross-sections-belong-to-the-model.md)), whose profile variant carries the **table row as a copy** (`data`) so nothing is looked up while computing ([ADR 0027](docs/adr/0027-catalogues-are-import-sources.md)). **Units: mm in, cm internally (like the catalogue), SI out** — `toSI` is the single conversion; `StressPoint` carries mm and cm³ ([ADR 0024](docs/adr/0024-units-at-the-package-boundary.md)). Knows no section force and no strength. | `steel-profiles`, `units` |
+| `@baustatik/steel-profiles` | Rolled steel profile catalogue (IPE, HEA) as vendored, tabulated data plus `lookupProfile`. Leaf package with no dependencies at all. | — |
+| `@baustatik/cross-section` | Section-value engine: `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` and κ from four parametric shapes or a catalogue profile; owns `stressPoints` and the model record `CrossSection`. | `steel-profiles`, `units` |
 | `@baustatik/cross-section-viewer` | Viewer-facing cross-section composition and visualization. | `cross-section`, `grid-2d`, `render-core`, `section-geometry`, `viewport-2d` |
-| `@baustatik/fem` | FEM frame model types (`Node`, `Beam`, `NodeSupport`) plus the model validation gate (`validateModel`, `isolatedNodeIds`). Beam end releases are named in the **local** frame (`u`, `w`, `theta`), not the node frame ([ADR 0017](docs/adr/0017-releases-are-named-in-the-local-frame.md)). Also owns the rule against the **element-internal mechanism** (`UnrestrainedBeamError`): too many releases on one beam leave it with a rigid-body motion inside itself, which no net in the solver can see. The pin-ended beam stays legal. | `errors` |
+| `@baustatik/fem` | FEM frame model types (`Node`, `Beam`, `NodeSupport`) and the model validation gate (`validateModel`, `assertValidModel`, `isolatedNodeIds`). | `errors` |
 | `@baustatik/fem-geometry` | 2D geometry primitives in structural x/z coordinates (z downwards). | `core`, `errors`, `geometry-2d` |
-| `@baustatik/fem-element` | Element formulation for plane frames: local 6x6 stiffness, consistent nodal load vector, shape functions, static condensation of the releases plus its inverse, and the section forces `N`/`V`/`M`. Three binding stages: `prepare(props, L, releases)` → `withLoad(load)` → `evaluate(dLocal)`, yielding a serialisable `ElementEvaluationState`. Section forces come from **equilibrium**, not from the constitutive law ([ADR 0018](docs/adr/0018-section-forces-from-equilibrium.md)). | `errors` |
-| `@baustatik/fem-loads` | Load input model for plane frames (node and beam loads) plus its validation gate. Also owns the **load case** (`LoadCase`, `assertValidLoadCase`, `effectiveLoads`) as a layer above the load model: a named group that owns its loads, with an optional factor for deriving one case from another ([ADR 0013](docs/adr/0013-load-case-factor.md)). | `actions`, `errors`, `fem`, `fem-geometry` |
-| `@baustatik/script` | Public browser-scripting DSL for building serializable FEM model snapshots through model-owned handles. Owns builder ergonomics and strict snapshot-boundary validation, not the FEM records or their domain rules. Snapshots are `schemaVersion: 4`: `crossSections` and `materials` make them self-supporting in their **references** (v2/v3), and the copied `data`/`moduli` make them self-supporting in their **numbers** (v4). Older versions are rejected, never extended ([ADR 0023](docs/adr/0023-cross-sections-belong-to-the-model.md), [ADR 0026](docs/adr/0026-materials-belong-to-the-model.md), [ADR 0027](docs/adr/0027-catalogues-are-import-sources.md)). The catalogue is read where a record is **created** — here in the builder, and equivalently in an app's own store — never while computing; an unknown profile or grade throws there rather than surfacing in the solver's report. The authored DSL is unchanged. | `cross-section`, `errors`, `fem`, `fem-loads`, `material`, `steel-profiles` |
-| `@baustatik/fem-section-resolve` | `CrossSection` × `Material` → `SectionStiffness`. The twin of `fem-load-resolve` and the **only** place in the repository where geometry is multiplied by material: `resolveSectionStiffness(beam, model)` resolves both ids against the saved model — **no catalogue parameter** since [ADR 0027](docs/adr/0027-catalogues-are-import-sources.md) — and `sectionStiffness(props, moduli)` does the arithmetic and the unit chain (MPa → kN/m²). The family switch and its `as SteelGrade` cast are gone: `Material.moduli` already carries `Es`/`G`, `Ecm`/`G` or `E0,mean`/`G,mean`, chosen once when the record was made. All are characteristic, so **the Annex does not move the FEM** — no longer a tested promise but a shape ([ADR 0026](docs/adr/0026-materials-belong-to-the-model.md)). Returns `undefined` rather than throwing, matching the port `getSectionStiffness`. | `cross-section`, `fem`, `fem-element`, `material` |
-| `@baustatik/fem-load-resolve` | Resolves abstract loads onto beams: frame rotation, reference length, positions, merge per beam. Also exports the position and direction of a load (`loadStation`, `loadDirection`) for non-solver callers such as the viewer. | `fem-element`, `fem-geometry`, `fem-loads` |
-| `@baustatik/fem-solver` | Entry point of the calculation (`createFEMSolver`). `check(loadCaseId)` reports a workflow state; `solve(loadCaseId)` computes one load case and `solveAll()` computes every load case, doing DOF numbering, assembly, transformation, boundary conditions and reactions; release condensation is orchestrated here but performed in `fem-element` (ADR 0018). The result carries a serialisable `ElementEvaluationState` per beam, from which the free functions `internalForcesAt`/`internalForcesAlong` answer `N`, `V` and `M` at any station without reading `config` ([ADR 0019](docs/adr/0019-result-carries-an-evaluation-state.md)). The linear solver, the stiffness catalogue and the element formulation arrive as ports. Owns the **judgement of the result**: a displacement field leaves this package only if it is a deformation and not a motion — the fourth net against kinematics, because the pivot test is one-sided ([ADR 0016](docs/adr/0016-kinematics-shows-in-the-displacement-not-in-the-pivot.md)). Also the composition root for the versioned `AnalysisPolicy`: it assembles the policy slices the other packages own with its own analysis decisions ([ADR 0011](docs/adr/0011-analysis-settings-split-into-versioned-policy-and-ports.md)). | `errors`, `fem`, `fem-element`, `fem-geometry`, `fem-load-resolve`, `fem-loads` |
-| `@baustatik/linear-solver-wasm` | Rust/faer WASM binding for the linear solve `K d = F`, via Cholesky (`Llt`). Also owns **kinematics detection**: Jacobi scaling plus a pivot threshold turn a singular or nearly singular system into a reported finding instead of `NaN` ([ADR 0012](docs/adr/0012-kinematics-is-detected-by-the-solver.md)). Knows only numbers — the translation into node and direction belongs to `fem-solver`. | — |
-| `@baustatik/fem-viewer` | Viewer-facing FEM frame composition and visualization, including concentrated loads: forces as arrows, moments as curved arrows, both with labelled magnitudes. Also draws the **result** into the same picture — support reactions as the same symbols in green, one band higher ([ADR 0025](docs/adr/0025-results-are-drawn-in-the-model-viewer.md)). A reaction is the force on the *structure*, so the arrow of a prop under a downward load points up and equilibrium is legible. `N`/`V`/`M` diagrams are still missing; they need a reference size across all beams. | `errors`, `fem`, `fem-geometry`, `fem-load-resolve`, `fem-loads`, `fem-solver`, `grid-2d`, `render-core`, `round`, `viewport-2d` |
+| `@baustatik/fem-element` | Element formulation for plane frames: local 6×6 stiffness, consistent load vector, shape functions, release condensation, and the section forces `N`/`V`/`M`, bound in three stages. | `errors` |
+| `@baustatik/fem-loads` | Load input model for plane frames plus its validation gate, and the load case (`LoadCase`, `effectiveLoads`) above it. | `actions`, `errors`, `fem`, `fem-geometry` |
+| `@baustatik/script` | Public browser-scripting DSL that builds serializable `schemaVersion: 4` model snapshots through model-owned handles. | `cross-section`, `errors`, `fem`, `fem-loads`, `material`, `steel-profiles` |
+| `@baustatik/fem-section-resolve` | `CrossSection` × `Material` → `SectionStiffness`; the only place in the repo where geometry is multiplied by material. | `cross-section`, `fem`, `fem-element`, `material` |
+| `@baustatik/fem-load-resolve` | Resolves abstract loads onto beams: frame rotation, reference length, positions, merge per beam. | `fem-element`, `fem-geometry`, `fem-loads` |
+| `@baustatik/fem-solver` | Entry point of the calculation (`createFEMSolver`): `check`, `solve`, `solveAll`, and the composition root for the versioned `AnalysisPolicy`. | `errors`, `fem`, `fem-element`, `fem-geometry`, `fem-load-resolve`, `fem-loads` |
+| `@baustatik/linear-solver-wasm` | Rust/faer WASM binding for `K d = F` via Cholesky, including kinematics detection. | — |
+| `@baustatik/fem-viewer` | Viewer-facing FEM frame composition and visualization, including loads and support reactions. `N`/`V`/`M` diagrams are still missing. | `errors`, `fem`, `fem-geometry`, `fem-load-resolve`, `fem-loads`, `fem-solver`, `grid-2d`, `render-core`, `round`, `viewport-2d` |
 
 The dependency direction is broadly: foundational utilities and errors →
 geometry/domain packages → rendering abstractions → adapters and viewers.
-Confirm the package's `package.json` before adding a new dependency.
 
 ### Inactive, planned, or legacy directories
 
 - `packages/konva-adapter-BAK/` is a legacy backup. Do not use or extend it
   unless the task explicitly targets it.
-- `packages/fem-1d/`, `packages/fem-2d/`, and `packages/solver-2d/` currently
-  have no `package.json` and are not pnpm workspace packages. Treat them as
-  placeholders unless the task says otherwise.
 
 ## Working commands
 
-Run commands from the repository root with pnpm:
+Root scripts are in `package.json` (`build`, `test`, `lint`, `dev`, `check`,
+`format`). For a single package, filter:
 
 ```text
-pnpm install
-pnpm build       # turbo build
-pnpm test        # turbo test
-pnpm lint        # turbo lint
-pnpm dev         # turbo dev
-pnpm check       # biome check --write .
-pnpm format      # biome format --write .
+pnpm --filter @baustatik/cross-section test
 ```
 
-For a single package, prefer a filtered command, for example:
+What the scripts do not tell you:
 
-```text
-pnpm --filter @baustatik/geometry-2d test
-pnpm --filter @baustatik/section-geometry build
-```
+- **`typecheck` runs in no Turbo task and in no CI step.** 22 packages define
+  `tsc --noEmit`; nothing invokes it. Run
+  `pnpm --filter @baustatik/<pkg> typecheck` yourself before handing off.
+- Every `lint` script writes (`--fix` / `--write`), so CI's lint step cannot
+  fail on formatting drift — it silently reformats.
+- Seven packages lint with Biome, sixteen with Oxlint/Oxfmt. This is an
+  unfinished migration, not a layered setup: follow the package-local scripts.
+  Root `pnpm check` runs Biome over `packages/**` regardless.
+- CI runs `build → lint → test` on Node 24; `engines` says `>=18`. The pinned
+  package manager is `pnpm@11.16.0`.
+- The demo app is `apps/demo`, started by the root `pnpm dev`.
+- Releases go through Changesets (`pnpm changeset`). Never hand-edit versions.
 
-The demo application is under `apps/demo`; use the root `pnpm dev` command
-or filter the app when a package-specific development server is needed.
+Known tooling gaps, none of them fixed:
+[`docs/agents/tooling-gaps.md`](docs/agents/tooling-gaps.md).
 
-## Conventions
+## Coding principles
 
-- Package manager: pnpm 9; Node.js 18 or newer.
-- Build orchestration: Turborepo.
-- Source language: TypeScript with the shared root configuration in
-  `tsconfig.base.json`.
-- Formatting and general checks: Biome. Some packages additionally contain
-  Oxlint/Oxfmt configuration; follow the package-local configuration.
-- Tests: Vitest. Packages with browser tests use Vitest Browser and
-  Playwright; check the package scripts before choosing a test command.
-- Releases: use Changesets (`pnpm changeset`, then the version/publish
-  scripts). Do not edit generated versions manually.
-- Prefer package exports and existing domain abstractions over importing
-  implementation files from another package.
-- Comments in existing code are written in German and explain *why* the code
-  exists or behaves as it does, rather than restating *what* it does.
-- Keep architecture and domain explanations in focused documentation or
-  package READMEs; do not turn this file into API documentation.
+Rationale, worked examples and the list of packages that currently diverge:
+[`CODING_STANDARDS.md`](CODING_STANDARDS.md).
+
+- File names are kebab-case; module constants are `SCREAMING_SNAKE_CASE`.
+- `type` for records and unions; `interface` where a shape is extended or
+  implemented (render specs, ports).
+- Instead of `enum`: a string-literal union, or `as const satisfies Record<…>`
+  for a data table.
+- The discriminant field is named `kind`.
+- Export named `function` declarations. No default exports.
+- `class` is for errors, and for an unexported `*Impl` behind a `createX(…)`
+  factory. Value types get a namespace object of the same name.
+- Errors extend `BaustatikError`, end in `Error`, never assign `this.name`, and
+  carry their ids as fields rather than only in the message.
+- Index arrays with `atOrThrow(arr, i)` from `@baustatik/core`; `!` is not used
+  anywhere in `src/`.
+- Three failure channels: a broken precondition throws · "I do not know this",
+  where the port's type says so, returns `undefined` · a batch check returns
+  `{ errors, warnings }`.
+- Close exhaustive switches with `assertNever`.
+- `Object.freeze` what leaves the package; mutate locals freely.
+- `readonly` on record fields and array parameters.
+- Relative imports carry no file extension; workspace packages are imported by
+  name, never through a deep path. `index.ts` is a hand-curated barrel.
+- Calculate with `toExact`; `to` is for report output only. Conversion factors
+  come from `@baustatik/units`, never as literals, at one place per package.
+- Physical quantities carry the standard's symbol (`A`, `Iy`, `EA`, `GAs`,
+  `kappaY`), not the English word, with the unit in JSDoc as `[m2]`.
+- Comments and JSDoc are German, explain *why*, and cite ADR numbers. Use real
+  umlauts in new text.
+- Tests live in `tests/*.test.ts`; `describe`/`it` are German sentences stating
+  the invariant.
+- Documents — `AGENTS.md`, `CONTEXT.md`, `README.md`, `CODING_STANDARDS.md` —
+  are written in English.
 
 ## Documentation and issue tracking
 
-- GitHub Issues are tracked in `pYr0x/baustatik` via the `gh` CLI. See
-  [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
-- Use the triage labels documented in
-  [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
-- Package-specific `CONTEXT.md`, README files, and `docs/` directories are the
-  source of truth for detailed usage and architecture. A package `CONTEXT.md`
-  documents that package's purpose, boundaries, invariants, and domain
-  language; use this root map to navigate between packages.
+- `packages/<pkg>/CONTEXT.md` is the source of truth for a package's purpose,
+  boundaries, invariants, and domain language. Use the map above to navigate
+  between packages.
+- `docs/adr/` holds the numbered architecture decisions. A decision that moves
+  a package boundary, a type's owner, or a numeric convention gets one; amend
+  a superseded ADR with a banner instead of rewriting it.
+- GitHub Issues live in `pYr0x/baustatik` via the `gh` CLI, see
+  [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) and the triage
+  labels in [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
 
 ## Change checklist
 
 Before handing off a change:
 
-1. Run the narrowest relevant package test and typecheck.
-2. Run the full relevant validation (`pnpm test`, `pnpm build`, or `pnpm
-   lint`) when the change affects shared code or configuration.
-3. Update this file when package boundaries, commands, or legacy status
-   change.
+1. Run the narrowest relevant package test **and** `typecheck` — nothing else
+   runs the latter.
+2. Run the full validation (`pnpm test`, `pnpm build`, `pnpm lint`) when the
+   change touches shared code or configuration.
+3. Add a changeset for every user-visible package change.
+4. Update the package's `CONTEXT.md` when an invariant or boundary moves, and
+   this file when a package, command, or legacy status changes.

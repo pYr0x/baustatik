@@ -2,24 +2,31 @@
 trigger: always_on
 ---
 
-# Baustatik Error Hierarchy Policy
+# Baustatik error hierarchy policy
 
-All custom error classes within the `@baustatik` monorepo must adhere to the central error hierarchy:
+Documented in full in [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md),
+section *3. Errors and the three failure channels*.
 
-1.  **Base Class**: Every library-specific error must extend `BaustatikError` from the `@baustatik/errors` package. Do not extend the native `Error` class directly for public-facing API errors.
-2.  **Naming**: Error classes should have descriptive names ending in `Error` (e.g., `InvalidValueError`, `IncompatibleUnitsError`).
-3.  **Dependency**: Any package that implements custom errors must include `@baustatik/errors` in its `dependencies`.
-4.  **Implementation**:
-    *   Initialize using `super(message)`.
-    *   Do not manually set `this.name`, as `BaustatikError` handles this automatically using `this.constructor.name`.
+1. Every library error extends `BaustatikError` from `@baustatik/errors`, not
+   the native `Error`.
+2. Names end in `Error` and describe the rule that was broken.
+3. A package that defines errors declares `@baustatik/errors` in its
+   `dependencies`.
+4. Call `super(message)`; never assign `this.name` — `BaustatikError` sets it
+   from `this.constructor.name`.
+5. Carry the affected ids as `readonly` fields, not only in the message text:
+   validation results are returned, and the surface highlights the element
+   from those fields.
 
-**Example Pattern:**
 ```typescript
 import { BaustatikError } from '@baustatik/errors';
 
 export class SpecificError extends BaustatikError {
-  constructor(details: string) {
-    super(`Contextual message: ${details}`);
+  readonly beamId: string;
+
+  constructor(beamId: string) {
+    super(`Stab "${beamId}": …`);
+    this.beamId = beamId;
   }
 }
 ```
