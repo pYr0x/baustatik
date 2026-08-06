@@ -1,5 +1,12 @@
 # @baustatik/grid-2d
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies [e6a9a4e]
+  - @baustatik/render-core@0.1.1
+
 ## 0.0.2
 
 ### Patch Changes

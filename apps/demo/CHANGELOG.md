@@ -1,5 +1,15 @@
 # demo
 
+## 1.0.5
+
+### Patch Changes
+
+- Updated dependencies [e6a9a4e]
+- Updated dependencies [e6a9a4e]
+  - @baustatik/fem-viewer@1.2.0
+  - @baustatik/cross-section-viewer@0.1.3
+  - @baustatik/konva-adapter@0.1.1
+
 ## 1.0.4
 
 ### Patch Changes
