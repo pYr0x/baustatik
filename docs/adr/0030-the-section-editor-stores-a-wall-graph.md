@@ -24,16 +24,39 @@ cross-sections becomes the answer — for concrete (solid sections) and for stee
 
 ```ts
 type SectionGeometry =
-  | { kind: 'walls';   nodes: SectionNode[]; walls: Wall[];
+  | { kind: 'midline'; nodes: SectionNode[]; walls: Wall[];
       idealisation: Idealisation; outline: Polygon[] }
   | { kind: 'outline'; rings: Ring[];        outline: Polygon[] };
 
 type SectionNode = { id: string; y: mm; z: mm };
-type Wall    = { id: string; from: string; to: string; t: mm; bulge?: number };
+type Wall    = { id: string; startNodeId: string; endNodeId: string;
+                 t: mm; bulge?: number };
 type Vertex  = { y: mm; z: mm; bulge?: number };
 type Ring    = { vertices: Vertex[] };            // INPUT  — outer CCW, hole CW
 type Polygon = { points: { y: mm; z: mm }[] };    // RESULT — no bulge
 ```
+
+### Both tags name a **line**, and the wall ends are named like a beam's
+
+`midline` against `outline`: which line did you draw? An earlier `'walls'`
+named the entity list where its counterpart named the model — two levels in one
+union. `midline` is the term of the field ([SCIA][scia]: a thin-walled section
+is "defined by its centreline (or midline) and the width"; SHAPE-THIN puts its
+definition points on the "center lines"), and it spares the code the
+centre/center split.
+
+The entity stays `Wall`. `Element` is taken by the beam element
+(`@baustatik/fem-element`), `Segment` by `ShearSegment` — and `Branch` means a
+**run between junction nodes** in thin-walled theory, the word the wall path for
+open profiles will need. What is left is the vocabulary of the code itself:
+thin-**walled**, **wall** thickness.
+
+`Wall.startNodeId`/`endNodeId` are the names `Beam` already uses in
+`@baustatik/fem`. Same systematics — one object joins two nodes by id — so the
+same names, and the `...Id` suffix says a reference stands there and not a
+position.
+
+[scia]: https://help.scia.net/26.0/en/modelling/cross-sections_and_library_editor/design_of_cross_sections/thin_walled_cross_section.htm
 
 `CrossSection` gains the matching variant
 `{ kind: 'section-geometry'; id; geometry }`. In P0 `sectionProperties` returns
@@ -48,7 +71,7 @@ that order would be the same epsilon search, only due earlier. Index references
 were rejected: deleting a node would shift every following one, and a model diff
 would be unreadable.
 
-### `idealisation` sits *inside* the `walls` variant
+### `idealisation` sits *inside* the `midline` variant
 
 The forbidden cell — a free outline computed as thin-walled — becomes a
 **compiler error** rather than a runtime check. An outline has no centre lines
@@ -69,6 +92,16 @@ Carrying it as `Ring[]` with `bulge` would secure only the **topology**, not the
 point count — full price, half the protection. So the stored result is a
 discretised `Polygon[]`, and input and result are distinguishable at the type:
 `Ring`/`Vertex` carry `bulge`, `Polygon` does not.
+
+`Ring` is the term OGC Simple Features and [RFC 7946][geojson] use — a *linear
+ring*, exterior first, exterior CCW and holes CW, exactly the winding written
+down above. One deviation is deliberate: in OGC a *Polygon* is the **set** of
+its rings, here it is a **single** one, matching `Polygon` in
+`@baustatik/geometry-2d` and `@baustatik/section-geometry`. The house
+convention wins, so `outline: Polygon[]` means "one entry per ring", holes
+included.
+
+[geojson]: https://datatracker.ietf.org/doc/html/rfc7946
 
 ### Units: mm in, cm through the calculation
 

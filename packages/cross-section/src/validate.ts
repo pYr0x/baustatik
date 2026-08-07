@@ -99,9 +99,12 @@ export function validateSectionGeometry(
   // G3 — haengende Verweise. Zuerst unter den Waenden, weil alles Weitere die
   // Knotenlagen braucht.
   for (const wall of geometry.walls) {
-    for (const end of ['from', 'to'] as const) {
-      if (!byId.has(wall[end])) {
-        errors.push(new UnknownSectionNodeError(wall.id, end, wall[end]));
+    for (const [end, nodeId] of [
+      ['start', wall.startNodeId],
+      ['end', wall.endNodeId],
+    ] as const) {
+      if (!byId.has(nodeId)) {
+        errors.push(new UnknownSectionNodeError(wall.id, end, nodeId));
       }
     }
   }
@@ -116,10 +119,10 @@ export function validateSectionGeometry(
   // G5 — die entartete Wand. Nur mit aufloesbaren Knoten: sonst waere die
   // Meldung „Laenge 0" ein Folgefehler von G3 statt eines eigenen Befunds.
   for (const wall of geometry.walls) {
-    const from = byId.get(wall.from);
-    const to = byId.get(wall.to);
-    if (from === undefined || to === undefined) continue;
-    if (from.y === to.y && from.z === to.z) {
+    const start = byId.get(wall.startNodeId);
+    const end = byId.get(wall.endNodeId);
+    if (start === undefined || end === undefined) continue;
+    if (start.y === end.y && start.z === end.z) {
       errors.push(new ZeroLengthWallError(wall.id));
     }
   }
@@ -205,7 +208,7 @@ function kinks(
 ): TangentKinkWarning[] {
   const incident = new Map<string, Wall[]>();
   for (const wall of walls) {
-    for (const nodeId of new Set([wall.from, wall.to])) {
+    for (const nodeId of new Set([wall.startNodeId, wall.endNodeId])) {
       const at = incident.get(nodeId) ?? [];
       at.push(wall);
       incident.set(nodeId, at);
@@ -261,16 +264,16 @@ function outgoingTangent(
   nodeId: string,
   byId: ReadonlyMap<string, SectionNode>,
 ): number | undefined {
-  const from = byId.get(wall.from);
-  const to = byId.get(wall.to);
-  if (from === undefined || to === undefined) return undefined;
-  if (from.y === to.y && from.z === to.z) return undefined;
+  const start = byId.get(wall.startNodeId);
+  const end = byId.get(wall.endNodeId);
+  if (start === undefined || end === undefined) return undefined;
+  if (start.y === end.y && start.z === end.z) return undefined;
 
   // Positiv von `+y` nach `+z`, wie `Arc.sweep` (ADR 0031).
-  const chord = Math.atan2(to.z - from.z, to.y - from.y);
+  const chord = Math.atan2(end.z - start.z, end.y - start.y);
   const half = 2 * Math.atan(wall.bulge ?? 0);
 
-  if (wall.from === nodeId) return chord - half;
+  if (wall.startNodeId === nodeId) return chord - half;
   return chord + half + Math.PI;
 }
 

@@ -303,7 +303,7 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
  * ist. Dafuer gibt es seit P0 ein benanntes Gatter,
  * `validateSectionGeometry` in `@baustatik/cross-section`, und es sagt „Wand
  * *w3* zeigt auf einen Knoten, den es nicht gibt", waehrend dieser Parser nur
- * „`walls[2].from` ist keine Zeichenkette" sagen koennte. Zwei Meinungen
+ * „`walls[2].startNodeId` ist keine Zeichenkette" sagen koennte. Zwei Meinungen
  * darueber, was ein brauchbarer Querschnitt ist, waeren eine zu viel — deshalb
  * wird `t` hier auf ENDLICH geprueft und nicht auf positiv: das Vorzeichen
  * gehoert dem Gatter, das die Wand beim Namen nennt.
@@ -316,7 +316,11 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
  */
 function parseSectionGeometry(input: unknown, path: string): SectionGeometry {
   const value = record(input, path);
-  const kind = oneOf(value.kind, ['walls', 'outline'] as const, `${path}.kind`);
+  const kind = oneOf(
+    value.kind,
+    ['midline', 'outline'] as const,
+    `${path}.kind`,
+  );
 
   const outline = array(value.outline, `${path}.outline`).map(
     (polygon, index) => {
@@ -347,8 +351,7 @@ function parseSectionGeometry(input: unknown, path: string): SectionGeometry {
         exactKeys(fields, ringPath, ['vertices']);
         return {
           vertices: array(fields.vertices, `${ringPath}.vertices`).map(
-            (vertex, at) =>
-              parseVertex(vertex, `${ringPath}.vertices[${at}]`),
+            (vertex, at) => parseVertex(vertex, `${ringPath}.vertices[${at}]`),
           ),
         };
       }),
@@ -371,11 +374,17 @@ function parseSectionGeometry(input: unknown, path: string): SectionGeometry {
     walls: array(value.walls, `${path}.walls`).map((wall, index) => {
       const wallPath = `${path}.walls[${index}]`;
       const fields = record(wall, wallPath);
-      exactKeys(fields, wallPath, ['id', 'from', 'to', 't', 'bulge']);
+      exactKeys(fields, wallPath, [
+        'id',
+        'startNodeId',
+        'endNodeId',
+        't',
+        'bulge',
+      ]);
       return {
         id: text(fields.id, `${wallPath}.id`),
-        from: text(fields.from, `${wallPath}.from`),
-        to: text(fields.to, `${wallPath}.to`),
+        startNodeId: text(fields.startNodeId, `${wallPath}.startNodeId`),
+        endNodeId: text(fields.endNodeId, `${wallPath}.endNodeId`),
         t: finite(fields.t, `${wallPath}.t`),
         ...(fields.bulge === undefined
           ? {}

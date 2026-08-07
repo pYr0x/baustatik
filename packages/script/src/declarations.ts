@@ -20,15 +20,15 @@ declare module '@baustatik/script' {
   /** Ein Knoten des Wandgraphen. Koordinaten in MILLIMETERN. */
   export type SectionNode = { id: string; y: number; z: number };
   /** @param t Wandstaerke [mm] @param bulge DXF-Woelbung tan(D/4), 0 = Gerade */
-  export type Wall = { id: string; from: string; to: string; t: number; bulge?: number };
+  export type Wall = { id: string; startNodeId: string; endNodeId: string; t: number; bulge?: number };
   export type Vertex = { y: number; z: number; bulge?: number };
-  /** EINGABE — aussen CCW, Loch CW. */
+  /** EINGABE — aussen CCW, Loch CW (linear ring nach OGC / RFC 7946). */
   export type Ring = { vertices: Vertex[] };
   /** ERGEBNIS — diskretisiert, ohne bulge. */
   export type Polygon = { points: { y: number; z: number }[] };
   /** Die frei gezeichnete Geometrie. Der abgeleitete Umriss reist MIT. */
   export type SectionGeometry =
-    | { kind: 'walls'; nodes: SectionNode[]; walls: Wall[]; idealisation: Idealisation; outline: Polygon[] }
+    | { kind: 'midline'; nodes: SectionNode[]; walls: Wall[]; idealisation: Idealisation; outline: Polygon[] }
     | { kind: 'outline'; rings: Ring[]; outline: Polygon[] };
   export type CrossSectionInput =
     | { kind: 'shape'; shape: ShapeSpec }

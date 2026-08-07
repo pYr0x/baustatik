@@ -38,12 +38,12 @@ const SOME_OUTLINE = [
   },
 ];
 
-function walls(
+function midline(
   nodes: readonly { id: string; y: number; z: number }[],
   edges: readonly Wall[],
 ): SectionGeometry {
   return {
-    kind: 'walls',
+    kind: 'midline',
     nodes: [...nodes],
     walls: [...edges],
     idealisation: 'thin-walled',
@@ -58,12 +58,12 @@ function check(geometry: SectionGeometry) {
 describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
   it('meldet eine Wand, die auf einen unbekannten Knoten zeigt', () => {
     const { errors } = check(
-      walls(
+      midline(
         [
           { id: 'n1', y: 0, z: 0 },
           { id: 'n2', y: 0, z: 100 },
         ],
-        [{ id: 'w1', from: 'n0', to: 'n2', t: 6 }],
+        [{ id: 'w1', startNodeId: 'n0', endNodeId: 'n2', t: 6 }],
       ),
     );
     expect(errors).toHaveLength(1);
@@ -73,7 +73,7 @@ describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
     // Wand daran, und aus einer Meldung liesse sie sich nur herausparsen.
     expect((error as UnknownSectionNodeError).wallId).toBe('w1');
     expect((error as UnknownSectionNodeError).nodeId).toBe('n0');
-    expect((error as UnknownSectionNodeError).end).toBe('from');
+    expect((error as UnknownSectionNodeError).end).toBe('start');
   });
 
   it('meldet doppelte Knoten- und Wand-Ids', () => {
@@ -83,15 +83,15 @@ describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
     // gezeichnet hat. Bei Index-Verweisen kann der Fall nicht auftreten — die
     // Ids sind trotzdem die bessere Wahl, sie kosten eben diesen Test.
     const { errors } = check(
-      walls(
+      midline(
         [
           { id: 'n1', y: 0, z: 0 },
           { id: 'n1', y: 99, z: 99 },
           { id: 'n2', y: 0, z: 100 },
         ],
         [
-          { id: 'w1', from: 'n1', to: 'n2', t: 6 },
-          { id: 'w1', from: 'n2', to: 'n1', t: 6 },
+          { id: 'w1', startNodeId: 'n1', endNodeId: 'n2', t: 6 },
+          { id: 'w1', startNodeId: 'n2', endNodeId: 'n1', t: 6 },
         ],
       ),
     );
@@ -109,12 +109,12 @@ describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
 
   it('meldet eine Wandstaerke von 0', () => {
     const { errors } = check(
-      walls(
+      midline(
         [
           { id: 'n1', y: 0, z: 0 },
           { id: 'n2', y: 0, z: 100 },
         ],
-        [{ id: 'w1', from: 'n1', to: 'n2', t: 0 }],
+        [{ id: 'w1', startNodeId: 'n1', endNodeId: 'n2', t: 0 }],
       ),
     );
     expect(errors).toHaveLength(1);
@@ -124,12 +124,12 @@ describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
 
   it('meldet eine Wand der Laenge 0', () => {
     const { errors } = check(
-      walls(
+      midline(
         [
           { id: 'n1', y: 40, z: 40 },
           { id: 'n2', y: 40, z: 40 },
         ],
-        [{ id: 'w1', from: 'n1', to: 'n2', t: 6 }],
+        [{ id: 'w1', startNodeId: 'n1', endNodeId: 'n2', t: 6 }],
       ),
     );
     expect(errors).toHaveLength(1);
@@ -140,8 +140,8 @@ describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
     // Sonst waere „Laenge 0" ein Folgefehler von „unbekannter Knoten" und
     // stuende als zweiter Befund neben ihm, ohne etwas Eigenes zu sagen.
     const { errors } = check(
-      walls([{ id: 'n1', y: 0, z: 0 }], [
-        { id: 'w1', from: 'n1', to: 'n9', t: 6 },
+      midline([{ id: 'n1', y: 0, z: 0 }], [
+        { id: 'w1', startNodeId: 'n1', endNodeId: 'n9', t: 6 },
       ]),
     );
     expect(errors).toHaveLength(1);
@@ -160,7 +160,7 @@ describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
 
   it('laesst einen stimmigen Wandgraphen ohne Befund durch', () => {
     const { errors, warnings } = check(
-      walls(
+      midline(
         [
           { id: 'n1', y: -50, z: 0 },
           { id: 'n2', y: 50, z: 0 },
@@ -168,9 +168,9 @@ describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
           { id: 'n4', y: 0, z: 200 },
         ],
         [
-          { id: 'gurt-links', from: 'n1', to: 'n3', t: 10 },
-          { id: 'gurt-rechts', from: 'n3', to: 'n2', t: 10 },
-          { id: 'steg', from: 'n3', to: 'n4', t: 6 },
+          { id: 'gurt-links', startNodeId: 'n1', endNodeId: 'n3', t: 10 },
+          { id: 'gurt-rechts', startNodeId: 'n3', endNodeId: 'n2', t: 10 },
+          { id: 'steg', startNodeId: 'n3', endNodeId: 'n4', t: 6 },
         ],
       ),
     );
@@ -195,7 +195,7 @@ describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
 const CORNER_BULGE = Math.tan(Math.PI / 8);
 
 function corner(z3: number, t: number): SectionGeometry {
-  return walls(
+  return midline(
     [
       { id: 'n1', y: 0, z: 0 },
       { id: 'n2', y: 100, z: 0 },
@@ -203,9 +203,9 @@ function corner(z3: number, t: number): SectionGeometry {
       { id: 'n4', y: 102, z: 102 },
     ],
     [
-      { id: 'oben', from: 'n1', to: 'n2', t },
-      { id: 'ecke', from: 'n2', to: 'n3', t, bulge: CORNER_BULGE },
-      { id: 'rechts', from: 'n3', to: 'n4', t },
+      { id: 'oben', startNodeId: 'n1', endNodeId: 'n2', t },
+      { id: 'ecke', startNodeId: 'n2', endNodeId: 'n3', t, bulge: CORNER_BULGE },
+      { id: 'rechts', startNodeId: 'n3', endNodeId: 'n4', t },
     ],
   );
 }
@@ -244,14 +244,14 @@ describe('Satz 3: der Knick am Bogen, an der Toleranz aufgehaengt', () => {
     // fehlenden Knoten abzustuerzen. Sonst bekaeme man je Durchlauf genau
     // einen Befund und muesste ihn einzeln abarbeiten.
     const { errors, warnings } = check(
-      walls(
+      midline(
         [
           { id: 'n1', y: 0, z: 0 },
           { id: 'n2', y: 100, z: 0 },
         ],
         [
-          { id: 'oben', from: 'n1', to: 'n2', t: 6 },
-          { id: 'ecke', from: 'n2', to: 'n9', t: 6, bulge: CORNER_BULGE },
+          { id: 'oben', startNodeId: 'n1', endNodeId: 'n2', t: 6 },
+          { id: 'ecke', startNodeId: 'n2', endNodeId: 'n9', t: 6, bulge: CORNER_BULGE },
         ],
       ),
     );
@@ -263,14 +263,14 @@ describe('Satz 3: der Knick am Bogen, an der Toleranz aufgehaengt', () => {
   it('urteilt nicht ueber einen Bogen der Laenge 0', () => {
     // Eine Wand ohne Laenge hat keine Richtung und damit keine Endtangente.
     const { errors, warnings } = check(
-      walls(
+      midline(
         [
           { id: 'n1', y: 0, z: 0 },
           { id: 'n2', y: 100, z: 0 },
         ],
         [
-          { id: 'oben', from: 'n1', to: 'n2', t: 6 },
-          { id: 'ecke', from: 'n2', to: 'n2', t: 6, bulge: CORNER_BULGE },
+          { id: 'oben', startNodeId: 'n1', endNodeId: 'n2', t: 6 },
+          { id: 'ecke', startNodeId: 'n2', endNodeId: 'n2', t: 6, bulge: CORNER_BULGE },
         ],
       ),
     );
@@ -283,15 +283,15 @@ describe('Satz 3: der Knick am Bogen, an der Toleranz aufgehaengt', () => {
     // Eine Ecke ist eine Ecke und keine gebrochene Tangentialitaet — sonst
     // feuerte jedes geschweisste Profil an jedem Uebergang.
     const { warnings } = check(
-      walls(
+      midline(
         [
           { id: 'n1', y: 0, z: 0 },
           { id: 'n2', y: 100, z: 0 },
           { id: 'n3', y: 100, z: 100 },
         ],
         [
-          { id: 'w1', from: 'n1', to: 'n2', t: 20 },
-          { id: 'w2', from: 'n2', to: 'n3', t: 20 },
+          { id: 'w1', startNodeId: 'n1', endNodeId: 'n2', t: 20 },
+          { id: 'w2', startNodeId: 'n2', endNodeId: 'n3', t: 20 },
         ],
       ),
     );

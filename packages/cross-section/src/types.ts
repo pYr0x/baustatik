@@ -9,13 +9,20 @@ import type { Idealisation } from './section';
  * ZWEI VARIANTEN, ZWEI EINGABEARTEN, und die Trennung ist die eigentliche
  * Aussage:
  *
- *   `walls`   — ein Mittellinienmodell: Knoten, Waende mit Dicke. Der Umriss
+ *   `midline` — ein Mittellinienmodell: Knoten, Waende mit Dicke. Der Umriss
  *               entsteht daraus durch Aufweitung um `t/2`.
  *   `outline` — Ringe, die den Umriss unmittelbar beschreiben. Fuer den
  *               Vollquerschnitt, dem keine Wandstaerke zuzuordnen ist.
  *
- * `idealisation` sitzt IN der `walls`-Variante und nicht darueber. Die verbotene
- * Zelle „freier Umriss, aber duennwandig gerechnet" ist damit ein
+ * BEIDE MARKEN BENENNEN EINE LINIE, nicht ihren Inhalt: die Mittellinie gegen
+ * den Umriss. `midline` ist der Begriff der englischsprachigen Fachwelt fuer
+ * die `Mittellinie` — SCIA definiert den duennwandigen Querschnitt als „defined
+ * by its centreline (or midline) and the width", SHAPE-THIN setzt seine
+ * Punkte auf die `center lines`. `midline` statt `centreline`, weil letzteres
+ * den Streit centre/center in jeden Import traegt.
+ *
+ * `idealisation` sitzt IN der `midline`-Variante und nicht darueber. Die
+ * verbotene Zelle „freier Umriss, aber duennwandig gerechnet" ist damit ein
  * COMPILERFEHLER und keine Laufzeitpruefung — ein Umriss ohne Waende hat keine
  * Mittellinien, laengs derer ein Schubfluss laufen koennte.
  *
@@ -33,7 +40,7 @@ import type { Idealisation } from './section';
  */
 export type SectionGeometry =
   | {
-      kind: 'walls';
+      kind: 'midline';
       nodes: SectionNode[];
       walls: Wall[];
       idealisation: Idealisation;
@@ -61,6 +68,18 @@ export type SectionNode = { id: string; y: mm; z: mm };
 /**
  * Eine Wand zwischen zwei Knoten — die MITTELLINIE plus ihre Dicke.
  *
+ * `startNodeId`/`endNodeId` HEISSEN WIE BEIM STAB (`Beam` in
+ * `@baustatik/fem`). Dieselbe Systematik — ein Objekt verbindet zwei Knoten
+ * ueber Ids — traegt denselben Namen, und das `...Id`-Suffix sagt, dass dort
+ * eine Referenz steht und keine Lage. Ein blosses `from` sagte weder das eine
+ * noch das andere.
+ *
+ * `Wall` und nicht `Element` oder `Segment`: `Element` ist im Monorepo mit dem
+ * Stabelement (`@baustatik/fem-element`) belegt, `Segment` mit `ShearSegment`,
+ * und `Branch` meint in der Theorie duennwandiger Profile einen ZUG zwischen
+ * Verzweigungsknoten — das Wort wird fuer den Wandweg offener Profile noch
+ * gebraucht. Bleibt das Vokabular der Norm: duennwandig, Wandstaerke, Wand.
+ *
  * `t` ist PHYSIK (die Wandstaerke, mit der gerechnet wird), nicht die
  * Strichbreite am Schirm.
  *
@@ -75,8 +94,8 @@ export type SectionNode = { id: string; y: mm; z: mm };
  */
 export type Wall = {
   id: string;
-  from: string;
-  to: string;
+  startNodeId: string;
+  endNodeId: string;
   t: mm;
   bulge?: number;
 };
@@ -95,6 +114,12 @@ export type Vertex = { y: mm; z: mm; bulge?: number };
  *
  * Der Umlaufsinn traegt die Bedeutung „Material" gegen „Loch"; er wird nicht
  * geraten, sondern hingeschrieben.
+ *
+ * `Ring` IST DER NORMBEGRIFF: OGC Simple Features und
+ * [RFC 7946](https://datatracker.ietf.org/doc/html/rfc7946) nennen den
+ * geschlossenen Linienzug „linear ring", fuehren den aeusseren zuerst und
+ * legen genau diesen Umlaufsinn fest — aussen CCW, Loecher CW. Der Satz oben
+ * ist keine Hauskonvention, sondern die uebernommene.
  */
 export type Ring = { vertices: Vertex[] };
 
@@ -105,5 +130,13 @@ export type Ring = { vertices: Vertex[] };
  * (`DEFAULT_ARC_TOLERANCE` in `@baustatik/geometry-2d`), und genau deshalb
  * reist das Polygon mit: `A`, `Iy` und `Iz` fallen aus DIESEN Punkten und nicht
  * aus denen, die die naechste Bibliotheksversion erzeugen wuerde.
+ *
+ * ACHTUNG, ABWEICHUNG VON OGC: dort ist ein *Polygon* die MENGE seiner Ringe,
+ * hier ist es ein EINZELNER — dieselbe Bedeutung wie `Polygon` in
+ * `@baustatik/geometry-2d` und `@baustatik/section-geometry`, und die
+ * Hauskonvention schlaegt die fremde. `outline: Polygon[]` heisst deshalb „ein
+ * Eintrag je Ring", Loecher eingeschlossen, und nicht „mehrere Polygone mit
+ * Loechern". `Ring` und `Polygon` stehen damit auf DERSELBEN Ebene und
+ * unterscheiden sich allein durch `bulge`: Eingabe gegen Ergebnis.
  */
 export type Polygon = { points: { y: mm; z: mm }[] };

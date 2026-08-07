@@ -91,19 +91,21 @@ export function createCrossSectionViewer(config: ViewerConfig) {
     byId: ReadonlyMap<string, { y: number; z: number }>,
   ): Spec | undefined {
     if ((wall.bulge ?? 0) !== 0) return undefined;
-    const from = byId.get(wall.from);
-    const to = byId.get(wall.to);
+    const start = byId.get(wall.startNodeId);
+    const end = byId.get(wall.endNodeId);
     // Ein haengender Verweis ist ein Befund des Gatters
     // (`UnknownSectionNodeError`), kein Wurf im Zeichenweg: wer ein kaputtes
     // Modell zeichnet, soll den Rest davon sehen.
-    if (from === undefined || to === undefined) return undefined;
+    if (start === undefined || end === undefined) return undefined;
 
+    // `from`/`to` sind hier die Enden der ZEICHENSTRECKE (`Spec`), nicht die
+    // Knotenverweise der Wand — die heissen `startNodeId`/`endNodeId`.
     return {
       kind: 'line',
       id: wall.id,
       layer: 'section',
-      from: worldPoint(from.y, from.z),
-      to: worldPoint(to.y, to.z),
+      from: worldPoint(start.y, start.z),
+      to: worldPoint(end.y, end.z),
       // t ist PHYSIK (die Wandstaerke), nicht die Strichbreite am Schirm —
       // deshalb skaliert sie mit dem Viewport und die Umrisslinie nicht.
       strokeWidth: wall.t * vp.scale * STROKE_SCALE,

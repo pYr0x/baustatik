@@ -18,7 +18,7 @@ import {
 
 /** Ein Hohlkasten als Wandgraph, mit einer Bogenwand und seinem Umriss. */
 const BOX: SectionGeometry = {
-  kind: 'walls',
+  kind: 'midline',
   idealisation: 'thin-walled',
   nodes: [
     { id: 'n1', y: -50, z: -100 },
@@ -27,10 +27,10 @@ const BOX: SectionGeometry = {
     { id: 'n4', y: -50, z: 100 },
   ],
   walls: [
-    { id: 'oben', from: 'n1', to: 'n2', t: 8 },
-    { id: 'rechts', from: 'n2', to: 'n3', t: 6, bulge: 0.1 },
-    { id: 'unten', from: 'n3', to: 'n4', t: 8 },
-    { id: 'links', from: 'n4', to: 'n1', t: 6 },
+    { id: 'oben', startNodeId: 'n1', endNodeId: 'n2', t: 8 },
+    { id: 'rechts', startNodeId: 'n2', endNodeId: 'n3', t: 6, bulge: 0.1 },
+    { id: 'unten', startNodeId: 'n3', endNodeId: 'n4', t: 8 },
+    { id: 'links', startNodeId: 'n4', endNodeId: 'n1', t: 6 },
   ],
   outline: [
     {

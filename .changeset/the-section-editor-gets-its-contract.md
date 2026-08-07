@@ -27,8 +27,13 @@ Form ist parametrisch" aufhört zu reichen.
   `stressPoints` geben für sie noch `undefined` zurück.
   - **String-Ids, keine Indizes:** ein gelöschter Knoten verschöbe jeden
     folgenden, und ein Modell-Diff wäre unlesbar.
-  - **`idealisation` sitzt IN der `walls`-Variante.** Die verbotene Zelle
+  - **`idealisation` sitzt IN der `midline`-Variante.** Die verbotene Zelle
     „freier Umriss, dünnwandig gerechnet" ist damit ein Compilerfehler.
+  - **Beide Marken benennen eine Linie:** `midline` gegen `outline`. `midline`
+    ist der Begriff der englischsprachigen Fachwelt für die Mittellinie (SCIA,
+    SHAPE-THIN) und spart den Streit centre/center. Die Wandenden heißen
+    `startNodeId`/`endNodeId` wie am Stab (`Beam` in `@baustatik/fem`) —
+    dieselbe Systematik, dieselben Namen.
   - **Der Umriss reist mit,** und das ist eine geprüfte Denormalisierung: das
     Gatter leitet ihn ohnehin ab, der Vergleich kostet nichts, und aus stiller
     Drift wird ein Befund. Ein Bericht druckt `A = 5163,21 mm²`, eine neue

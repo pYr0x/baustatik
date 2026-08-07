@@ -47,8 +47,13 @@ export abstract class SectionValidationWarning extends BaustatikError {
   }
 }
 
-/** Welches Ende einer Wand auf einen Knoten zeigt. */
-export type WallEnd = 'from' | 'to';
+/**
+ * Welches Ende einer Wand auf einen Knoten zeigt.
+ *
+ * `start`/`end` wie am Stab (`BeamEndReleases` in `@baustatik/fem`) und wie die
+ * Felder, auf die es zeigt (`Wall.startNodeId`, `Wall.endNodeId`).
+ */
+export type WallEnd = 'start' | 'end';
 
 /**
  * Eine Wand zeigt auf einen Knoten, den es nicht gibt.
@@ -81,9 +86,9 @@ const ELEMENT_LABEL: Record<SectionElement, string> = {
  * Zwei Knoten oder zwei Waende mit derselben Id.
  *
  * FEHLER UND KEINE WARNUNG, weil der Graph damit MEHRDEUTIG ist und nicht bloss
- * verdaechtig aussieht: `from: 'n1'` benennt dann nicht mehr eine Lage, und
- * welche der beiden gilt, entscheidet die Reihenfolge im Array — eine Regel,
- * die niemand hingeschrieben hat.
+ * verdaechtig aussieht: `startNodeId: 'n1'` benennt dann nicht mehr eine Lage,
+ * und welche der beiden gilt, entscheidet die Reihenfolge im Array — eine
+ * Regel, die niemand hingeschrieben hat.
  *
  * DER FALL, DEN DIE STRING-IDS EINHANDELN. Bei Index-Verweisen kann er nicht
  * auftreten; die Ids sind die bessere Wahl (ADR 0030), aber sie kosten genau

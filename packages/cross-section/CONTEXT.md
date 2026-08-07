@@ -9,8 +9,10 @@ Schubmittelpunkt `yM`/`zM` und κ.
 
 **Drei Quellen, eine Frage.** Die dritte, `SectionGeometry`, kam mit
 [ADR 0030](../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md) dazu:
-ein Wandgraph (Knoten, Waende mit Dicke) oder freie Umrissringe, in beiden
-Faellen samt **mitgefuehrtem, diskretisiertem Umriss**. Sie traegt heute nur
+ein Wandgraph (`kind: 'midline'` — Knoten, Waende mit Dicke) oder freie
+Umrissringe (`kind: 'outline'`), in beiden Faellen samt **mitgefuehrtem,
+diskretisiertem Umriss**. Beide Marken benennen eine LINIE, nicht ihren Inhalt:
+die Mittellinie gegen den Umriss. Sie traegt heute nur
 ihren Vertrag — `sectionProperties` gibt fuer sie `undefined` zurueck, bis die
 Green-Rechnung steht.
 
@@ -220,7 +222,7 @@ Querschnitt ist kein Tor vor der Rechenkette; wer ihn nicht rechnen kann, bekomm
 
 | Kanal | Inhalt |
 | --- | --- |
-| `errors` | nicht rechenbar: `t ≤ 0`, Nulllaengenwand, haengende `from`/`to`, leerer Umriss |
+| `errors` | nicht rechenbar: `t ≤ 0`, Nulllaengenwand, haengende `startNodeId`/`endNodeId`, leerer Umriss |
 | `warnings` | rechenbar, **unter einer Annahme** — die vier Saetze |
 
 | # | Ausloeser | Aussage |

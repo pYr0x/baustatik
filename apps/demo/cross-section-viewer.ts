@@ -18,7 +18,7 @@ const useStore = defineStore('sections', {
     getters: {
         geometry(state): SectionGeometry {
             return {
-                kind: 'walls',
+                kind: 'midline',
                 idealisation: 'thin-walled',
                 nodes: state.nodes,
                 walls: state.walls,
@@ -30,8 +30,8 @@ const useStore = defineStore('sections', {
         addNode(id: string, y: number, z: number) {
             this.nodes.push({ id, y, z });
         },
-        addWall(id: string, from: string, to: string, t: number) {
-            this.walls.push({ id, from, to, t });
+        addWall(id: string, startNodeId: string, endNodeId: string, t: number) {
+            this.walls.push({ id, startNodeId, endNodeId, t });
         },
         setOutline(points: { y: number; z: number }[]) {
             this.outline = [{ points }];
