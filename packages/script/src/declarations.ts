@@ -17,9 +17,23 @@ declare module '@baustatik/script' {
     | { kind: 'i-symmetric'; h: number; b: number; tw: number; tf: number; idealisation: Idealisation }
     /** @param bf Gurtbreite [mm] @param hf Gurtdicke [mm] @param bw Stegbreite [mm] @param h Gesamthoehe [mm] */
     | { kind: 't-section'; bf: number; hf: number; bw: number; h: number; idealisation: Idealisation };
+  /** Ein Knoten des Wandgraphen. Koordinaten in MILLIMETERN. */
+  export type SectionNode = { id: string; y: number; z: number };
+  /** @param t Wandstaerke [mm] @param bulge DXF-Woelbung tan(D/4), 0 = Gerade */
+  export type Wall = { id: string; from: string; to: string; t: number; bulge?: number };
+  export type Vertex = { y: number; z: number; bulge?: number };
+  /** EINGABE — aussen CCW, Loch CW. */
+  export type Ring = { vertices: Vertex[] };
+  /** ERGEBNIS — diskretisiert, ohne bulge. */
+  export type Polygon = { points: { y: number; z: number }[] };
+  /** Die frei gezeichnete Geometrie. Der abgeleitete Umriss reist MIT. */
+  export type SectionGeometry =
+    | { kind: 'walls'; nodes: SectionNode[]; walls: Wall[]; idealisation: Idealisation; outline: Polygon[] }
+    | { kind: 'outline'; rings: Ring[]; outline: Polygon[] };
   export type CrossSectionInput =
     | { kind: 'shape'; shape: ShapeSpec }
-    | { kind: 'profile'; profile: string };
+    | { kind: 'profile'; profile: string }
+    | { kind: 'section-geometry'; geometry: SectionGeometry };
   export interface CrossSectionHandle {
     readonly id: string;
   }

@@ -3,9 +3,21 @@
 ## Zweck
 
 Der **Rechenkern der Querschnittswerte**. Aus einem Querschnitt — parametrische
-Form oder Katalogprofil — werden `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` und κ.
-Spaeter kommt der duennwandige Zweig als dritte Quelle dazu; das ist keine dritte
-Frage, sondern dieselbe Frage aus einer dritten Quelle.
+Form, Katalogprofil oder die frei gezeichnete Geometrie des Editors — werden
+`A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs`, die Hauptachsen `alpha`/`Iu`/`Iv`, der
+Schubmittelpunkt `yM`/`zM` und κ.
+
+**Drei Quellen, eine Frage.** Die dritte, `SectionGeometry`, kam mit
+[ADR 0030](../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md) dazu:
+ein Wandgraph (Knoten, Waende mit Dicke) oder freie Umrissringe, in beiden
+Faellen samt **mitgefuehrtem, diskretisiertem Umriss**. Sie traegt heute nur
+ihren Vertrag — `sectionProperties` gibt fuer sie `undefined` zurueck, bis die
+Green-Rechnung steht.
+
+Dazu gehoert seit
+[ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md) das
+**Prüfgatter**: `validateSectionGeometry` und `validateSectionProperties`, beide
+mit dem Kanal `{ errors, warnings }`.
 
 Das Package besitzt ausserdem den **Modellsatz `CrossSection`**: den Record, der
 neben `Node`, `Beam` und `NodeSupport` im Modell liegt und mit ihm gespeichert
@@ -17,9 +29,12 @@ Damit schlaegt dieses Package **nichts mehr nach** — `sectionProperties` und
 `stressPoints` sind im Profilzweig total, und `undefined` heisst nur noch
 „unsinnige Abmessungen" bzw. „fuer diese Form gibt es keine Vorlage".
 
-Zwei Abhaengigkeiten: `@baustatik/steel-profiles` (nur noch der **Typ**
-`SteelProfileData`, kein `lookupProfile` mehr im `src`) und `@baustatik/units`
-(die Umrechnungsfaktoren und die Quantity-Typen).
+Drei Abhaengigkeiten: `@baustatik/steel-profiles` (nur noch der **Typ**
+`SteelProfileData`, kein `lookupProfile` mehr im `src`), `@baustatik/units`
+(die Umrechnungsfaktoren und die Quantity-Typen) und `@baustatik/errors` (die
+Wurzel der Gatterklassen, ADR 0030). **Keine Geometriebibliothek** — die
+Knickwarnung rechnet die Endtangente einer Bogenwand aus `2·atan(bulge)` und
+liest den mitgefuehrten Umriss, statt ihn abzuleiten.
 
 ## Die Grenze zur Bemessung, mechanisch pruefbar
 
@@ -37,7 +52,7 @@ Was das Package liefert, ist der **Nenner** solcher Formeln, nie der Zaehler.
 
 | | Inhalt | vom Material abhaengig |
 | --- | --- | --- |
-| `SectionProperties` (hier) | `A` [m²], `Iy`, `Iz`, `Iyz` [m⁴], `ys`, `zs` [m], `kappaY`, `kappaZ` [–] | **nein** |
+| `SectionProperties` (hier) | `A` [m²], `Iy`, `Iz`, `Iyz`, `Iu`, `Iv` [m⁴], `ys`, `zs`, `yM`, `zM` [m], `alpha` [rad], `kappaY`, `kappaZ` [–] | **nein** |
 | `SectionStiffness` (`fem-element`) | `EA` [kN], `EI` [kNm²], `GAs` [kN] | **ja** |
 
 Der Name sass frueher auf der anderen Seite; die Umbenennung und ihr Grund
@@ -156,6 +171,75 @@ Quellen haben verschiedene:
 Verwechseln kann man sie nicht, weil niemand beide mischt: `fem-section-resolve`
 liest `ys`/`zs` gar nicht, und Spannungspunkt-Koordinaten sind **immer**
 schwerpunktsbezogen.
+
+Der Editor braechte „wie gezeichnet" als **drittes** System. Statt einer weiteren
+Konvention steht dafuer eine **Invariante**
+([ADR 0031](../../docs/adr/0031-the-cross-section-plane.md)):
+
+> **`yM`/`zM` liegen im selben System wie `ys`/`zs`.**
+
+## Hauptachsen: Pflicht, weil reine Algebra
+
+`alpha`, `Iu` und `Iv` sind **Pflichtfelder**. Sie fallen aus `Iy`, `Iz` und
+`Iyz` und sind damit fuer jede Quelle total — `undefined` waere bei einem IPE 300
+keine Auskunft, sondern eine Unwahrheit. `alpha` zaehlt **positiv von `+y` nach
+`+z`**, derselbe Drehsinn wie `Arc.sweep`; gegen Dlubal ist das Vorzeichen
+gespiegelt, und gespiegelt wird **einmal**, in der Berichtsausgabe (dieselbe
+Figur wie `phiY = −theta` in ADR 0005). Rider: `Iu ≥ Iv` und
+`alpha ∈ (−π/2, +π/2]`.
+
+**`alpha = 0` ist nichts, was eine Form hinschreibt**, sondern das Ergebnis fuer
+eine AUFRECHTE Figur. Der Plattenbalken mit 2 m breitem Gurt hat `Iz > Iy`, seine
+starke Achse liegt auf `z`, und `alpha` faellt auf `+π/2`. Ein
+Charakterisierungstest haelt beide Faelle.
+
+`Iyz === 0` kuerzt die Rechnung ab, und die Abkuerzung ist exakt: verschwindet
+das Deviationsmoment, SIND `y` und `z` die Hauptachsen. Alle heutigen Quellen
+laufen durch diesen Zweig, und nur deshalb gilt `Iu === Iy` auf die letzte
+Stelle.
+
+## Der Schubmittelpunkt, und warum er beim T fehlt
+
+`yM = ys` bei jeder Quelle: alle haben eine Symmetrieachse in y. `zM = zs` bei
+`rectangle`, `i-symmetric`, `hollow-rectangle`, IPE und HEA — sie sind
+doppeltsymmetrisch.
+
+**Beim `t-section` bleibt `zM` `undefined`.** Die Form ist nur EINFACH
+symmetrisch: `yM = ys = 0` steht, aber `zM != zs`, und die Zahl faellt erst aus
+dem Wandweg. `undefined` heisst **nicht ermittelt**, nach dem Muster von
+`kappaY?` — `zs` hinzuschreiben waere eine Unwahrheit.
+
+## Das Prüfgatter: es warnt, es verweigert nicht
+
+Zwei Tueren, weil zwei verschiedene Fragen
+([ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md)):
+`validateSectionGeometry(g, { arcTolerance })` prueft die gezeichnete Figur,
+`validateSectionProperties(p)` die Zahlen. **Kein `assertValid…`** — der
+Querschnitt ist kein Tor vor der Rechenkette; wer ihn nicht rechnen kann, bekommt
+`undefined` und damit einen Modellfehler im Bericht.
+
+| Kanal | Inhalt |
+| --- | --- |
+| `errors` | nicht rechenbar: `t ≤ 0`, Nulllaengenwand, haengende `from`/`to`, leerer Umriss |
+| `warnings` | rechenbar, **unter einer Annahme** — die vier Saetze |
+
+| # | Ausloeser | Aussage |
+| --- | --- | --- |
+| 1 | `Iyz ≠ 0` | keine Hauptachsenlage — gilt nur, solange der Stab aus der Ebene gehalten wird |
+| 2 | `yM ≠ ys` | Querkraft durch den Schwerpunkt tordiert (`T = Vz·e`) |
+| 3 | Knick am Bogen | Tangentialitaet gebrochen |
+| 4 | `yM === undefined` | Schubmittelpunkt **nicht ermittelt** — Satz 2 ist ungeprueft |
+
+**Satz 2 keyt allein auf `yM`**, nicht auf `(yM, zM)`: das ebene Stabwerk kennt
+nur `Vz`, ein z-Versatz erzeugt darin keine Torsion. Andernfalls feuerte jeder
+Plattenbalken.
+
+**Die Knickschranke wird abgeleitet, nicht gesetzt:**
+`notch = (t/2)·tan(theta/2)`, gewarnt wird bei `notch > arcTolerance`. Bei
+`0,05 mm` heisst das `t = 6 → ≈1,9°`, `t = 20 → ≈0,57°`. Dass dicke Waende
+weniger Knick vertragen, ist richtig — ihre Kerbe wird tiefer. Die Toleranz ist
+ein **Parameter** und keine Konstante im Gatter (ADR 0011): sonst haengt dieses
+Package an `@baustatik/geometry-2d`, nur um eine `0,05` zu lesen.
 
 ## Was `undefined` heisst
 

@@ -176,15 +176,34 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
    * HIER, und nur hier, wird der Profilkatalog befragt (ADR 0027). Die Zeile
    * geht als Kopie in den Satz; gespeichert wird ausserdem die KANONISCHE
    * Bezeichnung, `'ipe300'` also als `'IPE 300'`.
+   *
+   * Die dritte Quelle, `'section-geometry'`, wird nur KOPIERT: es gibt keinen
+   * Katalog dahinter, und geprueft wird sie dort, wo sie gezeichnet wird
+   * (`validateSectionGeometry`). Der Builder zoege sich sonst ein Gatter in
+   * eine Zeile, die gar nicht darueber entscheidet.
    */
   crossSection(input: CrossSectionInput): CrossSectionHandle {
     const id = crypto.randomUUID();
-    const record: CrossSection =
-      input.kind === 'profile'
-        ? { kind: 'profile', id, ...this.requireProfile(input.profile) }
-        : { kind: 'shape', id, shape: structuredClone(input.shape) };
-    this.#crossSections.push(record);
+    this.#crossSections.push(this.crossSectionRecord(id, input));
     return new CrossSectionHandleImpl(id);
+  }
+
+  private crossSectionRecord(
+    id: string,
+    input: CrossSectionInput,
+  ): CrossSection {
+    switch (input.kind) {
+      case 'profile':
+        return { kind: 'profile', id, ...this.requireProfile(input.profile) };
+      case 'shape':
+        return { kind: 'shape', id, shape: structuredClone(input.shape) };
+      case 'section-geometry':
+        return {
+          kind: 'section-geometry',
+          id,
+          geometry: structuredClone(input.geometry),
+        };
+    }
   }
 
   /**
@@ -280,7 +299,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
 
   finish(): FEMModelSnapshot {
     return structuredClone({
-      schemaVersion: 5,
+      schemaVersion: 6,
       nodes: this.#nodes,
       beams: this.#beams,
       crossSections: this.#crossSections,

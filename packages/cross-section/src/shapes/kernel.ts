@@ -27,6 +27,18 @@ export type ShapeResult = {
   readonly Iyz: cm4;
   readonly ys: cm;
   readonly zs: cm;
+  /**
+   * Der Schubmittelpunkt, im SELBEN System wie `ys`/`zs` — die Invariante aus
+   * [ADR 0031](../../../docs/adr/0031-the-cross-section-plane.md).
+   *
+   * `yM` steht bei jeder Form: alle vier haben eine Symmetrieachse in y, also
+   * liegt er auf ihr. `zM` steht ueberall dort, wo die Form ausserdem
+   * doppeltsymmetrisch ist. `undefined` heisst NICHT ERMITTELT und ist beim
+   * `t-section` die Wahrheit — dort ist `zM != zs`, und die Zahl faellt erst
+   * aus dem Wandweg.
+   */
+  readonly yM?: cm;
+  readonly zM?: cm;
   /** Schubflussweg fuer eine Querkraft in y-Richtung (gehoert zu `Iz`). */
   readonly pathY: readonly ShearSegment[];
   /** Schubflussweg fuer eine Querkraft in z-Richtung (gehoert zu `Iy`). */
@@ -53,6 +65,8 @@ export function toProperties(shape: ShapeResult): SectionProperties {
     Iyz: shape.Iyz,
     ys: shape.ys,
     zs: shape.zs,
+    yM: shape.yM,
+    zM: shape.zM,
     kappaY: shearArea(shape.Iz, shape.pathY) / shape.A,
     kappaZ: shearArea(shape.Iy, shape.pathZ) / shape.A,
   });

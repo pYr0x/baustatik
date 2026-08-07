@@ -120,6 +120,27 @@ pnpm --filter @baustatik/section-geometry lint
 
 Pure functions without Konva/DOM/WASM, testable in Node.
 
+## Coming role: offsetting and the drift check
+
+The cross-section editor stores a **wall graph plus the outline it implies**
+([ADR 0030](../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)). The
+step from the one to the other — widening a centre line by `t/2` on both sides
+and unioning the results — is an **offset**, and it lands here, together with
+`deriveOutline` and `checkOutlineDrift` (P3, with `clipper2-ts`). The carried
+outline is a denormalisation whose whole point is that the drift becomes a
+finding instead of a silent change; this package is the place that produces the
+number the finding compares against.
+
+Two of the constraints below are on the critical path for it: boolean operations
+dropping holes, and the missing hole/outer winding distinction. A hollow section
+cannot be derived until both are resolved.
+
+`DEFAULT_ARC_TOLERANCE` (re-exported here from `@baustatik/geometry-2d`) is the
+**one** discretisation tolerance of the repo and the default of `Arc.toPolyline`.
+It used to live at two places with two numbers. It decides how many points an
+outline carries, and therefore which `A`, `Iy`, `Iz` fall out of it — pass it
+explicitly wherever the result is stored.
+
 ## Known constraints
 
 - **Boolean operations silently drop holes.** `Polygon.intersect` / `union` /

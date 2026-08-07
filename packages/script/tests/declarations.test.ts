@@ -14,9 +14,24 @@ import { femScriptDeclarations } from '../src';
 describe('femScriptDeclarations', () => {
   it('laesst den Autor die Katalogbezeichnung nennen, nicht die Zahlen', () => {
     expect(femScriptDeclarations).toContain(
-      "| { kind: 'profile'; profile: string };",
+      "| { kind: 'profile'; profile: string }",
     );
     expect(femScriptDeclarations).toContain("{ kind: 'steel'; grade: string }");
+  });
+
+  it('kennt ALLE DREI Querschnittsquellen', () => {
+    // DER DRIFT, DEN DIESE DATEI EINLAEDT: sie ist von Hand gepflegt, und ein
+    // neuer Zweig an `CrossSectionInput` faellt hier nicht durch den Typecheck
+    // — er ist ein String. Ein Autor bekaeme dann im Editor einen Fehler auf
+    // Code, der zur Laufzeit einwandfrei laeuft. Die Liste steht deshalb hier
+    // als Zusicherung und nicht als Kommentar.
+    for (const kind of ['shape', 'profile', 'section-geometry'] as const) {
+      expect(femScriptDeclarations).toContain(`{ kind: '${kind}';`);
+    }
+    // Die Geometrie braucht ihre eigenen Typen, sonst ist die Variante zwar
+    // genannt, aber nicht hinschreibbar.
+    expect(femScriptDeclarations).toContain('export type SectionGeometry =');
+    expect(femScriptDeclarations).toContain('export type Wall =');
   });
 
   it('zeigt weder `data` noch `moduli` in der Eingabe', () => {

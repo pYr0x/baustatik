@@ -47,4 +47,40 @@ export type SectionProperties = {
    */
   kappaY?: number;
   kappaZ?: number;
+  /**
+   * Der Drehwinkel der HAUPTACHSEN gegen `y`/`z` [rad] — PFLICHT.
+   *
+   * Positiv von `+y` nach `+z`. Das ist kein dritter Drehsinn, sondern die
+   * bereits getroffene Festlegung von `Arc.sweep` in
+   * `@baustatik/section-geometry`, auf die sich die DXF-Vorzeichenregel des
+   * `bulge` schon stuetzt
+   * ([ADR 0031](../../../docs/adr/0031-the-cross-section-plane.md)).
+   *
+   * GEGEN DLUBAL IST DAS VORZEICHEN GESPIEGELT (L 30×20×3: hier `+23,12°`,
+   * dort `−23,12°`). Gespiegelt wird EINMAL, in der Berichtsausgabe — dieselbe
+   * Figur wie `phiY = −theta` in
+   * [ADR 0005](../../../docs/adr/0005-rotation-sense-phiy-versus-theta.md).
+   *
+   * Bereich `(−π/2, +π/2]`, zusammen mit `Iu >= Iv` eindeutig.
+   */
+  alpha: number;
+  /** Groesseres Hauptträgheitsmoment [m4] — PFLICHT, immer `>= Iv`. */
+  Iu: number;
+  /** Kleineres Hauptträgheitsmoment [m4] — PFLICHT. */
+  Iv: number;
+  /**
+   * Schubmittelpunkt im SELBEN SYSTEM wie `ys`/`zs` [m].
+   *
+   * DAS IST DIE INVARIANTE, und sie ersetzt eine Konvention: es gibt kein
+   * eigenes Bezugssystem fuer den Schubmittelpunkt. Welches System es ist,
+   * sagt die Quelle — bei den parametrischen Formen die Oberkante, beim
+   * Walzprofil die Tabelle.
+   *
+   * `undefined` heisst NICHT ERMITTELT, nach dem Muster von `kappaY?`, und
+   * nicht „faellt mit dem Schwerpunkt zusammen". Beim `t-section` steht es
+   * heute so: die Form ist nur einfach symmetrisch (`yM = ys = 0`, aber
+   * `zM != zs`), und `zM` faellt erst mit dem Wandweg ab.
+   */
+  yM?: number;
+  zM?: number;
 };

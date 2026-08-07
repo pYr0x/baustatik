@@ -1,7 +1,9 @@
 import type {
   CrossSection,
   Idealisation,
+  SectionGeometry,
   ShapeSpec,
+  Vertex,
 } from '@baustatik/cross-section';
 import { BaustatikError } from '@baustatik/errors';
 import { assertValidModel } from '@baustatik/fem';
@@ -43,16 +45,19 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // `crossSectionId` ins Leere; bei v2 BEDEUTET `materialId` etwas anderes als
   // hier — dort die Guete selbst (`'S235'`), hier ein Verweis auf
   // `Material.id`; bei v3 fehlen die kopierten Zahlen; bei v4 heisst die
-  // T-Form `'t-beam'` statt `'t-section'`.
+  // T-Form `'t-beam'` statt `'t-section'`; bei v5 fehlt die dritte
+  // Querschnittsquelle (ADR 0030).
   //
-  // Verfuehrerisch zu ergaenzen waeren gleich zwei: bei v3 stehen die
-  // Bezeichnungen darin, ein Lookup laege nahe, und bei v4 waere es ein
-  // ersetztes Literal. Genau das ist die stille Aufloesung, die ADR 0027
-  // abschafft — hier einmal ausgefuehrt, im unguenstigsten Moment, und danach
-  // nicht mehr von einer bewussten Wahl zu unterscheiden. Eine Migration ist
-  // ein Werkzeug, das jemand AUFRUFT, sieht und ablehnen kann.
-  if (snapshot.schemaVersion !== 5) {
-    fail('Snapshot.schemaVersion muss 5 sein.');
+  // Verfuehrerisch zu ergaenzen waeren gleich drei: bei v3 stehen die
+  // Bezeichnungen darin, ein Lookup laege nahe; bei v4 waere es ein ersetztes
+  // Literal; und v5 ist am Satz sogar UNVERAENDERT — die neue Variante ist rein
+  // additiv, ein v5 liesse sich schlicht durchwinken. Genau das ist die stille
+  // Aufloesung, die ADR 0027 abschafft: einmal ausgefuehrt, im unguenstigsten
+  // Moment, und danach nicht mehr von einer bewussten Wahl zu unterscheiden.
+  // Eine Migration ist ein Werkzeug, das jemand AUFRUFT, sieht und ablehnen
+  // kann — und AB HIER IST JEDE v5-DATEI VERLOREN.
+  if (snapshot.schemaVersion !== 6) {
+    fail('Snapshot.schemaVersion muss 6 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -174,7 +179,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     nodes,
     beams,
     crossSections,
@@ -260,7 +265,11 @@ function parseModuli(input: unknown, path: string): ElasticModuli {
  */
 function parseCrossSection(input: unknown, path: string): CrossSection {
   const value = record(input, path);
-  const kind = oneOf(value.kind, ['shape', 'profile'] as const, `${path}.kind`);
+  const kind = oneOf(
+    value.kind,
+    ['shape', 'profile', 'section-geometry'] as const,
+    `${path}.kind`,
+  );
   const id = text(value.id, `${path}.id`);
 
   if (kind === 'profile') {
@@ -273,8 +282,138 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
     };
   }
 
+  if (kind === 'section-geometry') {
+    exactKeys(value, path, ['kind', 'id', 'geometry']);
+    return {
+      kind,
+      id,
+      geometry: parseSectionGeometry(value.geometry, `${path}.geometry`),
+    };
+  }
+
   exactKeys(value, path, ['kind', 'id', 'shape']);
   return { kind, id, shape: parseShape(value.shape, `${path}.shape`) };
+}
+
+/**
+ * Die freie Geometrie an der Snapshot-Grenze — wieder NUR DIE GESTALT
+ * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
+ *
+ * WAS HIER NICHT GEPRUEFT WIRD, und der Grund ist neu: ob die Figur RECHENBAR
+ * ist. Dafuer gibt es seit P0 ein benanntes Gatter,
+ * `validateSectionGeometry` in `@baustatik/cross-section`, und es sagt „Wand
+ * *w3* zeigt auf einen Knoten, den es nicht gibt", waehrend dieser Parser nur
+ * „`walls[2].from` ist keine Zeichenkette" sagen koennte. Zwei Meinungen
+ * darueber, was ein brauchbarer Querschnitt ist, waeren eine zu viel — deshalb
+ * wird `t` hier auf ENDLICH geprueft und nicht auf positiv: das Vorzeichen
+ * gehoert dem Gatter, das die Wand beim Namen nennt.
+ *
+ * Der mitgefuehrte `outline` wird ebenfalls nur auf Gestalt geprueft und NICHT
+ * gegen `nodes`/`walls` nachgerechnet. Das waere die stille Aufloesung durch
+ * die Hintertuer, an genau der Stelle, an der ein Nutzer sie am wenigsten
+ * bemerkt — dieselbe Regel wie bei der kopierten Profilzeile (ADR 0027). Die
+ * Drift meldet das Gatter, sichtbar.
+ */
+function parseSectionGeometry(input: unknown, path: string): SectionGeometry {
+  const value = record(input, path);
+  const kind = oneOf(value.kind, ['walls', 'outline'] as const, `${path}.kind`);
+
+  const outline = array(value.outline, `${path}.outline`).map(
+    (polygon, index) => {
+      const polygonPath = `${path}.outline[${index}]`;
+      const fields = record(polygon, polygonPath);
+      exactKeys(fields, polygonPath, ['points']);
+      return {
+        points: array(fields.points, `${polygonPath}.points`).map(
+          (point, at) => {
+            const pointPath = `${polygonPath}.points[${at}]`;
+            // Das ERGEBNIS traegt kein `bulge` — genau daran sind Eingabe und
+            // Ergebnis am Typ zu unterscheiden, und hier wird es durchgesetzt.
+            exactKeys(record(point, pointPath), pointPath, ['y', 'z']);
+            return parseCoordinates(point, pointPath);
+          },
+        ),
+      };
+    },
+  );
+
+  if (kind === 'outline') {
+    exactKeys(value, path, ['kind', 'rings', 'outline']);
+    return {
+      kind,
+      rings: array(value.rings, `${path}.rings`).map((ring, index) => {
+        const ringPath = `${path}.rings[${index}]`;
+        const fields = record(ring, ringPath);
+        exactKeys(fields, ringPath, ['vertices']);
+        return {
+          vertices: array(fields.vertices, `${ringPath}.vertices`).map(
+            (vertex, at) =>
+              parseVertex(vertex, `${ringPath}.vertices[${at}]`),
+          ),
+        };
+      }),
+      outline,
+    };
+  }
+
+  exactKeys(value, path, ['kind', 'nodes', 'walls', 'idealisation', 'outline']);
+  return {
+    kind,
+    nodes: array(value.nodes, `${path}.nodes`).map((node, index) => {
+      const nodePath = `${path}.nodes[${index}]`;
+      const fields = record(node, nodePath);
+      exactKeys(fields, nodePath, ['id', 'y', 'z']);
+      return {
+        id: text(fields.id, `${nodePath}.id`),
+        ...parseCoordinates(fields, nodePath),
+      };
+    }),
+    walls: array(value.walls, `${path}.walls`).map((wall, index) => {
+      const wallPath = `${path}.walls[${index}]`;
+      const fields = record(wall, wallPath);
+      exactKeys(fields, wallPath, ['id', 'from', 'to', 't', 'bulge']);
+      return {
+        id: text(fields.id, `${wallPath}.id`),
+        from: text(fields.from, `${wallPath}.from`),
+        to: text(fields.to, `${wallPath}.to`),
+        t: finite(fields.t, `${wallPath}.t`),
+        ...(fields.bulge === undefined
+          ? {}
+          : { bulge: finite(fields.bulge, `${wallPath}.bulge`) }),
+      };
+    }),
+    idealisation: parseIdealisation(value.idealisation, path),
+    outline,
+  };
+}
+
+/** Ein Umrisspunkt der EINGABE — mit `bulge`, anders als das Ergebnis. */
+function parseVertex(input: unknown, path: string): Vertex {
+  const value = record(input, path);
+  exactKeys(value, path, ['y', 'z', 'bulge']);
+  return {
+    ...parseCoordinates(value, path),
+    ...(value.bulge === undefined
+      ? {}
+      : { bulge: finite(value.bulge, `${path}.bulge`) }),
+  };
+}
+
+/**
+ * `y`/`z` in MILLIMETERN — dieselbe Einheit wie `ShapeSpec`, und aus demselben
+ * Grund: das ist die Einheit, in der ein Querschnitt gezeichnet wird.
+ *
+ * Nur endlich, nicht positiv: eine Koordinate darf negativ und darf 0 sein.
+ */
+function parseCoordinates(
+  input: unknown,
+  path: string,
+): { y: number; z: number } {
+  const value = record(input, path);
+  return {
+    y: finite(value.y, `${path}.y`),
+    z: finite(value.z, `${path}.z`),
+  };
 }
 
 /**

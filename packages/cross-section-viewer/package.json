@@ -38,7 +38,6 @@
   "dependencies": {
     "@baustatik/grid-2d": "workspace:*",
     "@baustatik/render-core": "workspace:*",
-    "@baustatik/section-geometry": "workspace:*",
     "@baustatik/viewport-2d": "workspace:*",
     "@baustatik/cross-section": "workspace:*"
   }

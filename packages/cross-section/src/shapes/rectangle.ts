@@ -24,6 +24,11 @@ export function rectangle(b: cm, h: cm): ShapeResult | undefined {
     Iyz: 0,
     ys: 0,
     zs: h / 2,
+    // Doppeltsymmetrisch: der Schubmittelpunkt faellt mit dem Schwerpunkt
+    // zusammen. Beide Symmetrieachsen sind zugleich Hauptachsen, und auf jeder
+    // von ihnen muss M liegen.
+    yM: 0,
+    zM: h / 2,
     // Eine einzige Teilflaeche ueber die volle Hoehe bzw. Breite.
     pathZ: partSegments(-h / 2, [{ extent: h, width: b }]).segments,
     pathY: partSegments(-b / 2, [{ extent: b, width: h }]).segments,

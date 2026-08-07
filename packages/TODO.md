@@ -112,13 +112,19 @@ Die Idealisierung steuert seit
 [ADR 0029](../docs/adr/0029-stress-points-follow-the-idealisation.md) κ **und**
 die Spannungspunkte. Bewusst noch nicht angefasst:
 
-- **Das positionierte Wandmodell.** `ShearSegment` ist heute ein lageloser
-  Energieakkumulator — `pathZ` benutzt dasselbe Gurtobjekt viermal —, also
-  können κ und die Spannungspunkte nicht denselben Weg lesen. Ein Weg, der
-  beides speist, bräuchte Startpunkt und Richtung je Abschnitt, und `Sy`/`Sz`
-  kämen aus zwei verschieden parametrisierten Wegen, deren Stationen korreliert
-  werden müssten. Danach blieben zwei Maschinen — aber jede nur noch für ihren
-  Fall zuständig.
+- **Das positionierte Wandmodell — teilweise beantwortet.**
+  [ADR 0030](../docs/adr/0030-the-section-editor-stores-a-wall-graph.md) hat die
+  **Speicherform** entschieden: `SectionGeometry` ist ein Graph mit Identität je
+  Abschnitt (`SectionNode`, `Wall` mit String-Ids), und genau deshalb kann ein
+  Weg darauf eine Durchlaufordnung tragen. Offen bleibt der **Rechenweg**:
+  `ShearSegment` ist weiterhin ein lageloser Energieakkumulator — `pathZ`
+  benutzt dasselbe Gurtobjekt viermal —, also können κ und die Spannungspunkte
+  nicht denselben Weg lesen. Ein Weg, der beides speist, bräuchte Startpunkt und
+  Richtung je Abschnitt, und `Sy`/`Sz` kämen aus zwei verschieden
+  parametrisierten Wegen, deren Stationen korreliert werden müssten. Danach
+  blieben zwei Maschinen — aber jede nur noch für ihren Fall zuständig. Wer die
+  Auflösung Graph → lagerichtige Geometrie besitzt (der Viewer hat sie schon),
+  ist ebenfalls noch offen.
 - **`i-shape` mit unabhängigen Gurten**, das I und T subsumiert (T = Grenzfall
   `tf,unten = 0`). Das ist eine Formänderung im Modellsatz, kein Aufräumen.
 

@@ -17,7 +17,7 @@ function materialRecord(kind: MaterialKind, grade: string, id: string) {
 /** Ein vollstaendiger, gueltiger v5-Rumpf zum Ueberschreiben einzelner Felder. */
 function snapshot(overrides: Record<string, unknown> = {}) {
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     nodes: [],
     beams: [],
     crossSections: [],
@@ -53,7 +53,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
     // biome-ignore lint/performance/noDelete: der Test baut genau einen v2-Satz.
     delete (v2 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v2, schemaVersion: 2 })).toThrow(
-      'Snapshot.schemaVersion muss 5 sein.',
+      'Snapshot.schemaVersion muss 6 sein.',
     );
   });
 
@@ -67,7 +67,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
           materials: [{ kind: 'steel', id: 'm-1', grade: 'S235' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 5 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 6 sein.');
   });
 
   it('verlangt materials auch dann, wenn es leer bleibt', () => {
@@ -257,7 +257,7 @@ describe('Der Builder vergibt die Material-ID', () => {
     });
 
     const parsed = parseFEMModelSnapshot(structuredClone(model.finish()));
-    expect(parsed.schemaVersion).toBe(5);
+    expect(parsed.schemaVersion).toBe(6);
     expect(parsed.materials).toHaveLength(1);
     expect(parsed.materials[0].id).toBe(s235.id);
     expect(parsed.beams[0].materialId).toBe(s235.id);

@@ -1,7 +1,6 @@
-import type { Segment } from '@baustatik/cross-section';
+import type { SectionGeometry, Wall } from '@baustatik/cross-section';
 import { type GridOptions, gridSpecs } from '@baustatik/grid-2d';
 import type { RenderDriver, Spec } from '@baustatik/render-core';
-import { Arc } from '@baustatik/section-geometry';
 import {
   pan,
   type Size,
@@ -14,53 +13,102 @@ import {
 
 interface ViewerConfig {
   driver: RenderDriver; // injiziert — kein Konva hier
-  getSegments: () => readonly Segment[]; // PULL der Rohdaten aus dem Store
-  getScreenSize: () => Size; // PULL wie getSegments — resize-faehig
+  /**
+   * PULL der Rohdaten aus dem Store — jetzt der GANZE Querschnitt statt einer
+   * Liste lageloser Segmente
+   * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
+   *
+   * Der Vorgaenger `getSegments()` gab `Segment[]` heraus, einen Typ, den in
+   * `src/` nie jemand konstruiert hat: der Viewer war sein einziger Verbraucher
+   * und bekam ihn von aussen hereingereicht. Mit `SectionGeometry` liest er
+   * dasselbe, was gespeichert wird.
+   */
+  getGeometry: () => SectionGeometry;
+  getScreenSize: () => Size; // PULL wie getGeometry — resize-faehig
   grid?: GridOptions; // weggelassen = kein Grid
   initialViewport?: Viewport;
-  arcSegments?: number; // Aufloesung der Bogen-Diskretisierung
 }
 
 export function createCrossSectionViewer(config: ViewerConfig) {
-  const { driver, getSegments } = config;
-  const arcSegments = config.arcSegments ?? 24;
+  const { driver, getGeometry } = config;
   const STROKE_SCALE = 1; // OPTIK: konstante Strichbreite am Schirm (px, zoomt nicht mit)
+  const OUTLINE_STROKE = 1; // px — die Umrisslinie ist eine KANTE, keine Wand
 
   let vp: Viewport = config.initialViewport ?? viewport(screenPoint(0, 0), 1);
 
-  // Rohdaten -> umwandeln in Zeichen-Spec
-  function toSpec(seg: Segment): Spec {
-    if (seg.geometry === 'line') {
-      return {
-        kind: 'line',
-        id: seg.id,
+  /**
+   * Die Zeichen-Specs des Querschnitts.
+   *
+   * ZWEI LAGEN, ZWEI QUELLEN, und die Trennung ist die Aussage von ADR 0030:
+   *
+   *   Der UMRISS kommt fertig aus dem Satz. Er ist bereits diskretisiert, traegt
+   *   die Rundungen und stimmt mit den Zahlen ueberein, aus denen `A`, `Iy` und
+   *   `Iz` fallen — genau dafuer reist er mit. Der Viewer rechnet ihn nicht
+   *   nach; taete er es, gaebe es zwei Umrisse und einen Streit darueber,
+   *   welcher gilt.
+   *
+   *   Die WANDMITTELLINIEN kommen aus `nodes`/`walls` und tragen ihre Dicke als
+   *   Strichbreite. Sie sind die Eingabe, nicht das Ergebnis.
+   *
+   * EINE BOGENWAND WIRD NICHT ALS MITTELLINIE GEZEICHNET. `bulge` in einen
+   * `Arc` umzurechnen ist die Aufgabe von P1, und sie darf nicht zweimal
+   * geschrieben werden — die Kruemmung steht bis dahin sichtbar im Umriss. Ihre
+   * SEHNE zu zeichnen waere die schlechtere Antwort: eine Linie, die es nicht
+   * gibt, ununterscheidbar von einer, die es gibt.
+   */
+  function sectionSpecs(geometry: SectionGeometry): Spec[] {
+    const specs: Spec[] = geometry.outline
+      // Ein Polygon unter drei Punkten traegt keine Flaeche, und `render-core`
+      // weist es zu Recht zurueck. Das Gatter laesst es trotzdem durch: es
+      // fehlt erst, wenn KEIN Polygon traegt — waehrend der Eingabe ist ein
+      // halb gezogener Ring der Normalfall. Dieselbe Haltung wie bei den
+      // Waenden: wer ein unfertiges Modell zeichnet, soll den Rest davon sehen.
+      .filter((polygon) => polygon.points.length >= 3)
+      .map((polygon, index) => ({
+        kind: 'polygon',
+        id: `outline-${index}`,
         layer: 'section',
+        closed: true,
         // EINZIGE Stelle des y/z -> u/v Mappings.
-        from: worldPoint(seg.start.y, seg.start.z),
-        to: worldPoint(seg.end.y, seg.end.z),
-        strokeWidth: seg.thickness * vp.scale * STROKE_SCALE,
+        points: polygon.points.map((p) => worldPoint(p.y, p.z)),
+        strokeWidth: OUTLINE_STROKE,
         strokeColor: '#000',
-      };
+      }));
+
+    if (geometry.kind === 'outline') return specs;
+
+    const byId = new Map(geometry.nodes.map((node) => [node.id, node]));
+    for (const wall of geometry.walls) {
+      const spec = wallSpec(wall, byId);
+      if (spec !== undefined) specs.push(spec);
     }
-    // // Bogen: section-geometry rechnet die Punkte aus, wir zeichnen eine offene Polylinie.
-    // const arc = Arc.make(
-    //   { y: seg.center.y, z: seg.center.z },
-    //   seg.radius,
-    //   seg.startAngle,
-    //   seg.sweep,
-    // );
-    // const pts = Arc.toPolyline(arc, { segments: arcSegments });
-    // return {
-    //   kind: 'polygon',
-    //   id: seg.id,
-    //   closed: false,
-    //   points: pts.map((p) => worldPoint(p.y, p.z)),
-    //   strokeWidth: seg.thickness * vp.scale * STROKE_SCALE,
-    //   strokeColor: '#000',
-    // };
-    throw new Error(
-      `Segment-Geometrie noch nicht unterstuetzt: ${seg.geometry}`,
-    );
+    return specs;
+  }
+
+  /** Eine gerade Wand als Mittellinie. `undefined` heisst „hier nicht". */
+  function wallSpec(
+    wall: Wall,
+    byId: ReadonlyMap<string, { y: number; z: number }>,
+  ): Spec | undefined {
+    if ((wall.bulge ?? 0) !== 0) return undefined;
+    const from = byId.get(wall.from);
+    const to = byId.get(wall.to);
+    // Ein haengender Verweis ist ein Befund des Gatters
+    // (`UnknownSectionNodeError`), kein Wurf im Zeichenweg: wer ein kaputtes
+    // Modell zeichnet, soll den Rest davon sehen.
+    if (from === undefined || to === undefined) return undefined;
+
+    return {
+      kind: 'line',
+      id: wall.id,
+      layer: 'section',
+      from: worldPoint(from.y, from.z),
+      to: worldPoint(to.y, to.z),
+      // t ist PHYSIK (die Wandstaerke), nicht die Strichbreite am Schirm —
+      // deshalb skaliert sie mit dem Viewport und die Umrisslinie nicht.
+      strokeWidth: wall.t * vp.scale * STROKE_SCALE,
+      strokeColor: '#000',
+    };
   }
 
   function draw() {
@@ -72,7 +120,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
     const grid = config.grid
       ? gridSpecs(vp, config.getScreenSize(), config.grid)
       : [];
-    driver.reconcile([...grid, ...getSegments().map(toSpec)]);
+    driver.reconcile([...grid, ...sectionSpecs(getGeometry())]);
     driver.flush();
   }
 
@@ -89,7 +137,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
         vp = config.initialViewport ?? viewport(screenPoint(0, 0), 1);
         break;
       case 'fit':
-        // todo: Bounding-Box aller Segmente -> Viewport
+        // todo: Bounding-Box des Umrisses -> Viewport
         break;
     }
     draw();

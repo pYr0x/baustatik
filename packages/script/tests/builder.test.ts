@@ -42,7 +42,7 @@ describe('FEM model builder', () => {
     const snapshot = model.finish();
     const parsed = parseFEMModelSnapshot(structuredClone(snapshot));
 
-    expect(parsed.schemaVersion).toBe(5);
+    expect(parsed.schemaVersion).toBe(6);
     expect(parsed.nodes).toHaveLength(2);
     expect(parsed.beams[0]).toMatchObject({
       startNodeId: parsed.nodes[0].id,
@@ -115,7 +115,7 @@ describe('snapshot validation', () => {
   it('rejects malformed snapshots before domain validation', () => {
     expect(() =>
       parseFEMModelSnapshot({
-        schemaVersion: 5,
+        schemaVersion: 6,
         nodes: [{ id: 'n1', position: { x: Number.NaN, z: 0 } }],
         beams: [],
         crossSections: [],
@@ -129,7 +129,7 @@ describe('snapshot validation', () => {
   it('rejects unknown fields and duplicate load targets', () => {
     expect(() =>
       parseFEMModelSnapshot({
-        schemaVersion: 5,
+        schemaVersion: 6,
         nodes: [],
         beams: [],
         crossSections: [],
@@ -151,7 +151,7 @@ describe('snapshot validation', () => {
   it('applies the existing model validation rules', () => {
     expect(() =>
       parseFEMModelSnapshot({
-        schemaVersion: 5,
+        schemaVersion: 6,
         nodes: [{ id: 'n1', position: { x: 0, z: 0 } }],
         beams: [
           {

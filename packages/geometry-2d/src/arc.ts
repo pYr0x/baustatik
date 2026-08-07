@@ -1,3 +1,4 @@
+import { DEFAULT_ARC_TOLERANCE } from './constants';
 import { CollinearPointsError, InvalidArcError } from './errors';
 import type { Line } from './line';
 import { Point } from './point';
@@ -152,7 +153,8 @@ export const Arc: Transformable<Arc> & {
     return { ...arc, radius: newRadius };
   },
 
-  toPolyline: (arc, options = { tolerance: 0.1 }) => {
+  // Der Default ist keine eigene Zahl mehr, sondern DIE Toleranz des Repos.
+  toPolyline: (arc, options = { tolerance: DEFAULT_ARC_TOLERANCE }) => {
     if ('segments' in options && options.segments <= 0)
       throw new InvalidArcError(`segments ${options.segments} <= 0`);
     if ('tolerance' in options && options.tolerance <= 0)

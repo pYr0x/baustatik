@@ -31,7 +31,8 @@ export function iSymmetric(
       ? solidPaths(h, b, tw, tf, hw)
       : thinPaths(h, b, tw, tf);
 
-  return { A, Iy, Iz, Iyz: 0, ys: 0, zs: h / 2, ...paths };
+  // Doppeltsymmetrisch: Schubmittelpunkt = Schwerpunkt.
+  return { A, Iy, Iz, Iyz: 0, ys: 0, zs: h / 2, yM: 0, zM: h / 2, ...paths };
 }
 
 /** Kompakt: Schnitte quer zur Schubrichtung durch die volle Umrissfigur. */

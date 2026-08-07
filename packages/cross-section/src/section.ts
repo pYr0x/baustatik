@@ -7,6 +7,7 @@ import { toProperties } from './shapes/kernel';
 import { rectangle } from './shapes/rectangle';
 import { tSection } from './shapes/t-section';
 import { toSI } from './to-si';
+import type { SectionGeometry } from './types';
 import { MM_TO_CM } from './units';
 
 /**
@@ -82,11 +83,25 @@ export type ShapeSpec =
  * um. `Beam.crossSectionId` bleibt ein String
  * ([ADR 0023](../../../docs/adr/0023-cross-sections-belong-to-the-model.md)).
  *
- * Teil 2 fuegt `{ kind: 'thin-walled'; segments: Segment[] }` hinzu — ADDITIV,
- * ohne dass eine der beiden bestehenden Varianten sich aendert.
+ * DREI QUELLEN, EINE FRAGE: parametrische Form, Katalogzeile und seit
+ * [ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)
+ * die freie Geometrie des Editors. Der frueher hier geplante Zweig
+ * `{ kind: 'thin-walled'; segments: Segment[] }` ist damit entfallen: `Segment`
+ * war toter Code — nichts in `src/` hat je eins konstruiert —, und ein
+ * lageloses Wandsegment traegt den Editor nicht.
  */
 export type CrossSection =
   | { kind: 'shape'; id: string; shape: ShapeSpec }
+  | {
+      /**
+       * Die frei gezeichnete Geometrie. In P0 traegt sie ihren Vertrag, aber
+       * noch keine Werte: `sectionProperties` gibt fuer sie `undefined`
+       * zurueck, bis die Green-Rechnung steht.
+       */
+      kind: 'section-geometry';
+      id: string;
+      geometry: SectionGeometry;
+    }
   | {
       kind: 'profile';
       id: string;
@@ -129,6 +144,12 @@ export function sectionProperties(
   cs: CrossSection,
 ): SectionProperties | undefined {
   if (cs.kind === 'profile') return profileProperties(cs.data);
+
+  // Die Geometriequelle traegt in P0 nur ihren VERTRAG. Die Werte fallen aus
+  // dem Umrisspolygon nach Green — das ist P2, und bis dahin ist `undefined`
+  // die ehrliche Antwort: „kenne ich nicht" statt einer geratenen Zahl.
+  // Der Weg dahin ist offen und laeuft ueber `geometry.outline`.
+  if (cs.kind === 'section-geometry') return undefined;
 
   const shape = shapeResult(cs.shape);
   return shape === undefined ? undefined : toProperties(shape);
@@ -183,7 +204,9 @@ function shapeResult(spec: ShapeSpec) {
  * niemand sieht.
  *
  * `Iyz = 0` und `ys = zs = 0`: die gefuehrten Reihen sind doppeltsymmetrisch,
- * und das Eingabesystem der Tabelle IST das Schwerpunktsystem.
+ * und das Eingabesystem der Tabelle IST das Schwerpunktsystem. Aus derselben
+ * doppelten Symmetrie folgt `yM = ys` und `zM = zs`, also ebenfalls `0`: IPE
+ * und HEA tordieren unter einer Querkraft durch den Schwerpunkt nicht.
  */
 export function profileProperties(
   profile: SteelProfileData,
@@ -195,6 +218,8 @@ export function profileProperties(
     Iyz: 0,
     ys: 0,
     zs: 0,
+    yM: 0,
+    zM: 0,
     kappaY: profile.Ay === undefined ? undefined : profile.Ay / profile.A,
     kappaZ: profile.Az === undefined ? undefined : profile.Az / profile.A,
   });

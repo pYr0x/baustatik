@@ -48,6 +48,12 @@ export function stressPoints(
   // ist damit total.
   if (cs.kind === 'profile') return rolledIStressPoints(cs.data);
 
+  // Die freie Geometrie hat keine VORLAGE — sie ist ja gerade der Fall, fuer
+  // den keine Form im Voraus feststeht. Ihre Spannungspunkte fallen spaeter aus
+  // dem Umriss selbst (Ecken plus Schwerpunkt, dieselbe Regel wie ueberall),
+  // und das setzt die Green-Rechnung aus P2 voraus.
+  if (cs.kind === 'section-geometry') return undefined;
+
   // EINE Gueltigkeitspruefung, nicht zwei. Die Abmessungen hier noch einmal
   // von Hand zu pruefen hiesse, zwei Antworten auf „ist dieser Querschnitt
   // brauchbar" zu fuehren — und sie waeren auseinandergelaufen: `tf = -1`

@@ -1,5 +1,7 @@
 export { Arc } from './arc';
 export { normalizeAngleYZ } from './convert';
+// Durchgereicht statt neu gesetzt: dieselbe Zahl, ein Ort (ADR 0032).
+export { DEFAULT_ARC_TOLERANCE } from '@baustatik/geometry-2d';
 export {
   CollinearPointsError,
   DegenerateAxisError,

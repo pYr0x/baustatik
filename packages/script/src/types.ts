@@ -1,4 +1,8 @@
-import type { CrossSection, ShapeSpec } from '@baustatik/cross-section';
+import type {
+  CrossSection,
+  SectionGeometry,
+  ShapeSpec,
+} from '@baustatik/cross-section';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type {
   BeamLoad,
@@ -40,7 +44,17 @@ export type LoadCaseInput = Omit<LoadCase, 'id' | 'loads'>;
  */
 export type CrossSectionInput =
   | { kind: 'shape'; shape: ShapeSpec }
-  | { kind: 'profile'; profile: string };
+  | { kind: 'profile'; profile: string }
+  /**
+   * Die freie Geometrie des Editors
+   * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
+   *
+   * Hier beschafft das Modell NUR die ID: es gibt keinen Katalog, in dem
+   * nachzuschlagen waere, und der mitgefuehrte Umriss kommt fertig aus dem
+   * Editor. Ob die Figur in sich stimmt, sagt `validateSectionGeometry` — und
+   * zwar dort, wo sie GEZEICHNET wird, nicht hier.
+   */
+  | { kind: 'section-geometry'; geometry: SectionGeometry };
 /**
  * Ein Material, wie man es hinschreibt — dieselbe Regel wie beim Querschnitt.
  *
@@ -148,6 +162,15 @@ export interface FEMModelSnapshotBuilder extends FEMModelBuilder {
  * `'t-beam'` — der Name nennt jetzt die Form und nicht den Baustoff. Ein v4
  * traegt das alte Literal und ist damit kein gueltiger v5-Satz.
  *
+ * v6 nimmt eine DRITTE QUERSCHNITTSQUELLE auf: `{ kind: 'section-geometry' }`
+ * traegt die frei gezeichnete Figur des Editors samt abgeleitetem Umriss
+ * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
+ * Rein additiv am Satz — und trotzdem eine neue Zahl, weil ein v6 Querschnitte
+ * enthalten kann, die ein v5-Leser nicht kennt. AB HIER IST JEDE v5-DATEI
+ * VERLOREN, und das ist bewusst gewaehlt: gespeicherte v5-Modelle, die
+ * ueberleben muessten, gibt es nicht, und ein Migrationswerkzeug existiert
+ * nirgends im Repo.
+ *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein aelterer Snapshot
  * wird ABGELEHNT. Ein v3 per Lookup zu ergaenzen waere genau die stille
  * Aufloesung, die v4 abschafft — einmal ausgefuehrt im unguenstigsten Moment
@@ -157,7 +180,7 @@ export interface FEMModelSnapshotBuilder extends FEMModelBuilder {
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 5;
+  readonly schemaVersion: 6;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];

@@ -83,7 +83,13 @@ export function tSection(
       ? solidPaths(bf, hf, bw, h, hs, zs)
       : thinPaths(bf, hf, bw, h);
 
-  return { A, Iy, Iz, Iyz: 0, ys: 0, zs, ...paths };
+  // NUR EINFACH SYMMETRISCH, und das ist der einzige Fall dieses Standes, in
+  // dem der Schubmittelpunkt nicht mit dem Schwerpunkt zusammenfaellt: `yM = 0`
+  // liegt auf der Symmetrieachse und ist damit bekannt, `zM` liegt in
+  // Gurtmitte-Naehe und faellt erst aus dem Wandweg ab. `undefined` heisst
+  // NICHT ERMITTELT — `zs` hinzuschreiben waere eine Unwahrheit, und das Gatter
+  // meldete dann keine Torsion, wo es keine gibt (Satz 2 keyt allein auf `yM`).
+  return { A, Iy, Iz, Iyz: 0, ys: 0, zs, yM: 0, zM: undefined, ...paths };
 }
 
 function solidPaths(

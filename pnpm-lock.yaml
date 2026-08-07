@@ -132,6 +132,9 @@ importers:
 
   packages/cross-section:
     dependencies:
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
       '@baustatik/steel-profiles':
         specifier: workspace:*
         version: link:../steel-profiles
@@ -175,9 +178,6 @@ importers:
       '@baustatik/render-core':
         specifier: workspace:*
         version: link:../render-core
-      '@baustatik/section-geometry':
-        specifier: workspace:*
-        version: link:../section-geometry
       '@baustatik/viewport-2d':
         specifier: workspace:*
         version: link:../viewport-2d

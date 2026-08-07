@@ -1,4 +1,7 @@
-import { Arc as GeometryArc } from '@baustatik/geometry-2d';
+import {
+  DEFAULT_ARC_TOLERANCE,
+  Arc as GeometryArc,
+} from '@baustatik/geometry-2d';
 import {
   fromXYArc,
   fromXYPoint,
@@ -86,7 +89,8 @@ export const Arc: Transformable<SectionArc> & {
   offset: (arc, distance) =>
     fromXYArc(GeometryArc.offset(toXYArc(arc), distance)),
 
-  toPolyline: (arc, options = { tolerance: 0.1 }) =>
+  // Dieselbe Toleranz wie drunter — sie stand hier nur ein zweites Mal.
+  toPolyline: (arc, options = { tolerance: DEFAULT_ARC_TOLERANCE }) =>
     fromXYPolyline(GeometryArc.toPolyline(toXYArc(arc), options)),
 
   intersectLine: (arc, line) =>

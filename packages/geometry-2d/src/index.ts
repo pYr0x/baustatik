@@ -1,4 +1,5 @@
 export { Arc } from './arc';
+export { DEFAULT_ARC_TOLERANCE } from './constants';
 export {
   CollinearPointsError,
   DegenerateAxisError,
