@@ -1,5 +1,110 @@
 # @baustatik/cross-section
 
+## 0.4.0
+
+### Minor Changes
+
+- 86c9b36: Die Spannungspunkte folgen der Idealisierung (ADR 0029), und `t-beam` heißt
+  `t-section`.
+
+  - **Der behobene Widerspruch:** das Package führte ZWEI unabhängige
+    Schubmodelle, und `idealisation` steuerte nur eines. Ein `i-symmetric` mit
+    `thin-walled` und IPE-80-Massen bekam sein κ aus dem Wandweg (`Sy,max`
+    11,60 cm³, Katalog 11,61) und seinen Schwerpunkt-Spannungspunkt aus der
+    Umrissmodell (11,25 cm³) — zwei Antworten auf EINE Zahl, in einem Querschnitt.
+    Dazu stand am Gurtpunkt `t = b` statt `t = tf`, also die senkrechte
+    Schubkomponente, die an einer dünnwandigen Wand nichts bedeutet.
+  - **`stressPoints` verzweigt jetzt über Form UND Idealisierung.** Neu ist
+    `src/stress-points/thin.ts` mit den dünnwandigen Vorlagen für `i-symmetric`
+    (15 Punkte) und `t-section` (9 Punkte). `solid` behält das Umrissmodell, und
+    das ist keine Übergangslösung: Grashof IST für Vollquerschnitte richtig.
+  - **Koordinaten und Nummern bewegen sich nicht**, nur `t` und `S`. Die
+    Nummerierung ist ein veröffentlichter Vertrag.
+  - **Das Orakel kostete keine neue Fixture:** ein geschweißtes I ohne Ausrundung
+    IST das gewalzte Profil mit `r = 0`. An den 14 Gurtstationen stimmen die neue
+    Vorlage und die gegen 546 RSTAB-Punkte validierte `rolled-i.ts` auf
+    Gleitkommarauschen überein. Am STEG gilt das Orakel nicht — `rolled-i.ts`
+    führt dort die lichte Höhe, das Wandmodell Gurtmitte zu Gurtmitte —, und der
+    Schwerpunkt hat deshalb seine eigene Referenz: `Sy,max` des Katalogs, über die
+    ganze Reihe immer um 0,05 % bis 4,6 % unterschritten (die fehlende Ausrundung,
+    dieselbe Signatur wie bei κ).
+  - **κ hat sich in keiner Ziffer bewegt.** `shear.ts`, die Wege und κ wurden nicht
+    angefasst; `tests/kappa.test.ts` ist der Beleg.
+  - **Der Kasten bleibt `undefined`, mit präziserem Grund:** ihm fehlen die
+    REFERENZDATEN, nicht die Theorie — `closedBoxPath` hat den umlaufenden Weg
+    längst, und κ fällt daraus.
+
+  **BREAKING (`@baustatik/script`): `schemaVersion` 4 → 5.**
+
+  - `ShapeSpec.kind` heißt `'t-section'` statt `'t-beam'`. Der alte Name trug
+    einen BAUSTOFF: dieselbe Form heißt im Betonbau Plattenbalken und im Stahlbau
+    T-Profil, und getrennt werden die beiden von `idealisation`, nicht vom
+    Formnamen.
+  - Ein v4-Snapshot wird **abgelehnt**, nicht umgeschrieben — wie v3 heute. Hier
+    wäre es eine zweizeilige Ersetzung, und genau das ist das Argument dagegen,
+    sie still zu tun: eine Migration ist ein Werkzeug, das jemand AUFRUFT, sieht
+    und ablehnen kann.
+
+### Patch Changes
+
+- 3f2b5fb: Ein `examples/`-Ordner zeigt jede Querschnittsart einmal — zum Ansehen, nicht
+  zum Pruefen.
+
+  `pnpm --filter @baustatik/cross-section example` baut das Package und druckt fuer
+  Rechteck, geschweisstes I (beide Idealisierungen), T-Querschnitt (Plattenbalken
+  und Stahl-T), Kasten und Walzprofil die Querschnittswerte, kappa und die
+  Spannungspunkte. Es behauptet nichts und faellt nicht um: die Zusicherungen
+  stehen weiter in `tests/`. Was hier dazukommt, ist die AUFRUFSEITE — wie ein
+  `CrossSection` entsteht und was `sectionProperties` und `stressPoints` darauf
+  zurueckgeben, einschliesslich der beiden Faelle, in denen das `undefined` ist.
+
+  Der Ordner wird von `typecheck` mitgeprueft (`examples/tsconfig.json`), damit
+  ein Beispiel nicht unbemerkt veralten kann.
+
+- 3f2b5fb: Aus dem „Band" wird die **Teilfläche**, aus der „Bandmaschine" das
+  **Umrissmodell**. Nur Namen und Kommentare — keine Zahl bewegt sich, und die
+  öffentliche API ist nicht betroffen (`Part`, `OutlinePart` und `partSegments`
+  sind package-intern, `src/index.ts` exportiert sie nicht).
+
+  - **„Band" war erfundenes Vokabular.** Es steht in keinem Lehrbuch und in keinem
+    Programm. Die Literatur nennt das Stück, aus dem ein zusammengesetzter
+    Querschnitt gerechnet wird, **Teilfläche** — „das statische Moment der
+    Teilfläche mal Abstand Teilschwerpunkt bis Gesamtschwerpunkt" ist genau das,
+    was `momentBefore` tut. Dlubal nennt dasselbe in RSECTION/SHAPE-THIN
+    _Element_; der Name ist hier vergeben, im Monorepo ist ein Element ein
+    FE-Element.
+  - **`Segment` war schon zweimal vergeben** und schied deshalb als Ersatz aus:
+    `ShearSegment` (`shear.ts`) ist der Abschnitt des Schubflusswegs, `Segment`
+    (`types.ts`, exportiert) das Wandsegment eines dünnwandigen Querschnitts.
+    Englisch heißt die Teilfläche jetzt `Part` — bewusst formneutral, siehe unten.
+  - **„Bandmaschine" war ein Gerät, wo ein Modell hingehört.** Der Begriff stand
+    als Gegenstück zu **Wandmodell** in zwei Tabellen (`CONTEXT.md`,
+    `stress-points/index.ts`). Beide Seiten heißen jetzt gleichrangig:
+    **Umrissmodell** (Grashof, Schnitte durch die volle Umrissfigur) gegen
+    **Wandmodell** (Schubfluss längs der Wandmittellinien).
+
+  **Zwei Kommentare waren sachlich falsch und sind mitkorrigiert:**
+
+  - `OutlinePart.from`/`to` laufen **längs** der Schnittkoordinate, `width` misst
+    quer dazu — `shear.ts` behauptete beim Typ das Gegenteil („ein Band quer zur
+    Schubrichtung"), während die Funktion darunter richtig „längs" schrieb. Die
+    Teilflächen haben **keine gemeinsame Gestalt**: beim I ist der Gurt 8,5 mm
+    hoch und 100 mm breit, der Steg 183 von 200 mm hoch und 5,6 mm breit. Es wird
+    nicht in dünne Scheiben zerlegt und summiert, sondern über zwei bis drei
+    Teilflächen geschlossen integriert.
+  - **`width` kann eine Summe über getrennte Bereiche sein**, und das stand
+    nirgends. Beim I in y-Richtung liefert `widthAt` außerhalb des Stegs `2*tf` —
+    der senkrechte Schnitt trifft Ober- **und** Untergurt, zwei Flächen, die sich
+    nicht berühren. Für `S` und für den Nenner von Grashof ist das richtig, beim
+    Lesen aber überraschend; jetzt steht es bei `OutlinePart`, bei `widthAt` und
+    an der Stelle in `compact.ts`, wo die `2*tf` hingeschrieben werden.
+
+  `Teilfläche` und `Umrissmodell`/`Wandmodell` stehen ab jetzt unter
+  **Domänensprache** in `packages/cross-section/CONTEXT.md`, mitsamt den
+  Begriffen, die ausdrücklich _nicht_ gemeint sind: „Streifen" ist Hillerborgs
+  Plattenverfahren, und eine „Lamelle" ist im Stahl- und Betonbau das
+  aufgeschweißte bzw. aufgeklebte Blech.
+
 ## 0.3.0
 
 ### Minor Changes
