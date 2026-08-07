@@ -15,7 +15,7 @@
     "access": "public"
   },
   "scripts": {
-    "_build": "wasm-pack build rust --target web --out-dir ../pkg",
-    "_test": "cargo test --manifest-path rust/Cargo.toml"
+    "build": "wasm-pack build rust --target web --out-dir ../pkg",
+    "test": "cargo test --manifest-path rust/Cargo.toml"
   }
 }
