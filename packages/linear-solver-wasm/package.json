@@ -15,7 +15,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "wasm-pack build rust --target web --out-dir ../pkg",
-    "test": "cargo test --manifest-path rust/Cargo.toml"
+    "build": "node scripts/run-with-toolchain.mjs build",
+    "test": "node scripts/run-with-toolchain.mjs test"
   }
 }

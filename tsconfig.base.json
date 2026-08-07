@@ -17,67 +17,66 @@
     "sourceMap": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
     "paths": {
       "@baustatik/core": [
-        "packages/core/src/index.ts"
+        "./packages/core/src/index.ts"
       ],
       "@baustatik/errors": [
-        "packages/errors/src/index.ts"
+        "./packages/errors/src/index.ts"
       ],
       "@baustatik/round": [
-        "packages/round/src/index.ts"
+        "./packages/round/src/index.ts"
       ],
       "@baustatik/units": [
-        "packages/units/src/index.ts"
+        "./packages/units/src/index.ts"
       ],
       "@baustatik/geometry-2d": [
-        "packages/geometry-2d/src/index.ts"
+        "./packages/geometry-2d/src/index.ts"
       ],
       "@baustatik/material": [
-        "packages/material/src/index.ts"
+        "./packages/material/src/index.ts"
       ],
       "@baustatik/section-geometry": [
-        "packages/section-geometry/src/index.ts"
+        "./packages/section-geometry/src/index.ts"
       ],
       "@baustatik/grid-2d": [
-        "packages/grid-2d/src/index.ts"
+        "./packages/grid-2d/src/index.ts"
       ],
       "@baustatik/render-core": [
-        "packages/render-core/src/index.ts"
+        "./packages/render-core/src/index.ts"
       ],
       "@baustatik/viewport-2d": [
-        "packages/viewport-2d/src/index.ts"
+        "./packages/viewport-2d/src/index.ts"
       ],
       "@baustatik/konva-adapter": [
-        "packages/konva-adapter/src/index.ts"
+        "./packages/konva-adapter/src/index.ts"
       ],
       "@baustatik/cross-section-viewer": [
-        "packages/cross-section-viewer/src/index.ts"
+        "./packages/cross-section-viewer/src/index.ts"
       ],
       "@baustatik/cross-section": [
-        "packages/cross-section/src/index.ts"
+        "./packages/cross-section/src/index.ts"
       ],
       "@baustatik/fem": [
-        "packages/fem/src/index.ts"
+        "./packages/fem/src/index.ts"
       ],
       "@baustatik/fem-geometry": [
-        "packages/fem-geometry/src/index.ts"
+        "./packages/fem-geometry/src/index.ts"
       ],
       "@baustatik/fem-element": [
-        "packages/fem-element/src/index.ts"
+        "./packages/fem-element/src/index.ts"
       ],
       "@baustatik/fem-loads": [
-        "packages/fem-loads/src/index.ts"
+        "./packages/fem-loads/src/index.ts"
       ],
       "@baustatik/script": [
-        "packages/script/src/index.ts"
+        "./packages/script/src/index.ts"
       ],
       "@baustatik/fem-load-resolve": [
-        "packages/fem-load-resolve/src/index.ts"
+        "./packages/fem-load-resolve/src/index.ts"
       ],
       "@baustatik/fem-viewer": [
-        "packages/fem-viewer/src/index.ts"
+        "./packages/fem-viewer/src/index.ts"
       ]
     }
   }

@@ -43,6 +43,18 @@ per Port herein (ADR 0009). `apps/demo` ist der einzige Ort, der beide kennt.
 - `rust/src/lib.rs` — alles: `solve` (die WASM-Grenze), `solve_checked` (der
   Rechenkern), `SolveOutcome`, die Tests.
 - `pkg/` — Build-Ergebnis von `wasm-pack`, nicht eingecheckt.
+- `scripts/run-with-toolchain.mjs` — Guard vor `build` und `test`.
+
+## Build ohne Rust-Toolchain
+
+`build` und `test` laufen nicht direkt gegen `wasm-pack`/`cargo`, sondern ueber
+`scripts/run-with-toolchain.mjs`. Fehlt das jeweilige Werkzeug auf der Maschine,
+wird der Task uebersprungen statt fehlzuschlagen — damit der Monorepo-Build auch
+auf einem Rechner ohne Rust durchlaeuft, auf den ein fertiges `pkg/` kopiert
+wurde. Uebersprungen wird nur, wenn `pkg/linear_solver_wasm.js` und
+`pkg/linear_solver_wasm_bg.wasm` da sind; sonst bricht der Task mit einer Meldung
+ab. In CI (`CI` gesetzt) und mit `FORCE_WASM_BUILD=1` wird nie uebersprungen — eine
+fehlende Toolchain ist dort ein Fehler.
 
 ## Domain language
 

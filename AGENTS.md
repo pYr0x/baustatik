@@ -68,6 +68,10 @@ What the scripts do not tell you:
   Root `pnpm check` runs Biome over `packages/**` regardless.
 - CI runs `build → lint → test` on Node 24; `engines` says `>=18`. The pinned
   package manager is `pnpm@11.16.0`.
+- `@baustatik/linear-solver-wasm` skips its `build`/`test` when `wasm-pack` or
+  `cargo` is missing locally, so the repo builds on machines without Rust as
+  long as a prebuilt `pkg/` was copied in. Never skipped in CI or with
+  `FORCE_WASM_BUILD=1`. See that package's `CONTEXT.md`.
 - The demo app is `apps/demo`, started by the root `pnpm dev`.
 - Releases go through Changesets (`pnpm changeset`). Never hand-edit versions.
 
