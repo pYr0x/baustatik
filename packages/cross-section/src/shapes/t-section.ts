@@ -1,6 +1,6 @@
 import type { cm } from '@baustatik/units';
 import type { Idealisation } from '../section';
-import { crossWallSegment, endMoment, partSegments } from '../shear';
+import { crossWallInterval, endMoment, partIntervals } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
 
 /**
@@ -103,17 +103,17 @@ function solidPaths(
   return {
     // Waagerecht von der Gurtoberkante nach unten: erst der breite Gurt, dann
     // der schmale Steg.
-    pathZ: partSegments(-zs, [
+    pathZ: partIntervals(-zs, [
       { extent: hf, width: bf },
       { extent: hs, width: bw },
-    ]).segments,
+    ]).intervals,
     // Senkrecht: ausserhalb des Stegs nur der Gurt, ueber dem Steg die volle
     // Hoehe.
-    pathY: partSegments(-bf / 2, [
+    pathY: partIntervals(-bf / 2, [
       { extent: (bf - bw) / 2, width: hf },
       { extent: bw, width: h },
       { extent: (bf - bw) / 2, width: hf },
-    ]).segments,
+    ]).intervals,
   };
 }
 
@@ -155,17 +155,17 @@ function thinPaths(bf: number, hf: number, bw: number, h: number) {
 
   const armF = hf / 2 - zsWall; // Gurtmittellinie relativ zum Wandschwerpunkt
 
-  const flangeHalf = crossWallSegment(armF, hf, bf / 2);
-  const web = partSegments(
+  const flangeHalf = crossWallInterval(armF, hf, bf / 2);
+  const web = partIntervals(
     armF,
     [{ extent: webLength, width: bw }],
     2 * endMoment(flangeHalf),
-  ).segments[0];
+  ).intervals[0];
 
   return {
     pathZ: [flangeHalf, flangeHalf, web],
     // Wie beim I: der Steg traegt fuer Vy nichts, der Gurt alles — nur gibt es
     // hier eben nur EINEN Gurt.
-    pathY: [partSegments(-bf / 2, [{ extent: bf, width: hf }]).segments[0]],
+    pathY: [partIntervals(-bf / 2, [{ extent: bf, width: hf }]).intervals[0]],
   };
 }

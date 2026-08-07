@@ -1,5 +1,5 @@
 import type { cm } from '@baustatik/units';
-import { partSegments } from '../shear';
+import { partIntervals } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
 
 /**
@@ -30,7 +30,7 @@ export function rectangle(b: cm, h: cm): ShapeResult | undefined {
     yM: 0,
     zM: h / 2,
     // Eine einzige Teilflaeche ueber die volle Hoehe bzw. Breite.
-    pathZ: partSegments(-h / 2, [{ extent: h, width: b }]).segments,
-    pathY: partSegments(-b / 2, [{ extent: b, width: h }]).segments,
+    pathZ: partIntervals(-h / 2, [{ extent: h, width: b }]).intervals,
+    pathY: partIntervals(-b / 2, [{ extent: b, width: h }]).intervals,
   };
 }

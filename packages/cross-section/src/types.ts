@@ -75,10 +75,13 @@ export type SectionNode = { id: string; y: mm; z: mm };
  * noch das andere.
  *
  * `Wall` und nicht `Element` oder `Segment`: `Element` ist im Monorepo mit dem
- * Stabelement (`@baustatik/fem-element`) belegt, `Segment` mit `ShearSegment`,
- * und `Branch` meint in der Theorie duennwandiger Profile einen ZUG zwischen
- * Verzweigungsknoten — das Wort wird fuer den Wandweg offener Profile noch
- * gebraucht. Bleibt das Vokabular der Norm: duennwandig, Wandstaerke, Wand.
+ * Stabelement (`@baustatik/fem-element`) belegt, `Segment` bleibt fuer das
+ * POSITIONIERTE Wegstueck reserviert, aus dem kappa und die Spannungspunkte
+ * einmal gemeinsam fallen sollen (`packages/TODO.md`; das lagelose Gegenstueck
+ * heisst `ShearFlowInterval`), und `Branch` meint in der Theorie duennwandiger
+ * Profile einen ZUG zwischen Verzweigungsknoten — das Wort wird fuer den
+ * Wandweg offener Profile noch gebraucht. Bleibt das Vokabular der Norm:
+ * duennwandig, Wandstaerke, Wand.
  *
  * `t` ist PHYSIK (die Wandstaerke, mit der gerechnet wird), nicht die
  * Strichbreite am Schirm.

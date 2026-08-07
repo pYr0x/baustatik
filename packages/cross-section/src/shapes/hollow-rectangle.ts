@@ -1,10 +1,10 @@
 import type { cm } from '@baustatik/units';
 import type { Idealisation } from '../section';
 import {
-  crossWallSegment,
+  crossWallInterval,
   endMoment,
-  partSegments,
-  type ShearSegment,
+  partIntervals,
+  type ShearFlowInterval,
 } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
 
@@ -34,16 +34,16 @@ export function hollowRectangle(
       ? {
           // Kompakt: waagerechte bzw. senkrechte Schnitte durch die Umrissfigur.
           // In der Mitte schneidet man BEIDE Waende, daher die Breite 2t.
-          pathZ: partSegments(-h / 2, [
+          pathZ: partIntervals(-h / 2, [
             { extent: t, width: b },
             { extent: hi, width: 2 * t },
             { extent: t, width: b },
-          ]).segments,
-          pathY: partSegments(-b / 2, [
+          ]).intervals,
+          pathY: partIntervals(-b / 2, [
             { extent: t, width: h },
             { extent: bi, width: 2 * t },
             { extent: t, width: h },
-          ]).segments,
+          ]).intervals,
         }
       : {
           pathZ: closedBoxPath(b - t, h - t, t),
@@ -72,19 +72,19 @@ function closedBoxPath(
   across: number,
   along: number,
   t: number,
-): ShearSegment[] {
+): ShearFlowInterval[] {
   const arm = along / 2;
 
   // Vom Symmetrieschnitt bis zur Ecke: quer zur Schubrichtung, Hebelarm fest.
-  const first = crossWallSegment(-arm, t, across / 2);
+  const first = crossWallInterval(-arm, t, across / 2);
   // Die Wand laengs der Schubrichtung.
-  const side = partSegments(
+  const side = partIntervals(
     -arm,
     [{ extent: along, width: t }],
     endMoment(first),
-  ).segments[0];
+  ).intervals[0];
   // Von der gegenueberliegenden Ecke zurueck zum zweiten Symmetrieschnitt.
-  const last = crossWallSegment(arm, t, across / 2, endMoment(side));
+  const last = crossWallInterval(arm, t, across / 2, endMoment(side));
 
   const half = [first, side, last];
   return [...half, ...half];

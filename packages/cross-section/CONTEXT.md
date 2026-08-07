@@ -397,6 +397,17 @@ ein Beispiel nicht unbemerkt veraltet. Details in
   trifft). Nicht „Band" (kein Fachbegriff), nicht „Streifen" (das ist Hillerborgs
   Plattenverfahren) und nicht „Lamelle": die Lamelle ist im Stahl- und Betonbau
   das aufgeschweisste bzw. aufgeklebte Blech.
+- **`ShearFlowInterval`** (`shear.ts`) ist ein Stueck des Schubflusswegs: ein
+  Intervall der Laufkoordinate `s` mit konstanter Dicke `t`, auf dem `S(s)`
+  quadratisch ist. **Intervall und nicht Segment**, weil der Typ LAGELOS ist —
+  `pathZ` des I-Profils benutzt dasselbe Gurtobjekt viermal, ein Ort liesse sich
+  daraus nicht ablesen. `Segment` ist damit frei und bleibt fuer das
+  **positionierte** Wegstueck reserviert, aus dem kappa und die Spannungspunkte
+  einmal gemeinsam fallen sollen ([`../TODO.md`](../TODO.md)). Auch nicht
+  `ShearEnergyInterval`: `integral S²/t ds` ist mit `L⁶` eine rein geometrische
+  Groesse — die Schubenergie ist das Prinzip hinter der Formel, keine Einheit,
+  die der Typ traegt. Die Literatur hat fuer dieses Stueck kein eigenes Wort;
+  sie integriert abschnittsweise und beschriftet „Bereich I, II, III".
 - **Umrissmodell** und **Wandmodell** sind die beiden Antworten auf „wie fliesst
   der Schub", und `idealisation` waehlt zwischen ihnen. Das **Umrissmodell**
   (`stress-points/outline.ts`) schneidet quer durch die volle Umrissfigur —

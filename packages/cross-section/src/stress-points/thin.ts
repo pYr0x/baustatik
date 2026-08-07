@@ -17,10 +17,10 @@ import { type StressPoint, stressPoint } from './types';
  *
  * DIE GRÖSSEN KOMMEN AUS DENSELBEN FORMELN, die `thinPaths()` in
  * `shapes/i-symmetric.ts` und `shapes/t-section.ts` für kappa benutzt. Sie
- * stehen hier ein zweites Mal, weil ein `ShearSegment` heute LAGELOS ist: er
- * ist ein Energieakkumulator ohne Startpunkt und Richtung, und `pathZ` benutzt
- * dasselbe Gurtobjekt viermal. Aus ihm die Stelle eines Punktes abzulesen,
- * ginge nicht. Was die beiden zusammenhält, sind die Tests: die Gurtgrößen
+ * stehen hier ein zweites Mal, weil ein `ShearFlowInterval` heute LAGELOS ist:
+ * es ist ein Energieakkumulator ohne Startpunkt und Richtung, und `pathZ`
+ * benutzt dasselbe Gurtobjekt viermal. Aus ihm die Stelle eines Punktes
+ * abzulesen, ginge nicht. Was die beiden zusammenhält, sind die Tests: die Gurtgrößen
  * gegen 546 RSTAB-Punkte (`r = 0`), der Schwerpunkt des I gegen `Sy,max` des
  * Katalogs, das freie Stegende des T gegen null.
  *
@@ -37,7 +37,7 @@ import { type StressPoint, stressPoint } from './types';
  * `S` an einer Stelle der GURTWAND, gemessen von der nächsten freien Spitze.
  *
  * Eine Wand QUER zur Schubrichtung hat über ihre ganze Länge denselben
- * Hebelarm, `S` wächst also nur linear — das ist `crossWallSegment` in
+ * Hebelarm, `S` wächst also nur linear — das ist `crossWallInterval` in
  * `shear.ts`, hier an einer Stelle ausgewertet statt integriert.
  *
  * `Math.abs(y)`, weil der Gurt von BEIDEN Spitzen her aufgeschnitten wird: der

@@ -19,14 +19,27 @@
  */
 
 /**
- * Ein Abschnitt des Schubflusswegs.
+ * Ein Intervall des Schubflusswegs.
  *
  * `S(s) = c0 + c1*s + c2*s^2` fuer `s` in `[0, length]`, bei konstanter Dicke
  * `t`. Mehr Ausdruckskraft braucht keine der Formen: eine Wand hat konstante
  * Dicke, und `S` waechst laengs einer Wand hoechstens quadratisch (linear, wenn
  * die Wand quer zur Schubrichtung liegt).
+ *
+ * INTERVALL UND NICHT SEGMENT, weil der Typ LAGELOS ist: er benennt ein Stueck
+ * der Laufkoordinate `s`, kein Stueck Querschnitt. `pathZ` des I-Profils
+ * benutzt dasselbe Gurtobjekt viermal — einen Ort koennte man daraus nicht
+ * ablesen, und `Segment` verspraeche genau den. Das Wort bleibt deshalb frei
+ * fuer das POSITIONIERTE Wegstueck mit Startpunkt und Richtung, aus dem kappa
+ * und die Spannungspunkte einmal gemeinsam fallen sollen (`packages/TODO.md`).
+ *
+ * NICHT `ShearEnergyInterval`: `integral S^2/t ds` ist mit `L^6` eine rein
+ * GEOMETRISCHE Groesse — deshalb faellt `A_s = I^2/integral` als Flaeche heraus.
+ * Die Schubenergie ist das Prinzip, aus dem die Formel folgt (siehe oben), und
+ * gehoert in die Begruendung, nicht in einen Typnamen, der sonst eine Einheit
+ * behauptet, die er nicht traegt.
  */
-export type ShearSegment = {
+export type ShearFlowInterval = {
   readonly length: number;
   readonly t: number;
   readonly c0: number;
@@ -50,8 +63,8 @@ export type Part = {
 };
 
 /** `integral_0^L (c0 + c1 s + c2 s^2)^2 ds / t`, ausmultipliziert. */
-export function shearFlowIntegral(segment: ShearSegment): number {
-  const { length: L, t, c0, c1, c2 } = segment;
+export function shearFlowIntegral(interval: ShearFlowInterval): number {
+  const { length: L, t, c0, c1, c2 } = interval;
   const L2 = L * L;
   const L3 = L2 * L;
   const L4 = L3 * L;
@@ -75,10 +88,10 @@ export function shearFlowIntegral(segment: ShearSegment): number {
  */
 export function shearArea(
   I: number,
-  segments: readonly ShearSegment[],
+  intervals: readonly ShearFlowInterval[],
 ): number {
   let denominator = 0;
-  for (const segment of segments) denominator += shearFlowIntegral(segment);
+  for (const interval of intervals) denominator += shearFlowIntegral(interval);
   return (I * I) / denominator;
 }
 
@@ -98,20 +111,20 @@ export function shearArea(
  * am Ende 0 sein — das erste Flaechenmoment um den Schwerpunkt verschwindet.
  * `closingMoment` gibt den Restwert zurueck, damit ein Test ihn pruefen kann.
  */
-export function partSegments(
+export function partIntervals(
   start: number,
   parts: readonly Part[],
   S0 = 0,
-): { segments: ShearSegment[]; closingMoment: number } {
-  const segments: ShearSegment[] = [];
+): { intervals: ShearFlowInterval[]; closingMoment: number } {
+  const intervals: ShearFlowInterval[] = [];
   let a = start;
   let S = S0;
   for (const { extent: L, width: w } of parts) {
-    segments.push({ length: L, t: w, c0: S, c1: w * a, c2: w / 2 });
+    intervals.push({ length: L, t: w, c0: S, c1: w * a, c2: w / 2 });
     S = S + w * a * L + (w / 2) * L * L;
     a += L;
   }
-  return { segments, closingMoment: S };
+  return { intervals, closingMoment: S };
 }
 
 /**
@@ -120,17 +133,17 @@ export function partSegments(
  * Der Hebelarm `arm` ist ueber die ganze Wand derselbe, `S` waechst also nur
  * linear: `S(s) = S0 + arm*t*s`.
  */
-export function crossWallSegment(
+export function crossWallInterval(
   arm: number,
   t: number,
   length: number,
   S0 = 0,
-): ShearSegment {
+): ShearFlowInterval {
   return { length, t, c0: S0, c1: arm * t, c2: 0 };
 }
 
-/** Der Endwert von `S` eines Abschnitts — fuer Anschluss und Selbstpruefung. */
-export function endMoment(segment: ShearSegment): number {
-  const { length: L, c0, c1, c2 } = segment;
+/** Der Endwert von `S` eines Intervalls — fuer Anschluss und Selbstpruefung. */
+export function endMoment(interval: ShearFlowInterval): number {
+  const { length: L, c0, c1, c2 } = interval;
   return c0 + c1 * L + c2 * L * L;
 }

@@ -1,6 +1,6 @@
 import type { cm, cm2, cm4 } from '@baustatik/units';
 import type { SectionProperties } from '../properties';
-import { type ShearSegment, shearArea } from '../shear';
+import { type ShearFlowInterval, shearArea } from '../shear';
 import { toSI } from '../to-si';
 
 /**
@@ -40,9 +40,9 @@ export type ShapeResult = {
   readonly yM?: cm;
   readonly zM?: cm;
   /** Schubflussweg fuer eine Querkraft in y-Richtung (gehoert zu `Iz`). */
-  readonly pathY: readonly ShearSegment[];
+  readonly pathY: readonly ShearFlowInterval[];
   /** Schubflussweg fuer eine Querkraft in z-Richtung (gehoert zu `Iy`). */
-  readonly pathZ: readonly ShearSegment[];
+  readonly pathZ: readonly ShearFlowInterval[];
 };
 
 /**

@@ -37,7 +37,7 @@ runs *along* the wall and divides by `tf`.
 Because the right template already existed. `stress-points/rolled-i.ts` is not a
 band model at the flange; it is already the wall model — `t = tf`, and its lever
 arm `zf = (h − tf)/2` sits on the **centre line**. Its `halfFlangeMoment` is
-term-for-term what `crossWallSegment(−zf, tf, b/2)` computes for κ. It is
+term-for-term what `crossWallInterval(−zf, tf, b/2)` computes for κ. It is
 validated against 546 RSTAB points; it was simply **not reachable from the
 parametric branch**.
 
@@ -122,12 +122,12 @@ doubly symmetric shapes the offset is exactly zero.
   it silently: a migration is a tool someone *invokes*, sees, and can decline.
 - **κ does not move in a single digit.** `shear.ts`, the paths and κ were not
   touched; `tests/kappa.test.ts` is the safety net that says the cut was held.
-- **The wall model is still written twice** — once as `ShearSegment` for κ, once
-  as a closed form here. A `ShearSegment` is a *positionless* energy
+- **The wall model is still written twice** — once as `ShearFlowInterval` for κ,
+  once as a closed form here. A `ShearFlowInterval` is a *positionless* energy
   accumulator: `pathZ: [flangeHalf, flangeHalf, web, flangeHalf, flangeHalf]`
   uses the same object four times, so no point's location can be read back out
   of it. One path feeding both would need a start point and a direction per
-  segment, and `Sy`/`Sz` would come from two differently parametrised paths
+  interval, and `Sy`/`Sz` would come from two differently parametrised paths
   whose stations then have to be correlated. What holds the two copies together
   meanwhile are the tests: the flange against 546 RSTAB points, the I's centroid
   against the catalogue, the T's free web end against zero.

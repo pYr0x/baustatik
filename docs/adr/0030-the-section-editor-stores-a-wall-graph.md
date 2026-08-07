@@ -51,6 +51,14 @@ The entity stays `Wall`. `Element` is taken by the beam element
 open profiles will need. What is left is the vocabulary of the code itself:
 thin-**walled**, **wall** thickness.
 
+> **Amended.** `ShearSegment` was later renamed to `ShearFlowInterval` (and
+> `partSegments`/`crossWallSegment` to `partIntervals`/`crossWallInterval`) —
+> `Interval` says what the type is, a stretch of the running coordinate `s` with
+> no position of its own. `Segment` is therefore free again, and deliberately
+> held for the **positioned** path piece that κ and the stress points are meant
+> to read together (`packages/TODO.md`). `Wall` is unaffected: it was chosen for
+> the reason that follows this paragraph, not for the blocked word.
+
 `Wall.startNodeId`/`endNodeId` are the names `Beam` already uses in
 `@baustatik/fem`. Same systematics — one object joins two nodes by id — so the
 same names, and the `...Id` suffix says a reference stands there and not a
@@ -114,7 +122,8 @@ exactly two places stays true ([ADR 0024](0024-units-at-the-package-boundary.md)
 ### `Segment` is deleted outright
 
 `Segment` was **dead code**. Nothing in `src/` ever constructed one; the four
-parametric shapes produce `ShearSegment`, a different, position-less type. Its
+parametric shapes produce `ShearSegment` (today `ShearFlowInterval`, see the
+amendment above), a different, position-less type. Its
 only consumer was `@baustatik/cross-section-viewer`, which received it from the
 outside. There was nothing to migrate. The planned branch
 `{ kind: 'thin-walled'; segments: Segment[] }` is gone with it.

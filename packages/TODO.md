@@ -117,10 +117,11 @@ die Spannungspunkte. Bewusst noch nicht angefasst:
   **Speicherform** entschieden: `SectionGeometry` ist ein Graph mit Identität je
   Abschnitt (`SectionNode`, `Wall` mit String-Ids), und genau deshalb kann ein
   Weg darauf eine Durchlaufordnung tragen. Offen bleibt der **Rechenweg**:
-  `ShearSegment` ist weiterhin ein lageloser Energieakkumulator — `pathZ`
+  `ShearFlowInterval` ist weiterhin ein lageloser Energieakkumulator — `pathZ`
   benutzt dasselbe Gurtobjekt viermal —, also können κ und die Spannungspunkte
   nicht denselben Weg lesen. Ein Weg, der beides speist, bräuchte Startpunkt und
-  Richtung je Abschnitt, und `Sy`/`Sz` kämen aus zwei verschieden
+  Richtung je Abschnitt — für ihn ist der Name **`Segment`** reserviert, seit
+  der lagelose Typ `Interval` heißt —, und `Sy`/`Sz` kämen aus zwei verschieden
   parametrisierten Wegen, deren Stationen korreliert werden müssten. Danach
   blieben zwei Maschinen — aber jede nur noch für ihren Fall zuständig. Wer die
   Auflösung Graph → lagerichtige Geometrie besitzt (der Viewer hat sie schon),
