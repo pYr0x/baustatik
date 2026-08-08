@@ -61,6 +61,10 @@ The package provides the following 2D primitives, all with `readonly` properties
 - **`Polyline`**: `{ points: Point[] }` (open path)
 - **`Polygon`**: `{ points: Point[] }` (closed path, normalized to `signedArea >= 0`)
 
+Alongside them, **`Bulge`** converts between the DXF bulge `tan(Δ/4)` — the
+storage form used by `Wall.bulge` and `Vertex.bulge` — and an `Arc`. Signs carry
+through 1:1: a positive `bulge` turns `+y` onto `+z`, like `Arc.sweep`.
+
 All geometry shapes implement a common `Transformable<T>` interface:
 
 - `translate(shape, vector)`

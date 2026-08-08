@@ -29,6 +29,12 @@ The package provides the following 2D primitives as immutable plain objects:
 - **`Polyline`**: `{ points: Point[] }` (open path)
 - **`Polygon`**: `{ points: Point[] }` (closed path, always CCW)
 
+Alongside them, **`Bulge`** is not a primitive but a codec: it converts between
+the DXF bulge `tan(Δ/4)` — the redundancy-free way to *store* an arc between two
+points you already have — and an `Arc`, which is what drawing and integration
+need. The sagitta is exact, `h = (chord / 2) · |bulge|`, so "is this edge
+straight" reduces to `DEFAULT_ARC_TOLERANCE` rather than a second constant.
+
 ### Transformations
 All geometry shapes (except `Vector`) implement a common `Transformable<T>` interface:
 - `translate(shape, vector)`

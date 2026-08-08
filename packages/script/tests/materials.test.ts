@@ -1,3 +1,4 @@
+import { createSectionPolicy } from '@baustatik/cross-section';
 import { lookupMaterial, type MaterialKind } from '@baustatik/material';
 import { describe, expect, it } from 'vitest';
 import {
@@ -14,14 +15,15 @@ function materialRecord(kind: MaterialKind, grade: string, id: string) {
   return { kind, id, grade: found.grade, moduli: found.moduli };
 }
 
-/** Ein vollstaendiger, gueltiger v5-Rumpf zum Ueberschreiben einzelner Felder. */
+/** Ein vollstaendiger, gueltiger v7-Rumpf zum Ueberschreiben einzelner Felder. */
 function snapshot(overrides: Record<string, unknown> = {}) {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     nodes: [],
     beams: [],
     crossSections: [],
     materials: [],
+    sectionPolicy: { arcTolerance: 0.05 },
     supports: [],
     loadCases: [],
     ...overrides,
@@ -53,7 +55,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
     // biome-ignore lint/performance/noDelete: der Test baut genau einen v2-Satz.
     delete (v2 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v2, schemaVersion: 2 })).toThrow(
-      'Snapshot.schemaVersion muss 6 sein.',
+      'Snapshot.schemaVersion muss 7 sein.',
     );
   });
 
@@ -67,7 +69,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
           materials: [{ kind: 'steel', id: 'm-1', grade: 'S235' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 6 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 7 sein.');
   });
 
   it('verlangt materials auch dann, wenn es leer bleibt', () => {
@@ -235,10 +237,34 @@ describe('Der Builder befragt den Sortenkatalog — und nur er', () => {
   });
 
   it('braucht dafuer KEINEN Nationalen Anhang', () => {
-    // `createFEMModelBuilder()` hat keinen Parameter, an dem einer haengen
-    // koennte — `E` und `G` sind charakteristische Werte (ADR 0026). Der Test
-    // haelt die Signatur fest: sie ist die Aussage.
-    expect(createFEMModelBuilder.length).toBe(0);
+    // `E` und `G` sind charakteristische Werte (ADR 0026), also kommt der
+    // Builder ohne Annex aus. Seit ADR 0033 hat er einen Parameter — die
+    // Erzeugungs-Policy —, und deshalb prueft der Test nicht mehr die blosse
+    // Stelligkeit, sondern die AUSSAGE: OHNE Argument gebaut, liefert er
+    // dieselben Moduln wie der Katalog, ohne dass irgendwo ein Annex
+    // hineingereicht worden waere.
+    const found = lookupMaterial('steel', 'S235');
+    if (found === undefined) throw new Error('S235 fehlt im Katalog');
+
+    const model = createFEMModelBuilder();
+    model.material({ kind: 'steel', grade: 'S235' });
+
+    expect(model.finish().materials[0].moduli).toEqual(found.moduli);
+  });
+
+  it('nimmt genau eine Einstellung an, und die ist die Erzeugungs-Policy', () => {
+    // Der Gegentest zum vorigen: das eine Argument, das es gibt, betrifft die
+    // Querschnitts-ERZEUGUNG und nicht den Werkstoff (ADR 0033).
+    const model = createFEMModelBuilder({
+      sectionPolicy: createSectionPolicy({ arcTolerance: 0.01 }),
+    });
+    model.material({ kind: 'steel', grade: 'S235' });
+    const snapshot = model.finish();
+
+    expect(snapshot.sectionPolicy).toEqual({ arcTolerance: 0.01 });
+    expect(snapshot.materials[0].moduli).toEqual(
+      lookupMaterial('steel', 'S235')?.moduli,
+    );
   });
 });
 
@@ -257,7 +283,7 @@ describe('Der Builder vergibt die Material-ID', () => {
     });
 
     const parsed = parseFEMModelSnapshot(structuredClone(model.finish()));
-    expect(parsed.schemaVersion).toBe(6);
+    expect(parsed.schemaVersion).toBe(7);
     expect(parsed.materials).toHaveLength(1);
     expect(parsed.materials[0].id).toBe(s235.id);
     expect(parsed.beams[0].materialId).toBe(s235.id);

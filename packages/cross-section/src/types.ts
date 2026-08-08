@@ -36,7 +36,8 @@ import type { Idealisation } from './section';
  * Preis, halber Schutz.
  *
  * Reine Daten, JSON-serialisierbar — Voraussetzung dafuer, dass der Querschnitt
- * im Snapshot mitreisen kann (`schemaVersion: 6`).
+ * im Snapshot mitreisen kann (`schemaVersion: 7`, wo seit ADR 0033 auch die
+ * `SectionPolicy` steht, unter der `outline` erzeugt wurde).
  */
 export type SectionGeometry =
   | {
@@ -130,9 +131,11 @@ export type Ring = { vertices: Vertex[] };
  * Ein diskretisiertes Umrisspolygon — das ERGEBNIS, ohne `bulge`.
  *
  * Die Punktzahl haengt an der Diskretisierungstoleranz
- * (`DEFAULT_ARC_TOLERANCE` in `@baustatik/geometry-2d`), und genau deshalb
- * reist das Polygon mit: `A`, `Iy` und `Iz` fallen aus DIESEN Punkten und nicht
- * aus denen, die die naechste Bibliotheksversion erzeugen wuerde.
+ * (`SectionPolicy.arcTolerance`, voreingestellt `DEFAULT_ARC_TOLERANCE` aus
+ * `@baustatik/section-geometry`), und genau deshalb reist das Polygon mit: `A`,
+ * `Iy` und `Iz` fallen aus DIESEN Punkten und nicht aus denen, die die naechste
+ * Bibliotheksversion erzeugen wuerde. Seit ADR 0033 reist die Toleranz SELBST
+ * im Satz daneben — damit ist erstmals pruefbar, ob beide zusammenpassen.
  *
  * ACHTUNG, ABWEICHUNG VON OGC: dort ist ein *Polygon* die MENGE seiner Ringe,
  * hier ist es ein EINZELNER — dieselbe Bedeutung wie `Polygon` in

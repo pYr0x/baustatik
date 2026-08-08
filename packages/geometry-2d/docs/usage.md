@@ -78,6 +78,40 @@ const end = Arc.endPoint(arc); // { x: 0, y: 5 }
 const polyline = Arc.toPolyline(arc, { tolerance: 0.1 }); // Convert to segments
 ```
 
+### Bulge
+**Signature:** the DXF bulge `tan(Δ/4)` and its conversions to and from `Arc`.
+**Description:** `bulge` is a redundancy-free but unreadable way to store an arc between two points that are already stored. `Bulge` is the pair that translates it. Sign follows `Arc.sweep`: positive turns the first axis onto the second.
+
+The load-bearing identity is the sagitta, which is **exact** and not an approximation:
+
+```text
+h = (chord / 2) · |bulge|
+```
+
+That makes "how curved is this edge" answerable without trigonometry, and it makes "when is an arc a straight line" collapse onto the discretisation tolerance instead of needing a second number. A fixed epsilon on `bulge` would be length-blind — the same value is harmless on a 5 mm chord and visible on a 2 m one.
+
+```typescript
+import { Bulge, DEFAULT_ARC_TOLERANCE, Point } from '@baustatik/geometry-2d';
+
+Bulge.sweep(1);                      // Math.PI — Δ = 4·atan(bulge)
+Bulge.sagitta(100, 1);               // 50 — exact
+Bulge.isStraight(100, 0.0001, 0.05); // true — h = 0.005 mm
+
+const p1 = Point.make(0, 0);
+const p2 = Point.make(100, 0);
+
+// Throws StraightBulgeError when isStraight — the straight line is a KNOWN
+// answer, not "I don't know", so it is not the `undefined` channel.
+const arc = Bulge.toArc(p1, p2, 1, DEFAULT_ARC_TOLERANCE);
+Bulge.fromArc(arc);                  // 1 — throws FullCircleBulgeError at |sweep| >= 2π
+
+// TOTAL: a straight edge yields exactly [p1, p2]. Both endpoints included.
+Bulge.toPolyline(p1, p2, 0, DEFAULT_ARC_TOLERANCE);   // { points: [p1, p2] }
+Bulge.toPolyline(p1, p2, 0.6, DEFAULT_ARC_TOLERANCE); // discretised arc
+```
+
+The tolerance does **two** jobs on purpose: it decides whether the edge is curved at all *and* how finely the arc is split. That is one model assumption, not two. Chaining edges? Drop the last point per edge — one `.slice(0, -1)` in one place. A half-open "polyline" would not be one, and the name would lie.
+
 ### Polyline
 **Signature:** `type Polyline = { readonly points: Point[] }`
 **Description:** A sequence of connected line segments. Supports length calculation, point-at-t, and splitting.
@@ -128,7 +162,9 @@ The package throws specific error classes for invalid operations:
 - **`DegenerateAxisError`**: Mirror axis points are identical.
 - **`DegenerateVectorError`**: Attempting to normalize a zero vector.
 - **`DiscontinuousLinesError`**: Lines for polyline/polygon are not connected.
+- **`FullCircleBulgeError`**: `|sweep| >= 2π` — `tan(Δ/4)` has its pole there, and IEEE-754 returns a silently wrong finite `1.633e16` rather than `Infinity`. Carries `sweep`.
 - **`InvalidArcError`**: Invalid radius or sweep angle.
+- **`StraightBulgeError`**: `Bulge.toArc` asked for an arc where the sagitta stays within the tolerance. Carries `bulge`, `chordLength` and `tolerance` — `bulge` alone does not explain the throw.
 - **`InvalidPolygonError` / `InvalidPolylineError`**: Insufficient points or degenerate geometry.
 - **`OpenPolylineError`**: Converting an open polyline to a polygon.
 

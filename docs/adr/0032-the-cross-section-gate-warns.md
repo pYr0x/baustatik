@@ -1,5 +1,32 @@
 # The cross-section gate warns, it does not refuse
 
+> **Amended by [ADR 0033](0033-the-cross-section-has-a-creation-policy.md)
+> (P1).** Two statements below have fallen; everything else stands.
+>
+> 1. **The dependency ban is gone.** "The checks in `cross-section` need **no**
+>    geometry library" was true only for as long as the kink warning recomputed
+>    `Δ/2 = 2·atan(bulge)` by hand. `Bulge` (`@baustatik/geometry-2d`, passed
+>    through `@baustatik/section-geometry`) now owns that conversion, and
+>    `outgoingTangent` reads `Bulge.sweep`. `@baustatik/cross-section` therefore
+>    depends on `@baustatik/section-geometry`, and the price is stated in 0033:
+>    once `geometry-2d` pulls in `clipper2-ts` with P3, `@baustatik/script`
+>    carries it transitively.
+> 2. **The first of the two reasons for the parameter form has fallen with it.**
+>    The tolerance is still a parameter and not a constant in the gate — ADR
+>    0011's reason, "a number that changes results is passed, not imported",
+>    stands unchanged. What no longer applies is the *second* half of the
+>    argument below, that the parameter form exists to avoid a geometry
+>    dependency. Both doors now take a **`SectionPolicy`** rather than an
+>    options bag:
+>
+>    ```ts
+>    validateSectionGeometry(g: SectionGeometry, policy: SectionPolicy)
+>    validateSectionProperties(p: SectionProperties, policy: SectionPolicy)
+>    ```
+>
+> The derived kink threshold, the four sentences, the two channels and the
+> absence of `assertValidSection…` are untouched.
+
 The third of the P0 decisions, next to
 [ADR 0030](0030-the-section-editor-stores-a-wall-graph.md) (the stored type) and
 [ADR 0031](0031-the-cross-section-plane.md) (the value range). You look this one

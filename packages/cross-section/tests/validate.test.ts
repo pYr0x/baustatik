@@ -1,6 +1,8 @@
 import { lookupProfile, profileData } from '@baustatik/steel-profiles';
 import { describe, expect, it } from 'vitest';
 import {
+  createSectionPolicy,
+  DEFAULT_SECTION_POLICY,
   DuplicateSectionIdError,
   EmptyOutlineError,
   NonPositiveWallThicknessError,
@@ -22,10 +24,12 @@ import {
  * Das Prüfgatter des Querschnitts
  * ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
- * Die Toleranz reist als PARAMETER herein und steht nicht im Gatter — deshalb
- * kann dieser Test sie festhalten, ohne eine Konstante zu importieren.
+ * Die Toleranz reist in der POLICY herein und steht nicht im Gatter — deshalb
+ * kann dieser Test sie festhalten, ohne eine Konstante zu importieren
+ * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  */
 const ARC_TOLERANCE = 0.05; // mm, wie `DEFAULT_ARC_TOLERANCE`
+const POLICY = createSectionPolicy({ arcTolerance: ARC_TOLERANCE });
 
 /** Ein tragender Umriss, damit `EmptyOutlineError` nicht dazwischenfunkt. */
 const SOME_OUTLINE = [
@@ -52,7 +56,7 @@ function midline(
 }
 
 function check(geometry: SectionGeometry) {
-  return validateSectionGeometry(geometry, { arcTolerance: ARC_TOLERANCE });
+  return validateSectionGeometry(geometry, POLICY);
 }
 
 describe('Die Fehlerseite: dieser Satz ist nicht rechenbar', () => {
@@ -238,6 +242,16 @@ describe('Satz 3: der Knick am Bogen, an der Toleranz aufgehaengt', () => {
     expect(warnings).toEqual([]);
   });
 
+  it('urteilt unter der Voreinstellung genauso — die 0,05 mm sind dieselbe Zahl', () => {
+    // Die Policy hat den Wert nicht neu gesetzt, sondern liest ihn aus
+    // `@baustatik/section-geometry` (ADR 0033). Bewegt sich die Zahl dort,
+    // faellt es hier auf und nicht erst im Umriss.
+    expect(DEFAULT_SECTION_POLICY.arcTolerance).toBe(ARC_TOLERANCE);
+    expect(
+      validateSectionGeometry(corner(2.2, 6), DEFAULT_SECTION_POLICY).warnings,
+    ).toHaveLength(2);
+  });
+
   it('urteilt nicht ueber einen Bogen, dessen Knoten fehlt', () => {
     // Das Gatter SAMMELT, es wirft nicht: der haengende Verweis steht als
     // Fehler da, und die Knickpruefung uebergeht die Wand still, statt am
@@ -314,7 +328,7 @@ function properties(name: string): SectionProperties {
 
 describe('Die Warnseite der Zahlen: Saetze 1, 2 und 4', () => {
   it('schweigt beim IPE 300 auf allen drei Saetzen', () => {
-    const { errors, warnings } = validateSectionProperties(properties('IPE 300'));
+    const { errors, warnings } = validateSectionProperties(properties('IPE 300'), POLICY);
     expect(errors).toEqual([]);
     expect(warnings).toEqual([]);
   });
@@ -338,7 +352,7 @@ describe('Die Warnseite der Zahlen: Saetze 1, 2 und 4', () => {
       },
     });
     expect(plate?.zM).toBeUndefined();
-    expect(validateSectionProperties(plate as SectionProperties).warnings).toEqual(
+    expect(validateSectionProperties(plate as SectionProperties, POLICY).warnings).toEqual(
       [],
     );
   });
@@ -353,7 +367,7 @@ describe('Die Warnseite der Zahlen: Saetze 1, 2 und 4', () => {
       yM: undefined,
       zM: undefined,
     };
-    const { warnings } = validateSectionProperties(unknown);
+    const { warnings } = validateSectionProperties(unknown, POLICY);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toBeInstanceOf(ShearCentreUnknownWarning);
   });
@@ -364,7 +378,7 @@ describe('Die Warnseite der Zahlen: Saetze 1, 2 und 4', () => {
       ys: 0,
       yM: 0.021,
     };
-    const { warnings } = validateSectionProperties(offset);
+    const { warnings } = validateSectionProperties(offset, POLICY);
     expect(warnings).toHaveLength(1);
     const [warning] = warnings;
     expect(warning).toBeInstanceOf(ShearCentreOffsetWarning);
@@ -375,7 +389,7 @@ describe('Die Warnseite der Zahlen: Saetze 1, 2 und 4', () => {
 
   it('meldet Satz 1, wenn Iyz nicht verschwindet', () => {
     const skew: SectionProperties = { ...properties('IPE 300'), Iyz: 1e-6 };
-    const { warnings } = validateSectionProperties(skew);
+    const { warnings } = validateSectionProperties(skew, POLICY);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toBeInstanceOf(NotPrincipalAxesWarning);
   });

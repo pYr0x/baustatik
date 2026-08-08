@@ -39,6 +39,7 @@
     "@baustatik/grid-2d": "workspace:*",
     "@baustatik/render-core": "workspace:*",
     "@baustatik/viewport-2d": "workspace:*",
-    "@baustatik/cross-section": "workspace:*"
+    "@baustatik/cross-section": "workspace:*",
+    "@baustatik/section-geometry": "workspace:*"
   }
 }

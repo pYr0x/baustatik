@@ -378,6 +378,70 @@ const poly2 = Polygon.translate(poly, Vector.make(2, 0));
 const intersection = Polygon.intersect(poly, poly2);
 ```
 
+### Bulge
+
+**Signature:**
+
+```typescript
+const Bulge: {
+  sweep(bulge: number): number;
+  sagitta(chordLength: number, bulge: number): number;
+  isStraight(chordLength: number, bulge: number, tolerance: number): boolean;
+  toArc(p1: Point, p2: Point, bulge: number, tolerance: number): Arc;
+  fromArc(arc: Arc): number;
+  toPolyline(p1: Point, p2: Point, bulge: number, tolerance: number): Polyline;
+};
+```
+
+**Description:** The DXF bulge `tan(Δ/4)` and its conversions to and from `Arc`,
+in `y`/`z`. `bulge` is what `Wall.bulge` and `Vertex.bulge` store; `Arc` is what
+drawing, snapping and integration need.
+
+**Signs carry through 1:1** — the mapping to `geometry-2d` is
+orientation-preserving, so a positive `bulge` turns `+y` onto `+z`, the same
+sense as `Arc.sweep`. In the picture (`y` right, `z` down) that is clockwise.
+
+**The sagitta is exact**, not approximated: `h = (chord / 2) · |bulge|`. So
+"when is an arc a straight line" collapses onto `DEFAULT_ARC_TOLERANCE` rather
+than needing a second number, and a fixed epsilon on `bulge` — which would be
+length-blind — is not required.
+
+**Asking for an arc where there is none throws.** `toArc` raises
+`StraightBulgeError`, `fromArc` raises `FullCircleBulgeError`. The straight line
+is a *known* answer, not "I don't know", so it is not the `undefined` channel.
+Callers that want it handled take `toPolyline` (total) or ask `isStraight`.
+
+**Example:**
+
+```typescript
+import { Bulge, DEFAULT_ARC_TOLERANCE, Point } from '@baustatik/section-geometry';
+
+const p1 = Point.make(0, 0);
+const p2 = Point.make(100, 0);
+
+Bulge.sweep(1);                            // Math.PI
+Bulge.sagitta(100, 1);                     // 50
+Bulge.isStraight(100, 0.0001, 0.05);       // true
+
+const arc = Bulge.toArc(p1, p2, 1, DEFAULT_ARC_TOLERANCE); // semicircle
+Bulge.fromArc(arc);                        // 1
+
+// TOTAL: a straight edge yields exactly [p1, p2]; both endpoints included.
+Bulge.toPolyline(p1, p2, 0, DEFAULT_ARC_TOLERANCE);
+```
+
+Three of the six convert nothing — `sweep`, `sagitta` and `isStraight` are
+coordinate-free. They are wrapped anyway, for the same reason
+`normalizeAngleYZ` is: **this package is the pass-through into the
+cross-section plane, and nothing above it imports `@baustatik/geometry-2d`
+directly.**
+
+A domain consequence worth knowing: the value range is the open interval
+`(−2π, +2π)`, so **a tube is two nodes and two semicircular walls**
+(`Δ = ±180°`, `bulge = ±1`), never one wall closing on itself. At a semicircle
+end-tangency is automatic, so the cross-section gate's kink warning stays silent
+by itself.
+
 ### normalizeAngleYZ
 
 **Signature:**
@@ -387,6 +451,8 @@ function normalizeAngleYZ(angle: number): number;
 ```
 
 **Description:** Normalizes an angle in radians into the range `[0, 2π)`.
+Converts nothing — the mapping is orientation-preserving, so this is the same
+normalisation as in `x`/`y`. The wrapper exists for the pass-through rule above.
 **Example:**
 
 ```typescript
@@ -405,7 +471,9 @@ The package exports several specific error classes for geometric failure cases:
 - `DegenerateAxisError`: Thrown when a mirror axis has zero length.
 - `DegenerateVectorError`: Thrown when attempting to normalize a zero-length vector.
 - `DiscontinuousLinesError`: Thrown when creating a Polyline or Polygon from non-connected lines.
+- `FullCircleBulgeError`: Thrown by `Bulge.fromArc` at `|sweep| >= 2π`, where `tan(Δ/4)` has its pole. Carries `sweep`.
 - `InvalidArcError`: Thrown for arcs with zero radius or other invalid parameters.
+- `StraightBulgeError`: Thrown by `Bulge.toArc` when the sagitta stays within the tolerance. Carries `bulge`, `chordLength` and `tolerance`.
 - `InvalidPolygonError`: Thrown for polygons with fewer than 3 vertices or other topology issues.
 - `InvalidPolylineError`: Thrown for invalid polylines (e.g. empty).
 - `OpenPolylineError`: Thrown when attempting to convert an open Polyline to a Polygon.

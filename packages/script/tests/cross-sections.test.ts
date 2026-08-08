@@ -7,14 +7,15 @@ import {
   SnapshotValidationError,
 } from '../src';
 
-/** Ein vollstaendiger, gueltiger v6-Rumpf zum Ueberschreiben einzelner Felder. */
+/** Ein vollstaendiger, gueltiger v7-Rumpf zum Ueberschreiben einzelner Felder. */
 function snapshot(overrides: Record<string, unknown> = {}) {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     nodes: [],
     beams: [],
     crossSections: [],
     materials: [],
+    sectionPolicy: { arcTolerance: 0.05 },
     supports: [],
     loadCases: [],
     ...overrides,
@@ -76,7 +77,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
     // biome-ignore lint/performance/noDelete: v1 kannte `materials` nicht.
     delete (v1 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v1, schemaVersion: 1 })).toThrow(
-      'Snapshot.schemaVersion muss 6 sein.',
+      'Snapshot.schemaVersion muss 7 sein.',
     );
   });
 
@@ -92,7 +93,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
           crossSections: [{ kind: 'profile', id: 'cs-1', profile: 'IPE 300' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 6 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 7 sein.');
   });
 
   it('lehnt v4 AB, statt `t-beam` in `t-section` umzuschreiben', () => {
@@ -120,7 +121,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
           ],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 6 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 7 sein.');
   });
 
   it('kennt `t-beam` auch in einem v6-Satz nicht mehr', () => {

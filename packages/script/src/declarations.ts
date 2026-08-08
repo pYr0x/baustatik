@@ -1,3 +1,13 @@
+/**
+ * Der ambiente `.d.ts`-Text, den der Editor einem SKRIPTAUTOR zeigt.
+ *
+ * KEIN `SectionPolicy` HIER, obwohl v7 sie im Satz fuehrt: dieser Block
+ * beschreibt, was ein Skriptautor SCHREIBT, und der bekommt `defineModel` und
+ * `FEMModelBuilder` — nicht `createFEMModelBuilder`. Er kann also keine Policy
+ * uebergeben, und ein Typ in der Autovervollstaendigung, zu dem es keinen Weg
+ * gibt, waere ein Angebot ohne Tuer. Die Einstellung setzt die ANWENDUNG, die
+ * den Bauer erzeugt (ADR 0033).
+ */
 export const femScriptDeclarations = `
 declare module '@baustatik/script' {
   export type Position = { x: number; z: number };

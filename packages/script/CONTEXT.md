@@ -68,10 +68,25 @@ into a snapshot.
     anyone types. `declarations.ts` needed no edit, and a test holds that.
 - **An older `schemaVersion` is rejected, never extended.** A v1 snapshot has a
   `crossSectionId` pointing nowhere; a v2 snapshot's `materialId` *is* the grade
-  rather than a reference; a v3 snapshot lacks the copied numbers. v3 is the
-  tempting one — the designations are right there, a lookup would "work" — and
-  that is exactly the silent resolution v4 exists to remove, performed once at
-  the worst possible moment. A migration is a tool someone runs and can refuse.
+  rather than a reference; a v3 snapshot lacks the copied numbers; a v6 lacks
+  the `sectionPolicy` under which its carried outlines were produced. **v6 is
+  the most tempting of all** — `DEFAULT_SECTION_POLICY` is sitting right there —
+  and it is also the worst: substituting it would *assert* that the outline was
+  discretised at 0.05 mm, and the drift check the field exists for would then
+  judge against an invented number. A migration is a tool someone runs and can
+  refuse.
+- **`sectionPolicy` is a mandatory project-level field since v7**
+  ([ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
+  It carries **effective** values, not deviations — otherwise the same project
+  would silently compute differently after a change to the software defaults.
+  It sits beside `crossSections` rather than inside each one because two of its
+  three planned fields *judge* rather than create. **Its owner validates it:**
+  the parser calls `parseSectionPolicy` from `@baustatik/cross-section` and lets
+  `InvalidSectionPolicyError` travel outward, the same division of labour with
+  which `fem-solver` calls `parseLoadValidationPolicy`.
+  `createFEMModelBuilder({ sectionPolicy })` takes a *complete* policy, never
+  overrides — the same rule as `SolverConfig.analysisPolicy`, so one application
+  composes it once and hands the same frozen object to builder, gate and viewer.
 - **Shape, not resolvability.** The parser checks discriminators, exact key
   sets, types and positive numbers. It does **not** check that a `profile` or a
   `grade` exists in the catalogue, that any id resolves, **or that `data`/`moduli`

@@ -1,6 +1,7 @@
 export {
   DuplicateSectionIdError,
   EmptyOutlineError,
+  InvalidSectionPolicyError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
   type SectionElement,
@@ -13,6 +14,13 @@ export {
   type WallEnd,
   ZeroLengthWallError,
 } from './errors';
+export {
+  createSectionPolicy,
+  DEFAULT_SECTION_POLICY,
+  parseSectionPolicy,
+  type SectionPolicy,
+  type SectionPolicyOverrides,
+} from './policy';
 export type { SectionProperties } from './properties';
 export {
   type CrossSection,
@@ -31,7 +39,6 @@ export type {
   Wall,
 } from './types';
 export {
-  type SectionGeometryOptions,
   type SectionValidationResult,
   validateSectionGeometry,
   validateSectionProperties,
