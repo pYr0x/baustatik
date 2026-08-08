@@ -46,6 +46,12 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --filter @baustatik/konva-adapter exec playwright install --with-deps chromium
 
+      # ADR 0036: bis zur ersten Freigabe ist jeder Changeset 'patch'. Ein
+      # major/minor-Label ist ein Versionsentscheid, den es ohne Abnehmer nicht gibt.
+      # Das Skript parst das Frontmatter robust (einfache/doppelte/keine Anfuehrungszeichen).
+      - name: Changesets are patch-only until the first release (ADR 0036)
+        run: node scripts/check-release-policy.mjs
+
       - name: Build
         run: pnpm build
 

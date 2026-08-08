@@ -6,7 +6,7 @@ export type Line = { readonly p1: Point; readonly p2: Point };
 
 export type Polyline = { readonly points: Point[] };
 
-export type Polygon = { readonly points: Point[] };
+export type Polygon = { readonly points: readonly Point[] };
 
 export type Arc = {
   readonly center: Point;

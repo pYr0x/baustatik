@@ -1,5 +1,105 @@
 # @baustatik/cross-section
 
+## 0.0.1
+
+### Patch Changes
+
+- **Breaking:** Der Editor-Querschnitt liefert Werte, `SectionPolicy` bekommt ein
+  zweites Pflichtfeld, und das Gate bekommt drei Befunde am Umlaufsinn
+  (ADR 0034/0035).
+
+  **`sectionProperties` gibt für `kind: 'section-geometry'` nicht mehr
+  `undefined` zurück.** `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` fallen nach Green aus
+  dem mitgeführten Umriss, `alpha`/`Iu`/`Iv` als reine Algebra mit. **Ohne
+  `kappaY`/`kappaZ` und ohne `yM`/`zM`** — beide brauchen den Wandweg
+  beziehungsweise Grashof (P4/P5). Für den Löser heisst das `GAs: 'rigid'`, also
+  ohne Schubverformung; wer sie verlangt hat, erfährt es aus `check()` in
+  `@baustatik/fem-solver`. `stressPoints` bleibt für diese Quelle `undefined`.
+
+  **`SectionPolicy.principalAxisTolerance` ist neu und PFLICHT** (Default `1e-9`).
+  Dimensionslos: `|Iyz| <= tol · max(|Iy|, |Iz|)` heisst Hauptachsenlage. Jedes
+  selbst gebaute Policy-Literal und jeder v7-Snapshot ist damit ungültig;
+  `createSectionPolicy` ergänzt den Default, `parseSectionPolicy` lehnt ab.
+
+  **Satz 1 des Gates vergleicht relativ statt exakt gegen `0`.** Für einen
+  gezeichneten Umriss ist `Iyz` nie exakt null — der exakte Vergleich feuerte
+  sonst bei jedem symmetrisch gezeichneten Querschnitt.
+  `NotPrincipalAxesWarning` trägt dafür ein neues Feld `limit`.
+
+  **Drei neue Befunde am Umriss**, weil die Windung jetzt Bedeutung trägt
+  (Material `signedArea > 0`, Loch `< 0`):
+
+  - `NegativeOutlineAreaError` — `Σ signedArea <= 0`. Ohne ihn gäbe Green ein
+    negatives `A` und `fem-section-resolve` daraus eine negative Steifigkeit.
+  - `DegenerateOutlineRingError` — ein Ring mit `signedArea === 0`.
+  - `UnnestedHoleWarning` — ein Lochring in keinem Materialring. Warnung, weil
+    rechenbar und bei zwei getrennten Vollflächen legitim aussehend.
+
+  **Neu exportiert:** `deriveOutlineFromRings(rings, policy)` — der Umriss aus den
+  Ringen, nur über `Bulge.toPolyline`, ohne Bibliothek. Damit ist
+  `kind: 'outline'` vollständig benutzbar: zeichnen, ableiten, rechnen, prüfen.
+  Der `midline`-Zweig bleibt offen.
+
+  **Intern:** `geometryResult()` ist die zweite mm→cm-Stelle. Die Regel heisst ab
+  jetzt „eine Eingangsstelle je Quelle, ein gemeinsamer Ausgang (`toSI`)" statt
+  „genau zwei Stellen".
+
+- 8646b0b: Aus dem `ShearSegment` wird das **`ShearFlowInterval`**. Nur Namen und
+  Kommentare — keine Zahl bewegt sich, und die öffentliche API ist nicht
+  betroffen (`shear.ts` ist package-intern, `src/index.ts` exportiert daraus
+  nichts).
+
+  - **`Segment` versprach eine Lage, die der Typ nicht hat.** Er ist ein Stück
+    der Laufkoordinate `s`, kein Stück Querschnitt: `pathZ` des I-Profils benutzt
+    dasselbe Gurtobjekt viermal, ein Ort ließe sich daraus nicht ablesen.
+    `Interval` sagt genau das, und die Funktionsfamilie zieht mit —
+    `partSegments` → `partIntervals`, `crossWallSegment` → `crossWallInterval`,
+    das Rückgabefeld `.segments` → `.intervals`.
+  - **Damit ist `Segment` frei**, und es bleibt reserviert für das
+    **positionierte** Wegstück mit Startpunkt und Richtung, aus dem κ und die
+    Spannungspunkte einmal gemeinsam fallen sollen (`packages/TODO.md`). Das war
+    der eigentliche Grund für den Rename; `Wall` (ADR 0030) ist unabhängig davon
+    begründet und bleibt.
+  - **Nicht `ShearEnergyInterval`**, obwohl `shear.ts` mit der Schubenergie
+    aufmacht: `∫ S²/t ds` ist mit `L⁶` eine rein geometrische Größe — deshalb
+    fällt `A_s = I²/∫` als Fläche heraus. Die Schubenergie ist das Prinzip hinter
+    der Formel und gehört in die Begründung, nicht in einen Typnamen, der sonst
+    eine Einheit behauptet, die er nicht trägt.
+  - **Die Literatur gibt kein Wort her.** Sie führt das Stück nicht als Objekt,
+    sondern integriert abschnittsweise über `s` und beschriftet „Bereich I, II,
+    III". Dlubal (SHAPE-THIN/RSECTION) sagt _Element_ — im Monorepo vom
+    FE-Element belegt; _Branch_ und _Zelle_ sind in der Theorie dünnwandiger
+    Profile anders vergeben.
+
+- cec4a27: **Breaking:** `SectionPolicy` ist da, und beide Türen des Gates nehmen sie.
+
+  - `validateSectionGeometry(g, policy)` und `validateSectionProperties(p, policy)`
+    statt `(g, { arcTolerance })` und `(p)`.
+  - `SectionGeometryOptions` ist **entfernt**.
+  - Neu exportiert: `SectionPolicy`, `SectionPolicyOverrides`,
+    `DEFAULT_SECTION_POLICY`, `createSectionPolicy`, `parseSectionPolicy` und
+    `InvalidSectionPolicyError`.
+
+  Eigene Wurzel statt einer Scheibe von `AnalysisPolicy`, entschieden an ADR 0011s
+  Trennlinie „steuert die Rechnung, ohne das Modell zu ändern": `arcTolerance`
+  ändert es — der abgeleitete Umriss reist im Satz mit, und seine Punktzahl hängt
+  an der Toleranz (ADR 0033). `arcTolerance` ist jetzt `mm`-gebrandet;
+  `DEFAULT_ARC_TOLERANCE` zieht nicht um, die Policy **liest** es aus
+  `@baustatik/section-geometry`.
+
+  `validateSectionProperties` nimmt die Policy heute, ohne ein Feld daraus zu
+  lesen — bewusst: die `Iyz`-Schwelle landet mit P2 dort, und ein Bruch jetzt ist
+  billiger als zwei.
+
+  **Neue Abhängigkeit `@baustatik/section-geometry`.** ADR 0032s Satz „keine neue
+  Abhängigkeit ausser `errors`" fällt damit: `outgoingTangent` liest `Bulge.sweep`,
+  statt `2·atan(bulge)` selbst zu rechnen. Die Zahlen der Knickwarnung ändern sich
+  dadurch nicht.
+
+- Updated dependencies [cec4a27]
+- Updated dependencies
+  - @baustatik/section-geometry@0.0.1
+
 ## 1.0.0
 
 ### Major Changes

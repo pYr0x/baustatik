@@ -17,6 +17,7 @@ export {
 } from './errors';
 export { Line } from './line';
 export { Point } from './point';
+export type { PolygonMomentsYZ } from './polygon';
 export { Polygon } from './polygon';
 export { Polyline } from './polyline';
 export type {

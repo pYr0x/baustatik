@@ -13,8 +13,10 @@ import {
 } from '@baustatik/fem-loads';
 import { describe, expect, it } from 'vitest';
 import { check } from '../src/check';
+import type { SectionStiffness } from '@baustatik/fem-element';
 import {
   LoadOnIsolatedNodeWarning,
+  ShearDeformationUnavailableWarning,
   UnknownLoadCaseError,
   UnknownSectionStiffnessError,
 } from '../src/errors';
@@ -366,5 +368,69 @@ describe('check — Lastfallauswahl', () => {
     // Ein leerer Lastfall ist nicht FALSCH, nur nicht rechenbar.
     expect(check(config, 'lf-2').state).toBe('unloaded');
     expect(check(config, 'lf-2').canSolve).toBe(false);
+  });
+});
+
+/**
+ * M8 — verlangte Schubverformung, die der Querschnitt nicht hergibt
+ * ([ADR 0035](../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
+ *
+ * `GAs: 'rigid'` ist seit P2 erstmals erreichbar: der Editor-Querschnitt
+ * liefert `EA` und `EI` aus der Green-Rechnung, aber kein kappa.
+ */
+describe('check — der schubstarre Querschnitt', () => {
+  /** Ein Querschnitt ohne kappa, wie ihn `sectionProperties` seit P2 liefert. */
+  const RIGID: SectionStiffness = { EA: 1e6, EI: 1000, GAs: 'rigid' };
+
+  function report(GAs: SectionStiffness['GAs'], shearDeformation: boolean) {
+    return check(
+      configOver(readyStore(), {
+        getSectionStiffness: () => ({ EA: 1e6, EI: 1000, GAs }),
+        analysisPolicy: createAnalysisPolicy({ shearDeformation }),
+      }),
+      TEST_LOAD_CASE_ID,
+    );
+  }
+
+  it('meldet GENAU EINE Warnung, wenn Schubverformung verlangt ist', () => {
+    const { model, state, canSolve } = report(RIGID.GAs, true);
+    const warnings = model.warnings.filter(
+      (warning) => warning instanceof ShearDeformationUnavailableWarning,
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.beamId).toBe('b1');
+    expect(warnings[0]?.crossSectionId).toBe('default');
+    // GERECHNET WIRD, nur eben mitgeteilt.
+    expect(state).toBe('ready-with-warnings');
+    expect(canSolve).toBe(true);
+  });
+
+  it('schweigt, wenn gar keine Schubverformung verlangt ist', () => {
+    // Es fehlt nichts, was jemand verlangt hätte.
+    expect(report(RIGID.GAs, false).state).toBe('ready');
+  });
+
+  it('schweigt beim Querschnitt MIT Schubsteifigkeit, in beiden Fällen', () => {
+    expect(report(500, true).state).toBe('ready');
+    expect(report(500, false).state).toBe('ready');
+  });
+
+  it('meldet den fehlenden Querschnitt weiterhin als FEHLER, nicht als Warnung', () => {
+    // Die neue Bedingung darf M7 nicht verdrängen: kein Steifigkeitssatz ist
+    // etwas anderes als ein schubstarrer.
+    const { model, state } = check(
+      configOver(readyStore(), {
+        getSectionStiffness: () => undefined,
+        analysisPolicy: createAnalysisPolicy({ shearDeformation: true }),
+      }),
+      TEST_LOAD_CASE_ID,
+    );
+    expect(model.errors[0]).toBeInstanceOf(UnknownSectionStiffnessError);
+    expect(
+      model.warnings.some(
+        (warning) => warning instanceof ShearDeformationUnavailableWarning,
+      ),
+    ).toBe(false);
+    expect(state).toBe('invalid');
   });
 });

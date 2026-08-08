@@ -12,9 +12,18 @@ Schubmittelpunkt `yM`/`zM` und κ.
 ein Wandgraph (`kind: 'midline'` — Knoten, Waende mit Dicke) oder freie
 Umrissringe (`kind: 'outline'`), in beiden Faellen samt **mitgefuehrtem,
 diskretisiertem Umriss**. Beide Marken benennen eine LINIE, nicht ihren Inhalt:
-die Mittellinie gegen den Umriss. Sie traegt heute nur
-ihren Vertrag — `sectionProperties` gibt fuer sie `undefined` zurueck, bis die
-Green-Rechnung steht.
+die Mittellinie gegen den Umriss. Seit
+[ADR 0035](../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)
+traegt sie auch **Werte**: `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` fallen nach Green
+aus dem mitgefuehrten Umriss (`src/green.ts`), `alpha`/`Iu`/`Iv` als Algebra
+mit. **Ohne κ und ohne Schubmittelpunkt** — beide brauchen den Wandweg
+beziehungsweise Grashof, also P4/P5; fuer den Loeser heisst das `GAs: 'rigid'`,
+und `check()` in `@baustatik/fem-solver` sagt es, wenn jemand Schubverformung
+verlangt hat. `stressPoints` bleibt fuer sie `undefined` (P4).
+
+Fuer `kind: 'outline'` leitet `deriveOutlineFromRings` (`src/derive-outline.ts`)
+den Umriss aus den Ringen ab — nur `Bulge.toPolyline` je Kante, keine
+Bibliothek. Der `midline`-Zweig (Aufweitung um `t/2`) bleibt P3.
 
 Dazu gehoert seit
 [ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md) das
@@ -85,13 +94,21 @@ Die Multiplikation leistet `@baustatik/fem-section-resolve` und sonst niemand.
 | `SectionProperties` (Ausgabe) | **m², m⁴, m** | dahinter multipliziert `fem-section-resolve` mit `E` in kN/m² und will kN bzw. kNm² |
 | `StressPoint` | **mm**, `S` in **cm³** | genau das, was der Ausdruck druckt und was in der Referenz-Fixture steht |
 
-Umgerechnet wird an **genau zwei** Stellen, und beide heissen so:
+Umgerechnet wird an **einer Eingangsstelle je Quelle und an einem gemeinsamen
+Ausgang**:
 
-- `shapeResult` in `src/section.ts` — mm → cm, einmal je Form.
-- **`toSI` in `src/to-si.ts` — cm → SI, fuer BEIDE Quellen.** Dass es nur eine
-  ist, ist der eigentliche Gewinn: `ShapeResult` und `SteelProfileData` fuehren
-  jetzt dieselben Einheiten, und der Katalog braucht keinen eigenen Rechenweg
-  mehr.
+- `shapeResult` in `src/section.ts` — mm → cm, fuer die parametrische Form.
+- `geometryResult` daneben — mm → cm, fuer den gezeichneten Umriss. Es skaliert
+  die **Punkte**, nicht das Ergebnis: dieselbe Figur wie bei `shapeResult`, und
+  ein Faktor an einer Stelle statt dreier (cm², cm⁴, cm) am Ausgang.
+- Die Katalogzeile braucht keine: sie fuehrt bereits cm.
+- **`toSI` in `src/to-si.ts` — cm → SI, fuer ALLE Quellen.** Dass es nur eine
+  ist, ist der eigentliche Gewinn: `ShapeResult`, `SteelProfileData` und die
+  Green-Werte fuehren dieselben Einheiten, und keine Quelle braucht einen
+  eigenen Rechenweg.
+
+(Hier stand frueher „genau zwei Stellen". Das war schon damals die falsche Zahl
+fuer die richtige Aussage.)
 
 Die Faktoren stehen nicht als Literal im Code, sondern kommen aus
 `@baustatik/units` (`src/units.ts`) — und zwar aus **`toExact`**, nicht aus
@@ -210,9 +227,14 @@ starke Achse liegt auf `z`, und `alpha` faellt auf `+π/2`. Ein
 Charakterisierungstest haelt beide Faelle.
 
 `Iyz === 0` kuerzt die Rechnung ab, und die Abkuerzung ist exakt: verschwindet
-das Deviationsmoment, SIND `y` und `z` die Hauptachsen. Alle heutigen Quellen
-laufen durch diesen Zweig, und nur deshalb gilt `Iu === Iy` auf die letzte
-Stelle.
+das Deviationsmoment, SIND `y` und `z` die Hauptachsen. **Seit P2 sind beide
+Zweige in Gebrauch:** die parametrischen Formen und die Katalogzeile schreiben
+eine literale `0` hin und bekommen `Iu === Iy` auf die letzte Stelle; der
+gezeichnete Umriss liefert ueber Green ein allgemeines `Iyz` und laeuft durch
+die allgemeine Formel — bei einer achsparallel gezeichneten Figur mit
+`alpha ≈ 1e-17` statt `0`, was die richtige Antwort auf die gestellte Frage ist.
+Ob **Hauptachsenlage** vorliegt, entscheidet deshalb nicht dieser Vergleich,
+sondern das Gate mit `SectionPolicy.principalAxisTolerance`.
 
 ## Der Schubmittelpunkt, und warum er beim T fehlt
 
@@ -241,10 +263,25 @@ Querschnitt ist kein Tor vor der Rechenkette; wer ihn nicht rechnen kann, bekomm
 
 | # | Ausloeser | Aussage |
 | --- | --- | --- |
-| 1 | `Iyz ≠ 0` | keine Hauptachsenlage — gilt nur, solange der Stab aus der Ebene gehalten wird |
+| 1 | `\|Iyz\| > tol · max(\|Iy\|, \|Iz\|)` | keine Hauptachsenlage — gilt nur, solange der Stab aus der Ebene gehalten wird |
 | 2 | `yM ≠ ys` | Querkraft durch den Schwerpunkt tordiert (`T = Vz·e`) |
 | 3 | Knick am Bogen | Tangentialitaet gebrochen |
 | 4 | `yM === undefined` | Schubmittelpunkt **nicht ermittelt** — Satz 2 ist ungeprueft |
+
+Dazu kommen mit P2 drei Befunde am **Umlaufsinn** des mitgefuehrten Umrisses
+([ADR 0034](../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)):
+Material laeuft mit `signedArea > 0`, ein Loch mit `< 0`.
+
+| Kanal | Ausloeser | warum |
+| --- | --- | --- |
+| `errors` | `Σ signedArea <= 0` (`NegativeOutlineAreaError`) | sonst gibt Green ein negatives `A` und `fem-section-resolve` daraus eine negative Steifigkeit — die einzige Fehlerrichtung, die den Loeser **still** kaputtmacht |
+| `errors` | ein Ring mit `signedArea === 0` (`DegenerateOutlineRingError`) | entartet; traegt nichts bei und ist nie gewollt |
+| `warnings` | ein Lochring in keinem Materialring (`UnnestedHoleWarning`) | rechenbar und bei zwei getrennten Vollflaechen legitim aussehend — die Lage, fuer die ADR 0032 warnt |
+
+**Ausdruecklich nicht geprueft:** doppelte aufeinanderfolgende Punkte (tragen
+zur Shoelace-Summe exakt null bei) und die **Selbstdurchdringung** — P0 hat sie
+offen gelassen, P2 auch; ab P3 liefert Clipper2 ueberschneidungsfreie Ringe per
+Konstruktion.
 
 **Satz 2 keyt allein auf `yM`**, nicht auf `(yM, zM)`: das ebene Stabwerk kennt
 nur `Vz`, ein z-Versatz erzeugt darin keine Torsion. Andernfalls feuerte jeder
@@ -257,9 +294,15 @@ weniger Knick vertragen, ist richtig — ihre Kerbe wird tiefer. Die Toleranz is
 ein **Parameter** und keine Konstante im Gate (ADR 0011); sie steht in der
 `SectionPolicy`, die beide Tueren nehmen.
 
-**`validateSectionProperties` nimmt die Policy heute, ohne ein Feld daraus zu
-lesen.** Das ist Absicht und kein Versehen: die Schwelle „`Iyz` ist null" landet
-mit P2 dort, und ein Bruch jetzt ist billiger als zwei ueber zwei Teilprojekte.
+**Satz 1 vergleicht RELATIV**, mit `SectionPolicy.principalAxisTolerance`:
+`|Iyz| > tol · max(|Iy|, |Iz|)`. Bis P2 stand hier der exakte Vergleich gegen
+`0`, und der war richtig, solange jede Quelle eine literale `0` hinschrieb. Fuer
+einen **gezeichneten** Umriss ist `Iyz` nie exakt null — ein achsparallel
+gezeichnetes Rechteck liefert Gleitkommarauschen, und der exakte Vergleich
+feuerte damit bei jedem symmetrisch gezeichneten Querschnitt. Bezogen wird auf
+`max(|Iy|, |Iz|)` und nicht auf `Iy`, sonst schwiege die Frage ausgerechnet
+dort, wo `Iy` klein und `Iz` gross ist. Damit ist die in P0 vorgezogene Policy
+an beiden Tueren tatsaechlich in Gebrauch.
 
 ### Offene Luecke: `bulge` wird vom Gate NICHT geprueft
 
@@ -296,13 +339,23 @@ eine Version je Datensatz, und der Datensatz ist der Snapshot (`v7`, wo
 `@baustatik/section-geometry`. Es neu zu setzen brachte den Zustand zurueck, den
 ADR 0032 beseitigt hat — zwei Zahlen fuer eine Modellannahme.
 
-**Ein Feld heute, drei datierte Kandidaten:**
+**Zwei Felder heute, zwei datierte Kandidaten:**
 
-| Kandidat | faellig |
+| Feld / Kandidat | Stand |
 | --- | --- |
+| `arcTolerance` — die Sehnenabweichung [mm] | seit P1 |
+| `principalAxisTolerance` — dimensionslos, `\|Iyz\| <= tol · max(\|Iy\|, \|Iz\|)`, Default `1e-9` | seit P2 |
 | Miter-Limit + `JoinType` (die Umrissecke bei schraegen Stoessen) | P3 |
-| Schwelle „`Iyz` ist null" | P2 |
 | Schwelle „dicke Wand" (`t/h`) | P5 |
+
+`principalAxisTolerance` ist **relativ und dimensionslos**, weil eine absolute
+Schranke in m⁴ bei cm-grossen und m-grossen Querschnitten zwei verschiedene
+Aussagen waere. Der Name nennt die **Frage** („liegt Hauptachsenlage vor"),
+nicht die Groesse — dieselbe Figur wie `arcTolerance`. **Gelesen wird sie allein
+vom Gate:** `principalAxes` bleibt total, rein und ohne Policy und liefert
+`alpha ≈ 1e-17`, was die richtige Antwort auf die gestellte Frage ist; ein
+Schnappen dort waere eine *Analyse*-Einstellung auf der Rechenstrecke (ADR
+0011). `0` ist ein zulaessiger Wert und stellt den exakten Vergleich wieder her.
 
 **Ausdruecklich kein Kandidat: die Gauss-Punkte fuer Grashof.** Sie werden von
 `sectionProperties` gelesen, und das liegt auf der Rechenstrecke
@@ -317,10 +370,20 @@ abgeleitet.
 
 `sectionProperties` wirft nicht. `undefined` heisst „kenne ich nicht": ein
 unbekannter `profile` oder unsinnige Abmessungen (nicht-positive Masse,
-Wandstaerke groesser als die halbe Hoehe, Steg breiter als der Gurt). Der Wert
-laeuft im FEM-Strang durch den Port `getSectionStiffness`, und dort ist
-`undefined` bereits der Vertrag fuer „Querschnitt unbekannt" — daraus wird ein
-Modellfehler **im Bericht** statt einer Ausnahme mitten in `solve()`.
+Wandstaerke groesser als die halbe Hoehe, Steg breiter als der Gurt) — und beim
+gezeichneten Umriss eine Gesamtflaeche, die nicht echt positiv ist: verkehrt
+herum gewickelt, oder das Loch groesser als das Material. Der Wert laeuft im
+FEM-Strang durch den Port `getSectionStiffness`, und dort ist `undefined`
+bereits der Vertrag fuer „Querschnitt unbekannt" — daraus wird ein Modellfehler
+**im Bericht** statt einer Ausnahme mitten in `solve()`. Was daran im Einzelnen
+falsch ist, sagt das Gate mit Namen.
+
+**Beim Editor-Querschnitt heisst `undefined` an `kappaY`/`kappaZ` und
+`yM`/`zM` dagegen „nicht ermittelt"** und nicht „nicht rechenbar": die Werte
+stehen, die Schubgroessen fehlen. Der Loeser rechnet dann `GAs: 'rigid'`, also
+ohne Schubverformung — die steifere und damit unauffaelligere Richtung —, und
+`check()` in `@baustatik/fem-solver` meldet es, wenn `shearDeformation: true`
+eingestellt war (ADR 0035).
 
 ## Spannungspunkte: Regel statt Liste
 

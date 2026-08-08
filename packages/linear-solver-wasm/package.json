@@ -1,6 +1,6 @@
 {
   "name": "@baustatik/linear-solver-wasm",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "private": false,
   "type": "module",
   "main": "./pkg/linear_solver_wasm.js",

@@ -205,6 +205,17 @@ geparst und dessen Fehlerklasse reist unverändert nach außen. Ein Projektparse
 ruft `parseFEMModelSnapshot` und `parseAnalysisPolicy` — er prüft deren Formen
 nicht ein zweites Mal.
 
+## Schemabrüche und Changesets, solange es keine Abnehmer gibt — entschieden
+
+**Entschieden mit [ADR 0036](../docs/adr/0036-release-policy-before-the-first-consumer.md).**
+Bis zur ersten Freigabe sind alle Paketversionen `0.0.0`, jeder Changeset ist
+`patch`, und Breaking Changes stehen im Changelog-Text, nicht in der
+Versionsarithmetik. `schemaVersion` ist ein Datenformat-Zähler, kein Paket-Semver,
+und zählt weiter — ein Schemabruch löst also **kein** `major` mehr aus. Die erste
+echte Freigabe startet bewusst bei `1.0.0`. Offen bleibt nur, welcher Moment die
+erste Freigabe auslöst (der erste externe Abnehmer? die erste gespeicherte
+Datei?) — an der Policy ändert die Antwort nichts.
+
 ## Dauerhafte Leitplanken
 
 - Die FEM-Rechnung bleibt unabhängig von Auswahl- und Darstellungszustand.

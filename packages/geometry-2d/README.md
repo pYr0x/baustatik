@@ -27,7 +27,8 @@ The package provides the following 2D primitives as immutable plain objects:
 - **`Line`**: `{ p1, p2 }`
 - **`Arc`**: `{ center, radius, startAngle, sweep }`
 - **`Polyline`**: `{ points: Point[] }` (open path)
-- **`Polygon`**: `{ points: Point[] }` (closed path, always CCW)
+- **`Polygon`**: `{ points: Point[] }` (closed path; the winding is kept as
+  given — `signedArea > 0` is CCW, `< 0` is CW and can mean a hole)
 
 Alongside them, **`Bulge`** is not a primitive but a codec: it converts between
 the DXF bulge `tan(Δ/4)` — the redundancy-free way to *store* an arc between two
@@ -82,7 +83,22 @@ const points = Arc.intersectLine(arc, l2); // [(0, 5)]
 ```
 
 ### Polygons and Clipping
-Polygons are automatically normalized to **CCW orientation** to ensure consistent area and boolean calculations.
+`Polygon.make` **validates but does not rotate**: the winding comes out the way
+it went in. That is what makes a hole ring expressible at all — consumers such
+as `@baustatik/cross-section` read the winding as *material* (`signedArea > 0`)
+against *hole* (`< 0`), see
+[ADR 0034](../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md).
+
+Two consequences worth knowing:
+
+- `mirror` **reverses** the winding, because a reflection is
+  orientation-reversing. Hiding that would silently turn a hole into material.
+- `union` / `intersect` / `subtract` still return CCW rings. The promise moved
+  from `make` to the martinez boundary: the winding of a foreign library is not
+  a statement of this package, so it is fixed where the data crosses in.
+
+`Polygon.area` returns the **absolute** value and is therefore the wrong door
+for a hole ring; `Polygon.moments(points).A` carries the sign.
 
 ```typescript
 import { Polygon, Point } from '@baustatik/geometry-2d';

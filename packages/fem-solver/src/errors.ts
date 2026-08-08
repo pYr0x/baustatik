@@ -23,7 +23,7 @@
  */
 
 import { BaustatikError } from '@baustatik/errors';
-import { ModelValidationError } from '@baustatik/fem';
+import { ModelValidationError, ModelValidationWarning } from '@baustatik/fem';
 import { LoadValidationWarning } from '@baustatik/fem-loads';
 
 /** Die drei Freiheitsgrade eines Knotens, in Nummerierungsreihenfolge. */
@@ -87,6 +87,47 @@ export class UnknownSectionStiffnessError extends ModelValidationError {
     this.beamId = beamId;
     this.crossSectionId = crossSectionId;
     this.materialId = materialId;
+  }
+}
+
+/**
+ * Es ist Schubverformung VERLANGT, aber der Querschnitt bringt keine mit.
+ *
+ * `SectionStiffness.GAs === 'rigid'` heißt schubstarr, und seit P2 ist das
+ * erstmals ERREICHBAR: der Editor-Querschnitt liefert `EA` und `EI` aus der
+ * Green-Rechnung, aber kein kappa — das braucht den Wandweg (P4/P5)
+ * ([ADR 0035](../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
+ * Steht `shearDeformation` dann auf `true`, rechnet der Löser STILL das
+ * Gegenteil des Verlangten, und zwar in die steifere Richtung — das ist die
+ * unauffällige.
+ *
+ * WARNUNG UND KEIN FEHLER: gerechnet wird, nur eben mitgeteilt. Der Zustand
+ * bleibt `ready-with-warnings`, `canSolve` bleibt `true`.
+ *
+ * SIE ERWEITERT `ModelValidationWarning` und landet in `model.warnings` — dem
+ * Präzedenzfall von `UnknownSectionStiffnessError` folgend, dessen Kommentar
+ * die Lage schon beschreibt: der Befund gehört fachlich zum Modell, kann dort
+ * aber nicht wohnen, weil `@baustatik/fem` `SectionStiffness` nicht kennt. Ein
+ * DRITTER Kanal an `CheckReport` wäre breaking für jede Oberfläche, die den
+ * Bericht liest — für einen Befund, der in die bestehende Rangfolge passt.
+ *
+ * SIE IST KEIN ÜBERGANGSNETZ. Zwei Fälle überleben P4/P5: eine künftige
+ * Katalogreihe ohne `Ay`/`Az` (der Typ hält den Platz frei), und vor allem der
+ * dünnwandige Querschnitt mit GESCHLOSSENER ZELLE — P4 deckt `solid`, P5
+ * offene dünnwandige Profile, Mehrzeller wären P6, und P6 darf nie kommen.
+ */
+export class ShearDeformationUnavailableWarning extends ModelValidationWarning {
+  readonly beamId: string;
+  readonly crossSectionId: string;
+
+  constructor(beamId: string, crossSectionId: string) {
+    super(
+      `Stab "${beamId}": Querschnitt "${crossSectionId}" ist schubstarr ` +
+        '(kein kappa ermittelt), die Analyse verlangt aber Schubverformung — ' +
+        'gerechnet wird ohne sie, also steifer als eingestellt.',
+    );
+    this.beamId = beamId;
+    this.crossSectionId = crossSectionId;
   }
 }
 

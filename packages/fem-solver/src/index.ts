@@ -10,6 +10,7 @@ export {
   ImplausibleDisplacementError,
   InvalidAnalysisPolicyError,
   LoadOnIsolatedNodeWarning,
+  ShearDeformationUnavailableWarning,
   SingularStiffnessMatrixError,
   SmallRotationAssumptionWarning,
   SolveWarning,

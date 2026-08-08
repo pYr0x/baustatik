@@ -1,5 +1,51 @@
 # @baustatik/script
 
+## 0.0.1
+
+### Patch Changes
+
+- cec4a27: **Breaking: `schemaVersion` 6 → 7.** Jede v6-Datei wird abgelehnt.
+
+  `sectionPolicy` steht als **Pflichtfeld** auf Projektebene im Snapshot, neben
+  `crossSections` und `materials` (ADR 0033). Vollständig und nicht als
+  Abweichungsliste: hier stehen die **effektiven** Werte, sonst rechnete dasselbe
+  Projekt nach einer Änderung der Software-Defaults still anders.
+
+  `createFEMModelBuilder({ sectionPolicy })` nimmt eine **vollständige** Policy
+  entgegen, keine Overrides — dieselbe Regel wie `SolverConfig.analysisPolicy`.
+  Ohne Argument gilt `DEFAULT_SECTION_POLICY`; im Satz steht danach trotzdem der
+  effektive Wert. Der neue Typ `FEMModelBuilderConfig` ist exportiert.
+
+  Geprüft wird das Feld von seinem Eigentümer: der Parser ruft
+  `parseSectionPolicy` und lässt `InvalidSectionPolicyError` nach aussen reisen —
+  dieselbe Arbeitsteilung, mit der `fem-solver` `parseLoadValidationPolicy` ruft.
+
+  Ein v6 zu ergänzen wäre die verführerischste Migration von allen, weil
+  `DEFAULT_SECTION_POLICY` bereitliegt — und die schlimmste: sie behauptete, der
+  mitgeführte Umriss sei unter `0,05 mm` entstanden, und die Drift-Prüfung, um
+  derentwillen das Feld existiert, urteilte gegen eine erfundene Zahl.
+
+- **Breaking:** `schemaVersion` 7 → 8. Die `SectionPolicy` im Satz führt jetzt
+  zwei Felder.
+
+  `sectionPolicy.principalAxisTolerance` steht neben `arcTolerance` — die
+  Schranke, ab der `Iyz` als null gilt (ADR 0035, Nachtrag zu ADR 0033). Wie bei
+  v5, v6 und v7: **kein Migrationswerkzeug**, jede v7-Datei wird abgelehnt.
+
+  Ein optionales Feld mit Default wäre die naheliegende Alternative und die
+  falsche: eine eingesetzte Voreinstellung BEHAUPTETE, unter ihr sei beurteilt
+  worden. Die Policy führt die **effektiven** Werte, nicht die Abweichungen.
+
+  Am authored DSL ändert sich nichts — `declarations.ts` kennt die Policy nicht,
+  weil ein Skriptautor sie nicht übergibt. `createFEMModelBuilder()` ohne
+  Argumente schreibt weiterhin den vollständigen Default in den Satz.
+
+- Updated dependencies
+- Updated dependencies [8646b0b]
+- Updated dependencies [cec4a27]
+  - @baustatik/cross-section@0.0.1
+  - @baustatik/fem-loads@0.0.1
+
 ## 2.0.0
 
 ### Major Changes

@@ -29,14 +29,19 @@ Unlike standard mathematical 2D systems (XY), this package uses the following co
   - `Arc.sweep` follows the same sense: positive sweeps from `+y` towards `+z`.
 - **Winding**:
   - `signedArea > 0` means the ring runs in the positive rotation sense above —
-    _clockwise as drawn_.
-  - `Polygon.make` normalises rings to `signedArea >= 0`, i.e. to that same
-    positive sense. So `Polygon.signedArea` of a constructed polygon is directly
-    its area, and area moments derived later come out signed correctly without a
-    correction factor.
-  - `Polygon.isClockwise` reports the on-screen reading and is therefore `true`
-    for a normalised polygon. `toClockwise` / `toCounterClockwise` force a
-    specific winding and deliberately bypass the normalisation.
+    which is exactly what `@baustatik/geometry-2d` calls _counter-clockwise_.
+    `(y, z)` is the mathematical system under a different name. (Drawn on screen
+    with `z` downwards it _looks_ clockwise; that is a footnote about the
+    picture, not an API statement.)
+  - `Polygon.make` **validates but does not rotate** — the winding comes out the
+    way it went in, so a hole ring (`signedArea < 0`) is expressible. `mirror`
+    reverses it. Only `intersect`/`union`/`subtract` promise a winding, and that
+    promise sits at the martinez boundary inside `geometry-2d`. See
+    [ADR 0034](../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md).
+  - `Polygon.isClockwise` is `true` for `signedArea < 0` — the same answer as
+    `geometry-2d`. `toClockwise` / `toCounterClockwise` force a specific winding.
+  - `Polygon.area` returns the **absolute** value and is therefore the wrong
+    door for a hole ring; `signedArea` and `moments` carry the sign.
 
 > **Note on the mapping.** Internally this package delegates to
 > `@baustatik/geometry-2d` via `src/convert.ts`, which maps `x := y`, `y := z`
@@ -59,7 +64,10 @@ The package provides the following 2D primitives, all with `readonly` properties
 - **`Line`**: `{ p1: Point, p2: Point }`
 - **`Arc`**: `{ center: Point, radius: number, startAngle: number, sweep: number }`
 - **`Polyline`**: `{ points: Point[] }` (open path)
-- **`Polygon`**: `{ points: Point[] }` (closed path, normalized to `signedArea >= 0`)
+- **`Polygon`**: `{ points: readonly Point[] }` (closed path). `Polygon.make`
+  **validates the winding, it does not normalise it** (ADR 0034): the winding
+  comes out the way it went in, because consumers read `signedArea > 0` as
+  *material* and `< 0` as a *hole*.
 
 Alongside them, **`Bulge`** converts between the DXF bulge `tan(Δ/4)` — the
 storage form used by `Wall.bulge` and `Vertex.bulge` — and an `Arc`. Signs carry
@@ -129,10 +137,16 @@ const poly = Polygon.make([
   Point.make(0, 100),
 ]);
 
-// Automatically normalized to signedArea >= 0 (the positive +y -> +z sense)
-const area = Polygon.area(poly); // 10000
-const signed = Polygon.signedArea(poly.points); // 10000, same value
-const isCw = Polygon.isClockwise(poly); // true (clockwise as drawn)
+// The winding is kept as given; this ring runs in the positive +y -> +z sense.
+const area = Polygon.area(poly); // 10000 (absolute)
+const signed = Polygon.signedArea(poly.points); // +10000 — a hole would be negative
+const isCw = Polygon.isClockwise(poly); // false, same reading as geometry-2d
+
+// Raw area moments about the ORIGIN, signed, under the symbols of the standard.
+// They add up linearly over several rings; a hole contributes negatively on its
+// own, and the Steiner shift into the centroid happens once at the end.
+const m = Polygon.moments(poly.points);
+// { A, Sy, Sz, Iy: ∫z² dA, Iz: ∫y² dA, Iyz: +∫y·z dA }
 ```
 
 ## Error Handling

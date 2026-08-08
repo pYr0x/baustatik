@@ -46,25 +46,26 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // Ein aelterer Snapshot wird ABGELEHNT und nicht ergaenzt. Bei v1 zeigte
   // `crossSectionId` ins Leere; bei v2 BEDEUTET `materialId` etwas anderes als
   // hier — dort die Guete selbst (`'S235'`), hier ein Verweis auf
-  // `Material.id`; bei v3 fehlen die kopierten Zahlen; bei v4 heisst die
+  // `Material.id`; bei v3 fehlen die kopierten Zahlen; bei v4 heißt die
   // T-Form `'t-beam'` statt `'t-section'`; bei v5 fehlt die dritte
   // Querschnittsquelle (ADR 0030); bei v6 fehlt das REZEPT, unter dem der
-  // mitgefuehrte Umriss erzeugt wurde (`sectionPolicy`, ADR 0033).
+  // mitgeführte Umriss erzeugt wurde (`sectionPolicy`, ADR 0033); bei v7
+  // fehlt darin das zweite Feld, `principalAxisTolerance` (ADR 0035).
   //
-  // Verfuehrerisch zu ergaenzen waeren gleich vier: bei v3 stehen die
-  // Bezeichnungen darin, ein Lookup laege nahe; bei v4 waere es ein ersetztes
-  // Literal; v5 ist am Satz sogar UNVERAENDERT; und bei v6 laege es am
-  // naechsten, weil `DEFAULT_SECTION_POLICY` als Ergaenzung bereitliegt. Genau
-  // die waere aber die schlimmste: eine eingesetzte Voreinstellung BEHAUPTET,
+  // Verführerisch zu ergänzen wären gleich fünf: bei v3 stehen die
+  // Bezeichnungen darin, ein Lookup läge nahe; bei v4 wäre es ein ersetztes
+  // Literal; v5 ist am Satz sogar UNVERÄNDERT; und bei v6 wie v7 läge es am
+  // nächsten, weil `DEFAULT_SECTION_POLICY` als Ergänzung bereitliegt. Genau
+  // die wäre aber die schlimmste: eine eingesetzte Voreinstellung BEHAUPTET,
   // der Umriss sei unter 0,05 mm entstanden, und die Drift-Pruefung, um
-  // derentwillen das Feld ueberhaupt existiert, urteilte danach gegen eine
+  // derentwillen das Feld überhaupt existiert, urteilte danach gegen eine
   // erfundene Zahl. Das ist die stille Aufloesung, die ADR 0027 abschafft:
   // einmal ausgefuehrt, im unguenstigsten Moment, und danach nicht mehr von
   // einer bewussten Wahl zu unterscheiden. Eine Migration ist ein Werkzeug,
   // das jemand AUFRUFT, sieht und ablehnen kann — und AB HIER IST JEDE
-  // v6-DATEI VERLOREN.
-  if (snapshot.schemaVersion !== 7) {
-    fail('Snapshot.schemaVersion muss 7 sein.');
+  // v7-DATEI VERLOREN.
+  if (snapshot.schemaVersion !== 8) {
+    fail('Snapshot.schemaVersion muss 8 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -200,7 +201,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 7,
+    schemaVersion: 8,
     nodes,
     beams,
     crossSections,

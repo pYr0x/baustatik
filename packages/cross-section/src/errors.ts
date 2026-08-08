@@ -173,7 +173,95 @@ export class EmptyOutlineError extends SectionValidationError {
 }
 
 /**
- * Satz 1 — `Iyz != 0`: der Querschnitt liegt NICHT in Hauptachsenlage.
+ * Die Summe der Ringflächen ist nicht echt positiv.
+ *
+ * DER EINE FEHLER DIESER ECKE, DER DEN LÖSER STILL KAPUTTMACHT. Green rechnet
+ * auf jedem Umriss eine Zahl; läuft der Ring verkehrt herum, ist es ein
+ * NEGATIVES `A`, und `fem-section-resolve` macht daraus eine negative
+ * Steifigkeit. Das Gleichungssystem löst sich weiterhin — es antwortet nur
+ * falsch. Deshalb ein Fehler und keine Warnung.
+ *
+ * ZWEI LAGEN, EIN BEFUND: der komplett verkehrt gewickelte Umriss, und das
+ * Loch, das größer ist als sein Material. Beide sagen dasselbe („hier bleibt
+ * keine Fläche übrig"), und sie auseinanderzuhalten hieße, die
+ * Verschachtelung zu kennen — die ist nach ADR 0032 eine Warnung und keine
+ * Voraussetzung.
+ */
+export class NegativeOutlineAreaError extends SectionValidationError {
+  /** Die Summe über alle Ringe [mm²] — `<= 0`. */
+  readonly signedArea: number;
+
+  constructor(signedArea: number) {
+    super(
+      `Der Umriss trägt die Fläche ${signedArea} mm² — Material läuft mit ` +
+        'positivem, ein Loch mit negativem Umlaufsinn. Entweder ist der ' +
+        'Umriss verkehrt herum gewickelt, oder die Löcher sind größer als ' +
+        'das Material.',
+    );
+    this.signedArea = signedArea;
+  }
+}
+
+/**
+ * Ein Ring ohne Fläche — `signedArea === 0`.
+ *
+ * ENTARTET, und deshalb ein Fehler statt eines Achselzuckens: er trägt zur
+ * Green-Summe exakt nichts bei, also ist er entweder ein Zeichenfehler
+ * (dreimal derselbe Punkt, ein Hin-und-Zurück) oder eine Figur, deren
+ * Aufweitung P3 verlangt. Beides will der Anwender wissen, bevor er die Zahlen
+ * liest.
+ *
+ * ABZUGRENZEN VON `EmptyOutlineError`, der den Umriss ALS GANZEN meint: hier
+ * ist die Figur da, ein einzelner Ring aber ohne Inhalt. `index` nennt ihn,
+ * weil ein Ring keine Id trägt — er ist eine Stelle im Array und nichts
+ * weiter.
+ */
+export class DegenerateOutlineRingError extends SectionValidationError {
+  readonly index: number;
+  readonly pointCount: number;
+
+  constructor(index: number, pointCount: number) {
+    super(
+      `Umrissring ${index}: Fläche 0 bei ${pointCount} Punkten — er trägt ` +
+        'zur Rechnung exakt nichts bei.',
+    );
+    this.index = index;
+    this.pointCount = pointCount;
+  }
+}
+
+/**
+ * Ein Lochring liegt in keinem Materialring.
+ *
+ * WARNUNG UND KEIN FEHLER, weil die Lage RECHENBAR ist: der Ring zieht dann
+ * eben Fläche ab, die es nicht gibt, und die Summe bleibt endlich. Und weil
+ * sie bei zwei getrennten Vollflächen legitim aussieht — genau die Lage, für
+ * die ADR 0032 warnt statt zu verweigern.
+ *
+ * GEPRÜFT WIRD DIE LAGE EINES PUNKTES, nicht die Ueberdeckung zweier Ringe:
+ * das ist bei überschneidungsfreien Ringen dasselbe, und überschneidungsfrei
+ * sind sie ab P3 per Konstruktion (Clipper2). Die Selbstdurchdringung ist und
+ * bleibt ungeprüft — P0 hat sie offen gelassen, P2 auch.
+ */
+export class UnnestedHoleWarning extends SectionValidationWarning {
+  readonly index: number;
+  /** Die Fläche des Lochrings [mm²] — negativ. */
+  readonly signedArea: number;
+
+  constructor(index: number, signedArea: number) {
+    super(
+      `Umrissring ${index} läuft als Loch (Fläche ${signedArea} mm²), liegt ` +
+        'aber in keinem Materialring — er zieht Fläche ab, die es an dieser ' +
+        'Stelle nicht gibt.',
+    );
+    this.index = index;
+    this.signedArea = signedArea;
+  }
+}
+
+/**
+ * Satz 1 — `Iyz` ist nicht null: der Querschnitt liegt NICHT in
+ * Hauptachsenlage.
  *
  * Die ebene Rechnung setzt die Biegung um `y` an. Liegt `y` nicht auf einer
  * Hauptachse, weicht der Stab unter `My` seitlich aus; die Zahlen bleiben
@@ -181,21 +269,31 @@ export class EmptyOutlineError extends SectionValidationError {
  *
  * WARNUNG UND NICHT ZUSTIMMUNG: „aus der Ebene gehalten" ist keine Eigenschaft
  * des Querschnitts. Derselbe L-Winkel ist in einem Stab gehalten und im
- * naechsten nicht, und `CrossSection` wird nach ADR 0023 GETEILT. Die Angabe
- * gehoert an den `Beam` und bleibt dort additiv moeglich.
+ * nächsten nicht, und `CrossSection` wird nach ADR 0023 GETEILT. Die Angabe
+ * gehört an den `Beam` und bleibt dort additiv möglich.
+ *
+ * DER VERGLEICH IST RELATIV: `|Iyz| > tol · max(|Iy|, |Iz|)` mit
+ * `SectionPolicy.principalAxisTolerance`. Bis P2 stand hier der exakte
+ * Vergleich gegen `0`, und der war richtig, solange jede Quelle eine literale
+ * `0` hinschrieb. Für einen GEZEICHNETEN Umriss ist `Iyz` nie exakt null —
+ * ein achsparalleles Rechteck liefert Gleitkommarauschen, und der exakte
+ * Vergleich feuerte damit bei jedem symmetrisch gezeichneten Querschnitt.
  */
 export class NotPrincipalAxesWarning extends SectionValidationWarning {
   readonly Iyz: number;
   readonly alpha: number;
+  /** Die Schranke, gegen die verglichen wurde [m4] — `tol · max(|Iy|, |Iz|)`. */
+  readonly limit: number;
 
-  constructor(Iyz: number, alpha: number) {
+  constructor(Iyz: number, alpha: number, limit: number) {
     super(
-      `Deviationsmoment Iyz = ${Iyz} m4 — keine Hauptachsenlage (alpha = ` +
-        `${alpha} rad). Die ebene Rechnung gilt nur, solange der Stab aus der ` +
-        'Ebene gehalten wird.',
+      `Deviationsmoment Iyz = ${Iyz} m4 liegt über der Schranke ${limit} m4 ` +
+        `— keine Hauptachsenlage (alpha = ${alpha} rad). Die ebene Rechnung ` +
+        'gilt nur, solange der Stab aus der Ebene gehalten wird.',
     );
     this.Iyz = Iyz;
     this.alpha = alpha;
+    this.limit = limit;
   }
 }
 

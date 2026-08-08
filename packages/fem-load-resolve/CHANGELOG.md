@@ -1,5 +1,12 @@
 # @baustatik/fem-load-resolve
 
+## 0.0.1
+
+### Patch Changes
+
+- @baustatik/fem-geometry@0.0.1
+- @baustatik/fem-loads@0.0.1
+
 ## 0.1.2
 
 ### Patch Changes

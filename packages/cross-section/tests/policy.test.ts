@@ -21,6 +21,12 @@ describe('Die Voreinstellung liest ihre Zahl, statt sie neu zu setzen', () => {
     expect(DEFAULT_SECTION_POLICY.arcTolerance).toBe(DEFAULT_ARC_TOLERANCE);
   });
 
+  it('principalAxisTolerance ist 1e-9 und wohnt hier', () => {
+    // Anders als `arcTolerance` gibt es für sie keinen zweiten Ort: die Frage
+    // „liegt Hauptachsenlage vor" wird allein vom Gate gestellt.
+    expect(DEFAULT_SECTION_POLICY.principalAxisTolerance).toBe(1e-9);
+  });
+
   it('sie ist eingefroren', () => {
     expect(Object.isFrozen(DEFAULT_SECTION_POLICY)).toBe(true);
   });
@@ -61,16 +67,34 @@ describe('createSectionPolicy nimmt Abweichungen und prueft nur Werte', () => {
 
 describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
   it('nimmt einen vollstaendigen Satz an und friert ihn ein', () => {
-    const policy = parseSectionPolicy({ arcTolerance: 0.1 });
-    expect(policy).toEqual({ arcTolerance: 0.1 });
+    const policy = parseSectionPolicy({
+      arcTolerance: 0.1,
+      principalAxisTolerance: 1e-8,
+    });
+    expect(policy).toEqual({
+      arcTolerance: 0.1,
+      principalAxisTolerance: 1e-8,
+    });
     expect(Object.isFrozen(policy)).toBe(true);
+  });
+
+  // Der Satz aus P1 ist kein gültiger Satz aus P2 — es gibt keine Teil-Policy,
+  // und ein eingesetzter Default BEHAUPTETE, unter ihm sei erzeugt worden.
+  it('lehnt einen Satz ohne principalAxisTolerance ab', () => {
+    expect(() => parseSectionPolicy({ arcTolerance: 0.1 })).toThrow(
+      InvalidSectionPolicyError,
+    );
   });
 
   it('lehnt ein unbekanntes Feld ab, statt es zu ignorieren', () => {
     // Ein stillschweigend geschluckter Tippfehler waere eine Einstellung, die
     // nicht wirkt.
     expect(() =>
-      parseSectionPolicy({ arcTolerance: 0.1, arcTolerence: 0.2 }),
+      parseSectionPolicy({
+        arcTolerance: 0.1,
+        principalAxisTolerance: 1e-9,
+        arcTolerence: 0.2,
+      }),
     ).toThrow(InvalidSectionPolicyError);
   });
 
@@ -85,11 +109,14 @@ describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
   });
 
   it('prueft die Werte mit derselben Regel wie die Fabrik', () => {
-    expect(() => parseSectionPolicy({ arcTolerance: 0 })).toThrow(
-      InvalidSectionPolicyError,
-    );
-    expect(() => parseSectionPolicy({ arcTolerance: '0.05' })).toThrow(
-      InvalidSectionPolicyError,
-    );
+    expect(() =>
+      parseSectionPolicy({ arcTolerance: 0, principalAxisTolerance: 1e-9 }),
+    ).toThrow(InvalidSectionPolicyError);
+    expect(() =>
+      parseSectionPolicy({ arcTolerance: '0.05', principalAxisTolerance: 1e-9 }),
+    ).toThrow(InvalidSectionPolicyError);
+    expect(() =>
+      parseSectionPolicy({ arcTolerance: 0.05, principalAxisTolerance: -1 }),
+    ).toThrow(InvalidSectionPolicyError);
   });
 });

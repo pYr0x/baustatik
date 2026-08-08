@@ -322,7 +322,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
 
   finish(): FEMModelSnapshot {
     return structuredClone({
-      schemaVersion: 7,
+      schemaVersion: 8,
       nodes: this.#nodes,
       beams: this.#beams,
       crossSections: this.#crossSections,

@@ -1,7 +1,10 @@
+export { deriveOutlineFromRings } from './derive-outline';
 export {
+  DegenerateOutlineRingError,
   DuplicateSectionIdError,
   EmptyOutlineError,
   InvalidSectionPolicyError,
+  NegativeOutlineAreaError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
   type SectionElement,
@@ -11,6 +14,7 @@ export {
   ShearCentreUnknownWarning,
   TangentKinkWarning,
   UnknownSectionNodeError,
+  UnnestedHoleWarning,
   type WallEnd,
   ZeroLengthWallError,
 } from './errors';

@@ -7,27 +7,13 @@ import {
   parseFEMModelSnapshot,
   SnapshotValidationError,
 } from '../src';
+import { snapshot } from './helpers';
 
 /** Ein Materialsatz, wie der Builder ihn anlegt: Herkunft PLUS Moduln. */
 function materialRecord(kind: MaterialKind, grade: string, id: string) {
   const found = lookupMaterial(kind, grade);
   if (found === undefined) throw new Error(`${grade} fehlt im Katalog`);
   return { kind, id, grade: found.grade, moduli: found.moduli };
-}
-
-/** Ein vollstaendiger, gueltiger v7-Rumpf zum Ueberschreiben einzelner Felder. */
-function snapshot(overrides: Record<string, unknown> = {}) {
-  return {
-    schemaVersion: 7,
-    nodes: [],
-    beams: [],
-    crossSections: [],
-    materials: [],
-    sectionPolicy: { arcTolerance: 0.05 },
-    supports: [],
-    loadCases: [],
-    ...overrides,
-  };
 }
 
 describe('Der Snapshot traegt die Materialien mit', () => {
@@ -55,7 +41,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
     // biome-ignore lint/performance/noDelete: der Test baut genau einen v2-Satz.
     delete (v2 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v2, schemaVersion: 2 })).toThrow(
-      'Snapshot.schemaVersion muss 7 sein.',
+      'Snapshot.schemaVersion muss 8 sein.',
     );
   });
 
@@ -69,7 +55,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
           materials: [{ kind: 'steel', id: 'm-1', grade: 'S235' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 7 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 8 sein.');
   });
 
   it('verlangt materials auch dann, wenn es leer bleibt', () => {
@@ -261,7 +247,10 @@ describe('Der Builder befragt den Sortenkatalog — und nur er', () => {
     model.material({ kind: 'steel', grade: 'S235' });
     const snapshot = model.finish();
 
-    expect(snapshot.sectionPolicy).toEqual({ arcTolerance: 0.01 });
+    expect(snapshot.sectionPolicy).toEqual({
+      arcTolerance: 0.01,
+      principalAxisTolerance: 1e-9,
+    });
     expect(snapshot.materials[0].moduli).toEqual(
       lookupMaterial('steel', 'S235')?.moduli,
     );
@@ -283,7 +272,7 @@ describe('Der Builder vergibt die Material-ID', () => {
     });
 
     const parsed = parseFEMModelSnapshot(structuredClone(model.finish()));
-    expect(parsed.schemaVersion).toBe(7);
+    expect(parsed.schemaVersion).toBe(8);
     expect(parsed.materials).toHaveLength(1);
     expect(parsed.materials[0].id).toBe(s235.id);
     expect(parsed.beams[0].materialId).toBe(s235.id);

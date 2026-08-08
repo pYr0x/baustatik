@@ -46,20 +46,23 @@ describe('Drehsinn: positive Drehung fuehrt +y auf +z', () => {
     expect(Polygon.signedArea([...inPositiveSense].reverse())).toBeLessThan(0);
   });
 
-  // Der Ring laeuft +y → +z → −y → −z, also im positiven Drehsinn. Polygon.make
-  // normalisiert darauf und laesst ihn deshalb unveraendert.
-  it('Polygon.make normalisiert auf denselben Drehsinn', () => {
+  // Der Ring läuft +y → +z → −y → −z, also im positiven Drehsinn. Seit ADR
+  // 0034 dreht `Polygon.make` nichts mehr zurecht — beide Windungen kommen
+  // unverändert heraus, und `isClockwise` nennt den positiven Sinn
+  // counter-clockwise, genau wie geometry-2d.
+  it('Polygon.make lässt beide Windungen stehen, isClockwise liest sie mathematisch', () => {
     const inPositiveSense = [
       Point.make(1, 0),
       Point.make(0, 1),
       Point.make(-1, 0),
       Point.make(0, -1),
     ];
+    const reversed = [...inPositiveSense].reverse();
+
     expect(Polygon.make(inPositiveSense).points).toEqual(inPositiveSense);
-    expect(
-      Polygon.signedArea(
-        Polygon.make([...inPositiveSense].reverse()).points,
-      ),
-    ).toBeGreaterThan(0);
+    expect(Polygon.make(reversed).points).toEqual(reversed);
+
+    expect(Polygon.isClockwise(Polygon.make(inPositiveSense))).toBe(false);
+    expect(Polygon.isClockwise(Polygon.make(reversed))).toBe(true);
   });
 });

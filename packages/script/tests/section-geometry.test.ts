@@ -68,7 +68,7 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
     // das ueberstehen, was beim Speichern wirklich passiert.
     const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(built)));
 
-    expect(parsed.schemaVersion).toBe(7);
+    expect(parsed.schemaVersion).toBe(8);
     expect(parsed.crossSections).toHaveLength(1);
     const [section] = parsed.crossSections;
     expect(section?.kind).toBe('section-geometry');
@@ -120,7 +120,7 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
     const v5 = { ...buildSnapshot(), schemaVersion: 5 };
     expect(() => parseFEMModelSnapshot(v5)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v5)).toThrow(
-      'Snapshot.schemaVersion muss 7 sein.',
+      'Snapshot.schemaVersion muss 8 sein.',
     );
   });
 
@@ -144,6 +144,7 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
 /**
  * v7: das REZEPT steht neben dem Ergebnis
  * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
+ * v8: die Policy führt ein ZWEITES Feld, `principalAxisTolerance` (ADR 0035).
  *
  * Der Gewinn, der die Denormalisierung rechtfertigt: mit der Toleranz im
  * SELBEN Satz wie dem Umriss wird die Drift-Pruefung erstmals wohldefiniert.
@@ -169,11 +170,14 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
     });
     const snapshot = model.finish();
 
-    expect(snapshot.sectionPolicy).toEqual({ arcTolerance: 0.01 });
+    expect(snapshot.sectionPolicy).toEqual({
+      arcTolerance: 0.01,
+      principalAxisTolerance: 1e-9,
+    });
     expect(
       parseFEMModelSnapshot(JSON.parse(JSON.stringify(snapshot)))
         .sectionPolicy,
-    ).toEqual({ arcTolerance: 0.01 });
+    ).toEqual({ arcTolerance: 0.01, principalAxisTolerance: 1e-9 });
   });
 
   it('LEHNT einen v6-Satz AB, statt die Voreinstellung einzusetzen', () => {
@@ -190,8 +194,36 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v6)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v6)).toThrow(
-      'Snapshot.schemaVersion muss 7 sein.',
+      'Snapshot.schemaVersion muss 8 sein.',
     );
+  });
+
+  it('LEHNT einen v7-Satz AB — die Policy führt jetzt zwei Felder', () => {
+    // v7 unterscheidet sich am Satz nur durch das FEHLENDE zweite Feld in der
+    // Policy, und `DEFAULT_SECTION_POLICY` liegt weiterhin bereit. Dieselbe
+    // Antwort wie bei v6, aus demselben Grund: eine eingesetzte
+    // Voreinstellung behauptete, unter ihr sei beurteilt worden.
+    const v7 = {
+      ...buildSnapshot(),
+      schemaVersion: 7,
+      sectionPolicy: { arcTolerance: 0.05 },
+    };
+
+    expect(() => parseFEMModelSnapshot(v7)).toThrow(SnapshotValidationError);
+    expect(() => parseFEMModelSnapshot(v7)).toThrow(
+      'Snapshot.schemaVersion muss 8 sein.',
+    );
+  });
+
+  it('lehnt eine Policy ohne principalAxisTolerance auch bei v8 ab', () => {
+    // Der Gegentest: es ist nicht die Versionsnummer, die den v7-Satz
+    // rettet — das Feld selbst ist Pflicht.
+    expect(() =>
+      parseFEMModelSnapshot({
+        ...buildSnapshot(),
+        sectionPolicy: { arcTolerance: 0.05 },
+      }),
+    ).toThrow(InvalidSectionPolicyError);
   });
 
   it('verlangt sectionPolicy auch bei richtiger Versionsnummer', () => {
@@ -217,7 +249,11 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
     expect(() =>
       parseFEMModelSnapshot({
         ...buildSnapshot(),
-        sectionPolicy: { arcTolerance: 0.05, miterLimit: 2 },
+        sectionPolicy: {
+          arcTolerance: 0.05,
+          principalAxisTolerance: 1e-9,
+          miterLimit: 2,
+        },
       }),
     ).toThrow(InvalidSectionPolicyError);
   });

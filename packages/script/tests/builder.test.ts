@@ -7,6 +7,7 @@ import {
   parseFEMModelSnapshot,
   SnapshotValidationError,
 } from '../src';
+import { snapshot } from './helpers';
 
 describe('FEM model builder', () => {
   it('uses the shared package error hierarchy', () => {
@@ -42,7 +43,7 @@ describe('FEM model builder', () => {
     const snapshot = model.finish();
     const parsed = parseFEMModelSnapshot(structuredClone(snapshot));
 
-    expect(parsed.schemaVersion).toBe(7);
+    expect(parsed.schemaVersion).toBe(8);
     expect(parsed.nodes).toHaveLength(2);
     expect(parsed.beams[0]).toMatchObject({
       startNodeId: parsed.nodes[0].id,
@@ -114,32 +115,15 @@ describe('FEM model builder', () => {
 describe('snapshot validation', () => {
   it('rejects malformed snapshots before domain validation', () => {
     expect(() =>
-      parseFEMModelSnapshot({
-        schemaVersion: 7,
-        nodes: [{ id: 'n1', position: { x: Number.NaN, z: 0 } }],
-        beams: [],
-        crossSections: [],
-        materials: [],
-        sectionPolicy: { arcTolerance: 0.05 },
-        supports: [],
-        loadCases: [],
-      }),
+      parseFEMModelSnapshot(
+        snapshot({ nodes: [{ id: 'n1', position: { x: Number.NaN, z: 0 } }] }),
+      ),
     ).toThrowError(SnapshotValidationError);
   });
 
   it('rejects unknown fields and duplicate load targets', () => {
     expect(() =>
-      parseFEMModelSnapshot({
-        schemaVersion: 7,
-        nodes: [],
-        beams: [],
-        crossSections: [],
-        materials: [],
-        sectionPolicy: { arcTolerance: 0.05 },
-        supports: [],
-        loadCases: [],
-        internal: true,
-      }),
+      parseFEMModelSnapshot(snapshot({ internal: true })),
     ).toThrow('Snapshot.internal ist kein erlaubtes Feld.');
 
     const model = createFEMModelBuilder();
@@ -152,24 +136,20 @@ describe('snapshot validation', () => {
 
   it('applies the existing model validation rules', () => {
     expect(() =>
-      parseFEMModelSnapshot({
-        schemaVersion: 7,
-        nodes: [{ id: 'n1', position: { x: 0, z: 0 } }],
-        beams: [
-          {
-            id: 'b1',
-            startNodeId: 'n1',
-            endNodeId: 'n1',
-            crossSectionId: 'IPE200',
-            materialId: 'S235',
-          },
-        ],
-        crossSections: [],
-        materials: [],
-        sectionPolicy: { arcTolerance: 0.05 },
-        supports: [],
-        loadCases: [],
-      }),
+      parseFEMModelSnapshot(
+        snapshot({
+          nodes: [{ id: 'n1', position: { x: 0, z: 0 } }],
+          beams: [
+            {
+              id: 'b1',
+              startNodeId: 'n1',
+              endNodeId: 'n1',
+              crossSectionId: 'IPE200',
+              materialId: 'S235',
+            },
+          ],
+        }),
+      ),
     ).toThrow('Stab "b1": Laenge 0');
   });
 });

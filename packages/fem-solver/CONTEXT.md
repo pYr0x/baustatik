@@ -272,11 +272,20 @@ und der strikte Parser sind die Naht dafuer. Ausfuehrlich in
   Damit gilt `Summe Lasten + Summe Auflagerkraefte = 0`, und die
   Gleichgewichtsprobe faellt direkt als Test an. Freigegebene Richtungen tragen
   exakt 0.
-- **Der Schub-Schalter ersetzt `GAs`, er befragt nicht den Querschnitt.** Jeder
-  Querschnitt HAT eine Schubsteifigkeit; sie zu vernachlaessigen ist eine
-  Entscheidung ueber die Analyse und lebt deshalb in der `AnalysisPolicy` — als
-  Daten, nicht als Port, und genau EINMAL (nicht zusaetzlich auf
-  `SolverConfig`).
+- **Der Schub-Schalter ersetzt `GAs`, er befragt nicht den Querschnitt.** Eine
+  vorhandene Schubsteifigkeit zu vernachlaessigen ist eine Entscheidung ueber
+  die Analyse und lebt deshalb in der `AnalysisPolicy` — als Daten, nicht als
+  Port, und genau EINMAL (nicht zusaetzlich auf `SolverConfig`).
+- **Der Schalter wirkt nur in EINE Richtung.** „Jeder Querschnitt HAT eine
+  Schubsteifigkeit" stand hier bis P2 und ist seither falsch: der
+  Editor-Querschnitt liefert `EA` und `EI`, aber kein κ, also `GAs: 'rigid'`.
+  `shearDeformation: true` macht daraus keine Schubverformung, sondern rechnet
+  still steifer als eingestellt. Deshalb meldet `check()` die
+  `ShearDeformationUnavailableWarning` (M8) nach `model.warnings` — der Zustand
+  bleibt `ready-with-warnings`, gerechnet wird
+  ([ADR 0035](../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
+  Zur Check-Zeit kann `'rigid'` **nur** aus dem Querschnitt kommen, weil der
+  Policy-Schalter erst in `solve()` greift.
 - **Die Konfiguration wird EINMAL aufgeloest.** `createFEMSolver` baut
   `ResolvedAnalysis` beim Erzeugen; `check()` und `solve()` benutzen denselben
   Kontext, statt ihre Defaults unabhaengig voneinander zu waehlen. Kein

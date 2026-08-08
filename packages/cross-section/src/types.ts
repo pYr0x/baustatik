@@ -105,44 +105,66 @@ export type Wall = {
 };
 
 /**
- * Ein Umrisspunkt der EINGABE — mit `bulge`, also mit gekruemmten Kanten.
+ * Ein Umrisspunkt der EINGABE — mit `bulge`, also mit gekrümmten Kanten.
  *
- * Eingabe und Ergebnis sind am Typ unterscheidbar: `Vertex` traegt `bulge`,
- * `Polygon` nicht. Wer ein Ergebnis dort einsetzt, wo eine Eingabe hingehoert,
+ * Eingabe und Ergebnis sind am Typ unterscheidbar: `Vertex` trägt `bulge`,
+ * `Polygon` nicht. Wer ein Ergebnis dort einsetzt, wo eine Eingabe hingehört,
  * merkt es beim Typecheck.
+ *
+ * `bulge` GEHÖRT DER ABGEHENDEN KANTE, wie im DXF-Format, aus dem die Zahl
+ * stammt: der Wert an diesem Punkt wölbt die Kante zum NÄCHSTEN. Der letzte
+ * Vertex wölbt damit die Schlusskante zurück zum ersten.
  */
 export type Vertex = { y: mm; z: mm; bulge?: number };
 
 /**
- * Ein geschlossener Ring der EINGABE. Der aeussere laeuft CCW, ein Loch CW.
+ * Ein geschlossener Ring der EINGABE.
  *
- * Der Umlaufsinn traegt die Bedeutung „Material" gegen „Loch"; er wird nicht
- * geraten, sondern hingeschrieben.
+ * > **Material läuft mit `signedArea > 0`, ein Loch mit `< 0`.**
+ *
+ * DIE REGEL STEHT NUMERISCH DA UND NICHT ALS „CCW", und das ist Absicht: das
+ * Wort ist in einer Ebene mit `z` nach unten zweideutig — dasselbe Vorzeichen
+ * heißt „mathematisch positiv" und sieht im Bild rechtsdrehend aus. Die
+ * Vorzeichenaussage ist es nicht. Sie ist dieselbe Regel wie in
+ * `@baustatik/section-geometry`, wo `signedArea > 0` den positiven Drehsinn
+ * `+y → +z` meint
+ * ([ADR 0034](../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)).
+ *
+ * DER UMLAUFSINN TRÄGT BEDEUTUNG, er wird nicht geraten: aus ihm fällt in
+ * `green.ts` das Loch von selbst aus der Summe heraus — kein Sonderfall für
+ * den hohlen Betonkasten, kein Verschachtelungstest auf der Rechenstrecke.
+ * Verkehrt herum gewickelt liefert Green ein negatives `A`; das fängt das
+ * Gate mit `NegativeOutlineAreaError` ab.
  *
  * `Ring` IST DER NORMBEGRIFF: OGC Simple Features und
  * [RFC 7946](https://datatracker.ietf.org/doc/html/rfc7946) nennen den
- * geschlossenen Linienzug „linear ring", fuehren den aeusseren zuerst und
- * legen genau diesen Umlaufsinn fest — aussen CCW, Loecher CW. Der Satz oben
- * ist keine Hauskonvention, sondern die uebernommene.
+ * geschlossenen Linienzug „linear ring", führen den äußeren zuerst und
+ * legen genau diesen Umlaufsinn fest — außen CCW, Löcher CW. Der Satz oben
+ * ist keine Hauskonvention, sondern die übernommene, nur in der eindeutigen
+ * Schreibweise.
  */
 export type Ring = { vertices: Vertex[] };
 
 /**
  * Ein diskretisiertes Umrisspolygon — das ERGEBNIS, ohne `bulge`.
  *
- * Die Punktzahl haengt an der Diskretisierungstoleranz
+ * Die Punktzahl hängt an der Diskretisierungstoleranz
  * (`SectionPolicy.arcTolerance`, voreingestellt `DEFAULT_ARC_TOLERANCE` aus
  * `@baustatik/section-geometry`), und genau deshalb reist das Polygon mit: `A`,
- * `Iy` und `Iz` fallen aus DIESEN Punkten und nicht aus denen, die die naechste
- * Bibliotheksversion erzeugen wuerde. Seit ADR 0033 reist die Toleranz SELBST
- * im Satz daneben — damit ist erstmals pruefbar, ob beide zusammenpassen.
+ * `Iy` und `Iz` fallen aus DIESEN Punkten und nicht aus denen, die die nächste
+ * Bibliotheksversion erzeugen würde. Seit ADR 0033 reist die Toleranz SELBST
+ * im Satz daneben — damit ist erstmals prüfbar, ob beide zusammenpassen.
  *
  * ACHTUNG, ABWEICHUNG VON OGC: dort ist ein *Polygon* die MENGE seiner Ringe,
  * hier ist es ein EINZELNER — dieselbe Bedeutung wie `Polygon` in
  * `@baustatik/geometry-2d` und `@baustatik/section-geometry`, und die
- * Hauskonvention schlaegt die fremde. `outline: Polygon[]` heisst deshalb „ein
- * Eintrag je Ring", Loecher eingeschlossen, und nicht „mehrere Polygone mit
+ * Hauskonvention schlägt die fremde. `outline: Polygon[]` heißt deshalb „ein
+ * Eintrag je Ring", Löcher eingeschlossen, und nicht „mehrere Polygone mit
  * Loechern". `Ring` und `Polygon` stehen damit auf DERSELBEN Ebene und
  * unterscheiden sich allein durch `bulge`: Eingabe gegen Ergebnis.
+ *
+ * DIE WINDUNGSREGEL DES `Ring` GILT HIER UNVERÄNDERT WEITER: `signedArea > 0`
+ * ist Material, `< 0` ein Loch. `deriveOutlineFromRings` fasst den Umlaufsinn
+ * nicht an, und `green.ts` liest ihn — das ist die ganze Kette (ADR 0034).
  */
-export type Polygon = { points: { y: mm; z: mm }[] };
+export type Polygon = { readonly points: readonly { y: mm; z: mm }[] };

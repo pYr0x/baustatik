@@ -18,24 +18,24 @@ table. Confirm a package's `package.json` before adding a dependency.
 | `@baustatik/core` | Core domain and infrastructure primitives, including `atOrThrow`. | `errors` |
 | `@baustatik/round` | Numeric rounding utilities. | — |
 | `@baustatik/units` | Unit conversion (`convert(x).from(a).to(b)` rounds, `toExact(b)` does not) and the phantom-branded quantity types `Quantity<U>`, `mm`, `cm2`, `MPa`. | `errors`, `round` |
-| `@baustatik/geometry-2d` | 2D geometry primitives and polygon operations, the `bulge` ⇄ `Arc` codec `Bulge`, plus `DEFAULT_ARC_TOLERANCE` — the one discretisation tolerance of the repo. | `core`, `errors` |
+| `@baustatik/geometry-2d` | 2D geometry primitives and polygon operations, the raw signed `Polygon.moments`, the `bulge` ⇄ `Arc` codec `Bulge`, plus `DEFAULT_ARC_TOLERANCE` — the one discretisation tolerance of the repo. `Polygon.make` validates the winding, it does not normalise it. | `core`, `errors` |
 | `@baustatik/material` | Eurocode material data and National-Annex design values via `createMaterials({ na })`, plus the model record `Material` and the Annex-free `lookupMaterial`. | `errors`, `units` |
 | `@baustatik/viewport-2d` | 2D viewport and coordinate-view state. | `errors` |
 | `@baustatik/render-core` | Rendering abstractions shared by visual adapters. | `core`, `errors`, `viewport-2d` |
 | `@baustatik/grid-2d` | 2D grid rendering and grid behavior. | `errors`, `render-core`, `viewport-2d` |
 | `@baustatik/konva-adapter` | Konva-based rendering adapter. | `render-core`, `viewport-2d` |
-| `@baustatik/section-geometry` | Geometry and calculations for cross-sections, including the `y`/`z` pass-through of `Bulge`. Nothing above it imports `geometry-2d` directly. | `core`, `errors`, `geometry-2d` |
+| `@baustatik/section-geometry` | Geometry and calculations for cross-sections, including the `y`/`z` pass-through of `Bulge` and of `Polygon.moments` (`Iyz = +∫y·z dA`). Owns the winding rule: `signedArea > 0` is CCW, the same word as in `geometry-2d`. Nothing above it imports `geometry-2d` directly. | `core`, `errors`, `geometry-2d` |
 | `@baustatik/steel-profiles` | Rolled steel profile catalogue (IPE, HEA) as vendored, tabulated data plus `lookupProfile`. Leaf package with no dependencies at all. | — |
-| `@baustatik/cross-section` | Section-value engine: `A`, `Iy`, `Iz`, `Iyz`, `Iu`, `Iv`, `alpha`, `ys`, `zs`, `yM`, `zM` and κ from four parametric shapes, a catalogue profile, or the editor's `SectionGeometry` (values for the last still pending); owns `stressPoints`, the model record `CrossSection`, the creation policy `SectionPolicy`, and the warning gate `validateSectionGeometry`/`validateSectionProperties` (both take the policy). | `errors`, `section-geometry`, `steel-profiles`, `units` |
+| `@baustatik/cross-section` | Section-value engine: `A`, `Iy`, `Iz`, `Iyz`, `Iu`, `Iv`, `alpha`, `ys`, `zs`, `yM`, `zM` and κ from four parametric shapes, a catalogue profile, or the editor's `SectionGeometry` — the last via Green on the carried outline (`green.ts`), with `deriveOutlineFromRings` for the `outline` branch, but without κ and shear centre; owns `stressPoints`, the model record `CrossSection`, the creation policy `SectionPolicy` (`arcTolerance`, `principalAxisTolerance`), and the warning gate `validateSectionGeometry`/`validateSectionProperties` (both take the policy). | `errors`, `section-geometry`, `steel-profiles`, `units` |
 | `@baustatik/cross-section-viewer` | Viewer-facing cross-section composition and visualization. Draws the outline carried in `SectionGeometry` rather than deriving one; arc walls become `arcPath` specs via `Bulge`. | `cross-section`, `grid-2d`, `render-core`, `section-geometry`, `viewport-2d` |
 | `@baustatik/fem` | FEM frame model types (`Node`, `Beam`, `NodeSupport`) and the model validation gate (`validateModel`, `assertValidModel`, `isolatedNodeIds`). | `errors` |
 | `@baustatik/fem-geometry` | 2D geometry primitives in structural x/z coordinates (z downwards). | `core`, `errors`, `geometry-2d` |
 | `@baustatik/fem-element` | Element formulation for plane frames: local 6×6 stiffness, consistent load vector, shape functions, release condensation, and the section forces `N`/`V`/`M`, bound in three stages. | `errors` |
 | `@baustatik/fem-loads` | Load input model for plane frames plus its validation gate, and the load case (`LoadCase`, `effectiveLoads`) above it. | `actions`, `errors`, `fem`, `fem-geometry` |
-| `@baustatik/script` | Public browser-scripting DSL that builds serializable `schemaVersion: 7` model snapshots through model-owned handles. | `cross-section`, `errors`, `fem`, `fem-loads`, `material`, `steel-profiles` |
+| `@baustatik/script` | Public browser-scripting DSL that builds serializable `schemaVersion: 8` model snapshots through model-owned handles. | `cross-section`, `errors`, `fem`, `fem-loads`, `material`, `steel-profiles` |
 | `@baustatik/fem-section-resolve` | `CrossSection` × `Material` → `SectionStiffness`; the only place in the repo where geometry is multiplied by material. | `cross-section`, `fem`, `fem-element`, `material` |
 | `@baustatik/fem-load-resolve` | Resolves abstract loads onto beams: frame rotation, reference length, positions, merge per beam. | `fem-element`, `fem-geometry`, `fem-loads` |
-| `@baustatik/fem-solver` | Entry point of the calculation (`createFEMSolver`): `check`, `solve`, `solveAll`, and the composition root for the versioned `AnalysisPolicy`. | `errors`, `fem`, `fem-element`, `fem-geometry`, `fem-load-resolve`, `fem-loads` |
+| `@baustatik/fem-solver` | Entry point of the calculation (`createFEMSolver`): `check`, `solve`, `solveAll`, and the composition root for the versioned `AnalysisPolicy`. `check` also warns when shear deformation is asked for but the cross-section is shear-rigid (`ShearDeformationUnavailableWarning`). | `errors`, `fem`, `fem-element`, `fem-geometry`, `fem-load-resolve`, `fem-loads` |
 | `@baustatik/linear-solver-wasm` | Rust/faer WASM binding for `K d = F` via Cholesky, including kinematics detection. | — |
 | `@baustatik/fem-viewer` | Viewer-facing FEM frame composition and visualization, including loads and support reactions. `N`/`V`/`M` diagrams are still missing. | `errors`, `fem`, `fem-geometry`, `fem-load-resolve`, `fem-loads`, `fem-solver`, `grid-2d`, `render-core`, `round`, `viewport-2d` |
 
@@ -74,6 +74,12 @@ What the scripts do not tell you:
   `FORCE_WASM_BUILD=1`. See that package's `CONTEXT.md`.
 - The demo app is `apps/demo`, started by the root `pnpm dev`.
 - Releases go through Changesets (`pnpm changeset`). Never hand-edit versions.
+  Until the first real release (ADR 0036) every package stays in the `0.0.x`
+  series and every changeset is **`patch`** — `changeset version` ticks `0.0.0`
+  → `0.0.1` → …, the number never leaves that series. Breaking changes are
+  recorded in the changeset body, never as a `major`/`minor` label.
+  `schemaVersion` in `@baustatik/script` is a data-format counter and is not a
+  package version.
 
 Known tooling gaps, none of them fixed:
 [`docs/agents/tooling-gaps.md`](docs/agents/tooling-gaps.md).
@@ -120,7 +126,9 @@ Rationale, worked examples and the list of packages that currently diverge:
 - Tests live in `tests/*.test.ts`; `describe`/`it` are German sentences stating
   the invariant.
 - Documents — `AGENTS.md`, `CONTEXT.md`, `README.md`, `CODING_STANDARDS.md` —
-  are written in English.
+  are written in English. Eight `CONTEXT.md` files are German throughout and
+  stay that way until translated as a whole; write new sections in the language
+  the file already uses (`CODING_STANDARDS.md` §11).
 
 ## Documentation and issue tracking
 

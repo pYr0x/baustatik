@@ -1,11 +1,11 @@
 /**
  * Der ambiente `.d.ts`-Text, den der Editor einem SKRIPTAUTOR zeigt.
  *
- * KEIN `SectionPolicy` HIER, obwohl v7 sie im Satz fuehrt: dieser Block
+ * KEIN `SectionPolicy` HIER, obwohl v8 sie im Satz führt: dieser Block
  * beschreibt, was ein Skriptautor SCHREIBT, und der bekommt `defineModel` und
  * `FEMModelBuilder` — nicht `createFEMModelBuilder`. Er kann also keine Policy
  * uebergeben, und ein Typ in der Autovervollstaendigung, zu dem es keinen Weg
- * gibt, waere ein Angebot ohne Tuer. Die Einstellung setzt die ANWENDUNG, die
+ * gibt, wäre ein Angebot ohne Tür. Die Einstellung setzt die ANWENDUNG, die
  * den Bauer erzeugt (ADR 0033).
  */
 export const femScriptDeclarations = `
@@ -32,9 +32,9 @@ declare module '@baustatik/script' {
   /** @param t Wandstaerke [mm] @param bulge DXF-Woelbung tan(D/4), 0 = Gerade */
   export type Wall = { id: string; startNodeId: string; endNodeId: string; t: number; bulge?: number };
   export type Vertex = { y: number; z: number; bulge?: number };
-  /** EINGABE — aussen CCW, Loch CW (linear ring nach OGC / RFC 7946). */
+  /** EINGABE — Material läuft mit signedArea > 0, ein Loch mit < 0 (linear ring nach OGC / RFC 7946). */
   export type Ring = { vertices: Vertex[] };
-  /** ERGEBNIS — diskretisiert, ohne bulge. */
+  /** ERGEBNIS — diskretisiert, ohne bulge. Dieselbe Windungsregel wie Ring. */
   export type Polygon = { points: { y: number; z: number }[] };
   /** Die frei gezeichnete Geometrie. Der abgeleitete Umriss reist MIT. */
   export type SectionGeometry =

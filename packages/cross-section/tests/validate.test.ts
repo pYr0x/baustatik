@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   createSectionPolicy,
   DEFAULT_SECTION_POLICY,
+  DegenerateOutlineRingError,
   DuplicateSectionIdError,
   EmptyOutlineError,
+  NegativeOutlineAreaError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
   type SectionGeometry,
@@ -14,6 +16,7 @@ import {
   ShearCentreUnknownWarning,
   TangentKinkWarning,
   UnknownSectionNodeError,
+  UnnestedHoleWarning,
   validateSectionGeometry,
   validateSectionProperties,
   type Wall,
@@ -392,5 +395,157 @@ describe('Die Warnseite der Zahlen: Saetze 1, 2 und 4', () => {
     const { warnings } = validateSectionProperties(skew, POLICY);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toBeInstanceOf(NotPrincipalAxesWarning);
+  });
+
+  /**
+   * Satz 1 vergleicht RELATIV — der eigentliche Grund für
+   * `principalAxisTolerance` (P2).
+   */
+  describe('Satz 1: die Schranke, nicht der exakte Vergleich', () => {
+    const ipe = properties('IPE 300');
+
+    it('schweigt bei Gleitkommarauschen aus einem gezeichneten Rechteck', () => {
+      // Ein achsparallel gezeichnetes Rechteck liefert `Iyz` nie exakt 0. Ohne
+      // die Schranke feuerte Satz 1 bei JEDEM symmetrisch gezeichneten
+      // Querschnitt.
+      const noise: SectionProperties = {
+        ...ipe,
+        Iyz: 1e-12 * Math.max(ipe.Iy, ipe.Iz),
+      };
+      expect(validateSectionProperties(noise, POLICY).warnings).toEqual([]);
+    });
+
+    it('feuert beim echt unsymmetrischen Querschnitt', () => {
+      const skew: SectionProperties = { ...ipe, Iyz: 0.01 * ipe.Iy };
+      const { warnings } = validateSectionProperties(skew, POLICY);
+      expect(warnings).toHaveLength(1);
+      const warning = warnings[0] as NotPrincipalAxesWarning;
+      // Die Schranke steht als FELD, damit eine Oberfläche sie nennen kann,
+      // ohne sie aus der Meldung zu parsen.
+      expect(warning.limit).toBeCloseTo(
+        DEFAULT_SECTION_POLICY.principalAxisTolerance * ipe.Iy,
+        20,
+      );
+    });
+
+    it('bezieht sich auf max(|Iy|, |Iz|), nicht auf Iy allein', () => {
+      // Sonst schwiege die Frage ausgerechnet dort, wo `Iy` klein und `Iz`
+      // groß ist.
+      const flat: SectionProperties = { ...ipe, Iy: 1e-9, Iz: 1, Iyz: 1e-11 };
+      expect(validateSectionProperties(flat, POLICY).warnings).toEqual([]);
+    });
+
+    it('mit Toleranz 0 ist es wieder der exakte Vergleich', () => {
+      // Die richtige Schärfe für wen, der nur Formen und Katalogzeilen
+      // führt — deshalb ist die 0 ein zulässiger Wert.
+      const exact = createSectionPolicy({ principalAxisTolerance: 0 });
+      const noise: SectionProperties = { ...ipe, Iyz: Number.MIN_VALUE };
+      expect(validateSectionProperties(noise, exact).warnings).toHaveLength(1);
+      expect(validateSectionProperties(ipe, exact).warnings).toEqual([]);
+    });
+  });
+});
+
+/**
+ * Die Befunde am UMLAUFSINN des mitgeführten Umrisses (P2, ADR 0034).
+ *
+ * Material läuft mit `signedArea > 0`, ein Loch mit `< 0`.
+ */
+describe('Der Umriss: Material gegen Loch', () => {
+  const SQUARE = [
+    { y: 0, z: 0 },
+    { y: 100, z: 0 },
+    { y: 100, z: 100 },
+    { y: 0, z: 100 },
+  ];
+
+  function outline(...polygons: { y: number; z: number }[][]) {
+    return check({
+      kind: 'outline',
+      rings: [],
+      outline: polygons.map((points) => ({ points })),
+    });
+  }
+
+  it('lässt einen positiv gewickelten Umriss ohne Befund durch', () => {
+    const { errors, warnings } = outline(SQUARE);
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('meldet den verkehrt herum gewickelten Umriss als FEHLER', () => {
+    // Ohne ihn gibt Green ein negatives `A` zurück und
+    // `fem-section-resolve` daraus eine negative Steifigkeit — der einzige
+    // Fehler dieser Ecke, der den Löser STILL kaputtmacht.
+    const { errors } = outline([...SQUARE].reverse());
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(NegativeOutlineAreaError);
+    expect((errors[0] as NegativeOutlineAreaError).signedArea).toBeLessThan(0);
+  });
+
+  it('meldet denselben Fehler, wenn das Loch größer ist als das Material', () => {
+    const small = SQUARE.map((p) => ({ y: p.y / 2, z: p.z / 2 }));
+    const { errors } = outline(small, [...SQUARE].reverse());
+    expect(errors.some((e) => e instanceof NegativeOutlineAreaError)).toBe(true);
+  });
+
+  it('meldet den entarteten Ring — er trägt zur Rechnung exakt nichts bei', () => {
+    const collapsed = [
+      { y: 0, z: 0 },
+      { y: 10, z: 0 },
+      { y: 20, z: 0 },
+    ];
+    const { errors } = outline(SQUARE, collapsed);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(DegenerateOutlineRingError);
+    expect((errors[0] as DegenerateOutlineRingError).index).toBe(1);
+  });
+
+  it('nimmt ein sauber verschachteltes Loch ohne Befund', () => {
+    const hole = [
+      { y: 25, z: 25 },
+      { y: 25, z: 75 },
+      { y: 75, z: 75 },
+      { y: 75, z: 25 },
+    ];
+    const { errors, warnings } = outline(SQUARE, hole);
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('WARNT beim freistehenden Loch, statt zu verweigern', () => {
+    // Rechenbar (es zieht dann eben Fläche ab, die es nicht gibt) und bei
+    // zwei getrennten Vollflächen legitim aussehend — genau die Lage, für
+    // die ADR 0032 warnt.
+    const far = [
+      { y: 500, z: 500 },
+      { y: 500, z: 510 },
+      { y: 510, z: 510 },
+      { y: 510, z: 500 },
+    ];
+    const { errors, warnings } = outline(SQUARE, far);
+    expect(errors).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toBeInstanceOf(UnnestedHoleWarning);
+    expect((warnings[0] as UnnestedHoleWarning).index).toBe(1);
+  });
+
+  it('nimmt doppelte aufeinanderfolgende Punkte hin — sie tragen null bei', () => {
+    // AUSDRÜCKLICH KEIN BEFUND: ein doppelter Punkt trägt zur
+    // Shoelace-Summe exakt null bei.
+    const doubled = [SQUARE[0]!, SQUARE[0]!, ...SQUARE.slice(1)];
+    const { errors, warnings } = outline(doubled);
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('schweigt zum Umlaufsinn, solange gar kein Umriss da ist', () => {
+    // Sonst wäre jeder Windungsbefund ein Folgefehler von G1.
+    const { errors } = outline([
+      { y: 0, z: 0 },
+      { y: 10, z: 0 },
+    ]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(EmptyOutlineError);
   });
 });

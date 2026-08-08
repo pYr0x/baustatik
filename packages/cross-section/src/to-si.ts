@@ -41,30 +41,37 @@ export type PrincipalAxes = {
 /**
  * Hauptträgheitsmomente und Hauptachsenwinkel aus `Iy`, `Iz`, `Iyz`.
  *
- * REINE ALGEBRA UND DESHALB TOTAL — es gibt keinen Querschnitt, fuer den die
+ * REINE ALGEBRA UND DESHALB TOTAL — es gibt keinen Querschnitt, für den die
  * Frage offen bliebe. Genau darum sind `alpha`, `Iu` und `Iv` PFLICHTFELDER an
- * `SectionProperties`: bei einem IPE 300 waere `undefined` keine Auskunft,
+ * `SectionProperties`: bei einem IPE 300 wäre `undefined` keine Auskunft,
  * sondern eine Unwahrheit.
  *
  * Herleitung: die Drehung um `alpha` (positiv von `+y` nach `+z`) liefert
  *
  *   `Iuv = (Iy − Iz)/2 · sin 2α + Iyz · cos 2α`,
  *
- * und `Iuv = 0` heisst `tan 2α = −2·Iyz / (Iy − Iz)`. Aus `atan2` genommen,
- * nicht aus `atan`: nur so faellt der Quadrant richtig, `alpha` landet in
- * `(−π/2, +π/2]`, und `Iu` wird das GROESSERE der beiden — beides sind die
+ * und `Iuv = 0` heißt `tan 2α = −2·Iyz / (Iy − Iz)`. Aus `atan2` genommen,
+ * nicht aus `atan`: nur so fällt der Quadrant richtig, `alpha` landet in
+ * `(−π/2, +π/2]`, und `Iu` wird das GRÖSSERE der beiden — beides sind die
  * Rider aus ADR 0031, und sie gelten hier per Konstruktion und nicht per Test.
  *
- * `Iyz === 0` ist ABGEKUERZT, und die Abkuerzung ist exakt: verschwindet das
+ * `Iyz === 0` ist ABGEKÜRZT, und die Abkürzung ist exakt: verschwindet das
  * Deviationsmoment, SIND `y` und `z` bereits die Hauptachsen. Die allgemeine
- * Formel kaeme auf dieselbe Antwort, aber ueber `sqrt` und Division — und
- * `Iu === Iy` waere dann nur noch auf Gleitkommarauschen genau. Alle heutigen
- * Quellen laufen durch diesen Zweig.
+ * Formel käme auf dieselbe Antwort, aber über `sqrt` und Division — und
+ * `Iu === Iy` wäre dann nur noch auf Gleitkommarauschen genau.
  *
- * EXPORTIERT, ABER NICHT IM BARREL: der allgemeine Zweig hat heute keine
- * Quelle, die ihn erreicht — er wartet auf die Green-Rechnung aus P2. Ohne
- * eigenen Test waere er ungeprueft, und ein ungeprueftes Vorzeichen in einer
- * Winkelkonvention ist genau der Fehler, den ADR 0031 verhindern soll.
+ * BEIDE ZWEIGE SIND SEIT P2 IN GEBRAUCH. Die parametrischen Formen und die
+ * Katalogzeile schreiben eine literale `0` hin und nehmen die Abkürzung; der
+ * gezeichnete Umriss liefert über Green ein allgemeines `Iyz` — bei einer
+ * achsparallelen Figur als Gleitkommarauschen, sonst als echte Zahl — und läuft
+ * durch die allgemeine Formel. Ob Hauptachsenlage vorliegt, beantwortet damit
+ * nicht dieser Vergleich, sondern das Gate mit
+ * `SectionPolicy.principalAxisTolerance`.
+ *
+ * EXPORTIERT, ABER NICHT IM BARREL: die Funktion ist Hausalgebra und keine
+ * Zusage nach außen. Ein eigener Test hängt trotzdem an ihr, weil ein
+ * ungeprüftes Vorzeichen in einer Winkelkonvention genau der Fehler ist, den
+ * ADR 0031 verhindern soll.
  */
 export function principalAxes(
   Iy: number,

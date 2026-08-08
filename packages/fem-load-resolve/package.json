@@ -1,6 +1,6 @@
 {
   "name": "@baustatik/fem-load-resolve",
-  "version": "0.1.2",
+  "version": "0.0.1",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",

@@ -27,10 +27,12 @@
  * und `@baustatik/script` traegt es dann transitiv im Snapshot-Builder.
  */
 
-import { Bulge } from '@baustatik/section-geometry';
+import { Bulge, Polygon } from '@baustatik/section-geometry';
 import {
+  DegenerateOutlineRingError,
   DuplicateSectionIdError,
   EmptyOutlineError,
+  NegativeOutlineAreaError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
   type SectionElement,
@@ -40,11 +42,17 @@ import {
   ShearCentreUnknownWarning,
   TangentKinkWarning,
   UnknownSectionNodeError,
+  UnnestedHoleWarning,
   ZeroLengthWallError,
 } from './errors';
 import type { SectionPolicy } from './policy';
 import type { SectionProperties } from './properties';
-import type { SectionGeometry, SectionNode, Wall } from './types';
+import type {
+  Polygon as OutlinePolygon,
+  SectionGeometry,
+  SectionNode,
+  Wall,
+} from './types';
 
 /** Das Ergebnis einer Gate-Pruefung. Zwei Sorten Befund. */
 export type SectionValidationResult = {
@@ -77,6 +85,12 @@ export function validateSectionGeometry(
   );
   if (bearing.length === 0) {
     errors.push(new EmptyOutlineError(geometry.outline.length));
+  } else {
+    // G1b — die Windung. NUR wenn überhaupt Ringe da sind: sonst wäre jeder
+    // Befund hier ein Folgefehler von G1.
+    const outline = outlineFindings(geometry.outline);
+    errors.push(...outline.errors);
+    warnings.push(...outline.warnings);
   }
 
   if (geometry.kind === 'outline') return { errors, warnings };
@@ -129,36 +143,39 @@ export function validateSectionGeometry(
 }
 
 /**
- * Alle Befunde zu den ZAHLEN — die Saetze 1, 2 und 4.
+ * Alle Befunde zu den ZAHLEN — die Sätze 1, 2 und 4.
  *
- * `errors` ist heute IMMER LEER, und das ist keine Luecke: was an einem
- * Zahlensatz nicht rechenbar waere, ist an der Figur schon aufgefallen, und wo
+ * `errors` ist heute IMMER LEER, und das ist keine Lücke: was an einem
+ * Zahlensatz nicht rechenbar wäre, ist an der Figur schon aufgefallen, und wo
  * es keine Figur gibt (Katalogzeile), buergt der Katalog. Der Kanal steht
- * trotzdem, weil beide Tueren dasselbe Ergebnis liefern sollen — der Aufrufer
+ * trotzdem, weil beide Türen dasselbe Ergebnis liefern sollen — der Aufrufer
  * legt sie zusammen und muss nicht wissen, welche welchen Kanal fuellt.
  *
- * DIE POLICY WIRD HEUTE GENOMMEN, ABER NICHT GELESEN, und das ist kein
- * Versehen: die Schwelle „`Iyz` ist null" landet mit P2 hier drin (siehe Satz 1
- * unten), und die erste Quelle, die `Iyz` numerisch integriert, bringt sie mit.
- * Beide Tueren jetzt gemeinsam umzustellen kostet EINEN Bruch statt zweier
- * ueber zwei Teilprojekte
+ * DIE POLICY WIRD SEIT P2 GELESEN — von Satz 1, mit
+ * `principalAxisTolerance`. Sie wurde in P0 bereits durchgereicht, obwohl es
+ * nichts zu lesen gab: beide Türen gemeinsam umzustellen kostete EINEN Bruch
+ * statt zweier über zwei Teilprojekte
  * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  */
 export function validateSectionProperties(
   properties: SectionProperties,
-  // biome-ignore lint/correctness/noUnusedFunctionParameters: bewusst vorgezogen, siehe JSDoc
   policy: SectionPolicy,
 ): SectionValidationResult {
   const warnings: SectionValidationWarning[] = [];
 
-  // Satz 1 — Hauptachsenlage. EXAKTER VERGLEICH gegen 0, und das ist heute die
-  // richtige Schaerfe: jede Quelle schreibt eine literale 0 hin. Die erste
-  // Quelle, die `Iyz` numerisch aus einem Umriss integriert (P2), bringt die
-  // Frage „wie klein ist null" selbst mit — eine Schranke hier waere geraten,
-  // bevor es etwas zu schaetzen gibt.
-  if (properties.Iyz !== 0) {
+  // Satz 1 — Hauptachsenlage. RELATIVER VERGLEICH, und der ist ab P2 die
+  // richtige Schärfe: der gezeichnete Umriss integriert `Iyz` numerisch, ein
+  // achsparalleles Rechteck liefert dabei Rauschen, und der früher exakte
+  // Vergleich gegen `0` feuerte damit bei JEDEM symmetrisch gezeichneten
+  // Querschnitt. Bezogen auf `max(|Iy|, |Iz|)`, weil eine absolute Schranke in
+  // m⁴ bei cm-großen und m-großen Querschnitten zwei verschiedene Aussagen
+  // wäre.
+  const limit =
+    policy.principalAxisTolerance *
+    Math.max(Math.abs(properties.Iy), Math.abs(properties.Iz));
+  if (Math.abs(properties.Iyz) > limit) {
     warnings.push(
-      new NotPrincipalAxesWarning(properties.Iyz, properties.alpha),
+      new NotPrincipalAxesWarning(properties.Iyz, properties.alpha, limit),
     );
   }
 
@@ -173,6 +190,73 @@ export function validateSectionProperties(
   }
 
   return { errors: [], warnings };
+}
+
+/**
+ * Die drei Befunde am UMLAUFSINN des mitgeführten Umrisses.
+ *
+ * Sie stehen zusammen, weil sie dieselbe Zahl lesen: `signedArea` je Ring.
+ * Außen `> 0` heißt Material, `< 0` ein Loch
+ * ([ADR 0034](../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)).
+ *
+ * AUSDRÜCKLICH NICHT GEPRÜFT: doppelte aufeinanderfolgende Punkte — sie
+ * tragen zur Shoelace-Summe exakt null bei und sind damit harmlos — und die
+ * SELBSTDURCHDRINGUNG, deren Preis echt ist; P0 hat sie offen gelassen, und ab
+ * P3 liefert Clipper2 per Konstruktion überschneidungsfreie Ringe.
+ */
+function outlineFindings(
+  outline: readonly OutlinePolygon[],
+): SectionValidationResult {
+  const errors: SectionValidationError[] = [];
+  const warnings: SectionValidationWarning[] = [];
+
+  const rings = outline.map((polygon, index) => ({
+    index,
+    polygon,
+    signedArea:
+      polygon.points.length < 3 ? 0 : Polygon.signedArea(polygon.points),
+  }));
+
+  // G1b.1 — der entartete Ring. Je Ring, damit die Meldung sagt, WELCHER.
+  for (const ring of rings) {
+    if (ring.polygon.points.length >= 3 && ring.signedArea === 0) {
+      errors.push(
+        new DegenerateOutlineRingError(ring.index, ring.polygon.points.length),
+      );
+    }
+  }
+
+  // G1b.2 — die Gesamtfläche. Ohne sie gibt Green ein negatives `A` zurück
+  // und `fem-section-resolve` daraus eine negative Steifigkeit.
+  const total = rings.reduce((sum, ring) => sum + ring.signedArea, 0);
+  if (total <= 0) {
+    errors.push(new NegativeOutlineAreaError(total));
+  }
+
+  // G1b.3 — das freistehende Loch. WARNUNG: rechenbar (es zieht dann eben
+  // Fläche ab, die es nicht gibt) und bei zwei getrennten Vollflächen
+  // legitim aussehend.
+  //
+  // GEPRÜFT WIRD EIN PUNKT, nicht die Ueberdeckung zweier Ringe: bei
+  // überschneidungsfreien Ringen ist das dasselbe, und liegt einer drin,
+  // liegen alle drin.
+  const material = rings.filter((ring) => ring.signedArea > 0);
+  for (const hole of rings.filter((ring) => ring.signedArea < 0)) {
+    // Der erste Punkt reicht als Probe, und er ist da: bei weniger als drei
+    // Punkten ist `signedArea` 0, ein leerer Ring kommt also nie bis hierher.
+    // Der `undefined`-Zweig steht nur, weil der Typ ihn offen lässt.
+    const [probe] = hole.polygon.points;
+    if (probe === undefined) continue;
+
+    const inside = material.some((ring) =>
+      Polygon.contains(ring.polygon, probe),
+    );
+    if (!inside) {
+      warnings.push(new UnnestedHoleWarning(hole.index, hole.signedArea));
+    }
+  }
+
+  return { errors, warnings };
 }
 
 /**

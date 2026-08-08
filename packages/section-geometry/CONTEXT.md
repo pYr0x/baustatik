@@ -57,9 +57,9 @@ Important consumers:
 - [`src/convert.ts`](src/convert.ts): the mapping to `x`/`y` in both directions,
   with the full rationale for why it is orientation-preserving. Read this first
   if you are tempted to "fix" the missing minus sign.
-- [`src/polygon.ts`](src/polygon.ts): the native `signedAreaYZ` and the winding
-  normalisation — the second place (after `convert.ts`) where a sign convention
-  is decided.
+- [`src/polygon.ts`](src/polygon.ts): the native `signedAreaYZ`, the winding
+  rule and the `y`/`z` naming of `Polygon.moments` — the second place (after
+  `convert.ts`) where a sign convention is decided.
 - [`src/vector.ts`](src/vector.ts): `Vector`. `add`, `subtract`, `scale`,
   `negate`, `dot` and `cross` are implemented natively in `y`/`z`.
 - [`src/line.ts`](src/line.ts), [`src/arc.ts`](src/arc.ts),
@@ -106,18 +106,25 @@ Important consumers:
   delegated counterparts, so this is redundancy rather than divergence — and it
   keeps the sign conventions readable where they are decided.
 - **Winding: `signedArea > 0` means the ring runs in the positive rotation
-  sense** (clockwise as drawn). `Polygon.make` normalises to `signedArea >= 0`,
-  so a constructed polygon's `signedArea` *is* its area and area moments derived
-  later come out signed correctly without a correction factor. Every boolean op
-  and transform routes its output through `Polygon.make`, so the invariant holds
-  package-wide.
-- **`isClockwise` is the on-screen reading** (`signedArea > 0`) and is therefore
-  `true` for a normalised polygon. `toClockwise` / `toCounterClockwise` force a
-  specific winding and **deliberately bypass `Polygon.make`** — routing them
-  through it would let the normalisation immediately undo the request.
-  `toCounterClockwise` was written as `Polygon.make(...)` back when the
-  normalisation happened to point that way; flipping the winding rule turned it
-  into its own opposite, which is why both are now spelled out explicitly.
+  sense** (`+y → +z`) — which is exactly what `geometry-2d` calls
+  counter-clockwise, since `(y, z)` is the mathematical system under a different
+  name. `Polygon.make` **validates but does not rotate** (ADR 0034): the winding
+  comes out the way it went in, because consumers read it as *material*
+  (`> 0`) against *hole* (`< 0`). `mirror` reverses it. Only
+  `intersect`/`union`/`subtract` promise a winding, and that promise sits at the
+  martinez boundary in `geometry-2d`, not here.
+- **`isClockwise` is `true` for `signedArea < 0`** — the same answer as
+  `geometry-2d`, and the same word in both packages. It used to be `> 0` with
+  the rationale "clockwise as drawn, because `z` points down"; that was a
+  statement about the *drawing* in an API that never draws, and since
+  `convert.ts` maps orientation-preservingly it was simply the wrong name for
+  the mathematically positive sense. How it looks on screen is a footnote, not
+  an API statement — the viewer layer decides where "up" is.
+  `toClockwise` / `toCounterClockwise` force a specific winding and stay spelled
+  out explicitly.
+- **`Polygon.area` is the wrong door for a hole ring.** It returns the absolute
+  value; `Polygon.signedArea` carries the sign, and `Polygon.moments` carries it
+  through all six numbers.
 - **`bulge` is a storage form, `Arc` is the derived one.** `bulge = tan(Δ/4)` is
   redundancy-free — it encodes an arc between two points that are already
   stored — but unreadable. `Bulge` is the pair that translates between them, and
@@ -183,13 +190,17 @@ explicitly wherever the result is stored.
   a hole. For a cross-section package this is the sharpest edge in the API:
   hollow sections cannot be built this way today. A multi-ring polygon type
   would have to come from `geometry-2d` first.
-- **No hole/outer distinction in the winding either.** Because every output ring
-  is normalised to `signedArea >= 0`, the usual convention of giving holes the
-  opposite winding is not available. This has to be resolved together with the
-  point above.
-- **Section properties are absent**, see Boundaries. When they arrive, the
-  positive winding rule above is what makes their signs come out right — do not
-  change it without revisiting them.
+- **No hole/outer distinction in the boolean output.** `Polygon.make` no longer
+  normalises (ADR 0034), so a hole ring is expressible; but the boolean
+  operations still return CCW-only rings, because `fromMartinez` keeps ring 0.
+  Fixing that is the point above, not this one.
+- **Area moments live here, section properties do not.** `Polygon.moments`
+  returns the raw, signed moments about the origin under the `y`/`z` names
+  (`A`, `Sy`, `Sz`, `Iy`, `Iz`, `Iyz`) and nothing else — no centroid shift, no
+  principal axes, no material. `Iyz = +∫y·z dA`, **without** negation: the
+  mathematical convention that goes with `tan 2α = −2·Iyz/(Iy − Iz)` in ADR
+  0031. The composition over several rings, the Steiner shift and the units are
+  `@baustatik/cross-section`'s job.
 - **`Arc.sweep` is where intuition and convention collide.** A caller thinking
   in drafting terms will read "positive sweep" as counter-clockwise on the page;
   here it is the opposite. This is the one API surface where the convention is

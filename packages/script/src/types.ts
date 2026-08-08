@@ -170,23 +170,23 @@ export type FEMModelBuilderConfig = {
  * Guete-Bezeichnung selbst und wurde am Ende der Kette blind als Stahlsorte
  * gelesen.
  *
- * SELBSTTRAGEND IN DEN ZAHLEN seit v4: die Saetze fuehren die Profilzeile und
+ * SELBSTTRAGEND IN DEN ZAHLEN seit v4: die Sätze führen die Profilzeile und
  * die Moduln als KOPIE. Bis v3 rechnete ein gespeichertes Modell gegen die
  * Tabellen der gerade laufenden Programmversion — eine korrigierte Zeile, und
  * jedes alte Modell antwortete still anders
  * ([ADR 0027](../../../docs/adr/0027-catalogues-are-import-sources.md)).
  *
- * v5 benennt EINE FORM UM: `ShapeSpec.kind` heisst `'t-section'` statt
+ * v5 benennt EINE FORM UM: `ShapeSpec.kind` heißt `'t-section'` statt
  * `'t-beam'` — der Name nennt jetzt die Form und nicht den Baustoff. Ein v4
- * traegt das alte Literal und ist damit kein gueltiger v5-Satz.
+ * trägt das alte Literal und ist damit kein gültiger v5-Satz.
  *
  * v6 nimmt eine DRITTE QUERSCHNITTSQUELLE auf: `{ kind: 'section-geometry' }`
- * traegt die frei gezeichnete Figur des Editors samt abgeleitetem Umriss
+ * trägt die frei gezeichnete Figur des Editors samt abgeleitetem Umriss
  * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
  * Rein additiv am Satz — und trotzdem eine neue Zahl, weil ein v6 Querschnitte
  * enthalten kann, die ein v5-Leser nicht kennt. AB HIER IST JEDE v5-DATEI
- * VERLOREN, und das ist bewusst gewaehlt: gespeicherte v5-Modelle, die
- * ueberleben muessten, gibt es nicht, und ein Migrationswerkzeug existiert
+ * VERLOREN, und das ist bewusst gewählt: gespeicherte v5-Modelle, die
+ * überleben müssten, gibt es nicht, und ein Migrationswerkzeug existiert
  * nirgends im Repo.
  *
  * v7 legt das REZEPT neben das Ergebnis: `sectionPolicy` steht als
@@ -202,16 +202,29 @@ export type FEMModelBuilderConfig = {
  * nur das Ergebnis wird kopiert, sondern auch das Rezept. AB HIER IST JEDE
  * v6-DATEI VERLOREN, aus demselben Grund wie bei v5.
  *
+ * v8 setzt das ZWEITE Feld in die `SectionPolicy`: `principalAxisTolerance`,
+ * die Schranke, ab der `Iyz` als null gilt. Sie ist PFLICHT — die Policy führt
+ * die EFFEKTIVEN Werte, und ein optionales Feld wäre genau die stille
+ * Default-Abhängigkeit, gegen die `fem-solver/src/policy.ts` argumentiert.
+ * `parseSectionPolicy` ist strikt, also weist jede v7-Datei ab; kein
+ * Migrationswerkzeug, aus demselben Grund wie bei v5 und v6.
+ *
+ * DASS DER DRITTE BRUCH IN DREI TEILPROJEKTEN FÄLLT, IST EIN MUSTER: P3
+ * (Miter-Limit) und P5 (dicke Wand) sind als weitere Policy-Felder bereits
+ * datiert. Die Frage, ob ein Monorepo ohne Abnehmer überhaupt Schemabrüche
+ * zählen sollte, steht in `packages/TODO.md` — hier bleibt das Verfahren
+ * unverändert.
+ *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein aelterer Snapshot
- * wird ABGELEHNT. Ein v3 per Lookup zu ergaenzen waere genau die stille
+ * wird ABGELEHNT. Ein v3 per Lookup zu ergänzen wäre genau die stille
  * Aufloesung, die v4 abschafft — einmal ausgefuehrt im unguenstigsten Moment
  * und danach nicht mehr von einer bewussten Wahl zu unterscheiden. Beim
- * Formnamen waere die Umschreibung sogar trivial, und genau deshalb steht sie
+ * Formnamen wäre die Umschreibung sogar trivial, und genau deshalb steht sie
  * hier nicht: eine Migration ist ein Werkzeug, das jemand AUFRUFT, sieht und
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 7;
+  readonly schemaVersion: 8;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];

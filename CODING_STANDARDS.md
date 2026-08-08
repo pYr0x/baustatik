@@ -412,6 +412,7 @@ separate, deliberate changes.
 | Tests in `tests/` | colocated in `src/` in `units`, `round`, `core`, `viewport-2d` |
 | `type` for domain records | `packages/material/src/concrete.ts:33` models a record as `interface` while `model.ts:49` uses `type` |
 | Real umlauts in comments | transliterated `ae`/`oe`/`ue` across the FEM strand |
+| `CONTEXT.md` in English | German throughout in `actions`, `cross-section`, `fem`, `fem-element`, `fem-load-resolve`, `fem-loads`, `fem-solver`, `material` — the file's own language wins over the rule until a package is translated as a whole, because a half-English document is worse than either |
 | No `any` | `packages/render-core/src/validation.ts:273-274`, `packages/round/src/utils/guards.ts:5,13` |
 | One geometry implementation | `geometry-2d`, `fem-geometry` and `section-geometry` hold three near-identical `Point`/`Line`/`Vector` namespace objects |
 

@@ -132,7 +132,7 @@ const [part1, part2] = Polyline.split(pl, Point.make(5, 2));
 
 ### Polygon
 **Signature:** `type Polygon = { readonly points: Point[] }`
-**Description:** A closed shape. Polygons are automatically normalized to Counter-Clockwise (CCW) orientation upon creation. Supports boolean operations (union, subtract, intersect) and property calculations (area, centroid).
+**Description:** A closed shape. The winding is **kept as given** — `Polygon.make` validates (at least 3 points) but does not rotate, so a clockwise ring stays clockwise and can express a hole (ADR 0034). `mirror` reverses the winding; the boolean operations still return CCW rings, because that promise sits at the martinez boundary. Supports boolean operations (union, subtract, intersect) and property calculations (area, centroid, moments).
 **Example:**
 ```typescript
 import { Polygon, Point } from '@baustatik/geometry-2d';
@@ -148,9 +148,19 @@ const area = Polygon.area(rect); // 12
 const center = Polygon.centroid(rect); // { x: 2, y: 1.5 }
 const contains = Polygon.contains(rect, Point.make(2, 1)); // true
 
-// Boolean operation (returns array of Polygons)
+// Boolean operation (returns array of CCW Polygons)
 const clipped = Polygon.subtract(rect, someOtherPoly);
+
+// Raw area moments about the ORIGIN, signed — the input for a Green summation
+// over several rings. All six numbers add up linearly, and a hole ring
+// (clockwise) contributes with a negative sign on its own.
+const m = Polygon.moments(rect.points);
+// { A: 12, Sx: 24, Sy: 18, Ixx: 36, Iyy: 64, Ixy: 36 }
 ```
+
+### PolygonMoments
+**Signature:** `type PolygonMoments = { A, Sx, Sy, Ixx, Iyy, Ixy }`
+**Description:** `A = ∫dA`, `Sx = ∫x dA`, `Sy = ∫y dA`, `Ixx = ∫y² dA`, `Iyy = ∫x² dA`, `Ixy = ∫xy dA` — raw about the origin, signed, and scale-free: millimetres in, mm²/mm³/mm⁴ out. Deliberately *not* centroid-relative, so that a sum over several rings needs one Steiner shift at the end instead of one per ring.
 
 ### Types
 **`BoundingBox`**: `{ min: Point; max: Point }`
@@ -170,5 +180,5 @@ The package throws specific error classes for invalid operations:
 
 ## Critical Rules
 - **Immutability**: All geometry types are readonly. Use the static methods to create modified copies.
-- **Orientation**: `Polygon` always enforces CCW order. `Arc` uses signed `sweep` where positive is CCW.
+- **Orientation**: `Polygon` keeps the winding it is given (`signedArea > 0` is CCW); only the boolean operations promise CCW output. `Arc` uses signed `sweep` where positive is CCW.
 - **Precision**: Most equality checks use a default tolerance of `1e-10`.

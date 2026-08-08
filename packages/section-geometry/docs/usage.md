@@ -9,7 +9,7 @@ A 2D geometry library for cross-section calculations in the YZ plane (ISO 80000-
 - **Y-axis**: Horizontal (width)
 - **Z-axis**: Vertical (depth, positive downwards)
 - **Rotation sense**: A positive rotation takes **+y onto +z** — clockwise as drawn, since `z` points down. Same sense as `@baustatik/fem-geometry` (`+x → +z`). Angles are measured from the positive Y-axis, `Vector.angle` is `atan2(dz, dy)` normalized to `[0, 2π)`.
-- **Winding**: `signedArea > 0` means the ring runs in that positive sense (clockwise as drawn). `Polygon.make` normalizes to `signedArea >= 0`, so a constructed polygon's `signedArea` is directly its area. `isClockwise` reports the on-screen reading and is therefore `true` for a normalized polygon.
+- **Winding**: `signedArea > 0` means the ring runs in that positive sense — which is exactly what `geometry-2d` calls counter-clockwise, since `(y, z)` is the mathematical system under a different name. `Polygon.make` **validates but does not rotate** (ADR 0034), so a hole ring (`signedArea < 0`) is expressible; `mirror` reverses the winding; only the boolean operations promise one. `isClockwise` is `true` for `signedArea < 0`, the same answer as `geometry-2d`.
 - **Mapping**: `src/convert.ts` maps `x := y`, `y := z` with **no sign change**. Mirroring would conjugate every rotation into its inverse and silently invert `angle`/`rotate`/`perpendicular`/`normalVector`/`Arc.sweep`. See the header of `src/convert.ts`; pinned by `tests/direction.test.ts`.
 
 ## Types Reference
@@ -339,10 +339,11 @@ const polygon = Polyline.toPolygon(closedPl);
 
 ```typescript
 const Polygon: Transformable<PolygonType> & {
-  make(points: PointType[]): PolygonType;
+  make(points: readonly PointType[]): PolygonType;
   fromLines(lines: LineType[]): PolygonType;
   area(polygon: PolygonType): number;
-  signedArea(points: PointType[]): number;
+  signedArea(points: readonly PointType[]): number;
+  moments(points: readonly PointType[]): PolygonMomentsYZ;
   centroid(polygon: PolygonType): PointType;
   perimeter(polygon: PolygonType): number;
   contains(polygon: PolygonType, point: PointType): boolean;
@@ -356,7 +357,7 @@ const Polygon: Transformable<PolygonType> & {
 };
 ```
 
-**Description:** A closed shape normalized to `signedArea >= 0`, i.e. running in the positive `+y → +z` sense (clockwise as drawn, since `z` points down).
+**Description:** A closed shape. The winding is **kept as given**: `signedArea > 0` runs in the positive `+y → +z` sense (what `geometry-2d` calls CCW), `< 0` the other way and can mean a hole. `moments` returns `PolygonMomentsYZ` — `{ A, Sy, Sz, Iy: ∫z² dA, Iz: ∫y² dA, Iyz: +∫y·z dA }`, raw about the origin, signed and scale-free.
 **Example:**
 
 ```typescript

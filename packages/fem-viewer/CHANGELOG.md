@@ -1,5 +1,15 @@
 # @baustatik/fem-viewer
 
+## 0.0.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @baustatik/fem-solver@0.0.1
+  - @baustatik/fem-geometry@0.0.1
+  - @baustatik/fem-load-resolve@0.0.1
+  - @baustatik/fem-loads@0.0.1
+
 ## 1.2.1
 
 ### Patch Changes
