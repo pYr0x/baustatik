@@ -202,7 +202,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
    *
    * Die dritte Quelle, `'section-geometry'`, wird nur KOPIERT: es gibt keinen
    * Katalog dahinter, und geprueft wird sie dort, wo sie gezeichnet wird
-   * (`validateSectionGeometry`). Der Builder zoege sich sonst ein Gatter in
+   * (`validateSectionGeometry`). Der Builder zoege sich sonst ein Gate in
    * eine Zeile, die gar nicht darueber entscheidet.
    */
   crossSection(input: CrossSectionInput): CrossSectionHandle {

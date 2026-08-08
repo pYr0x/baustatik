@@ -21,10 +21,10 @@ import {
 } from '../src/index';
 
 /**
- * Das Prüfgatter des Querschnitts
+ * Das Gate des Querschnitts
  * ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
- * Die Toleranz reist in der POLICY herein und steht nicht im Gatter — deshalb
+ * Die Toleranz reist in der POLICY herein und steht nicht im Gate — deshalb
  * kann dieser Test sie festhalten, ohne eine Konstante zu importieren
  * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  */
@@ -253,7 +253,7 @@ describe('Satz 3: der Knick am Bogen, an der Toleranz aufgehaengt', () => {
   });
 
   it('urteilt nicht ueber einen Bogen, dessen Knoten fehlt', () => {
-    // Das Gatter SAMMELT, es wirft nicht: der haengende Verweis steht als
+    // Das Gate SAMMELT, es wirft nicht: der haengende Verweis steht als
     // Fehler da, und die Knickpruefung uebergeht die Wand still, statt am
     // fehlenden Knoten abzustuerzen. Sonst bekaeme man je Durchlauf genau
     // einen Befund und muesste ihn einzeln abarbeiten.

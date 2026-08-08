@@ -150,7 +150,7 @@ export interface FEMModelSnapshotBuilder extends FEMModelBuilder {
  * EINE VOLLSTAENDIGE POLICY, KEINE OVERRIDES, wie `SolverConfig.analysisPolicy`
  * und aus demselben Grund: die Anwendung ruft einmal `createSectionPolicy(…)`
  * und reicht exakt dasselbe unveraenderliche Objekt an den Builder, an das
- * Gatter und an den Viewer weiter. Naehme diese Stelle Abweichungen entgegen,
+ * Gate und an den Viewer weiter. Naehme diese Stelle Abweichungen entgegen,
  * gaebe es zwei Orte, an denen derselbe Satz unterschiedlich zusammengesetzt
  * werden koennte.
  *
@@ -196,7 +196,7 @@ export type FEMModelBuilderConfig = {
  * Werte, sonst rechnete dasselbe Projekt nach einer Aenderung der
  * Software-Defaults still anders. Der Gewinn, der die Denormalisierung
  * rechtfertigt: die Drift-Pruefung wird erstmals wohldefiniert. Mit der
- * Toleranz im SELBEN Satz wie dem Umriss kann ein Gatter sagen „dieser Umriss
+ * Toleranz im SELBEN Satz wie dem Umriss kann ein Gate sagen „dieser Umriss
  * wurde unter einer anderen Toleranz erzeugt als die, die hier steht", ohne
  * eine einzige Geometrieoperation — ADR 0027s Figur zu Ende gebracht: nicht
  * nur das Ergebnis wird kopiert, sondern auch das Rezept. AB HIER IST JEDE

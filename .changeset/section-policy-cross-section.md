@@ -2,7 +2,7 @@
 '@baustatik/cross-section': major
 ---
 
-**Breaking:** `SectionPolicy` ist da, und beide Gattertüren nehmen sie.
+**Breaking:** `SectionPolicy` ist da, und beide Türen des Gates nehmen sie.
 
 - `validateSectionGeometry(g, policy)` und `validateSectionProperties(p, policy)`
   statt `(g, { arcTolerance })` und `(p)`.

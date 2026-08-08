@@ -322,19 +322,19 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
  * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
  *
  * WAS HIER NICHT GEPRUEFT WIRD, und der Grund ist neu: ob die Figur RECHENBAR
- * ist. Dafuer gibt es seit P0 ein benanntes Gatter,
+ * ist. Dafuer gibt es seit P0 ein benanntes Gate,
  * `validateSectionGeometry` in `@baustatik/cross-section`, und es sagt „Wand
  * *w3* zeigt auf einen Knoten, den es nicht gibt", waehrend dieser Parser nur
  * „`walls[2].startNodeId` ist keine Zeichenkette" sagen koennte. Zwei Meinungen
  * darueber, was ein brauchbarer Querschnitt ist, waeren eine zu viel — deshalb
  * wird `t` hier auf ENDLICH geprueft und nicht auf positiv: das Vorzeichen
- * gehoert dem Gatter, das die Wand beim Namen nennt.
+ * gehoert dem Gate, das die Wand beim Namen nennt.
  *
  * Der mitgefuehrte `outline` wird ebenfalls nur auf Gestalt geprueft und NICHT
  * gegen `nodes`/`walls` nachgerechnet. Das waere die stille Aufloesung durch
  * die Hintertuer, an genau der Stelle, an der ein Nutzer sie am wenigsten
  * bemerkt — dieselbe Regel wie bei der kopierten Profilzeile (ADR 0027). Die
- * Drift meldet das Gatter, sichtbar.
+ * Drift meldet das Gate, sichtbar.
  */
 function parseSectionGeometry(input: unknown, path: string): SectionGeometry {
   const value = record(input, path);

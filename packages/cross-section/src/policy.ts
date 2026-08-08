@@ -76,7 +76,7 @@ export type SectionPolicy = {
    * SIE WIRKT ZWEIMAL, und das ist eine Modellannahme und nicht zwei: sie sagt,
    * wie fein ein Bogen zerlegt wird, UND ab wann er als Gerade gilt
    * (`Bulge.isStraight`). Aus ihr faellt ausserdem die Knickschranke des
-   * Gatters (ADR 0032).
+   * Gates (ADR 0032).
    */
   readonly arcTolerance: mm;
 };

@@ -27,7 +27,7 @@ import type { Idealisation } from './section';
  * Mittellinien, laengs derer ein Schubfluss laufen koennte.
  *
  * DER ABGELEITETE UMRISS REIST MIT. Er ist eine Denormalisierung, aber keine
- * ungepruefte: das Gatter leitet ihn ohnehin ab, der Vergleich kostet nichts,
+ * ungepruefte: das Gate leitet ihn ohnehin ab, der Vergleich kostet nichts,
  * und aus stiller Drift wird ein Befund. Der Grund ist derselbe wie bei der
  * kopierten Profilzeile ([ADR 0027](../../../docs/adr/0027-catalogues-are-import-sources.md)):
  * ein Bericht druckt `A = 5163,21 mm²`, eine neue Bibliotheksversion liefert
@@ -93,7 +93,7 @@ export type SectionNode = { id: string; y: mm; z: mm };
  * (`@baustatik/section-geometry`): positiv dreht von `+y` nach `+z`
  * ([ADR 0031](../../../docs/adr/0031-the-cross-section-plane.md)). Die
  * Endtangente weicht damit um `Δ/2 = 2·atan(bulge)` von der Sehne ab — das ist
- * alles, was die Knickwarnung des Gatters braucht, und der Grund, warum sie
+ * alles, was die Knickwarnung des Gates braucht, und der Grund, warum sie
  * ohne `Arc`-Objekt auskommt.
  */
 export type Wall = {

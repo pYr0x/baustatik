@@ -143,7 +143,7 @@ describe('Die Hauptachsen fallen aus jeder Quelle', () => {
 describe('Der Schubmittelpunkt liegt im System von ys/zs', () => {
   it.each(SOURCES)('%s: yM steht, denn y ist Symmetrieachse', (_name, p) => {
     // Alle sechs Quellen haben eine Symmetrieachse in y, also liegt M auf ihr.
-    // Damit ist Satz 2 des Gatters fuer sie beantwortet und Satz 4 still.
+    // Damit ist Satz 2 des Gates fuer sie beantwortet und Satz 4 still.
     expect(p.yM).toBe(p.ys);
   });
 

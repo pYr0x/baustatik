@@ -18,7 +18,7 @@ Green-Rechnung steht.
 
 Dazu gehoert seit
 [ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md) das
-**Prüfgatter**: `validateSectionGeometry` und `validateSectionProperties`, beide
+**Gate**: `validateSectionGeometry` und `validateSectionProperties`, beide
 mit dem Kanal `{ errors, warnings }`.
 
 Und seit
@@ -39,7 +39,7 @@ Damit schlaegt dieses Package **nichts mehr nach** — `sectionProperties` und
 Vier Abhaengigkeiten: `@baustatik/steel-profiles` (nur noch der **Typ**
 `SteelProfileData`, kein `lookupProfile` mehr im `src`), `@baustatik/units`
 (die Umrechnungsfaktoren und die Quantity-Typen), `@baustatik/errors` (die
-Wurzel der Gatterklassen, ADR 0030) und seit ADR 0033
+Wurzel der Gate-Klassen, ADR 0030) und seit ADR 0033
 `@baustatik/section-geometry`.
 
 **Die Geometriekante ist neu und war vorher ausdruecklich verboten.** ADR 0032
@@ -49,7 +49,7 @@ Knickwarnung ihre Endtangente aus `2·atan(bulge)` von Hand rechnete und
 `Bulge` (P1) gibt es die Umrechnung an einer Stelle; `outgoingTangent` liest
 `Bulge.sweep`, und die Doppelung ist aufgeloest statt nur getestet. **Der Preis
 ist ausgesprochen:** sobald `geometry-2d` in P3 `clipper2-ts` einzieht, traegt
-`@baustatik/script` es transitiv mit. Den mitgefuehrten Umriss LIEST das Gatter
+`@baustatik/script` es transitiv mit. Den mitgefuehrten Umriss LIEST das Gate
 weiterhin, es leitet ihn nicht ab.
 
 ## Die Grenze zur Bemessung, mechanisch pruefbar
@@ -225,7 +225,7 @@ symmetrisch: `yM = ys = 0` steht, aber `zM != zs`, und die Zahl faellt erst aus
 dem Wandweg. `undefined` heisst **nicht ermittelt**, nach dem Muster von
 `kappaY?` — `zs` hinzuschreiben waere eine Unwahrheit.
 
-## Das Prüfgatter: es warnt, es verweigert nicht
+## Das Gate: es warnt, es verweigert nicht
 
 Zwei Tueren, weil zwei verschiedene Fragen
 ([ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md)):
@@ -254,14 +254,14 @@ Plattenbalken.
 `notch = (t/2)·tan(theta/2)`, gewarnt wird bei `notch > arcTolerance`. Bei
 `0,05 mm` heisst das `t = 6 → ≈1,9°`, `t = 20 → ≈0,57°`. Dass dicke Waende
 weniger Knick vertragen, ist richtig — ihre Kerbe wird tiefer. Die Toleranz ist
-ein **Parameter** und keine Konstante im Gatter (ADR 0011); sie steht in der
+ein **Parameter** und keine Konstante im Gate (ADR 0011); sie steht in der
 `SectionPolicy`, die beide Tueren nehmen.
 
 **`validateSectionProperties` nimmt die Policy heute, ohne ein Feld daraus zu
 lesen.** Das ist Absicht und kein Versehen: die Schwelle „`Iyz` ist null" landet
 mit P2 dort, und ein Bruch jetzt ist billiger als zwei ueber zwei Teilprojekte.
 
-### Offene Luecke: `bulge` wird vom Gatter NICHT geprueft
+### Offene Luecke: `bulge` wird vom Gate NICHT geprueft
 
 G1 bis G6 sehen den Umriss, doppelte Ids, haengende Verweise, `t > 0`, die
 Nulllaengenwand und den Knick — **nie die Woelbung selbst**. Ein `bulge` von
@@ -274,7 +274,7 @@ bei einem nicht endlichen `bulge` — und bei einem am Vollkreis-Pol, wo
 `4·atan(bulge)` auf `2π` rundet — auf die Sehne zurueck, statt zu werfen. Das
 ist die Notbremse und nicht die Loesung: ein solcher Satz wird dann falsch
 GEZEICHNET, ohne dass irgendwer ihn gemeldet haette. Ein eigener Befund gehoert
-ins Gatter, ist aber eine Erweiterung seiner Befundmenge und damit eine
+ins Gate, ist aber eine Erweiterung seiner Befundmenge und damit eine
 Entscheidung, die P1 nicht getroffen hat.
 
 ## `SectionPolicy`: die Erzeugungs-Einstellung

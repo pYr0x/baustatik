@@ -157,7 +157,7 @@ describe('Die Bogenwand wird als arcPath gezeichnet, ohne Vorzeichenumrechnung',
 });
 
 describe('Der Zeichenweg wirft nicht — auch nicht an einem kaputten bulge', () => {
-  // Das Gatter prueft `bulge` heute NICHT: G1-G6 sehen Umriss, doppelte Ids,
+  // Das Gate prueft `bulge` heute NICHT: G1-G6 sehen Umriss, doppelte Ids,
   // haengende Verweise, `t > 0`, Nulllaenge und Knick — nie die Woelbung. Beide
   // Werte hier koennen also aus einem Store kommen, ohne gemeldet worden zu
   // sein. Ein Wurf loeschte Grid, Umriss und jede andere Wand mit.

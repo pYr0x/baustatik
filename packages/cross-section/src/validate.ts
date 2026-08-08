@@ -1,5 +1,5 @@
 /**
- * Das Prüfgatter des Querschnitts — ZWEI TUEREN, weil zwei verschiedene Fragen
+ * Das Gate des Querschnitts — ZWEI TUEREN, weil zwei verschiedene Fragen
  * ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
  *   `validateSectionGeometry`   — ist die GEZEICHNETE FIGUR in sich stimmig?
@@ -46,7 +46,7 @@ import type { SectionPolicy } from './policy';
 import type { SectionProperties } from './properties';
 import type { SectionGeometry, SectionNode, Wall } from './types';
 
-/** Das Ergebnis einer Gatterpruefung. Zwei Sorten Befund. */
+/** Das Ergebnis einer Gate-Pruefung. Zwei Sorten Befund. */
 export type SectionValidationResult = {
   errors: SectionValidationError[];
   warnings: SectionValidationWarning[];
@@ -57,7 +57,7 @@ export type SectionValidationResult = {
  *
  * `errors` leer heisst: aus diesem Satz laesst sich rechnen.
  *
- * DIE POLICY IST EIN PARAMETER, keine Konstante im Gatter: eine Zahl, die das
+ * DIE POLICY IST EIN PARAMETER, keine Konstante im Gate: eine Zahl, die das
  * Ergebnis aendert, wird uebergeben und nicht importiert (ADR 0011). Sie steht
  * seit `schemaVersion: 7` auf Projektebene im Snapshot, also reicht der
  * Aufrufer genau die Einstellung herein, unter der die Figur ERZEUGT wurde

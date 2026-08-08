@@ -1,5 +1,5 @@
 /**
- * Die benannten Beanstandungen des Querschnitts-Prüfgatters.
+ * Die benannten Beanstandungen des Querschnitts-Gates.
  *
  * WARUM SIE HIER WOHNEN: die tragende Ordnung dieses Repos ist „wer den Typ
  * besitzt, besitzt seine Regeln". `SectionGeometry` und `SectionProperties`
@@ -16,7 +16,7 @@
  * haelt nichts auf
  * ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
- * KLASSEN UND KEINE STRINGS, und alle tragen ihre Ids als FELDER: das Gatter
+ * KLASSEN UND KEINE STRINGS, und alle tragen ihre Ids als FELDER: das Gate
  * gibt seine Befunde ZURUECK, und eine Oberflaeche markiert daran die
  * betroffene Wand oder den betroffenen Knoten. Aus einem Meldungstext liesse
  * sich das nur wieder herausparsen.
@@ -101,7 +101,7 @@ const ELEMENT_LABEL: Record<SectionElement, string> = {
  * auftreten; die Ids sind die bessere Wahl (ADR 0030), aber sie kosten genau
  * diese Pruefung. Sie steht hier und nicht im Snapshot-Parser, weil beide
  * dieselbe Frage waeren und dieses Package den Typ besitzt — der Parser prueft
- * die GESTALT, das Gatter die Rechenbarkeit.
+ * die GESTALT, das Gate die Rechenbarkeit.
  */
 export class DuplicateSectionIdError extends SectionValidationError {
   readonly element: SectionElement;

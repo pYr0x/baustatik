@@ -21,7 +21,7 @@ Modulkonstante zöge die Zahl aus einer anderen Quelle.
 **Der Zeichenweg wirft weiterhin nicht.** Ein nicht endlicher `bulge` und einer
 am Vollkreis-Pol (`|bulge| ≳ 1,6e16`, wo `4·atan(bulge)` genau auf `2π` rundet)
 fallen auf die Sehne zurück, statt `InvalidArcError` bzw. eine von
-`render-core` zurückgewiesene Spec zu erzeugen. Das Gatter prüft `bulge` heute
+`render-core` zurückgewiesene Spec zu erzeugen. Das Gate prüft `bulge` heute
 nicht, beides kann also aus einem Store kommen — und ein Wurf hier löschte
 Grid, Umriss und jede andere Wand mit.
 

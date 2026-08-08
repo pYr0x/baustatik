@@ -20,11 +20,11 @@
  * traegt denselben stillschweigenden Massstab, den vorher die `0,1` trug; neu
  * ist nur, dass die Zahl einen Namen und eine Begruendung hat.
  *
- * Auf die Knickschranke des Querschnitts-Prüfgatters wirkt sie unmittelbar: bei
+ * Auf die Knickschranke des Querschnitts-Gates wirkt sie unmittelbar: bei
  * `0,05 mm` vertraegt eine `6 mm`-Wand rund `1,9°`, eine `20 mm`-Wand nur noch
  * `0,57°` ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
- * KEINE KONSTANTE IM GATTER, sondern ein PARAMETER an seiner Tuer: eine Zahl,
+ * KEINE KONSTANTE IM GATE, sondern ein PARAMETER an seiner Tuer: eine Zahl,
  * die das Ergebnis aendert, wird uebergeben und nicht importiert (ADR 0011).
  * Sonst haengt `@baustatik/cross-section` an diesem Package, nur um eine `0,05`
  * zu lesen.

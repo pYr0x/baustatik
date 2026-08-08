@@ -110,6 +110,13 @@ Rationale, worked examples and the list of packages that currently diverge:
   `kappaY`), not the English word, with the unit in JSDoc as `[m2]`.
 - Comments and JSDoc are German, explain *why*, and cite ADR numbers. Use real
   umlauts in new text.
+- Two vocabularies, and neither is translated into the other: engineering terms
+  are German (`Querschnitt`, `Knick`, `Schwerpunkt`), software and architecture
+  terms stay English inside the German sentence (`das Gate`, `der Builder`,
+  `die Policy`, `der Port`). Never coin a German compound for an English
+  concept — where no term is established, describe it plainly
+  (`der Prüfschritt`) instead of inventing one. A term that genuinely needs a
+  German form is pinned in the package's `CONTEXT.md`, not decided per file.
 - Tests live in `tests/*.test.ts`; `describe`/`it` are German sentences stating
   the invariant.
 - Documents — `AGENTS.md`, `CONTEXT.md`, `README.md`, `CODING_STANDARDS.md` —

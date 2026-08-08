@@ -77,7 +77,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
   function sectionSpecs(geometry: SectionGeometry): Spec[] {
     const specs: Spec[] = geometry.outline
       // Ein Polygon unter drei Punkten traegt keine Flaeche, und `render-core`
-      // weist es zu Recht zurueck. Das Gatter laesst es trotzdem durch: es
+      // weist es zu Recht zurueck. Das Gate laesst es trotzdem durch: es
       // fehlt erst, wenn KEIN Polygon traegt — waehrend der Eingabe ist ein
       // halb gezogener Ring der Normalfall. Dieselbe Haltung wie bei den
       // Waenden: wer ein unfertiges Modell zeichnet, soll den Rest davon sehen.
@@ -107,7 +107,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
    * Eine Wand als Mittellinie — gerade als `line`, gebogen als `arcPath`.
    *
    * `undefined` heisst „hier nicht": ein haengender Verweis ist ein Befund des
-   * Gatters (`UnknownSectionNodeError`), kein Wurf im Zeichenweg. Wer ein
+   * Gates (`UnknownSectionNodeError`), kein Wurf im Zeichenweg. Wer ein
    * kaputtes Modell zeichnet, soll den Rest davon sehen.
    *
    * EIN STRICH DER DICKE `t` AUF EINEM BOGEN **IST** DIE WAND. `arcPath` hat
@@ -184,7 +184,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
    *                             `|bulge| ~ 1.6e16` rundet `4·atan(bulge)` genau
    *                             auf `2π`. Der Adapter wiese die Spec zurueck.
    *
-   * DAS GATTER PRUEFT `bulge` HEUTE NICHT — G1 bis G6 sehen Umriss, doppelte
+   * DAS GATE PRUEFT `bulge` HEUTE NICHT — G1 bis G6 sehen Umriss, doppelte
    * Ids, haengende Verweise, `t > 0`, Nulllaenge und Knick, aber nie die
    * Woelbung selbst; die Knickwarnung rechnet bei `NaN` still `notch = NaN` und
    * schweigt. Beides kann also aus einem Store kommen, ohne dass irgendwer es

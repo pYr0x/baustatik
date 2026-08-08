@@ -1,6 +1,6 @@
 # Ausbauplan Monorepo — offen
 
-Stand: 2026-07-29. Diese Liste enthält bewusst nur noch offene Arbeit und
+Stand: 2026-08-08. Diese Liste enthält bewusst nur noch offene Arbeit und
 Entscheidungen, die dafür wichtig bleiben. Erledigte Stufen sind in ADRs,
 `CONTEXT.md`, Changelogs und Tests festgehalten — nicht hier.
 
@@ -12,6 +12,7 @@ Entscheidungen, die dafür wichtig bleiben. Erledigte Stufen sind in ADRs,
 | FEM-Viewer | Schnittgrößen grafisch darstellen | Die Rechenwerte und exakten Auswertungsstellen existieren bereits. |
 | FEM-Rechnung | Lastkombinationen und Hüllkurven | Baut auf Lastfällen und den vorhandenen Schnittgrößen-Auswertungen auf. |
 | Querschnitte | Werte → Profilkatalog → Solver-Anschluss | Liefert echte Steifigkeiten, bevor ein Editor gebaut wird. |
+| Projekt | Behälter und Persistenz entwerfen (ADR) | Der Modellsatz ist versioniert und vollständig; darüber gibt es bis heute nichts, das ihn hält. |
 
 Der Viewer- und der Querschnittsstrang können unabhängig weiterlaufen.
 
@@ -128,6 +129,81 @@ die Spannungspunkte. Bewusst noch nicht angefasst:
   ist ebenfalls noch offen.
 - **`i-shape` mit unabhängigen Gurten**, das I und T subsumiert (T = Grenzfall
   `tf,unten = 0`). Das ist eine Formänderung im Modellsatz, kein Aufräumen.
+
+## 6. Das Projekt als Behälter — und wo die `AnalysisPolicy` landet
+
+**Der Befund, der diesen Abschnitt auslöst:** die `AnalysisPolicy` wird heute
+**nirgends** persistiert. Typ, Default und der strikte `parseAnalysisPolicy`
+existieren seit [ADR 0011](../docs/adr/0011-analysis-settings-split-into-versioned-policy-and-ports.md)
+und tragen eine eigene `ANALYSIS_POLICY_SCHEMA_VERSION` (heute 2) — aber der
+Parser hat bis heute **keinen produktiven Aufrufer**, und genau deshalb durfte
+der Sprung 1 → 2 ohne Migrationspfad passieren (`fem-solver/CONTEXT.md`). Die
+Einstellung erreicht die Rechnung ausschließlich zur Laufzeit über
+`SolverConfig.analysisPolicy`. Sie ist also als persistierbare Form entworfen
+und hat noch keinen Ort, an dem sie landet. Dieser Abschnitt ist dieser Ort.
+
+### Die Gliederung, die gilt
+
+```text
+Projekt                       Name und die Angaben zum Bauvorhaben
+  ├─ Position (Modell)        FEMModelSnapshot + AnalysisPolicy
+  ├─ Position (Modell)
+  ├─ Querschnitt              aus dem Querschnittseditor
+  └─ Querschnitt
+```
+
+Ein Projekt ist die **Sammlung der Module**, die das Repo anbietet, und die
+Einheit, die gespeichert und geöffnet wird. Es enthält beliebig viele
+Positionen (Modelle) und beliebig viele selbst gezeichnete Querschnitte.
+
+**Die `AnalysisPolicy` gehört zu EINER Position, nicht zum Projekt.** Ob eine
+Position schubsteif oder schubweich gerechnet wird, ist eine Entscheidung über
+diese Position; zwei Positionen desselben Projekts dürfen sie verschieden
+treffen. Das ist dieselbe Begründung, mit der
+[ADR 0033](../docs/adr/0033-the-cross-section-has-a-creation-policy.md) die
+`SectionPolicy` **nicht** je `CrossSection` ablegt: die Frage ist immer, über
+welchen Gegenstand die Einstellung urteilt.
+
+### Was vor der ersten Zeile Code zu entscheiden ist
+
+- **Eigenes Package oder nicht.** Im Projekt steht wenig — Name und Angaben zum
+  Bauvorhaben —, und der Rest sind Verweise auf Sätze, die andere Packages
+  besitzen. Ein Package, das nur einen Behältertyp exportiert, ist zu prüfen,
+  nicht vorauszusetzen. Wer immer ihn bekommt, muss die Sätze der Positionen
+  und der Querschnitte kennen und wäre damit die oberste Ebene des Graphen.
+- **Wie viele `schemaVersion` trägt eine Projektdatei?** Hier stoßen zwei
+  bereits getroffene Entscheidungen aufeinander. ADR 0033 sagt für die
+  `SectionPolicy` *„one version per record, and the record is the snapshot"* —
+  sie hat deshalb bewusst **keine** eigene Version. Die `AnalysisPolicy` hat
+  eine. Legt man beide in eine Datei, stehen zwei bis drei Zahlen über
+  denselben Bytes, und jemand muss sagen, welche gilt. Die Alternative — eine
+  Version am Projekt, die alle Sätze überdeckt — kostet, dass jede Änderung an
+  irgendeinem Teilsatz die Projektversion hebt.
+- **Was „Projektebene" ab dann heißt.** ADR 0033 nennt `sectionPolicy` im
+  Snapshot ein Feld „auf Projektebene". Sobald es ein echtes Projekt mit
+  mehreren Positionen gibt, ist dieselbe Stelle **Positionsebene**. Zu
+  entscheiden ist, ob die Erzeugungs-Einstellung dort bleibt (jede Position
+  ihre eigene) oder an das Projekt wandert (ein Querschnittseditor, eine
+  Toleranz für alle). Der Grund, aus dem sie überhaupt im Satz steht — die
+  Drift-Prüfung braucht die Toleranz **neben** dem Umriss —, spricht dafür,
+  dass sie dort bleibt, wo der Umriss liegt.
+- **Wem gehören die Querschnitte des Editors?** Sie stehen oben als
+  Projektinhalt, weil sie über Positionen hinweg wiederverwendbar sein sollen;
+  im Modellsatz trägt heute jede Position ihre `crossSections` als **Kopie**
+  mit (ADR 0027: nicht nachschlagen, sondern mitführen). Beides ist kein
+  Widerspruch, aber die Richtung muss benannt werden: Projekt-Querschnitte sind
+  die **Quelle**, aus der eine Position kopiert — nicht der Ort, den die
+  Rechnung liest.
+- **Migration bleibt ein Werkzeug, das jemand aufruft.** Die Regel aus v5, v6
+  und v7 gilt weiter: ein älterer Satz wird abgelehnt, nicht still ergänzt.
+
+### Was dabei nicht neu zu erfinden ist
+
+Die Form steht: vollständige effektive Werte statt Abweichungslisten, Version
+zuerst und dann die Gestalt prüfen, jede Scheibe wird von ihrem Eigentümer
+geparst und dessen Fehlerklasse reist unverändert nach außen. Ein Projektparser
+ruft `parseFEMModelSnapshot` und `parseAnalysisPolicy` — er prüft deren Formen
+nicht ein zweites Mal.
 
 ## Dauerhafte Leitplanken
 
