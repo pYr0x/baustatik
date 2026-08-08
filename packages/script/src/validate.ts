@@ -1,9 +1,10 @@
-import type {
-  CrossSection,
-  Idealisation,
-  SectionGeometry,
-  ShapeSpec,
-  Vertex,
+import {
+  type CrossSection,
+  type Idealisation,
+  parseSectionPolicy,
+  type SectionGeometry,
+  type ShapeSpec,
+  type Vertex,
 } from '@baustatik/cross-section';
 import { BaustatikError } from '@baustatik/errors';
 import { assertValidModel } from '@baustatik/fem';
@@ -38,6 +39,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
     'beams',
     'crossSections',
     'materials',
+    'sectionPolicy',
     'supports',
     'loadCases',
   ]);
@@ -46,18 +48,23 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // hier — dort die Guete selbst (`'S235'`), hier ein Verweis auf
   // `Material.id`; bei v3 fehlen die kopierten Zahlen; bei v4 heisst die
   // T-Form `'t-beam'` statt `'t-section'`; bei v5 fehlt die dritte
-  // Querschnittsquelle (ADR 0030).
+  // Querschnittsquelle (ADR 0030); bei v6 fehlt das REZEPT, unter dem der
+  // mitgefuehrte Umriss erzeugt wurde (`sectionPolicy`, ADR 0033).
   //
-  // Verfuehrerisch zu ergaenzen waeren gleich drei: bei v3 stehen die
+  // Verfuehrerisch zu ergaenzen waeren gleich vier: bei v3 stehen die
   // Bezeichnungen darin, ein Lookup laege nahe; bei v4 waere es ein ersetztes
-  // Literal; und v5 ist am Satz sogar UNVERAENDERT — die neue Variante ist rein
-  // additiv, ein v5 liesse sich schlicht durchwinken. Genau das ist die stille
-  // Aufloesung, die ADR 0027 abschafft: einmal ausgefuehrt, im unguenstigsten
-  // Moment, und danach nicht mehr von einer bewussten Wahl zu unterscheiden.
-  // Eine Migration ist ein Werkzeug, das jemand AUFRUFT, sieht und ablehnen
-  // kann — und AB HIER IST JEDE v5-DATEI VERLOREN.
-  if (snapshot.schemaVersion !== 6) {
-    fail('Snapshot.schemaVersion muss 6 sein.');
+  // Literal; v5 ist am Satz sogar UNVERAENDERT; und bei v6 laege es am
+  // naechsten, weil `DEFAULT_SECTION_POLICY` als Ergaenzung bereitliegt. Genau
+  // die waere aber die schlimmste: eine eingesetzte Voreinstellung BEHAUPTET,
+  // der Umriss sei unter 0,05 mm entstanden, und die Drift-Pruefung, um
+  // derentwillen das Feld ueberhaupt existiert, urteilte danach gegen eine
+  // erfundene Zahl. Das ist die stille Aufloesung, die ADR 0027 abschafft:
+  // einmal ausgefuehrt, im unguenstigsten Moment, und danach nicht mehr von
+  // einer bewussten Wahl zu unterscheiden. Eine Migration ist ein Werkzeug,
+  // das jemand AUFRUFT, sieht und ablehnen kann — und AB HIER IST JEDE
+  // v6-DATEI VERLOREN.
+  if (snapshot.schemaVersion !== 7) {
+    fail('Snapshot.schemaVersion muss 7 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -117,6 +124,20 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   const materials = array(snapshot.materials, 'Snapshot.materials').map(
     (value, index) => parseMaterial(value, `Snapshot.materials[${index}]`),
   );
+
+  // PFLICHTFELD, und zwar VOLLSTAENDIG: hier stehen die effektiven Werte, nicht
+  // die Abweichungen (ADR 0033). Fehlt es, ist das kein v7 — die
+  // Voreinstellung einzusetzen hiesse zu behaupten, der mitgefuehrte Umriss sei
+  // unter ihr entstanden.
+  //
+  // GEPRUEFT WIRD ES VON SEINEM EIGENTUEMER, samt dessen eigener Fehlerklasse
+  // (`InvalidSectionPolicyError`) — dieselbe Arbeitsteilung, mit der
+  // `@baustatik/fem-solver` `parseLoadValidationPolicy` ruft. Eine zweite
+  // Formpruefung hier waeren zwei Wahrheiten ueber dieselbe Form.
+  if (snapshot.sectionPolicy === undefined) {
+    fail('Snapshot.sectionPolicy fehlt.');
+  }
+  const sectionPolicy = parseSectionPolicy(snapshot.sectionPolicy);
 
   const supports = array(snapshot.supports, 'Snapshot.supports').map(
     (value, index) => {
@@ -179,11 +200,12 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     nodes,
     beams,
     crossSections,
     materials,
+    sectionPolicy,
     supports,
     loadCases,
   };
@@ -300,19 +322,19 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
  * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
  *
  * WAS HIER NICHT GEPRUEFT WIRD, und der Grund ist neu: ob die Figur RECHENBAR
- * ist. Dafuer gibt es seit P0 ein benanntes Gatter,
+ * ist. Dafuer gibt es seit P0 ein benanntes Gate,
  * `validateSectionGeometry` in `@baustatik/cross-section`, und es sagt „Wand
  * *w3* zeigt auf einen Knoten, den es nicht gibt", waehrend dieser Parser nur
  * „`walls[2].startNodeId` ist keine Zeichenkette" sagen koennte. Zwei Meinungen
  * darueber, was ein brauchbarer Querschnitt ist, waeren eine zu viel — deshalb
  * wird `t` hier auf ENDLICH geprueft und nicht auf positiv: das Vorzeichen
- * gehoert dem Gatter, das die Wand beim Namen nennt.
+ * gehoert dem Gate, das die Wand beim Namen nennt.
  *
  * Der mitgefuehrte `outline` wird ebenfalls nur auf Gestalt geprueft und NICHT
  * gegen `nodes`/`walls` nachgerechnet. Das waere die stille Aufloesung durch
  * die Hintertuer, an genau der Stelle, an der ein Nutzer sie am wenigsten
  * bemerkt — dieselbe Regel wie bei der kopierten Profilzeile (ADR 0027). Die
- * Drift meldet das Gatter, sichtbar.
+ * Drift meldet das Gate, sichtbar.
  */
 function parseSectionGeometry(input: unknown, path: string): SectionGeometry {
   const value = record(input, path);

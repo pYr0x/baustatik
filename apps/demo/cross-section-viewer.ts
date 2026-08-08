@@ -1,4 +1,9 @@
-import type { SectionGeometry, SectionNode, Wall } from '@baustatik/cross-section';
+import {
+    DEFAULT_SECTION_POLICY,
+    type SectionGeometry,
+    type SectionNode,
+    type Wall,
+} from '@baustatik/cross-section';
 import { createCrossSectionViewer, CROSS_SECTION_LAYERS } from '@baustatik/cross-section-viewer';
 import { createKonvaAdapter as createKonvaDriver } from '@baustatik/konva-adapter';
 import { viewport, screenPoint } from '@baustatik/viewport-2d';
@@ -7,13 +12,17 @@ import { defineStore, createPinia } from 'pinia';
 const pinia = createPinia();
 
 // Store haelt ROHDATEN (keine section-geometry-Objekte, keine Kamera): den
-// Wandgraphen und den daraus abgeleiteten Umriss, genau so, wie ADR 0030 ihn
-// speichert. Der Umriss reist MIT — der Viewer leitet keinen eigenen ab.
+// Wandgraphen, den daraus abgeleiteten Umriss und die Erzeugungs-Einstellung,
+// genau so, wie ADR 0030 und ADR 0033 sie speichern. Der Umriss reist MIT — der
+// Viewer leitet keinen eigenen ab —, und das REZEPT reist daneben mit, damit
+// beide unter derselben Toleranz gelesen werden.
 const useStore = defineStore('sections', {
     state: () => ({
         nodes: [] as SectionNode[],
         walls: [] as Wall[],
         outline: [] as SectionGeometry['outline'],
+        // Projektebene, nicht je Querschnitt: dieselbe Zahl beurteilt alle.
+        sectionPolicy: DEFAULT_SECTION_POLICY,
     }),
     getters: {
         geometry(state): SectionGeometry {
@@ -71,6 +80,7 @@ const viewer = createCrossSectionViewer({
     driver,
     initialViewport: viewport(screenPoint(stageSize.width / 2, stageSize.height / 2,), 2),
     getGeometry: () => store.geometry,
+    getSectionPolicy: () => store.sectionPolicy,
     getScreenSize: () => stageSize,
     grid: { spacing: 10 }, // Weltkoordinaten; der Querschnitt ist 60–100 Einheiten gross
 });

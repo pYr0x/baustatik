@@ -1,6 +1,11 @@
-import type { SectionGeometry, Wall } from '@baustatik/cross-section';
+import type {
+  SectionGeometry,
+  SectionPolicy,
+  Wall,
+} from '@baustatik/cross-section';
 import { type GridOptions, gridSpecs } from '@baustatik/grid-2d';
 import type { RenderDriver, Spec } from '@baustatik/render-core';
+import { Bulge, Point, type PointType } from '@baustatik/section-geometry';
 import {
   pan,
   type Size,
@@ -24,13 +29,25 @@ interface ViewerConfig {
    * dasselbe, was gespeichert wird.
    */
   getGeometry: () => SectionGeometry;
+  /**
+   * PULL der Erzeugungs-Einstellung, aus demselben Store wie `getGeometry`
+   * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
+   *
+   * ZWEITER PULL UND KEINE MODULKONSTANTE: `arcTolerance` entscheidet mit,
+   * welche Kante ueberhaupt als Bogen gezeichnet wird, und sie steht seit
+   * `schemaVersion: 7` im SELBEN Satz wie der Umriss, den der Viewer daneben
+   * zeichnet. Eine Konstante hier zoege die Toleranz aus einer anderen Quelle
+   * als den Satz; ein OPTIONALER Pull liesse die stille Abweichung nur
+   * unauffaelliger bestehen.
+   */
+  getSectionPolicy: () => SectionPolicy;
   getScreenSize: () => Size; // PULL wie getGeometry — resize-faehig
   grid?: GridOptions; // weggelassen = kein Grid
   initialViewport?: Viewport;
 }
 
 export function createCrossSectionViewer(config: ViewerConfig) {
-  const { driver, getGeometry } = config;
+  const { driver, getGeometry, getSectionPolicy } = config;
   const STROKE_SCALE = 1; // OPTIK: konstante Strichbreite am Schirm (px, zoomt nicht mit)
   const OUTLINE_STROKE = 1; // px — die Umrisslinie ist eine KANTE, keine Wand
 
@@ -50,16 +67,17 @@ export function createCrossSectionViewer(config: ViewerConfig) {
    *   Die WANDMITTELLINIEN kommen aus `nodes`/`walls` und tragen ihre Dicke als
    *   Strichbreite. Sie sind die Eingabe, nicht das Ergebnis.
    *
-   * EINE BOGENWAND WIRD NICHT ALS MITTELLINIE GEZEICHNET. `bulge` in einen
-   * `Arc` umzurechnen ist die Aufgabe von P1, und sie darf nicht zweimal
-   * geschrieben werden — die Kruemmung steht bis dahin sichtbar im Umriss. Ihre
-   * SEHNE zu zeichnen waere die schlechtere Antwort: eine Linie, die es nicht
-   * gibt, ununterscheidbar von einer, die es gibt.
+   * EINE BOGENWAND WIRD JETZT MITGEZEICHNET (P1). Bis P0 gab `wallSpec` fuer
+   * sie `undefined` zurueck, weil `bulge` in einen `Arc` umzurechnen nicht
+   * zweimal geschrieben werden durfte; seit `Bulge` in
+   * `@baustatik/section-geometry` steht, gibt es die Umrechnung an einer
+   * Stelle. Ihre SEHNE zu zeichnen waere weiterhin die schlechtere Antwort:
+   * eine Linie, die es nicht gibt, ununterscheidbar von einer, die es gibt.
    */
   function sectionSpecs(geometry: SectionGeometry): Spec[] {
     const specs: Spec[] = geometry.outline
       // Ein Polygon unter drei Punkten traegt keine Flaeche, und `render-core`
-      // weist es zu Recht zurueck. Das Gatter laesst es trotzdem durch: es
+      // weist es zu Recht zurueck. Das Gate laesst es trotzdem durch: es
       // fehlt erst, wenn KEIN Polygon traegt — waehrend der Eingabe ist ein
       // halb gezogener Ring der Normalfall. Dieselbe Haltung wie bei den
       // Waenden: wer ein unfertiges Modell zeichnet, soll den Rest davon sehen.
@@ -85,18 +103,53 @@ export function createCrossSectionViewer(config: ViewerConfig) {
     return specs;
   }
 
-  /** Eine gerade Wand als Mittellinie. `undefined` heisst „hier nicht". */
+  /**
+   * Eine Wand als Mittellinie — gerade als `line`, gebogen als `arcPath`.
+   *
+   * `undefined` heisst „hier nicht": ein haengender Verweis ist ein Befund des
+   * Gates (`UnknownSectionNodeError`), kein Wurf im Zeichenweg. Wer ein
+   * kaputtes Modell zeichnet, soll den Rest davon sehen.
+   *
+   * EIN STRICH DER DICKE `t` AUF EINEM BOGEN **IST** DIE WAND. `arcPath` hat
+   * keine Fuellung (`render-core/src/specs.ts` trennt ihn deshalb vom
+   * Ringsegment), und das ist fuer eine Mittellinie genau richtig.
+   *
+   * DIE VORZEICHEN TRAGEN OHNE UMRECHNUNG DURCH, und das ist die eine Stelle,
+   * an der drei Drehsinne aufeinandertreffen: `bulge` -> `Arc.sweep` (positiv
+   * `+y → +z`, ADR 0031) -> `ArcPathSpec.sweepAngle` (positiv `+u → +v`). Das
+   * Mapping dazwischen ist `worldPoint(y, z)`, also die Identitaet. Gepinnt in
+   * `tests/node/cross-section.test.ts` — argumentiert reichte hier nicht.
+   */
   function wallSpec(
     wall: Wall,
     byId: ReadonlyMap<string, { y: number; z: number }>,
   ): Spec | undefined {
-    if ((wall.bulge ?? 0) !== 0) return undefined;
     const start = byId.get(wall.startNodeId);
     const end = byId.get(wall.endNodeId);
-    // Ein haengender Verweis ist ein Befund des Gatters
-    // (`UnknownSectionNodeError`), kein Wurf im Zeichenweg: wer ein kaputtes
-    // Modell zeichnet, soll den Rest davon sehen.
     if (start === undefined || end === undefined) return undefined;
+
+    const bulge = wall.bulge ?? 0;
+    // t ist PHYSIK (die Wandstaerke), nicht die Strichbreite am Schirm —
+    // deshalb skaliert sie mit dem Viewport und die Umrisslinie nicht.
+    const strokeWidth = wall.t * vp.scale * STROKE_SCALE;
+    const p1 = Point.make(start.y, start.z);
+    const p2 = Point.make(end.y, end.z);
+    const arcTolerance = getSectionPolicy().arcTolerance;
+
+    if (drawsAsArc(p1, p2, bulge, arcTolerance)) {
+      const arc = Bulge.toArc(p1, p2, bulge, arcTolerance);
+      return {
+        kind: 'arcPath',
+        id: wall.id,
+        layer: 'section',
+        center: worldPoint(arc.center.y, arc.center.z),
+        radius: arc.radius,
+        startAngle: arc.startAngle,
+        sweepAngle: arc.sweep,
+        strokeWidth,
+        strokeColor: '#000',
+      };
+    }
 
     // `from`/`to` sind hier die Enden der ZEICHENSTRECKE (`Spec`), nicht die
     // Knotenverweise der Wand — die heissen `startNodeId`/`endNodeId`.
@@ -106,11 +159,49 @@ export function createCrossSectionViewer(config: ViewerConfig) {
       layer: 'section',
       from: worldPoint(start.y, start.z),
       to: worldPoint(end.y, end.z),
-      // t ist PHYSIK (die Wandstaerke), nicht die Strichbreite am Schirm —
-      // deshalb skaliert sie mit dem Viewport und die Umrisslinie nicht.
-      strokeWidth: wall.t * vp.scale * STROKE_SCALE,
+      strokeWidth,
       strokeColor: '#000',
     };
+  }
+
+  /**
+   * Ob diese Kante als Bogen gezeichnet wird — und DER ZEICHENWEG WIRFT NICHT.
+   *
+   * Das ist keine Vorsicht, sondern die Regel dieses Moduls: ein kaputtes Modell
+   * soll man SEHEN. Ein Wurf hier loeschte Grid, Umriss und jede andere Wand
+   * gleich mit, und weil `draw()` auch aus `onViewIntent` laeuft, braeche er
+   * mitten im Pan ab.
+   *
+   * DREI FAELLE FALLEN DESHALB AUF DIE SEHNE ZURUECK:
+   *
+   *   `bulge === 0`           — die gerade Wand, der Regelfall.
+   *   `bulge` nicht endlich   — `Bulge.toArc` wuerfe `InvalidArcError`.
+   *                             `NaN` kaeme sogar durch beide Vorpruefungen:
+   *                             `NaN !== 0` ist wahr und `NaN <= tolerance`
+   *                             falsch, die Kante gaelte also als Bogen.
+   *   `|Δ| >= 2π`             — `ArcPathSpec` verlangt `|sweepAngle| < 2π`
+   *                             (`render-core/src/specs.ts`), und ab
+   *                             `|bulge| ~ 1.6e16` rundet `4·atan(bulge)` genau
+   *                             auf `2π`. Der Adapter wiese die Spec zurueck.
+   *
+   * DAS GATE PRUEFT `bulge` HEUTE NICHT — G1 bis G6 sehen Umriss, doppelte
+   * Ids, haengende Verweise, `t > 0`, Nulllaenge und Knick, aber nie die
+   * Woelbung selbst; die Knickwarnung rechnet bei `NaN` still `notch = NaN` und
+   * schweigt. Beides kann also aus einem Store kommen, ohne dass irgendwer es
+   * gemeldet haette. Solange das so ist, faengt es der Zeichenweg ab.
+   */
+  function drawsAsArc(
+    p1: PointType,
+    p2: PointType,
+    bulge: number,
+    arcTolerance: number,
+  ): boolean {
+    if (bulge === 0 || !Number.isFinite(bulge)) return false;
+    if (Math.abs(Bulge.sweep(bulge)) >= 2 * Math.PI) return false;
+    // DIESELBE SCHRANKE WIE ANDERSWO: was `Bulge` als Gerade liest, zeichnet
+    // der Viewer als Gerade. Ein eigenes Epsilon hier gaebe eine Kante, die
+    // gerade gerechnet und krumm gezeichnet wird.
+    return !Bulge.isStraight(Point.distance(p1, p2), bulge, arcTolerance);
   }
 
   function draw() {

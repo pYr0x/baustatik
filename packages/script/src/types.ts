@@ -1,6 +1,7 @@
 import type {
   CrossSection,
   SectionGeometry,
+  SectionPolicy,
   ShapeSpec,
 } from '@baustatik/cross-section';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
@@ -144,6 +145,23 @@ export interface FEMModelSnapshotBuilder extends FEMModelBuilder {
 }
 
 /**
+ * Was `createFEMModelBuilder` beim Aufbau braucht — heute genau eine Sache.
+ *
+ * EINE VOLLSTAENDIGE POLICY, KEINE OVERRIDES, wie `SolverConfig.analysisPolicy`
+ * und aus demselben Grund: die Anwendung ruft einmal `createSectionPolicy(…)`
+ * und reicht exakt dasselbe unveraenderliche Objekt an den Builder, an das
+ * Gate und an den Viewer weiter. Naehme diese Stelle Abweichungen entgegen,
+ * gaebe es zwei Orte, an denen derselbe Satz unterschiedlich zusammengesetzt
+ * werden koennte.
+ *
+ * Auslassen heisst `DEFAULT_SECTION_POLICY` — im SATZ steht danach trotzdem
+ * der vollstaendige, effektive Wert (ADR 0033).
+ */
+export type FEMModelBuilderConfig = {
+  readonly sectionPolicy?: SectionPolicy;
+};
+
+/**
  * Das serialisierbare Modell.
  *
  * SELBSTTRAGEND IN DEN VERWEISEN seit v2/v3: `crossSections` und `materials`
@@ -171,6 +189,19 @@ export interface FEMModelSnapshotBuilder extends FEMModelBuilder {
  * ueberleben muessten, gibt es nicht, und ein Migrationswerkzeug existiert
  * nirgends im Repo.
  *
+ * v7 legt das REZEPT neben das Ergebnis: `sectionPolicy` steht als
+ * PFLICHTFELD auf Projektebene, neben `crossSections` und `materials`
+ * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
+ * Vollstaendig und nicht als Abweichungsliste — hier stehen die EFFEKTIVEN
+ * Werte, sonst rechnete dasselbe Projekt nach einer Aenderung der
+ * Software-Defaults still anders. Der Gewinn, der die Denormalisierung
+ * rechtfertigt: die Drift-Pruefung wird erstmals wohldefiniert. Mit der
+ * Toleranz im SELBEN Satz wie dem Umriss kann ein Gate sagen „dieser Umriss
+ * wurde unter einer anderen Toleranz erzeugt als die, die hier steht", ohne
+ * eine einzige Geometrieoperation — ADR 0027s Figur zu Ende gebracht: nicht
+ * nur das Ergebnis wird kopiert, sondern auch das Rezept. AB HIER IST JEDE
+ * v6-DATEI VERLOREN, aus demselben Grund wie bei v5.
+ *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein aelterer Snapshot
  * wird ABGELEHNT. Ein v3 per Lookup zu ergaenzen waere genau die stille
  * Aufloesung, die v4 abschafft — einmal ausgefuehrt im unguenstigsten Moment
@@ -180,11 +211,20 @@ export interface FEMModelSnapshotBuilder extends FEMModelBuilder {
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 6;
+  readonly schemaVersion: 7;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];
   readonly materials: readonly Material[];
+  /**
+   * Die Erzeugungs-Einstellung des Projekts, VOLLSTAENDIG und PFLICHT.
+   *
+   * PROJEKTEBENE UND NICHT JE `CrossSection`: zwei der drei kuenftigen Felder
+   * (`Iyz`-Schwelle, dicke Wand) BEURTEILEN, sie erzeugen nicht — sie je
+   * Querschnitt zu speichern hiesse, dass derselbe Bericht fuer zwei
+   * Querschnitte unter zwei Massstaeben schweigen darf.
+   */
+  readonly sectionPolicy: SectionPolicy;
   readonly supports: readonly NodeSupport[];
   readonly loadCases: readonly LoadCase[];
 }

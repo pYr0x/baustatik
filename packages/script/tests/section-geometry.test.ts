@@ -1,4 +1,9 @@
-import type { SectionGeometry } from '@baustatik/cross-section';
+import {
+  createSectionPolicy,
+  DEFAULT_SECTION_POLICY,
+  InvalidSectionPolicyError,
+  type SectionGeometry,
+} from '@baustatik/cross-section';
 import { describe, expect, it } from 'vitest';
 import {
   createFEMModelBuilder,
@@ -63,7 +68,7 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
     // das ueberstehen, was beim Speichern wirklich passiert.
     const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(built)));
 
-    expect(parsed.schemaVersion).toBe(6);
+    expect(parsed.schemaVersion).toBe(7);
     expect(parsed.crossSections).toHaveLength(1);
     const [section] = parsed.crossSections;
     expect(section?.kind).toBe('section-geometry');
@@ -115,7 +120,7 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
     const v5 = { ...buildSnapshot(), schemaVersion: 5 };
     expect(() => parseFEMModelSnapshot(v5)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v5)).toThrow(
-      'Snapshot.schemaVersion muss 6 sein.',
+      'Snapshot.schemaVersion muss 7 sein.',
     );
   });
 
@@ -133,5 +138,87 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
         ],
       }),
     ).toThrow(SnapshotValidationError);
+  });
+});
+
+/**
+ * v7: das REZEPT steht neben dem Ergebnis
+ * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
+ *
+ * Der Gewinn, der die Denormalisierung rechtfertigt: mit der Toleranz im
+ * SELBEN Satz wie dem Umriss wird die Drift-Pruefung erstmals wohldefiniert.
+ */
+describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () => {
+  it('legt sie neben crossSections und materials, nicht in den Querschnitt', () => {
+    const parsed = parseFEMModelSnapshot(
+      JSON.parse(JSON.stringify(buildSnapshot())),
+    );
+
+    expect(parsed.sectionPolicy).toEqual(DEFAULT_SECTION_POLICY);
+    // NICHT je Querschnitt: zwei der drei kuenftigen Felder BEURTEILEN, sie
+    // erzeugen nicht — derselbe Bericht duerfte sonst fuer zwei Querschnitte
+    // unter zwei Massstaeben schweigen.
+    expect(parsed.crossSections[0]).not.toHaveProperty('sectionPolicy');
+  });
+
+  it('speichert die EFFEKTIVEN Werte, nicht die Abweichungen', () => {
+    // Sonst rechnete dasselbe Projekt nach einer Aenderung der
+    // Software-Defaults still anders.
+    const model = createFEMModelBuilder({
+      sectionPolicy: createSectionPolicy({ arcTolerance: 0.01 }),
+    });
+    const snapshot = model.finish();
+
+    expect(snapshot.sectionPolicy).toEqual({ arcTolerance: 0.01 });
+    expect(
+      parseFEMModelSnapshot(JSON.parse(JSON.stringify(snapshot)))
+        .sectionPolicy,
+    ).toEqual({ arcTolerance: 0.01 });
+  });
+
+  it('LEHNT einen v6-Satz AB, statt die Voreinstellung einzusetzen', () => {
+    // DIE VERFUEHRERISCHSTE ERGAENZUNG VON ALLEN: `DEFAULT_SECTION_POLICY`
+    // liegt bereit. Genau sie waere die schlimmste — sie BEHAUPTETE, der
+    // mitgefuehrte Umriss sei unter 0,05 mm entstanden, und die Drift-Pruefung,
+    // um derentwillen das Feld existiert, urteilte gegen eine erfundene Zahl.
+    const v6: Record<string, unknown> = {
+      ...buildSnapshot(),
+      schemaVersion: 6,
+    };
+    // biome-ignore lint/performance/noDelete: der Test baut genau einen v6-Satz.
+    delete v6.sectionPolicy;
+
+    expect(() => parseFEMModelSnapshot(v6)).toThrow(SnapshotValidationError);
+    expect(() => parseFEMModelSnapshot(v6)).toThrow(
+      'Snapshot.schemaVersion muss 7 sein.',
+    );
+  });
+
+  it('verlangt sectionPolicy auch bei richtiger Versionsnummer', () => {
+    const withoutPolicy: Record<string, unknown> = { ...buildSnapshot() };
+    // biome-ignore lint/performance/noDelete: fehlendes Pflichtfeld ist der Punkt.
+    delete withoutPolicy.sectionPolicy;
+
+    expect(() => parseFEMModelSnapshot(withoutPolicy)).toThrow(
+      'Snapshot.sectionPolicy fehlt.',
+    );
+  });
+
+  it('laesst ihren Eigentuemer pruefen, samt dessen Fehlerklasse', () => {
+    // Eine zweite Formpruefung hier waeren zwei Wahrheiten ueber dieselbe Form
+    // — dieselbe Arbeitsteilung, mit der `fem-solver` seine Lastscheibe prueft.
+    expect(() =>
+      parseFEMModelSnapshot({
+        ...buildSnapshot(),
+        sectionPolicy: { arcTolerance: 0 },
+      }),
+    ).toThrow(InvalidSectionPolicyError);
+
+    expect(() =>
+      parseFEMModelSnapshot({
+        ...buildSnapshot(),
+        sectionPolicy: { arcTolerance: 0.05, miterLimit: 2 },
+      }),
+    ).toThrow(InvalidSectionPolicyError);
   });
 });

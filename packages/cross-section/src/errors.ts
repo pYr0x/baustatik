@@ -1,5 +1,5 @@
 /**
- * Die benannten Beanstandungen des Querschnitts-Prüfgatters.
+ * Die benannten Beanstandungen des Querschnitts-Gates.
  *
  * WARUM SIE HIER WOHNEN: die tragende Ordnung dieses Repos ist „wer den Typ
  * besitzt, besitzt seine Regeln". `SectionGeometry` und `SectionProperties`
@@ -16,10 +16,17 @@
  * haelt nichts auf
  * ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
- * KLASSEN UND KEINE STRINGS, und alle tragen ihre Ids als FELDER: das Gatter
+ * KLASSEN UND KEINE STRINGS, und alle tragen ihre Ids als FELDER: das Gate
  * gibt seine Befunde ZURUECK, und eine Oberflaeche markiert daran die
  * betroffene Wand oder den betroffenen Knoten. Aus einem Meldungstext liesse
  * sich das nur wieder herausparsen.
+ *
+ * EINE AUSNAHME STEHT AM ENDE: `InvalidSectionPolicyError` beanstandet keine
+ * Figur und keinen Zahlensatz, sondern die EINSTELLUNG, mit der erzeugt wird.
+ * Er erbt deshalb von keiner der beiden Basen — er darf weder in `errors` noch
+ * in `warnings` landen, wo eine Oberflaeche ihn als Eingabefehler am
+ * Querschnitt anzeigen wuerde. Dieselbe Aufteilung wie bei
+ * `InvalidLoadValidationPolicyError` in `@baustatik/fem-loads`.
  */
 
 import { BaustatikError } from '@baustatik/errors';
@@ -94,7 +101,7 @@ const ELEMENT_LABEL: Record<SectionElement, string> = {
  * auftreten; die Ids sind die bessere Wahl (ADR 0030), aber sie kosten genau
  * diese Pruefung. Sie steht hier und nicht im Snapshot-Parser, weil beide
  * dieselbe Frage waeren und dieses Package den Typ besitzt — der Parser prueft
- * die GESTALT, das Gatter die Rechenbarkeit.
+ * die GESTALT, das Gate die Rechenbarkeit.
  */
 export class DuplicateSectionIdError extends SectionValidationError {
   readonly element: SectionElement;
@@ -288,5 +295,27 @@ export class TangentKinkWarning extends SectionValidationWarning {
     this.theta = theta;
     this.notch = notch;
     this.arcTolerance = arcTolerance;
+  }
+}
+
+/**
+ * Die ERZEUGUNGS-EINSTELLUNG selbst ist unbrauchbar (`src/policy.ts`).
+ *
+ * ERBT WEDER VON `SectionValidationError` NOCH VON
+ * `SectionValidationWarning`: er wird immer GEWORFEN, nie zurueckgegeben. Ein
+ * Befund ueber die Figur sammelt sich in einer Liste, die eine Oberflaeche dem
+ * Anwender an seinem Querschnitt zeigt — eine kaputte Toleranz gehoert dort
+ * nicht hin, sie ist ein Fehler des PROJEKTS, nicht der Zeichnung.
+ *
+ * `field` nennt das beanstandete Feld, wo es eines gibt — dieselbe Form wie
+ * `InvalidLoadValidationPolicyError`, damit ein Dialog beide gleich behandeln
+ * kann.
+ */
+export class InvalidSectionPolicyError extends BaustatikError {
+  readonly field: string | undefined;
+
+  constructor(reason: string, field?: string) {
+    super(`Querschnitts-Policy: ${reason}`);
+    this.field = field;
   }
 }

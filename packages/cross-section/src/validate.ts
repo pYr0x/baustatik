@@ -1,5 +1,5 @@
 /**
- * Das Prüfgatter des Querschnitts — ZWEI TUEREN, weil zwei verschiedene Fragen
+ * Das Gate des Querschnitts — ZWEI TUEREN, weil zwei verschiedene Fragen
  * ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
  *   `validateSectionGeometry`   — ist die GEZEICHNETE FIGUR in sich stimmig?
@@ -18,13 +18,16 @@
  * Ebene gehalten wird, zum Beispiel. `CrossSection` wird nach ADR 0023 GETEILT:
  * derselbe L-Winkel ist in einem Stab gehalten und im naechsten nicht.
  *
- * KEINE NEUE ABHAENGIGKEIT AUSSER `@baustatik/errors`. Die Knickwarnung liest
- * das MITGEFUEHRTE Polygon und rechnet die Endtangente einer Bogenwand aus
- * `Δ/2 = 2·atan(bulge)` — Trigonometrie, kein `Arc`-Objekt, kein Clipper2. Die
- * Reihenfolge P0 -> P1 bleibt damit sauber, und `@baustatik/script` zieht keine
- * Geometriebibliothek in den Snapshot-Builder.
+ * DIE BOGENALGEBRA KOMMT AUS `@baustatik/section-geometry`. P0 rechnete die
+ * Endtangente einer Bogenwand hier von Hand — `Δ/2 = 2·atan(bulge)` —, weil ADR
+ * 0032 dem Package eine Geometrie-Abhaengigkeit verbot und die Reihenfolge
+ * P0 -> P1 sauber bleiben sollte. Mit `Bulge` (P1) gibt es die Umrechnung an
+ * genau einer Stelle, und die Doppelung ist AUFGELOEST statt nur getestet.
+ * Der Preis steht in ADR 0033: ab P3 zieht `geometry-2d` `clipper2-ts` nach,
+ * und `@baustatik/script` traegt es dann transitiv im Snapshot-Builder.
  */
 
+import { Bulge } from '@baustatik/section-geometry';
 import {
   DuplicateSectionIdError,
   EmptyOutlineError,
@@ -39,38 +42,30 @@ import {
   UnknownSectionNodeError,
   ZeroLengthWallError,
 } from './errors';
+import type { SectionPolicy } from './policy';
 import type { SectionProperties } from './properties';
 import type { SectionGeometry, SectionNode, Wall } from './types';
 
-/** Das Ergebnis einer Gatterpruefung. Zwei Sorten Befund. */
+/** Das Ergebnis einer Gate-Pruefung. Zwei Sorten Befund. */
 export type SectionValidationResult = {
   errors: SectionValidationError[];
   warnings: SectionValidationWarning[];
 };
 
 /**
- * Die Toleranz ist ein PARAMETER, keine Konstante im Gatter.
- *
- * Das loest den Widerspruch zwischen „keine neue Abhaengigkeit fuer
- * `cross-section`" und „die Knickschranke haengt an einer Zahl aus
- * `@baustatik/geometry-2d`" — und es ist die Form, die
- * [ADR 0011](../../../docs/adr/0011-analysis-settings-split-into-versioned-policy-and-ports.md)
- * fuer ergebnisaendernde Zahlen bereits gewaehlt hat. Der Aufrufer reicht
- * `DEFAULT_ARC_TOLERANCE` herein.
- */
-export type SectionGeometryOptions = {
-  /** Zulaessige Sehnenabweichung der Diskretisierung [mm]. */
-  arcTolerance: number;
-};
-
-/**
  * Alle Befunde zur gezeichneten Figur, in Eingabereihenfolge.
  *
  * `errors` leer heisst: aus diesem Satz laesst sich rechnen.
+ *
+ * DIE POLICY IST EIN PARAMETER, keine Konstante im Gate: eine Zahl, die das
+ * Ergebnis aendert, wird uebergeben und nicht importiert (ADR 0011). Sie steht
+ * seit `schemaVersion: 7` auf Projektebene im Snapshot, also reicht der
+ * Aufrufer genau die Einstellung herein, unter der die Figur ERZEUGT wurde
+ * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  */
 export function validateSectionGeometry(
   geometry: SectionGeometry,
-  options: SectionGeometryOptions,
+  policy: SectionPolicy,
 ): SectionValidationResult {
   const errors: SectionValidationError[] = [];
   const warnings: SectionValidationWarning[] = [];
@@ -128,7 +123,7 @@ export function validateSectionGeometry(
   }
 
   // G6 — Satz 3, der Knick am Bogen.
-  warnings.push(...kinks(geometry.walls, byId, options.arcTolerance));
+  warnings.push(...kinks(geometry.walls, byId, policy.arcTolerance));
 
   return { errors, warnings };
 }
@@ -141,9 +136,18 @@ export function validateSectionGeometry(
  * es keine Figur gibt (Katalogzeile), buergt der Katalog. Der Kanal steht
  * trotzdem, weil beide Tueren dasselbe Ergebnis liefern sollen — der Aufrufer
  * legt sie zusammen und muss nicht wissen, welche welchen Kanal fuellt.
+ *
+ * DIE POLICY WIRD HEUTE GENOMMEN, ABER NICHT GELESEN, und das ist kein
+ * Versehen: die Schwelle „`Iyz` ist null" landet mit P2 hier drin (siehe Satz 1
+ * unten), und die erste Quelle, die `Iyz` numerisch integriert, bringt sie mit.
+ * Beide Tueren jetzt gemeinsam umzustellen kostet EINEN Bruch statt zweier
+ * ueber zwei Teilprojekte
+ * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  */
 export function validateSectionProperties(
   properties: SectionProperties,
+  // biome-ignore lint/correctness/noUnusedFunctionParameters: bewusst vorgezogen, siehe JSDoc
+  policy: SectionPolicy,
 ): SectionValidationResult {
   const warnings: SectionValidationWarning[] = [];
 
@@ -252,9 +256,12 @@ function kinks(
  * Die Tangente der Wand AM Knoten `nodeId`, gerichtet VON ihm WEG [rad].
  *
  * Der Bogen steckt vollstaendig in `bulge = tan(Δ/4)`: seine Endtangente liegt
- * um `Δ/2 = 2·atan(bulge)` neben der Sehne, am Anfang auf der einen, am Ende
- * auf der anderen Seite. Mehr braucht Satz 3 nicht — kein Mittelpunkt, kein
- * Radius, kein `Arc`.
+ * um `Δ/2` neben der Sehne, am Anfang auf der einen, am Ende auf der anderen
+ * Seite. Mehr braucht Satz 3 nicht — kein Mittelpunkt, kein Radius, kein `Arc`,
+ * und deshalb ruft diese Stelle `Bulge.sweep` und nicht `Bulge.toArc`: der
+ * Oeffnungswinkel ist koordinatenfrei, ein `Arc` waere die teurere Antwort auf
+ * eine kleinere Frage. `Δ` kommt aber aus EINER Quelle statt aus einer zweiten
+ * Handrechnung.
  *
  * Haengt die Wand am anderen Ende, wird die Endtangente umgedreht: „von diesem
  * Knoten weg" heisst dann entgegen der Durchlaufrichtung.
@@ -271,7 +278,7 @@ function outgoingTangent(
 
   // Positiv von `+y` nach `+z`, wie `Arc.sweep` (ADR 0031).
   const chord = Math.atan2(end.z - start.z, end.y - start.y);
-  const half = 2 * Math.atan(wall.bulge ?? 0);
+  const half = Bulge.sweep(wall.bulge ?? 0) / 2;
 
   if (wall.startNodeId === nodeId) return chord - half;
   return chord + half + Math.PI;

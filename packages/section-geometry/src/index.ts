@@ -1,4 +1,5 @@
 export { Arc } from './arc';
+export { Bulge } from './bulge';
 export { normalizeAngleYZ } from './convert';
 // Durchgereicht statt neu gesetzt: dieselbe Zahl, ein Ort (ADR 0032).
 export { DEFAULT_ARC_TOLERANCE } from '@baustatik/geometry-2d';
@@ -7,10 +8,12 @@ export {
   DegenerateAxisError,
   DegenerateVectorError,
   DiscontinuousLinesError,
+  FullCircleBulgeError,
   InvalidArcError,
   InvalidPolygonError,
   InvalidPolylineError,
   OpenPolylineError,
+  StraightBulgeError,
 } from './errors';
 export { Line } from './line';
 export { Point } from './point';

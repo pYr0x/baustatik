@@ -1,4 +1,8 @@
-import type { CrossSection } from '@baustatik/cross-section';
+import {
+  createSectionPolicy,
+  type CrossSection,
+  type SectionPolicy,
+} from '@baustatik/cross-section';
 import { BaustatikError } from '@baustatik/errors';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type { BeamLoad, LoadCase, NodeLoad } from '@baustatik/fem-loads';
@@ -14,6 +18,7 @@ import type {
   BeamLoadInput,
   CrossSectionHandle,
   CrossSectionInput,
+  FEMModelBuilderConfig,
   FEMModelSnapshot,
   FEMModelSnapshotBuilder,
   LoadCaseHandle,
@@ -40,8 +45,21 @@ export function defineModel(definition: ModelDefinition): ModelDefinition {
   return definition;
 }
 
-export function createFEMModelBuilder(): FEMModelSnapshotBuilder {
-  return new FEMModelBuilderImpl();
+/**
+ * Ein Modellbauer.
+ *
+ * DIE POLICY WIRD GEPRUEFT UND NICHT NUR ENTGEGENGENOMMEN. `SectionPolicy` ist
+ * rein strukturell ueber `mm = number & { __unit?: 'mm' }`, also geht
+ * `{ arcTolerance: 0 }` durch den Compiler — und `parseFEMModelSnapshot` wiese
+ * den fertigen Satz danach zurueck. Der Bauer duerfte nie einen Satz ausgeben,
+ * den sein eigener Parser ablehnt; `createSectionPolicy` ist die pruefende Tuer,
+ * und hier wird sie erzwungen statt erhofft. Ohne Argument liefert sie
+ * `DEFAULT_SECTION_POLICY`.
+ */
+export function createFEMModelBuilder(
+  config?: FEMModelBuilderConfig,
+): FEMModelSnapshotBuilder {
+  return new FEMModelBuilderImpl(createSectionPolicy(config?.sectionPolicy));
 }
 
 const nodeRecords = new WeakMap<NodeHandleImpl, Node>();
@@ -131,6 +149,11 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
   readonly #nodeHandles = new WeakSet<NodeHandleImpl>();
   readonly #beamHandles = new WeakSet<BeamHandleImpl>();
   readonly #loadCaseHandles = new WeakSet<LoadCaseHandleImpl>();
+  readonly #sectionPolicy: SectionPolicy;
+
+  constructor(sectionPolicy: SectionPolicy) {
+    this.#sectionPolicy = sectionPolicy;
+  }
 
   node(position: Position): NodeHandle {
     const record: Node = {
@@ -179,7 +202,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
    *
    * Die dritte Quelle, `'section-geometry'`, wird nur KOPIERT: es gibt keinen
    * Katalog dahinter, und geprueft wird sie dort, wo sie gezeichnet wird
-   * (`validateSectionGeometry`). Der Builder zoege sich sonst ein Gatter in
+   * (`validateSectionGeometry`). Der Builder zoege sich sonst ein Gate in
    * eine Zeile, die gar nicht darueber entscheidet.
    */
   crossSection(input: CrossSectionInput): CrossSectionHandle {
@@ -299,11 +322,14 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
 
   finish(): FEMModelSnapshot {
     return structuredClone({
-      schemaVersion: 6,
+      schemaVersion: 7,
       nodes: this.#nodes,
       beams: this.#beams,
       crossSections: this.#crossSections,
       materials: this.#materials,
+      // Der EFFEKTIVE Wert, nicht die Abweichung: was hier steht, gilt, auch
+      // wenn sich der Software-Default morgen bewegt (ADR 0033).
+      sectionPolicy: this.#sectionPolicy,
       supports: this.#supports,
       loadCases: this.#loadCases,
     });

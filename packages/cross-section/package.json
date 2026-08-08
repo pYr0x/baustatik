@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@baustatik/errors": "workspace:*",
+    "@baustatik/section-geometry": "workspace:*",
     "@baustatik/steel-profiles": "workspace:*",
     "@baustatik/units": "workspace:*"
   }

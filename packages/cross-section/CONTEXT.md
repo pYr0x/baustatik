@@ -18,8 +18,13 @@ Green-Rechnung steht.
 
 Dazu gehoert seit
 [ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md) das
-**Prüfgatter**: `validateSectionGeometry` und `validateSectionProperties`, beide
+**Gate**: `validateSectionGeometry` und `validateSectionProperties`, beide
 mit dem Kanal `{ errors, warnings }`.
+
+Und seit
+[ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md) die
+**`SectionPolicy`** — die Erzeugungs-Einstellung, eine eigene Wurzel und keine
+Scheibe von `AnalysisPolicy`. Siehe den eigenen Abschnitt weiter unten.
 
 Das Package besitzt ausserdem den **Modellsatz `CrossSection`**: den Record, der
 neben `Node`, `Beam` und `NodeSupport` im Modell liegt und mit ihm gespeichert
@@ -31,12 +36,21 @@ Damit schlaegt dieses Package **nichts mehr nach** — `sectionProperties` und
 `stressPoints` sind im Profilzweig total, und `undefined` heisst nur noch
 „unsinnige Abmessungen" bzw. „fuer diese Form gibt es keine Vorlage".
 
-Drei Abhaengigkeiten: `@baustatik/steel-profiles` (nur noch der **Typ**
+Vier Abhaengigkeiten: `@baustatik/steel-profiles` (nur noch der **Typ**
 `SteelProfileData`, kein `lookupProfile` mehr im `src`), `@baustatik/units`
-(die Umrechnungsfaktoren und die Quantity-Typen) und `@baustatik/errors` (die
-Wurzel der Gatterklassen, ADR 0030). **Keine Geometriebibliothek** — die
-Knickwarnung rechnet die Endtangente einer Bogenwand aus `2·atan(bulge)` und
-liest den mitgefuehrten Umriss, statt ihn abzuleiten.
+(die Umrechnungsfaktoren und die Quantity-Typen), `@baustatik/errors` (die
+Wurzel der Gate-Klassen, ADR 0030) und seit ADR 0033
+`@baustatik/section-geometry`.
+
+**Die Geometriekante ist neu und war vorher ausdruecklich verboten.** ADR 0032
+schrieb „keine neue Abhaengigkeit ausser `@baustatik/errors`", damit die
+Knickwarnung ihre Endtangente aus `2·atan(bulge)` von Hand rechnete und
+`@baustatik/script` keine Geometriebibliothek in den Snapshot-Builder zog. Mit
+`Bulge` (P1) gibt es die Umrechnung an einer Stelle; `outgoingTangent` liest
+`Bulge.sweep`, und die Doppelung ist aufgeloest statt nur getestet. **Der Preis
+ist ausgesprochen:** sobald `geometry-2d` in P3 `clipper2-ts` einzieht, traegt
+`@baustatik/script` es transitiv mit. Den mitgefuehrten Umriss LIEST das Gate
+weiterhin, es leitet ihn nicht ab.
 
 ## Die Grenze zur Bemessung, mechanisch pruefbar
 
@@ -211,12 +225,12 @@ symmetrisch: `yM = ys = 0` steht, aber `zM != zs`, und die Zahl faellt erst aus
 dem Wandweg. `undefined` heisst **nicht ermittelt**, nach dem Muster von
 `kappaY?` — `zs` hinzuschreiben waere eine Unwahrheit.
 
-## Das Prüfgatter: es warnt, es verweigert nicht
+## Das Gate: es warnt, es verweigert nicht
 
 Zwei Tueren, weil zwei verschiedene Fragen
 ([ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md)):
-`validateSectionGeometry(g, { arcTolerance })` prueft die gezeichnete Figur,
-`validateSectionProperties(p)` die Zahlen. **Kein `assertValid…`** — der
+`validateSectionGeometry(g, policy)` prueft die gezeichnete Figur,
+`validateSectionProperties(p, policy)` die Zahlen. **Kein `assertValid…`** — der
 Querschnitt ist kein Tor vor der Rechenkette; wer ihn nicht rechnen kann, bekommt
 `undefined` und damit einen Modellfehler im Bericht.
 
@@ -240,8 +254,64 @@ Plattenbalken.
 `notch = (t/2)·tan(theta/2)`, gewarnt wird bei `notch > arcTolerance`. Bei
 `0,05 mm` heisst das `t = 6 → ≈1,9°`, `t = 20 → ≈0,57°`. Dass dicke Waende
 weniger Knick vertragen, ist richtig — ihre Kerbe wird tiefer. Die Toleranz ist
-ein **Parameter** und keine Konstante im Gatter (ADR 0011): sonst haengt dieses
-Package an `@baustatik/geometry-2d`, nur um eine `0,05` zu lesen.
+ein **Parameter** und keine Konstante im Gate (ADR 0011); sie steht in der
+`SectionPolicy`, die beide Tueren nehmen.
+
+**`validateSectionProperties` nimmt die Policy heute, ohne ein Feld daraus zu
+lesen.** Das ist Absicht und kein Versehen: die Schwelle „`Iyz` ist null" landet
+mit P2 dort, und ein Bruch jetzt ist billiger als zwei ueber zwei Teilprojekte.
+
+### Offene Luecke: `bulge` wird vom Gate NICHT geprueft
+
+G1 bis G6 sehen den Umriss, doppelte Ids, haengende Verweise, `t > 0`, die
+Nulllaengenwand und den Knick — **nie die Woelbung selbst**. Ein `bulge` von
+`NaN` laeuft still durch: die Knickpruefung rechnet `notch = NaN`, und
+`NaN > arcTolerance` ist `false`, also schweigt sie. Fuer `t` prueft G4
+ausdruecklich `Number.isFinite`; fuer `bulge` gibt es die Entsprechung nicht.
+
+Solange das so ist, faengt der Zeichenweg es ab: `cross-section-viewer` faellt
+bei einem nicht endlichen `bulge` — und bei einem am Vollkreis-Pol, wo
+`4·atan(bulge)` auf `2π` rundet — auf die Sehne zurueck, statt zu werfen. Das
+ist die Notbremse und nicht die Loesung: ein solcher Satz wird dann falsch
+GEZEICHNET, ohne dass irgendwer ihn gemeldet haette. Ein eigener Befund gehoert
+ins Gate, ist aber eine Erweiterung seiner Befundmenge und damit eine
+Entscheidung, die P1 nicht getroffen hat.
+
+## `SectionPolicy`: die Erzeugungs-Einstellung
+
+**Eigene Wurzel, keine Scheibe von `AnalysisPolicy`**
+([ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
+ADR 0011 zieht seine Trennlinie an *„steuert die Rechnung, **ohne das Modell zu
+aendern**"* — `arcTolerance` aendert es: der abgeleitete Umriss reist nach ADR
+0030 im Satz mit, und seine Punktzahl haengt an der Toleranz. Der Loeser truege
+eine Zahl mit, die er nie liest.
+
+Die volle Scheibenform nach dem Vorbild von `fem-loads/src/policy.ts`:
+`SectionPolicy` · `SectionPolicyOverrides` · `DEFAULT_SECTION_POLICY` ·
+`createSectionPolicy` · `parseSectionPolicy`. **Keine eigene `schemaVersion`** —
+eine Version je Datensatz, und der Datensatz ist der Snapshot (`v7`, wo
+`sectionPolicy` als **Pflichtfeld** auf Projektebene steht).
+
+`DEFAULT_ARC_TOLERANCE` **zieht nicht um**: die Policy liest es aus
+`@baustatik/section-geometry`. Es neu zu setzen brachte den Zustand zurueck, den
+ADR 0032 beseitigt hat — zwei Zahlen fuer eine Modellannahme.
+
+**Ein Feld heute, drei datierte Kandidaten:**
+
+| Kandidat | faellig |
+| --- | --- |
+| Miter-Limit + `JoinType` (die Umrissecke bei schraegen Stoessen) | P3 |
+| Schwelle „`Iyz` ist null" | P2 |
+| Schwelle „dicke Wand" (`t/h`) | P5 |
+
+**Ausdruecklich kein Kandidat: die Gauss-Punkte fuer Grashof.** Sie werden von
+`sectionProperties` gelesen, und das liegt auf der Rechenstrecke
+(`getSectionStiffness`, je Stab in `solve()`/`check()`) — eine Einstellung dort
+waere nach ADR 0011 eine *Analyse*-Einstellung. Sie werden ausserdem gar keine
+Einstellung, sondern eine Konstante: bei senkrechten Kanten ist der Integrand
+ein Polynom 6. Grades und 4-Punkt-Gauss exakt. Das ist Konvergenz, keine Wahl.
+**Die Knickschranke ist ebenfalls kein Feld** — sie wird aus `arcTolerance`
+abgeleitet.
 
 ## Was `undefined` heisst
 

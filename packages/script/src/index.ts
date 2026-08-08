@@ -12,6 +12,7 @@ export type {
   CrossSectionHandle,
   CrossSectionInput,
   FEMModelBuilder,
+  FEMModelBuilderConfig,
   FEMModelSnapshot,
   FEMModelSnapshotBuilder,
   LoadCaseHandle,

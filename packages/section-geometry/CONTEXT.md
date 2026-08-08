@@ -3,11 +3,11 @@
 ## Purpose
 
 Provides the 2D geometry primitives — `Point`, `Vector`, `Line`, `Arc`,
-`Polyline`, `Polygon` — in the cross-section coordinate system: `y` to the
-right, `z` **downwards**. It is a thin adapter over `@baustatik/geometry-2d`,
-which works in `x`/`y`. The package exists so that the `y`/`z` convention, the
-rotation sense and the winding rule are defined in exactly one place instead of
-being re-derived by every consumer.
+`Polyline`, `Polygon` — plus the `bulge` codec `Bulge`, in the cross-section
+coordinate system: `y` to the right, `z` **downwards**. It is a thin adapter
+over `@baustatik/geometry-2d`, which works in `x`/`y`. The package exists so
+that the `y`/`z` convention, the rotation sense and the winding rule are defined
+in exactly one place instead of being re-derived by every consumer.
 
 Sibling package: [`@baustatik/fem-geometry`](../fem-geometry) does the same job
 for the beam plane (`x`/`z`). The two share the rotation sense — see Invariants.
@@ -22,13 +22,23 @@ for the beam plane (`x`/`z`). The two share the rotation sense — see Invariant
   computed from. Also not owned: rendering, material data, and the beam plane
   (`fem-geometry`).
 
-Important consumers:
-- [`@baustatik/cross-section-viewer`](../cross-section-viewer): scaffold; its
-  `Arc` usage is currently commented out.
-- `apps/demo/cross-section-viewer.ts`: likewise.
+**`@baustatik/geometry-2d` is not imported above this package — not in tests
+either.** This package *is* the pass-through into the cross-section plane; a
+consumer that reaches around it for one function has already broken the rule
+that the `y`/`z` convention is decided in one place. The consequence is that
+every `geometry-2d` surface a consumer needs must be wrapped here, **including
+the coordinate-free ones**: `normalizeAngleYZ` (`src/convert.ts`) set that
+precedent, and `Bulge.sweep` / `sagitta` / `isStraight` follow it. Their JSDoc
+says explicitly *why* they convert nothing, so the wrapper does not read as an
+oversight. Both current consumers already obey the rule; until now it was only
+visible in the dependency column.
 
-Neither exercises the rotation sense in production code today, so the
-conventions below are currently pinned by tests rather than by callers.
+Important consumers:
+- [`@baustatik/cross-section-viewer`](../cross-section-viewer): uses `Bulge` to
+  turn `Wall.bulge` into an `arcPath` spec.
+- [`@baustatik/cross-section`](../cross-section): the gate's kink warning reads
+  `Bulge.sweep`.
+- `apps/demo/cross-section-viewer.ts`: through the viewer.
 
 ## Dependencies
 
@@ -55,6 +65,9 @@ conventions below are currently pinned by tests rather than by callers.
 - [`src/line.ts`](src/line.ts), [`src/arc.ts`](src/arc.ts),
   [`src/polyline.ts`](src/polyline.ts), [`src/point.ts`](src/point.ts): thin
   delegating wrappers.
+- [`src/bulge.ts`](src/bulge.ts): `Bulge`, the `bulge` ⇄ `Arc` codec. Six
+  functions, all wrapped; the three coordinate-free ones are wrapped anyway —
+  see Boundaries.
 - [`src/errors.ts`](src/errors.ts): a pure re-export of the `geometry-2d` error
   classes. No package-own error types.
 - [`tests/direction.test.ts`](tests/direction.test.ts): pins the rotation sense
@@ -105,6 +118,25 @@ conventions below are currently pinned by tests rather than by callers.
   `toCounterClockwise` was written as `Polygon.make(...)` back when the
   normalisation happened to point that way; flipping the winding rule turned it
   into its own opposite, which is why both are now spelled out explicitly.
+- **`bulge` is a storage form, `Arc` is the derived one.** `bulge = tan(Δ/4)` is
+  redundancy-free — it encodes an arc between two points that are already
+  stored — but unreadable. `Bulge` is the pair that translates between them, and
+  its signs carry through 1:1 because the mapping is orientation-preserving: a
+  positive `bulge` sweeps `+y → +z`, the same sense as `Arc.sweep`.
+- **The sagitta is exact, not approximated:** `h = (chord/2)·|bulge|`, from
+  `c = 2R·sin(Δ/2)` and `(c/2)·tan(Δ/4) = 2R·sin²(Δ/4) = R(1 − cos(Δ/2))`. "How
+  curved is this wall" is therefore answerable without trigonometry, and "when is
+  an arc a straight line" collapses onto `DEFAULT_ARC_TOLERANCE` instead of
+  needing a second number.
+- **Asking for an arc where there is none throws.** `Bulge.toArc` /
+  `Bulge.fromArc` raise `StraightBulgeError` / `FullCircleBulgeError` rather than
+  returning `undefined`: the straight line is a *known* answer, not "I don't
+  know". Callers that want it handled take `Bulge.toPolyline` (total) or ask
+  `Bulge.isStraight`. The value range is the open interval `(−2π, +2π)` — DXF
+  draws the same line, an `LWPOLYLINE` cannot carry a full circle. A tube is
+  therefore **two nodes and two semicircular walls** (`Δ = ±180°`, `bulge = ±1`),
+  and at a semicircle end-tangency is automatic, so the gate's kink warning stays
+  silent by itself.
 - **The `x`/`y` intermediate world is never drawn.** Inside a single operation
   the section appears vertically flipped. That is irrelevant — only what comes
   back in `y`/`z` matters. The benefit of the conversion is purely type-level:
