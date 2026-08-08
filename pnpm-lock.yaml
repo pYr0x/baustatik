@@ -504,6 +504,9 @@ importers:
       '@baustatik/errors':
         specifier: workspace:*
         version: link:../errors
+      clipper2-ts:
+        specifier: 2.0.1
+        version: 2.0.1
       martinez-polygon-clipping:
         specifier: ^0.7.3
         version: 0.7.4
@@ -2071,6 +2074,10 @@ packages:
   ci-info@3.9.0:
     resolution: {integrity: sha512-NIxF55hv4nSqQswkAeiOi1r83xy8JldOFDTWiug55KBu9Jnblncd2U6ViHmYgHf01TPZS77NJBhBMKdWj9HQMQ==}
     engines: {node: '>=8'}
+
+  clipper2-ts@2.0.1:
+    resolution: {integrity: sha512-raIgNMpYN/PFYk/T9iRzaG99rf5nlXBWL1FyAdR3wjEYSzJy+pPfolLH5bCdRqCFQqn/eYUsF1jb3cQEMxmWGw==}
+    engines: {node: '>=14.0.0'}
 
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
@@ -4486,6 +4493,8 @@ snapshots:
   chardet@2.1.1: {}
 
   ci-info@3.9.0: {}
+
+  clipper2-ts@2.0.1: {}
 
   commander@2.20.3:
     optional: true

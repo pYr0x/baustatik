@@ -27,6 +27,13 @@ describe('Die Voreinstellung liest ihre Zahl, statt sie neu zu setzen', () => {
     expect(DEFAULT_SECTION_POLICY.principalAxisTolerance).toBe(1e-9);
   });
 
+  it('miterLimit ist 2 — die Vorgabe von Clipper2, hier benannt', () => {
+    // Sie kappt unter 60 Grad Innenwinkel; der rechtwinklige Stoss jedes
+    // gewalzten Profils bleibt mit 1/sin(45 Grad) = 1,41 weit darunter
+    // (ADR 0037).
+    expect(DEFAULT_SECTION_POLICY.miterLimit).toBe(2);
+  });
+
   it('sie ist eingefroren', () => {
     expect(Object.isFrozen(DEFAULT_SECTION_POLICY)).toBe(true);
   });
@@ -55,6 +62,24 @@ describe('createSectionPolicy nimmt Abweichungen und prueft nur Werte', () => {
     }
   });
 
+  it('ein miterLimit bis 1 waere eine Einstellung, die nicht wirkt', () => {
+    // Clipper2 ersetzt jeden Wert <= 1 STILL durch 2 (`Offset.ts`, `mitLimSqr`).
+    // Die Schranke ist damit abgelesen und nicht gewaehlt.
+    for (const miterLimit of [
+      1,
+      0.5,
+      0,
+      -1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ]) {
+      expect(() => createSectionPolicy({ miterLimit })).toThrow(
+        InvalidSectionPolicyError,
+      );
+    }
+    expect(createSectionPolicy({ miterLimit: 1.0001 }).miterLimit).toBe(1.0001);
+  });
+
   it('der Fehler nennt das Feld, damit ein Dialog es markieren kann', () => {
     try {
       createSectionPolicy({ arcTolerance: 0 });
@@ -70,10 +95,12 @@ describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
     const policy = parseSectionPolicy({
       arcTolerance: 0.1,
       principalAxisTolerance: 1e-8,
+      miterLimit: 3,
     });
     expect(policy).toEqual({
       arcTolerance: 0.1,
       principalAxisTolerance: 1e-8,
+      miterLimit: 3,
     });
     expect(Object.isFrozen(policy)).toBe(true);
   });
@@ -86,6 +113,13 @@ describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
     );
   });
 
+  // Und derselbe Satz ist kein gueltiger Satz aus P3.
+  it('lehnt einen Satz ohne miterLimit ab', () => {
+    expect(() =>
+      parseSectionPolicy({ arcTolerance: 0.1, principalAxisTolerance: 1e-9 }),
+    ).toThrow(InvalidSectionPolicyError);
+  });
+
   it('lehnt ein unbekanntes Feld ab, statt es zu ignorieren', () => {
     // Ein stillschweigend geschluckter Tippfehler waere eine Einstellung, die
     // nicht wirkt.
@@ -93,6 +127,7 @@ describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
       parseSectionPolicy({
         arcTolerance: 0.1,
         principalAxisTolerance: 1e-9,
+        miterLimit: 2,
         arcTolerence: 0.2,
       }),
     ).toThrow(InvalidSectionPolicyError);
@@ -109,14 +144,22 @@ describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
   });
 
   it('prueft die Werte mit derselben Regel wie die Fabrik', () => {
+    const full = {
+      arcTolerance: 0.05,
+      principalAxisTolerance: 1e-9,
+      miterLimit: 2,
+    };
+    expect(() => parseSectionPolicy({ ...full, arcTolerance: 0 })).toThrow(
+      InvalidSectionPolicyError,
+    );
+    expect(() => parseSectionPolicy({ ...full, arcTolerance: '0.05' })).toThrow(
+      InvalidSectionPolicyError,
+    );
     expect(() =>
-      parseSectionPolicy({ arcTolerance: 0, principalAxisTolerance: 1e-9 }),
+      parseSectionPolicy({ ...full, principalAxisTolerance: -1 }),
     ).toThrow(InvalidSectionPolicyError);
-    expect(() =>
-      parseSectionPolicy({ arcTolerance: '0.05', principalAxisTolerance: 1e-9 }),
-    ).toThrow(InvalidSectionPolicyError);
-    expect(() =>
-      parseSectionPolicy({ arcTolerance: 0.05, principalAxisTolerance: -1 }),
-    ).toThrow(InvalidSectionPolicyError);
+    expect(() => parseSectionPolicy({ ...full, miterLimit: 1 })).toThrow(
+      InvalidSectionPolicyError,
+    );
   });
 });

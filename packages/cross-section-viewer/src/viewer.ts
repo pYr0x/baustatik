@@ -49,7 +49,26 @@ interface ViewerConfig {
 export function createCrossSectionViewer(config: ViewerConfig) {
   const { driver, getGeometry, getSectionPolicy } = config;
   const STROKE_SCALE = 1; // OPTIK: konstante Strichbreite am Schirm (px, zoomt nicht mit)
-  const OUTLINE_STROKE = 1; // px — die Umrisslinie ist eine KANTE, keine Wand
+  const OUTLINE_STROKE = 2; // px — die Umrisslinie ist eine KANTE, keine Wand
+  /**
+   * Der Umriss ist ORANGE, die Wände schwarz — und das ist eine Aussage des
+   * VIEWERS, kein Geschmack
+   * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+   *
+   * Der Umriss ist ABGELEITET, die Wände sind die EINGABE. Wer eine Kerbe am
+   * Grad-3-Knoten oder einen gekappten Miter-Spitz sehen will, muss die beiden
+   * Lagen unterscheiden können — in Schwarz auf Schwarz sieht man genau das
+   * nicht.
+   *
+   * MODULKONSTANTE UND KEINE OPTION AM AUFRUF: dass das eine abgeleitet und das
+   * andere Eingabe ist, weiss der Viewer und nicht der Aufrufer. Eine Farbe ist
+   * ausserdem noch nicht der Anlass für eine View-Policy — ein
+   * `crossSectionStyle` steht in `packages/TODO.md` §2 als erster benannter
+   * Anwärter, fällig mit Auswahl und Fangpunkten (P7).
+   */
+  const OUTLINE_COLOR = '#e8830c';
+  /** Die Wandmittellinie: die EINGABE, und damit die neutrale Farbe. */
+  const WALL_COLOR = '#000';
 
   let vp: Viewport = config.initialViewport ?? viewport(screenPoint(0, 0), 1);
 
@@ -90,7 +109,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
         // EINZIGE Stelle des y/z -> u/v Mappings.
         points: polygon.points.map((p) => worldPoint(p.y, p.z)),
         strokeWidth: OUTLINE_STROKE,
-        strokeColor: '#000',
+        strokeColor: OUTLINE_COLOR,
       }));
 
     if (geometry.kind === 'outline') return specs;
@@ -147,7 +166,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
         startAngle: arc.startAngle,
         sweepAngle: arc.sweep,
         strokeWidth,
-        strokeColor: '#000',
+        strokeColor: WALL_COLOR,
       };
     }
 
@@ -160,7 +179,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
       from: worldPoint(start.y, start.z),
       to: worldPoint(end.y, end.z),
       strokeWidth,
-      strokeColor: '#000',
+      strokeColor: WALL_COLOR,
     };
   }
 

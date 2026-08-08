@@ -159,20 +159,27 @@ pnpm --filter @baustatik/section-geometry lint
 
 Pure functions without Konva/DOM/WASM, testable in Node.
 
-## Coming role: offsetting and the drift check
+## The offset: `Polygon.inflate`
 
 The cross-section editor stores a **wall graph plus the outline it implies**
 ([ADR 0030](../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)). The
 step from the one to the other — widening a centre line by `t/2` on both sides
-and unioning the results — is an **offset**, and it lands here, together with
-`deriveOutline` and `checkOutlineDrift` (P3, with `clipper2-ts`). The carried
-outline is a denormalisation whose whole point is that the drift becomes a
-finding instead of a silent change; this package is the place that produces the
-number the finding compares against.
+and unioning the results — is an **offset**, and the geometry operation for it
+lands here: `Polygon.inflate`, passed through into `y`/`z` like `union` and
+`moments` ([ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+It takes open or closed **runs**, each with its own `delta` and end type, and
+returns a **ring set with holes** — outer `signedArea > 0`, holes `< 0`, sorted.
 
-Two of the constraints below are on the critical path for it: boolean operations
-dropping holes, and the missing hole/outer winding distinction. A hollow section
-cannot be derived until both are resolved.
+**`deriveOutline` and the drift check do *not* live here.** An earlier version of
+this file claimed them; that sentence predates P2 and was already contradicted by
+`cross-section/src/derive-outline.ts`. Their signatures name `SectionGeometry`
+and `SectionPolicy`, so they belong to `@baustatik/cross-section`; here lies only
+the geometry operation they use. The rule is the repo's: *whoever owns the type
+owns its rules.*
+
+The two constraints below about holes still hold — but **for the martinez doors
+only**. `inflate` goes through `clipper2-ts` and returns holes and their nesting;
+that is exactly why it is a separate door.
 
 `DEFAULT_ARC_TOLERANCE` (re-exported here from `@baustatik/geometry-2d`) is the
 **one** discretisation tolerance of the repo and the default of `Arc.toPolyline`.
@@ -182,17 +189,18 @@ explicitly wherever the result is stored.
 
 ## Known constraints
 
-- **Boolean operations silently drop holes.** `Polygon.intersect` / `union` /
+- **The martinez doors silently drop holes.** `Polygon.intersect` / `union` /
   `subtract` delegate to `geometry-2d`, whose `fromMartinez`
   (`geometry-2d/src/polygon.ts`) keeps only ring 0 of each result polygon and
   discards the inner rings. Subtracting an inner shape from an outer one
   therefore returns the outer contour with the hole **gone**, not a polygon with
-  a hole. For a cross-section package this is the sharpest edge in the API:
-  hollow sections cannot be built this way today. A multi-ring polygon type
-  would have to come from `geometry-2d` first.
-- **No hole/outer distinction in the boolean output.** `Polygon.make` no longer
-  normalises (ADR 0034), so a hole ring is expressible; but the boolean
-  operations still return CCW-only rings, because `fromMartinez` keeps ring 0.
+  a hole. A multi-ring polygon type would have to come from `geometry-2d` first.
+  **Does not apply to `inflate`**: the hollow box section *is* derivable since
+  P3, because that door goes through `clipper2-ts` and reads the nesting from
+  its `PolyTreeD`.
+- **No hole/outer distinction in the martinez output.** `Polygon.make` no longer
+  normalises (ADR 0034), so a hole ring is expressible; but `intersect`/`union`/
+  `subtract` still return CCW-only rings, because `fromMartinez` keeps ring 0.
   Fixing that is the point above, not this one.
 - **Area moments live here, section properties do not.** `Polygon.moments`
   returns the raw, signed moments about the origin under the `y`/`z` names

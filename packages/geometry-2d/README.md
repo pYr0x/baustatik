@@ -111,6 +111,35 @@ const merged = Polygon.union(polyA, polyB);
 const difference = Polygon.subtract(polyA, polyB);
 ```
 
+### Inflating runs — `Polygon.inflate`
+
+`Polygon.inflate` takes **open or closed runs** and returns a **ring set with
+holes**: outer rings `signedArea > 0`, holes `< 0`, sorted by `|A|` descending
+with every hole directly behind its outer ring
+([ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+
+It is the only door in this package backed by `clipper2-ts` rather than
+martinez, and it both **inflates and unions** — every run carries its own
+`delta`, Clipper2 takes one `delta` per offset call, so a boolean union always
+follows. The nesting is read from Clipper2's `PolyTreeD` and the winding is then
+**set**, never passed through: the winding of a foreign library is not a
+statement of this package.
+
+`JoinType` is nailed to `Miter` and is not an option — `Round` would round off
+every corner of an I-profile and break the identity `A = 2·b·tf + tw·(h − 2·tf)`.
+The name is `inflate`, not `offset`: `offset` stays free for inflating a closed
+*ring* to one side.
+
+```typescript
+const rings = Polygon.inflate(
+  [
+    { polyline: web, delta: 3, endType: 'butt' },   // t = 6
+    { polyline: flange, delta: 5, endType: 'butt' }, // t = 10
+  ],
+  { arcTolerance: 0.05, miterLimit: 2 },
+);
+```
+
 ## Error Handling
 
 Precondition violations throw specific errors extending `BaustatikError`:

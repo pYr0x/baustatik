@@ -206,3 +206,46 @@ describe('Polygon transforms and bounding box', () => {
     expect(Polygon.area(mirrored)).toBeCloseTo(12);
   });
 });
+
+describe('Polygon.inflate reicht die Aufweitung nach y/z durch', () => {
+  it('macht aus einer Wand der Laenge 100 mit delta 5 einen Materialring', () => {
+    const [ring, ...rest] = Polygon.inflate([
+      {
+        polyline: { points: [Point.make(0, 0), Point.make(100, 0)] },
+        delta: 5,
+        endType: 'butt',
+      },
+    ]);
+
+    expect(rest).toHaveLength(0);
+    expect(ring).toBeDefined();
+    // Die Windungsregel reist unveraendert mit: Material laeuft positiv
+    // (ADR 0034, fortgeschrieben in ADR 0037).
+    expect(Polygon.signedArea(ring?.points ?? [])).toBeCloseTo(1000, 9);
+    const box = Polygon.boundingBox(Polygon.make(ring?.points ?? []));
+    expect(box.min).toEqual({ y: 0, z: -5 });
+    expect(box.max).toEqual({ y: 100, z: 5 });
+  });
+
+  it('liefert am geschlossenen Zug das Loch mit — negativ und hinter seinem Ring', () => {
+    const rings = Polygon.inflate([
+      {
+        polyline: {
+          points: [
+            Point.make(0, 0),
+            Point.make(100, 0),
+            Point.make(100, 200),
+            Point.make(0, 200),
+            Point.make(0, 0),
+          ],
+        },
+        delta: 3,
+        endType: 'joined',
+      },
+    ]);
+
+    expect(rings).toHaveLength(2);
+    expect(Polygon.signedArea(rings[0]?.points ?? [])).toBeCloseTo(106 * 206, 9);
+    expect(Polygon.signedArea(rings[1]?.points ?? [])).toBeCloseTo(-(94 * 194), 9);
+  });
+});

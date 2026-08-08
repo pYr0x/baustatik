@@ -17,7 +17,11 @@ export {
 } from './errors';
 export { Line } from './line';
 export { Point } from './point';
-export type { PolygonMomentsYZ } from './polygon';
+// Koordinatenfrei und deshalb unveraendert durchgereicht — die Regel, dass
+// `geometry-2d` oberhalb dieses Packages nicht importiert wird, gilt auch fuer
+// Typen, an denen nichts umzurechnen ist.
+export type { InflateEndType, InflateOptions } from '@baustatik/geometry-2d';
+export type { InflatePathYZ, PolygonMomentsYZ } from './polygon';
 export { Polygon } from './polygon';
 export { Polyline } from './polyline';
 export type {

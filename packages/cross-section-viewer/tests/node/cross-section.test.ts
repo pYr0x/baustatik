@@ -198,3 +198,17 @@ describe('Ein haengender Verweis laesst den Rest der Figur stehen', () => {
     expect(specs.find((s) => s.id === 'outline-0')).toBeDefined();
   });
 });
+
+describe('Der abgeleitete Umriss ist vom eingegebenen Wandgraphen zu unterscheiden', () => {
+  it('zeichnet den Umriss in einer ANDEREN Farbe als die Waende', () => {
+    // Eine Aussage des Viewers und keine Option am Aufruf: der Umriss ist
+    // ABGELEITET, die Waende sind die EINGABE (ADR 0037). In Schwarz auf
+    // Schwarz sieht man die Kerbe am Grad-3-Knoten nicht.
+    const specs = draw(wall());
+    const outline = specs.find((s) => s.id === 'outline-0');
+    const line = specs.find((s) => s.id === 'w1');
+
+    expect(outline?.strokeColor).toBeDefined();
+    expect(outline?.strokeColor).not.toBe(line?.strokeColor);
+  });
+});

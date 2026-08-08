@@ -50,7 +50,8 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // T-Form `'t-beam'` statt `'t-section'`; bei v5 fehlt die dritte
   // Querschnittsquelle (ADR 0030); bei v6 fehlt das REZEPT, unter dem der
   // mitgeführte Umriss erzeugt wurde (`sectionPolicy`, ADR 0033); bei v7
-  // fehlt darin das zweite Feld, `principalAxisTolerance` (ADR 0035).
+  // fehlt darin das zweite Feld, `principalAxisTolerance` (ADR 0035); bei v8
+  // das dritte, `miterLimit` (ADR 0037).
   //
   // Verführerisch zu ergänzen wären gleich fünf: bei v3 stehen die
   // Bezeichnungen darin, ein Lookup läge nahe; bei v4 wäre es ein ersetztes
@@ -63,9 +64,9 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // einmal ausgefuehrt, im unguenstigsten Moment, und danach nicht mehr von
   // einer bewussten Wahl zu unterscheiden. Eine Migration ist ein Werkzeug,
   // das jemand AUFRUFT, sieht und ablehnen kann — und AB HIER IST JEDE
-  // v7-DATEI VERLOREN.
-  if (snapshot.schemaVersion !== 8) {
-    fail('Snapshot.schemaVersion muss 8 sein.');
+  // v8-DATEI VERLOREN.
+  if (snapshot.schemaVersion !== 9) {
+    fail('Snapshot.schemaVersion muss 9 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -201,7 +202,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 8,
+    schemaVersion: 9,
     nodes,
     beams,
     crossSections,

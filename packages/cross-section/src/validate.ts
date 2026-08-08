@@ -28,13 +28,17 @@
  */
 
 import { Bulge, Polygon } from '@baustatik/section-geometry';
+import { chainedJoints, deriveOutline } from './derive-outline';
 import {
   DegenerateOutlineRingError,
   DuplicateSectionIdError,
   EmptyOutlineError,
+  MiterLimitExceededWarning,
   NegativeOutlineAreaError,
+  NonFiniteBulgeError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
+  OutlineDriftWarning,
   type SectionElement,
   type SectionValidationError,
   type SectionValidationWarning,
@@ -72,6 +76,24 @@ export type SectionValidationResult = {
  * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  */
 export function validateSectionGeometry(
+  geometry: SectionGeometry,
+  policy: SectionPolicy,
+): SectionValidationResult {
+  const { errors, warnings } = shapeFindings(geometry, policy);
+
+  // G7 — DIE DRIFT, und sie steht ZULETZT und nur bei sonst fehlerfreier Figur:
+  // ein Umriss, der zu einem kaputten Graphen nicht passt, ist ein Folgefehler
+  // und kein eigener Befund. Sie gilt fuer BEIDE Varianten — der
+  // `outline`-Zweig bekommt damit die Pruefung, die ihm seit P2 fehlt, ohne
+  // dass jemand dafuer etwas zusaetzlich baut.
+  if (errors.length === 0) {
+    warnings.push(...drift(geometry, policy));
+  }
+
+  return { errors, warnings };
+}
+
+function shapeFindings(
   geometry: SectionGeometry,
   policy: SectionPolicy,
 ): SectionValidationResult {
@@ -139,7 +161,78 @@ export function validateSectionGeometry(
   // G6 — Satz 3, der Knick am Bogen.
   warnings.push(...kinks(geometry.walls, byId, policy.arcTolerance));
 
+  // G6b — die Woelbung selbst. DIE LUECKE AUS P1: bis P2 sah das Gate `t`, den
+  // Umriss, die Ids und den Knick, nie aber `bulge`. Ein `NaN` lief still
+  // durch, weil die Knickpruefung `notch = NaN` rechnet und `NaN > tol` falsch
+  // ist. Ab P3 landet der Wert in einer fremden Bibliothek — deshalb faellt die
+  // Entscheidung jetzt (ADR 0037).
+  for (const wall of geometry.walls) {
+    if (wall.bulge !== undefined && !Number.isFinite(wall.bulge)) {
+      errors.push(new NonFiniteBulgeError(wall.id, wall.bulge));
+    }
+  }
+
+  // G6c — der gekappte Miter-Spitz. NUR AN DURCHVERBUNDENEN STOESSEN, und
+  // welche das sind, sagt die Ableitung: nur dort entsteht ueberhaupt eine
+  // Miter-Ecke.
+  for (const joint of chainedJoints(geometry.nodes, geometry.walls)) {
+    const overshoot = 1 / Math.sin(joint.alpha / 2);
+    if (overshoot > policy.miterLimit) {
+      warnings.push(
+        new MiterLimitExceededWarning(
+          joint.nodeId,
+          joint.wallIds,
+          joint.alpha,
+          overshoot,
+          policy.miterLimit,
+        ),
+      );
+    }
+  }
+
   return { errors, warnings };
+}
+
+/**
+ * Der mitgefuehrte Umriss gegen seine NEUABLEITUNG — ADR 0030s Versprechen,
+ * eingeloest (ADR 0037).
+ *
+ * DIE SCHRANKE WIRD ABGELEITET, NICHT GESETZT, dieselbe Figur wie die
+ * Knickschranke: `arcTolerance · U` ist genau die Flaeche, die entsteht, wenn
+ * der Rand ueberall um die Diskretisierungstoleranz wandert — die groesste
+ * Abweichung, die ein zulaessiger Bibliothekswechsel erklaeren kann. Ein
+ * viertes Policy-Feld waere eine zweite Zahl fuer dieselbe Frage.
+ *
+ * VERGLICHEN WIRD `A` UND NICHT PUNKT FUER PUNKT: die Punktzahl gegeneinander
+ * zu halten machte jede `arcTolerance`-Aenderung zum Befund, und genau die
+ * reist seit ADR 0033 im Satz mit.
+ */
+function drift(
+  geometry: SectionGeometry,
+  policy: SectionPolicy,
+): SectionValidationWarning[] {
+  const rings = geometry.outline.filter(
+    (polygon) => polygon.points.length >= 3,
+  );
+  if (rings.length === 0) return [];
+
+  const carried = rings.reduce(
+    (sum, polygon) => sum + Polygon.signedArea(polygon.points),
+    0,
+  );
+  const U = rings.reduce(
+    (sum, polygon) => sum + Polygon.perimeter({ points: polygon.points }),
+    0,
+  );
+  const derived = deriveOutline(geometry, policy).reduce(
+    (sum, polygon) => sum + Polygon.signedArea(polygon.points),
+    0,
+  );
+
+  const limit = policy.arcTolerance * U;
+  return Math.abs(derived - carried) > limit
+    ? [new OutlineDriftWarning(carried, derived, limit)]
+    : [];
 }
 
 /**

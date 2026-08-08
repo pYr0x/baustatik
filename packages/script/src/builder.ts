@@ -1,4 +1,5 @@
 import {
+  createSectionGeometry,
   createSectionPolicy,
   type CrossSection,
   type SectionPolicy,
@@ -204,6 +205,12 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
    * Katalog dahinter, und geprueft wird sie dort, wo sie gezeichnet wird
    * (`validateSectionGeometry`). Der Builder zoege sich sonst ein Gate in
    * eine Zeile, die gar nicht darueber entscheidet.
+   *
+   * `'section-input'` IST DIESELBE QUELLE OHNE IHREN UMRISS (ADR 0037). Hier
+   * leitet der Bauer ihn ab, unter der Policy, die er ohnehin fuehrt — das ist
+   * KEIN Pruefen, sondern dasselbe Beschaffen wie beim Profilkatalog: der
+   * Autor nennt, was er weiss, und das Modell legt daneben, was ohne die
+   * Projekteinstellung nicht zu haben ist.
    */
   crossSection(input: CrossSectionInput): CrossSectionHandle {
     const id = crypto.randomUUID();
@@ -225,6 +232,19 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
           kind: 'section-geometry',
           id,
           geometry: structuredClone(input.geometry),
+        };
+      case 'section-input':
+        // DER EINE ORT, an dem der Bauer mehr tut als kopieren: er leitet den
+        // Umriss unter SEINER Policy ab — derselben, die gleich neben ihm im
+        // Satz landet (ADR 0033, ADR 0037). Der Skriptautor koennte das nicht,
+        // er sieht die Einstellung nie.
+        return {
+          kind: 'section-geometry',
+          id,
+          geometry: createSectionGeometry(
+            structuredClone(input.input),
+            this.#sectionPolicy,
+          ),
         };
     }
   }
@@ -322,7 +342,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
 
   finish(): FEMModelSnapshot {
     return structuredClone({
-      schemaVersion: 8,
+      schemaVersion: 9,
       nodes: this.#nodes,
       beams: this.#beams,
       crossSections: this.#crossSections,

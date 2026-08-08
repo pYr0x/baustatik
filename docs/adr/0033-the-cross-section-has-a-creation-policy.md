@@ -1,5 +1,13 @@
 # The cross-section has a creation policy
 
+> **Addendum (P3, [ADR 0037](0037-the-outline-comes-from-inflating-wall-runs.md)):**
+> the third field has snapped in as foreseen — `miterLimit`, default `2`. It
+> passes the criterion above literally: it changes the **stored** outline, so it
+> is a creation setting and not an analysis one. `JoinType`, listed as a
+> candidate in the same line, did **not** become a field: it is nailed to Miter,
+> and there is no second admissible choice to configure. `OFFSET_PRECISION` is
+> not a field either — it quantises the computation path, not the model.
+
 The P1 decision. You look this one up when you are about to add a knob to the
 cross-section and cannot tell whether it belongs in `AnalysisPolicy` or here —
 or when you wonder why a project file stores `arcTolerance` at all.

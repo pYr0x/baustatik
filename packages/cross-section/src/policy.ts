@@ -40,15 +40,20 @@ import { InvalidSectionPolicyError } from './errors';
 /**
  * Die Stellschrauben der Querschnitts-ERZEUGUNG.
  *
- * HEUTE ZWEI FELDER, und die Scheibenform steht trotzdem vollständig da: zwei
- * weitere Kandidaten sind bereits datiert, und sie sollen später EINRASTEN
- * statt die Fabrik samt Merge-Semantik neu zu erfinden. Der dritte,
- * `principalAxisTolerance`, ist mit P2 eingerastet — genau wie vorgesehen.
+ * HEUTE DREI FELDER, und die Scheibenform steht trotzdem vollständig da: der
+ * verbleibende Kandidat ist bereits datiert und soll später EINRASTEN statt die
+ * Fabrik samt Merge-Semantik neu zu erfinden. `principalAxisTolerance` ist mit
+ * P2 eingerastet, `miterLimit` mit P3 — genau wie vorgesehen.
  *
  * | Kandidat                                   | fällig |
  * | ------------------------------------------ | ------- |
- * | Miter-Limit + `JoinType` (die Umrissecke)   | P3      |
  * | Schwelle „dicke Wand" (`t/h`)               | P5      |
+ *
+ * `JoinType` IST KEIN FELD GEWORDEN, obwohl er in derselben Zeile stand: er ist
+ * auf Miter festgenagelt, weil `Round` jede Ecke des I-Profils abrundete und
+ * die Identität `2·b·tf + tw·(h − 2·tf)` fiele
+ * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+ * Es gibt keine zweite zulässige Wahl, also auch keine Einstellung.
  *
  * AUSDRÜCKLICH KEIN KANDIDAT: DIE GAUSS-PUNKTE für Grashof (P4). Sie werden
  * von `sectionProperties` gelesen, und das liegt auf der RECHENSTRECKE
@@ -106,6 +111,32 @@ export type SectionPolicy = {
    * bei JEDEM symmetrisch gezeichneten Querschnitt.
    */
   readonly principalAxisTolerance: number;
+
+  /**
+   * Wie weit die Umrissecke am spitzen Stoss stehen bleiben darf, bevor sie
+   * GEKAPPT wird. DIMENSIONSLOS.
+   *
+   * Die Ecke zweier um `t/2` aufgeweiteter Wände liegt beim Innenwinkel `α` um
+   * `(t/2)/sin(α/2)` neben dem Knoten — der Spitz wächst über alle Grenzen,
+   * wenn `α` gegen 0 geht. Clipper2 kappt ihn, sobald `1/sin(α/2) > miterLimit`.
+   * Bei der Voreinstellung `2` ist das genau unter `60°` Innenwinkel.
+   *
+   * EIN ERZEUGUNGS-FELD UND KEIN ANALYSE-FELD, wörtlich nach dem Kriterium von
+   * [ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md):
+   * es verändert den GESPEICHERTEN Umriss und damit `A`, `Iy`, `Iz` — genauso
+   * wie `arcTolerance`, und anders als eine Zahl, die bloss beurteilt.
+   *
+   * DAS KAPPEN IST ZULÄSSIG, ABER NIE STILLSCHWEIGEND. Reale Bleche werden
+   * abgeschnitten, ein Knotenblech unter `30°` verlöre unter der Voreinstellung
+   * aber Fläche, ohne dass irgendwer es gesagt hätte. Das Gate leitet deshalb
+   * aus diesem Feld eine Schranke ab und meldet den Stoss darunter mit
+   * `MiterLimitExceededWarning` — dieselbe Figur wie die Knickwarnung.
+   *
+   * NACH UNTEN BEI `1` BEGRENZT, und das ist keine Geschmacksfrage: Clipper2
+   * ersetzt jeden Wert `<= 1` STILL durch `2`. Eine Einstellung, die nicht
+   * wirkt, ist schlimmer als keine.
+   */
+  readonly miterLimit: number;
 };
 
 /** Was ein Aufrufer abweichend setzen darf; der Rest kommt aus dem Default. */
@@ -125,13 +156,24 @@ export type SectionPolicyOverrides = Partial<SectionPolicy>;
  * Rechtecks und drei unter der Unsymmetrie, die eine Bogendiskretisierung
  * erzeugt. Das gezeichnete Rechteck schweigt, der echt unsymmetrische
  * Querschnitt meldet sich.
+ *
+ * `2` FÜR DEN MITER IST DIE VORGABE VON CLIPPER2 SELBST, hier nur BENANNT: sie
+ * kappt unter `60°` Innenwinkel. Damit ist sie weder besonders scharf noch
+ * besonders grosszügig — der rechtwinklige Stoss, aus dem jedes gewalzte Profil
+ * besteht, bleibt mit `1/sin(45°) = 1,41` weit darunter, und wo sie greift,
+ * sagt das Gate es (ADR 0037).
  */
 export const DEFAULT_SECTION_POLICY: SectionPolicy = Object.freeze({
   arcTolerance: DEFAULT_ARC_TOLERANCE,
   principalAxisTolerance: 1e-9,
+  miterLimit: 2,
 });
 
-const FIELDS = ['arcTolerance', 'principalAxisTolerance'] as const;
+const FIELDS = [
+  'arcTolerance',
+  'principalAxisTolerance',
+  'miterLimit',
+] as const;
 
 /**
  * Eine vollstaendige, eingefrorene Policy aus optionalen Abweichungen.
@@ -150,6 +192,7 @@ export function createSectionPolicy(
     principalAxisTolerance:
       overrides.principalAxisTolerance ??
       DEFAULT_SECTION_POLICY.principalAxisTolerance,
+    miterLimit: overrides.miterLimit ?? DEFAULT_SECTION_POLICY.miterLimit,
   };
 
   assertValidValues(policy);
@@ -179,6 +222,7 @@ export function parseSectionPolicy(input: unknown): SectionPolicy {
   const policy: SectionPolicy = {
     arcTolerance: numberField(record, 'arcTolerance'),
     principalAxisTolerance: numberField(record, 'principalAxisTolerance'),
+    miterLimit: numberField(record, 'miterLimit'),
   };
   assertValidValues(policy);
   return Object.freeze(policy);
@@ -221,9 +265,16 @@ function numberField(record: Record<string, unknown>, field: string): number {
  * die Hauptachsenlage ab, wie es die negative `arcTolerance` mit der Geraden
  * täte. Nach oben nicht begrenzt: eine absurd große Toleranz schweigt
  * überall, und das ist eine Entscheidung des Projekts, kein Formfehler.
+ *
+ * `miterLimit` ECHT GRÖSSER ALS `1`, und die Schranke ist nicht gewählt,
+ * sondern abgelesen: Clipper2 ersetzt jeden Wert `<= 1` STILL durch `2`
+ * (`Offset.ts`, `mitLimSqr`). Eine Einstellung, die nicht wirkt und darüber
+ * schweigt, ist die eine Sorte Wert, die dieser Eingang nicht durchlassen darf.
+ * Nach oben unbegrenzt: ein sehr grosses Limit lässt jeden Spitz stehen, und
+ * das ist eine Entscheidung des Projekts.
  */
 function assertValidValues(policy: SectionPolicy): void {
-  const { arcTolerance, principalAxisTolerance } = policy;
+  const { arcTolerance, principalAxisTolerance, miterLimit } = policy;
   if (!Number.isFinite(arcTolerance) || arcTolerance <= 0) {
     throw new InvalidSectionPolicyError(
       `"arcTolerance" muss endlich und groesser als 0 sein (war: ${arcTolerance}).`,
@@ -235,6 +286,13 @@ function assertValidValues(policy: SectionPolicy): void {
       '"principalAxisTolerance" muss endlich und mindestens 0 sein (war: ' +
         `${principalAxisTolerance}).`,
       'principalAxisTolerance',
+    );
+  }
+  if (!Number.isFinite(miterLimit) || miterLimit <= 1) {
+    throw new InvalidSectionPolicyError(
+      `"miterLimit" muss endlich und groesser als 1 sein (war: ${miterLimit}) — ` +
+        'Clipper2 ersetzt jeden Wert bis 1 still durch 2.',
+      'miterLimit',
     );
   }
 }

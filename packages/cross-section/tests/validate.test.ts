@@ -3,12 +3,17 @@ import { describe, expect, it } from 'vitest';
 import {
   createSectionPolicy,
   DEFAULT_SECTION_POLICY,
+  createSectionGeometry,
   DegenerateOutlineRingError,
+  deriveOutlineFromWalls,
   DuplicateSectionIdError,
   EmptyOutlineError,
+  MiterLimitExceededWarning,
   NegativeOutlineAreaError,
+  NonFiniteBulgeError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
+  OutlineDriftWarning,
   type SectionGeometry,
   type SectionProperties,
   sectionProperties,
@@ -45,16 +50,27 @@ const SOME_OUTLINE = [
   },
 ];
 
+/**
+ * Ein Wandgraph samt dem Umriss, den ER ergibt — seit das Gate beide
+ * vergleicht (ADR 0037).
+ *
+ * FÄLLT AUF `SOME_OUTLINE` ZURÜCK, wenn der Graph so kaputt ist, dass gar kein
+ * Umriss entsteht: sonst schlüge bei jedem Fehlerfall zusätzlich
+ * `EmptyOutlineError` zu, und die Tests unten prüften Folgefehler statt des
+ * Befunds, um den es ihnen geht. Die Drift-Prüfung läuft ohnehin nur bei sonst
+ * fehlerfreier Figur.
+ */
 function midline(
   nodes: readonly { id: string; y: number; z: number }[],
   edges: readonly Wall[],
 ): SectionGeometry {
+  const derived = deriveOutlineFromWalls([...nodes], [...edges], POLICY);
   return {
     kind: 'midline',
     nodes: [...nodes],
     walls: [...edges],
     idealisation: 'thin-walled',
-    outline: SOME_OUTLINE,
+    outline: derived.length > 0 ? [...derived] : SOME_OUTLINE,
   };
 }
 
@@ -459,10 +475,14 @@ describe('Der Umriss: Material gegen Loch', () => {
     { y: 0, z: 100 },
   ];
 
+  // DIE RINGE STEHEN NEBEN DEM UMRISS, seit das Gate ihn NEU ABLEITET und
+  // vergleicht (ADR 0037). Ohne `bulge` ist die Ableitung eine Durchreichung,
+  // also ist der Satz per Konstruktion driftfrei — und genau das soll er sein:
+  // geprueft wird hier der Umlaufsinn und nicht die Drift.
   function outline(...polygons: { y: number; z: number }[][]) {
     return check({
       kind: 'outline',
-      rings: [],
+      rings: polygons.map((points) => ({ vertices: [...points] })),
       outline: polygons.map((points) => ({ points })),
     });
   }
@@ -547,5 +567,194 @@ describe('Der Umriss: Material gegen Loch', () => {
     ]);
     expect(errors).toHaveLength(1);
     expect(errors[0]).toBeInstanceOf(EmptyOutlineError);
+  });
+});
+
+/**
+ * Die drei Befunde, die P3 dazustellt (ADR 0037).
+ *
+ * Sie haengen alle daran, dass das Gate den Umriss ab jetzt NEU ABLEITET statt
+ * ihn nur gegen sich selbst zu pruefen — das Versprechen aus ADR 0030, das seit
+ * P0 uneingeloest war.
+ */
+describe('Die Drift: der mitgefuehrte Umriss gegen seine Neuableitung', () => {
+  const NODES = [
+    { id: 'n1', y: 0, z: 0 },
+    { id: 'n2', y: 100, z: 0 },
+  ];
+  const WALLS: Wall[] = [
+    { id: 'w1', startNodeId: 'n1', endNodeId: 'n2', t: 10 },
+  ];
+
+  it('schweigt beim frisch abgeleiteten Satz — der Test, der die Schranke rechtfertigt', () => {
+    const { errors, warnings } = check(
+      createSectionGeometry(
+        { kind: 'midline', nodes: NODES, walls: WALLS, idealisation: 'thin-walled' },
+        POLICY,
+      ),
+    );
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('WARNT beim verstellten Umriss neben unveraendertem Graphen', () => {
+    const { errors, warnings } = check({
+      kind: 'midline',
+      nodes: NODES,
+      walls: WALLS,
+      idealisation: 'thin-walled',
+      // Doppelt so hoch wie die Aufweitung ergibt: 100 x 20 statt 100 x 10.
+      outline: [
+        {
+          points: [
+            { y: 0, z: -10 },
+            { y: 100, z: -10 },
+            { y: 100, z: 10 },
+            { y: 0, z: 10 },
+          ],
+        },
+      ],
+    });
+
+    // WARNUNG UND KEIN FEHLER: der Satz ist rechenbar, er ist nur nicht mehr
+    // der, der gespeichert wurde.
+    expect(errors).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toBeInstanceOf(OutlineDriftWarning);
+    const drift = warnings[0] as OutlineDriftWarning;
+    expect(drift.carried).toBeCloseTo(2000, 6);
+    expect(drift.derived).toBeCloseTo(1000, 6);
+  });
+
+  it('schweigt bei einem Umriss aus ANDERER arcTolerance, solange er unter der Schranke bleibt', () => {
+    // Die Toleranz reist seit ADR 0033 im Satz mit und ist damit erklaerbar:
+    // eine feinere Zerlegung aendert die Punktzahl, nicht die Flaeche.
+    const grob = createSectionPolicy({ arcTolerance: 0.4 });
+    const bogen: Wall[] = [
+      { id: 'w1', startNodeId: 'n1', endNodeId: 'n2', t: 10, bulge: 0.5 },
+    ];
+    const geometry = createSectionGeometry(
+      { kind: 'midline', nodes: NODES, walls: bogen, idealisation: 'thin-walled' },
+      grob,
+    );
+
+    // Geprueft unter der FEINEN Toleranz — der Umriss stammt aus der groben.
+    const { errors, warnings } = check(geometry);
+    expect(errors).toEqual([]);
+    expect(warnings.filter((w) => w instanceof OutlineDriftWarning)).toEqual([]);
+  });
+
+  it('prueft AUCH den outline-Zweig — der Zweig, der sie seit P2 nicht hatte', () => {
+    const { warnings } = check({
+      kind: 'outline',
+      rings: [
+        {
+          vertices: [
+            { y: 0, z: 0 },
+            { y: 100, z: 0 },
+            { y: 100, z: 100 },
+            { y: 0, z: 100 },
+          ],
+        },
+      ],
+      // Der Umriss zum halb so grossen Ring — die Ringe sagen etwas anderes.
+      outline: [
+        {
+          points: [
+            { y: 0, z: 0 },
+            { y: 50, z: 0 },
+            { y: 50, z: 50 },
+            { y: 0, z: 50 },
+          ],
+        },
+      ],
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toBeInstanceOf(OutlineDriftWarning);
+  });
+});
+
+describe('Der gekappte Miter-Spitz und die nicht endliche Woelbung', () => {
+  it('WARNT beim Zug mit 30 Grad Innenwinkel', () => {
+    // Zwei Waende unter 30 Grad ueber einen Grad-2-Knoten: der ungekappte
+    // Spitz stuende um 1/sin(15 Grad) = 3,86 heraus, gekappt wird ab 2.
+    const alpha = Math.PI / 6;
+    const nodes = [
+      { id: 'ecke', y: 0, z: 0 },
+      { id: 'a', y: 100, z: 0 },
+      { id: 'b', y: 100 * Math.cos(alpha), z: 100 * Math.sin(alpha) },
+    ];
+    const walls: Wall[] = [
+      { id: 'w1', startNodeId: 'ecke', endNodeId: 'a', t: 8 },
+      { id: 'w2', startNodeId: 'ecke', endNodeId: 'b', t: 8 },
+    ];
+
+    const { errors, warnings } = check(
+      createSectionGeometry(
+        { kind: 'midline', nodes, walls, idealisation: 'thin-walled' },
+        POLICY,
+      ),
+    );
+
+    expect(errors).toEqual([]);
+    const capped = warnings.filter(
+      (w) => w instanceof MiterLimitExceededWarning,
+    );
+    expect(capped).toHaveLength(1);
+    expect((capped[0] as MiterLimitExceededWarning).alpha).toBeCloseTo(alpha, 9);
+    expect((capped[0] as MiterLimitExceededWarning).overshoot).toBeCloseTo(
+      1 / Math.sin(alpha / 2),
+      9,
+    );
+  });
+
+  it('schweigt am rechtwinkligen Stoss — 1/sin(45 Grad) = 1,41 liegt unter 2', () => {
+    const { warnings } = check(
+      createSectionGeometry(
+        {
+          kind: 'midline',
+          nodes: [
+            { id: 'ecke', y: 0, z: 0 },
+            { id: 'a', y: 100, z: 0 },
+            { id: 'b', y: 0, z: 100 },
+          ],
+          walls: [
+            { id: 'w1', startNodeId: 'ecke', endNodeId: 'a', t: 8 },
+            { id: 'w2', startNodeId: 'ecke', endNodeId: 'b', t: 8 },
+          ],
+          idealisation: 'thin-walled',
+        },
+        POLICY,
+      ),
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it('meldet `bulge = NaN` statt es still durchlaufen zu lassen', () => {
+    // Bis P2 lief der Wert durch: die Knickpruefung rechnet `notch = NaN`, und
+    // `NaN > arcTolerance` ist `false`. Fuer `t` prueft G4 laengst
+    // `Number.isFinite`.
+    const { errors } = check(
+      midline(
+        [
+          { id: 'n1', y: 0, z: 0 },
+          { id: 'n2', y: 100, z: 0 },
+        ],
+        [
+          {
+            id: 'w1',
+            startNodeId: 'n1',
+            endNodeId: 'n2',
+            t: 10,
+            bulge: Number.NaN,
+          },
+        ],
+      ),
+    );
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(NonFiniteBulgeError);
+    expect((errors[0] as NonFiniteBulgeError).wallId).toBe('w1');
   });
 });

@@ -7,7 +7,7 @@ import {
   parseFEMModelSnapshot,
   SnapshotValidationError,
 } from '../src';
-import { snapshot } from './helpers';
+import { SCHEMA_VERSION, snapshot } from './helpers';
 
 describe('FEM model builder', () => {
   it('uses the shared package error hierarchy', () => {
@@ -43,7 +43,7 @@ describe('FEM model builder', () => {
     const snapshot = model.finish();
     const parsed = parseFEMModelSnapshot(structuredClone(snapshot));
 
-    expect(parsed.schemaVersion).toBe(8);
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
     expect(parsed.nodes).toHaveLength(2);
     expect(parsed.beams[0]).toMatchObject({
       startNodeId: parsed.nodes[0].id,

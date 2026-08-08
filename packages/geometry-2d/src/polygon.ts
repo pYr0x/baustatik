@@ -1,8 +1,20 @@
 import { atOrThrow } from '@baustatik/core';
+import {
+  Clipper,
+  ClipType,
+  EndType,
+  FillRule,
+  JoinType,
+  type PathD,
+  type PolyPathD,
+  PolyTreeD,
+} from 'clipper2-ts';
 import { diff, intersection, union } from 'martinez-polygon-clipping';
+import { DEFAULT_ARC_TOLERANCE, OFFSET_PRECISION } from './constants';
 import { DiscontinuousLinesError, InvalidPolygonError } from './errors';
 import type { Line } from './line';
 import { Point } from './point';
+import type { Polyline } from './polyline';
 import type { BoundingBox, Transformable } from './types';
 
 /**
@@ -77,8 +89,99 @@ const fromMartinez = (result: unknown): Polygon[] => {
   });
 };
 
+/**
+ * Wie ein Zug an seinen ENDEN aufgeweitet wird.
+ *
+ * `butt` — das Blech endet flach, senkrecht zum Zug. Der offene Zug.
+ * `joined` — Anfang und Ende werden verbunden: Clipper2 weitet beidseitig auf
+ *   und liefert den Ringstreifen samt INNENRING in einem Aufruf.
+ *
+ * AUSDRÜCKLICH OHNE „polygon". Das wäre die Aufweitung eines geschlossenen
+ * RINGES nach nur einer Seite — eine andere Frage, für die der Name
+ * `Polygon.offset` frei bleibt (ADR 0037). Ein Aufzählungswert für beides
+ * machte aus zwei Türen eine mit einem Schalter.
+ */
+export type InflateEndType = 'butt' | 'joined';
+
+/** Ein Zug samt der Aufweitung, die für IHN gilt. */
+export type InflatePath = {
+  readonly polyline: Polyline;
+  /**
+   * Die Aufweitung nach JEDER Seite — beim Wandquerschnitt `t/2`. In der
+   * Einheit der Punkte; dieses Package kennt keine.
+   */
+  readonly delta: number;
+  readonly endType: InflateEndType;
+};
+
+/**
+ * Die Stellschrauben der Aufweitung — beide mit Vorgabe.
+ *
+ * `joinType` STEHT NICHT DARIN: er ist auf Miter festgenagelt. `Round` rundete
+ * jede Ecke ab, und am I-Profil fiele damit die Identität
+ * `A = 2·b·tf + tw·(h − 2·tf)`; auf einem bereits zerlegten Bogen wäre es
+ * ausserdem eine ZWEITE Näherung derselben Krümmung (ADR 0037). Es gibt keine
+ * zweite zulässige Wahl, also auch keine Einstellung.
+ */
+export type InflateOptions = {
+  /** Zulässige Sehnenabweichung [Längeneinheit der Punkte]. */
+  readonly arcTolerance?: number;
+  /** Dimensionslos: Clipper2 kappt den Spitz, sobald `1/sin(α/2) > miterLimit`. */
+  readonly miterLimit?: number;
+};
+
+/** Die Vorgabe von Clipper2 selbst — hier benannt statt implizit. */
+const DEFAULT_MITER_LIMIT = 2;
+
+const END_TYPE: Record<InflateEndType, EndType> = {
+  butt: EndType.Butt,
+  joined: EndType.Joined,
+};
+
+/**
+ * Der Baum von Clipper2, TIEFENZUERST in eine sortierte Ringliste gelegt.
+ *
+ * Je Ebene absteigend nach `|A|`, und jeder Knoten wird VOR seinen Kindern
+ * ausgegeben. Damit folgt jedes Loch unmittelbar seinem Aussenring, und eine
+ * Insel im Loch findet ihren Platz, ohne dass die Regel einen Sonderfall
+ * bekäme.
+ *
+ * DER UMLAUFSINN KOMMT AUS DEM BAUM, nicht aus dem Vorzeichen: `isHole` ist
+ * die Aussage von Clipper2 über die VERSCHACHTELUNG, und erst danach wird das
+ * Vorzeichen darauf gesetzt (ADR 0034, ADR 0037).
+ *
+ * Ringe unter drei Punkten werden übersprungen — sie tragen keine Fläche, und
+ * `Polygon.make` wiese sie ohnehin zurück.
+ */
+function collectRings(node: PolyPathD, out: Polygon[]): void {
+  const children: { child: PolyPathD; A: number }[] = [];
+  for (let i = 0; i < node.count; i++) {
+    const child = node.child(i);
+    const path = child.poly ?? [];
+    children.push({
+      child,
+      A: signedArea(path.map(({ x, y }) => Point.make(x, y))),
+    });
+  }
+  children.sort((a, b) => Math.abs(b.A) - Math.abs(a.A));
+
+  for (const { child, A } of children) {
+    const points = (child.poly ?? []).map(({ x, y }) => Point.make(x, y));
+    if (points.length >= 3) {
+      // Aussen `> 0`, Loch `< 0`. Was Clipper2 zurueckgab, entscheidet das
+      // nicht — `isHole` tut es.
+      const wanted = child.isHole ? -1 : 1;
+      out.push({
+        points: Math.sign(A) === wanted ? points : [...points].reverse(),
+      });
+    }
+    collectRings(child, out);
+  }
+}
+
 export const Polygon: Transformable<Polygon> & {
   make(points: Point[]): Polygon;
+  inflate(paths: readonly InflatePath[], options?: InflateOptions): Polygon[];
   fromLines(lines: Line[]): Polygon;
   area(polygon: Polygon): number;
   moments(points: readonly Point[]): PolygonMoments;
@@ -110,6 +213,101 @@ export const Polygon: Transformable<Polygon> & {
     if (points.length < 3)
       throw new InvalidPolygonError('weniger als 3 Punkte');
     return { points };
+  },
+
+  /**
+   * ZÜGE AUFWEITEN UND VEREINIGEN — die eine Tür zu Clipper2
+   * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+   *
+   * Eingabe sind offene oder geschlossene ZÜGE, Ausgabe eine RINGMENGE MIT
+   * LÖCHERN: Material läuft mit `signedArea > 0`, ein Loch mit `< 0`
+   * ([ADR 0034](../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)).
+   *
+   * `inflate` UND NICHT `offset`: `offset` bleibt für die Aufweitung eines
+   * geschlossenen RINGES frei, falls sie je gebraucht wird. Ein Name für beides
+   * wäre die Doppelung, die dieses Repo sonst vermeidet.
+   *
+   * JEDER ZUG TRÄGT SEIN EIGENES `delta`, und das ist der Grund, warum die
+   * Vereinigung HIER passiert und nicht beim Aufrufer: Clipper2 nimmt genau EIN
+   * `delta` je Offset-Aufruf, ein I-Profil hat aber zwei Wandstärken. Nach den
+   * Offsets steht deshalb IMMER eine Boolesche Vereinigung — und `Polygon.union`
+   * kann kein Loch zurückgeben, weil `fromMartinez` je Ergebnispolygon nur Ring 0
+   * behält. Beides erledigt dieselbe Bibliothek, martinez bleibt unberührt.
+   *
+   * DER UMLAUFSINN WIRD GESETZT, NICHT DURCHGEREICHT. Clipper2 kodiert Loch
+   * gegen Material ebenfalls im Vorzeichen, und dieses Vorzeichen hängt an
+   * seiner eigenen Achsenannahme — derselbe Satz, den `fromMartinez` trägt: der
+   * Umlaufsinn einer fremden Bibliothek ist keine Aussage dieses Packages. Die
+   * VERSCHACHTELUNG wird deshalb aus dem `PolyTreeD` ausgelesen und der
+   * Umlaufsinn danach gesetzt.
+   *
+   * DIE REIHENFOLGE IST SORTIERT und kein Schönheitsdienst: der Umriss wird
+   * gespeichert, serialisiert und gegen eine Neuableitung verglichen. Eine
+   * Bibliotheksreihenfolge machte jeden Versionswechsel zu einer Umordnung im
+   * Modell-Diff, die nichts bedeutet. Sortiert wird nach `|A|` absteigend, und
+   * jedes Loch folgt UNMITTELBAR seinem Aussenring.
+   *
+   * TOTAL: eine leere Eingabe gibt eine leere Ringmenge, ein Zug mit weniger
+   * als zwei Punkten trägt nichts bei. Geprüft wird nichts — was an der Eingabe
+   * falsch ist, sagt das Gate des Aufrufers mit Namen.
+   */
+  inflate: (paths, options) => {
+    const arcTolerance = options?.arcTolerance ?? DEFAULT_ARC_TOLERANCE;
+    const miterLimit = options?.miterLimit ?? DEFAULT_MITER_LIMIT;
+
+    // Gruppiert nach (delta, endType), weil beide an `inflatePathsD` je Aufruf
+    // hängen. Der Schlüssel ist die Zahl selbst — zwei Wände gleicher Dicke
+    // gehen damit in EINEN Aufruf, und nur das schliesst nach ADR 0037 die
+    // Ecke zwischen ihnen.
+    const groups = new Map<
+      string,
+      { delta: number; endType: InflateEndType; paths: PathD[] }
+    >();
+    for (const path of paths) {
+      if (path.polyline.points.length < 2) continue;
+      const key = `${path.endType}:${path.delta}`;
+      const group = groups.get(key) ?? {
+        delta: path.delta,
+        endType: path.endType,
+        paths: [],
+      };
+      group.paths.push(path.polyline.points.map((p) => ({ x: p.x, y: p.y })));
+      groups.set(key, group);
+    }
+
+    const offset: PathD[] = [];
+    for (const group of groups.values()) {
+      offset.push(
+        ...Clipper.inflatePathsD(
+          group.paths,
+          group.delta,
+          JoinType.Miter,
+          END_TYPE[group.endType],
+          miterLimit,
+          OFFSET_PRECISION,
+          arcTolerance,
+        ),
+      );
+    }
+    if (offset.length === 0) return [];
+
+    // Die Vereinigung läuft AUCH bei nur einer Gruppe — sie ist hier nicht nur
+    // Verschmelzung, sondern die Stelle, an der die Verschachtelung überhaupt
+    // erst benannt wird. `NonZero`, weil Clipper2 seine Löcher bereits
+    // gegenläufig zurückgibt.
+    const tree = new PolyTreeD();
+    Clipper.booleanOpDWithPolyTree(
+      ClipType.Union,
+      offset,
+      null,
+      tree,
+      FillRule.NonZero,
+      OFFSET_PRECISION,
+    );
+
+    const rings: Polygon[] = [];
+    collectRings(tree, rings);
+    return rings;
   },
 
   fromLines: (lines) => {

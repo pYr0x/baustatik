@@ -1,6 +1,7 @@
 import type {
   CrossSection,
   SectionGeometry,
+  SectionGeometryInput,
   SectionPolicy,
   ShapeSpec,
 } from '@baustatik/cross-section';
@@ -55,7 +56,24 @@ export type CrossSectionInput =
    * Editor. Ob die Figur in sich stimmt, sagt `validateSectionGeometry` — und
    * zwar dort, wo sie GEZEICHNET wird, nicht hier.
    */
-  | { kind: 'section-geometry'; geometry: SectionGeometry };
+  | { kind: 'section-geometry'; geometry: SectionGeometry }
+  /**
+   * Dieselbe freie Geometrie, aber OHNE ihren Umriss — der Bauer leitet ihn ab
+   * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+   *
+   * DIE DRITTE STELLE, AN DER DAS MODELL ETWAS BESCHAFFT, und sie beschafft
+   * genau das, was der Autor hier gar nicht beschaffen KANN: der Umriss haengt
+   * an der `SectionPolicy`, und die kennt der Bauer — der Skriptautor bekommt
+   * sie nie zu sehen (`declarations.ts`). Ohne diese Variante müsste er die
+   * Toleranz von aussen hereinreichen, um `createSectionGeometry` selbst
+   * aufzurufen, und genau dabei entstünde die stille Abweichung, gegen die
+   * ADR 0033 das Rezept ueberhaupt neben das Ergebnis legt.
+   *
+   * `section-geometry` BLEIBT DANEBEN: ein Satz, der aus einer Datei kommt,
+   * traegt seinen Umriss bereits, und ihn hier neu abzuleiten hiesse, die
+   * gespeicherten Zahlen stillschweigend zu ersetzen.
+   */
+  | { kind: 'section-input'; input: SectionGeometryInput };
 /**
  * Ein Material, wie man es hinschreibt — dieselbe Regel wie beim Querschnitt.
  *
@@ -209,11 +227,18 @@ export type FEMModelBuilderConfig = {
  * `parseSectionPolicy` ist strikt, also weist jede v7-Datei ab; kein
  * Migrationswerkzeug, aus demselben Grund wie bei v5 und v6.
  *
- * DASS DER DRITTE BRUCH IN DREI TEILPROJEKTEN FÄLLT, IST EIN MUSTER: P3
- * (Miter-Limit) und P5 (dicke Wand) sind als weitere Policy-Felder bereits
- * datiert. Die Frage, ob ein Monorepo ohne Abnehmer überhaupt Schemabrüche
- * zählen sollte, steht in `packages/TODO.md` — hier bleibt das Verfahren
- * unverändert.
+ * v9 setzt das DRITTE Feld in die `SectionPolicy`: `miterLimit`, die Schranke,
+ * ab der Clipper2 die Umrissecke am spitzen Stoss kappt
+ * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+ * Sie steht dort aus WÖRTLICH demselben Grund wie `arcTolerance`: sie verändert
+ * den GESPEICHERTEN Umriss und damit `A`, `Iy`, `Iz` — das Kriterium von
+ * ADR 0033. Pflicht, wie ihre beiden Vorgängerinnen, und `parseSectionPolicy`
+ * ist strikt, also weist jede v8-Datei ab.
+ *
+ * DASS DER BRUCH IN DREI TEILPROJEKTEN NACHEINANDER FÄLLT, IST EIN MUSTER: P5
+ * (dicke Wand) ist als weiteres Policy-Feld bereits datiert. Die Frage, ob ein
+ * Monorepo ohne Abnehmer überhaupt Schemabrüche zählen sollte, steht in
+ * `packages/TODO.md` — hier bleibt das Verfahren unverändert.
  *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein aelterer Snapshot
  * wird ABGELEHNT. Ein v3 per Lookup zu ergänzen wäre genau die stille
@@ -224,7 +249,7 @@ export type FEMModelBuilderConfig = {
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 8;
+  readonly schemaVersion: 9;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];

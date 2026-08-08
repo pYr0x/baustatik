@@ -158,6 +158,22 @@ const m = Polygon.moments(rect.points);
 // { A: 12, Sx: 24, Sy: 18, Ixx: 36, Iyy: 64, Ixy: 36 }
 ```
 
+### Polygon.inflate
+**Signature:** `inflate(paths: readonly InflatePath[], options?: InflateOptions): Polygon[]`
+**Description:** Inflates **open or closed runs** by a per-run `delta` and returns a **ring set with holes** — outer `signedArea > 0`, holes `< 0`, sorted by `|A|` descending with every hole directly behind its outer ring (ADR 0037). Backed by `clipper2-ts`, the second clipping library in this package; martinez keeps `union`/`intersect`/`subtract`. It inflates **and** unions, because Clipper2 takes one `delta` per offset call while a profile has several wall thicknesses. Nesting is read from Clipper2's `PolyTreeD`; the winding is then *set*, never passed through. Total: an empty input returns an empty ring set, nothing is validated.
+**Example:**
+```typescript
+// A closed run gives the inner ring in the same call — this is what carries
+// the hollow box section.
+const rings = Polygon.inflate([
+  { polyline: boxCentreline, delta: 3, endType: 'joined' },
+]);
+// [outer (A > 0), hole (A < 0)]
+```
+
+**`InflatePath`**: `{ polyline: Polyline; delta: number; endType: 'butt' | 'joined' }` — `delta` is the inflation per side (`t/2` for a wall), `butt` ends a run flat, `joined` closes it.
+**`InflateOptions`**: `{ arcTolerance?: number; miterLimit?: number }` — `joinType` is deliberately absent: it is nailed to `Miter`, because `Round` would round off every corner of an I-profile.
+
 ### PolygonMoments
 **Signature:** `type PolygonMoments = { A, Sx, Sy, Ixx, Iyy, Ixy }`
 **Description:** `A = ∫dA`, `Sx = ∫x dA`, `Sy = ∫y dA`, `Ixx = ∫y² dA`, `Iyy = ∫x² dA`, `Ixy = ∫xy dA` — raw about the origin, signed, and scale-free: millimetres in, mm²/mm³/mm⁴ out. Deliberately *not* centroid-relative, so that a sum over several rings needs one Steiner shift at the end instead of one per ring.

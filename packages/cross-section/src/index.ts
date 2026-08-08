@@ -1,12 +1,24 @@
-export { deriveOutlineFromRings } from './derive-outline';
+export { type Branch, branches } from './branch';
+export {
+  createSectionGeometry,
+  type SectionGeometryInput,
+} from './create-section-geometry';
+export {
+  deriveOutline,
+  deriveOutlineFromRings,
+  deriveOutlineFromWalls,
+} from './derive-outline';
 export {
   DegenerateOutlineRingError,
   DuplicateSectionIdError,
   EmptyOutlineError,
   InvalidSectionPolicyError,
+  MiterLimitExceededWarning,
   NegativeOutlineAreaError,
+  NonFiniteBulgeError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
+  OutlineDriftWarning,
   type SectionElement,
   SectionValidationError,
   SectionValidationWarning,

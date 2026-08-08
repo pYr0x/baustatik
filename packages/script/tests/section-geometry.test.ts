@@ -3,6 +3,8 @@ import {
   DEFAULT_SECTION_POLICY,
   InvalidSectionPolicyError,
   type SectionGeometry,
+  sectionProperties,
+  validateSectionGeometry,
 } from '@baustatik/cross-section';
 import { describe, expect, it } from 'vitest';
 import {
@@ -10,6 +12,7 @@ import {
   parseFEMModelSnapshot,
   SnapshotValidationError,
 } from '../src';
+import { SCHEMA_VERSION } from './helpers';
 
 /**
  * Der Pruefstein von P0: der RUNDLAUF durch `@baustatik/script`
@@ -68,7 +71,7 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
     // das ueberstehen, was beim Speichern wirklich passiert.
     const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(built)));
 
-    expect(parsed.schemaVersion).toBe(8);
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
     expect(parsed.crossSections).toHaveLength(1);
     const [section] = parsed.crossSections;
     expect(section?.kind).toBe('section-geometry');
@@ -120,7 +123,7 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
     const v5 = { ...buildSnapshot(), schemaVersion: 5 };
     expect(() => parseFEMModelSnapshot(v5)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v5)).toThrow(
-      'Snapshot.schemaVersion muss 8 sein.',
+      'Snapshot.schemaVersion muss 9 sein.',
     );
   });
 
@@ -170,14 +173,16 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
     });
     const snapshot = model.finish();
 
-    expect(snapshot.sectionPolicy).toEqual({
+    const effective = {
       arcTolerance: 0.01,
       principalAxisTolerance: 1e-9,
-    });
+      miterLimit: 2,
+    };
+    expect(snapshot.sectionPolicy).toEqual(effective);
     expect(
       parseFEMModelSnapshot(JSON.parse(JSON.stringify(snapshot)))
         .sectionPolicy,
-    ).toEqual({ arcTolerance: 0.01, principalAxisTolerance: 1e-9 });
+    ).toEqual(effective);
   });
 
   it('LEHNT einen v6-Satz AB, statt die Voreinstellung einzusetzen', () => {
@@ -194,7 +199,7 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v6)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v6)).toThrow(
-      'Snapshot.schemaVersion muss 8 sein.',
+      'Snapshot.schemaVersion muss 9 sein.',
     );
   });
 
@@ -211,7 +216,7 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v7)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v7)).toThrow(
-      'Snapshot.schemaVersion muss 8 sein.',
+      'Snapshot.schemaVersion muss 9 sein.',
     );
   });
 
@@ -246,6 +251,9 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
       }),
     ).toThrow(InvalidSectionPolicyError);
 
+    // BIS P2 STAND HIER `miterLimit` als das unbekannte Feld. Mit ADR 0037 ist
+    // es das dritte PFLICHTFELD — der Satz geht jetzt durch, und der Gegentest
+    // braucht ein Feld, das es wirklich nicht gibt.
     expect(() =>
       parseFEMModelSnapshot({
         ...buildSnapshot(),
@@ -253,7 +261,125 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
           arcTolerance: 0.05,
           principalAxisTolerance: 1e-9,
           miterLimit: 2,
+          joinType: 'round',
         },
+      }),
+    ).toThrow(InvalidSectionPolicyError);
+  });
+});
+
+/**
+ * Der Rundlauf des WANDGRAPHEN — P3 (ADR 0037).
+ *
+ * Bis P2 musste der Autor den Umriss danebentippen. `'section-input'` gibt ihm
+ * die Wahl, nur die Figur zu nennen; der Umriss faellt aus der Policy, die der
+ * Bauer ohnehin fuehrt.
+ */
+describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
+  /** Ein I-Profil als Wandgraph: `A = 2·b·tf + tw·(h − 2·tf)`. */
+  const H = 300;
+  const B = 150;
+  const TW = 7.1;
+  const TF = 10.7;
+  const ZF = H / 2 - TF / 2;
+
+  const I_PROFIL = {
+    kind: 'midline' as const,
+    idealisation: 'thin-walled' as const,
+    nodes: [
+      { id: 'ol', y: -B / 2, z: -ZF },
+      { id: 'om', y: 0, z: -ZF },
+      { id: 'or', y: B / 2, z: -ZF },
+      { id: 'ul', y: -B / 2, z: ZF },
+      { id: 'um', y: 0, z: ZF },
+      { id: 'ur', y: B / 2, z: ZF },
+    ],
+    walls: [
+      { id: 'gurt-o-links', startNodeId: 'ol', endNodeId: 'om', t: TF },
+      { id: 'gurt-o-rechts', startNodeId: 'om', endNodeId: 'or', t: TF },
+      { id: 'steg', startNodeId: 'om', endNodeId: 'um', t: TW },
+      { id: 'gurt-u-links', startNodeId: 'ul', endNodeId: 'um', t: TF },
+      { id: 'gurt-u-rechts', startNodeId: 'um', endNodeId: 'ur', t: TF },
+    ],
+  };
+
+  function buildFromInput() {
+    const model = createFEMModelBuilder();
+    const a = model.node({ x: 0, z: 0 });
+    const b = model.node({ x: 5, z: 0 });
+    const section = model.crossSection({
+      kind: 'section-input',
+      input: I_PROFIL,
+    });
+    const steel = model.material({ kind: 'steel', grade: 'S235' });
+    model.beam(a, b, { crossSectionId: section.id, materialId: steel.id });
+    a.support({ ux: 'fixed', uz: 'fixed', phiY: 'fixed' });
+    b.support({ ux: 'free', uz: 'fixed', phiY: 'free' });
+    return model.finish();
+  }
+
+  it('baut, serialisiert, besteht validate und parst zurueck', () => {
+    const built = buildFromInput();
+    const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(built)));
+
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
+    const [section] = parsed.crossSections;
+    expect(section?.kind).toBe('section-geometry');
+    // Der Satz ist am Ende derselbe wie bei `'section-geometry'`: die Variante
+    // ist eine EINGABEFORM und keine zweite Sorte Querschnitt.
+    expect(section).toEqual(built.crossSections[0]);
+  });
+
+  it('trifft mit A und Iy die parametrische Form', () => {
+    const [section] = buildFromInput().crossSections;
+    if (section === undefined) expect.unreachable();
+    const values = sectionProperties(section);
+    if (values === undefined) expect.unreachable();
+
+    // `sectionProperties` rechnet in SI: mm² -> m², mm⁴ -> m⁴.
+    const A = (2 * B * TF + TW * (H - 2 * TF)) * 1e-6;
+    expect(values.A).toBeCloseTo(A, 9);
+
+    // Iy des I aus drei Rechtecken, mit Steiner fuer die Gurte.
+    const Iy =
+      ((TW * (H - 2 * TF) ** 3) / 12 +
+        2 * ((B * TF ** 3) / 12 + B * TF * ((H - TF) / 2) ** 2)) *
+      1e-12;
+    expect(values.Iy).toBeCloseTo(Iy, 9);
+  });
+
+  it('das Gate schweigt zum frisch gebauten Satz — keine Drift', () => {
+    const [section] = buildFromInput().crossSections;
+    if (section?.kind !== 'section-geometry') expect.unreachable();
+
+    const { errors, warnings } = validateSectionGeometry(
+      section.geometry,
+      DEFAULT_SECTION_POLICY,
+    );
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('LEHNT einen v8-Satz AB — die Policy fuehrt jetzt drei Felder', () => {
+    const v8: Record<string, unknown> = {
+      ...buildSnapshot(),
+      schemaVersion: 8,
+      sectionPolicy: { arcTolerance: 0.05, principalAxisTolerance: 1e-9 },
+    };
+
+    expect(() => parseFEMModelSnapshot(v8)).toThrow(SnapshotValidationError);
+    expect(() => parseFEMModelSnapshot(v8)).toThrow(
+      'Snapshot.schemaVersion muss 9 sein.',
+    );
+  });
+
+  it('lehnt eine Policy ohne miterLimit auch bei richtiger Version ab', () => {
+    // Der Gegentest: nicht die Versionsnummer rettet den v8-Satz — das Feld
+    // selbst ist Pflicht.
+    expect(() =>
+      parseFEMModelSnapshot({
+        ...buildSnapshot(),
+        sectionPolicy: { arcTolerance: 0.05, principalAxisTolerance: 1e-9 },
       }),
     ).toThrow(InvalidSectionPolicyError);
   });

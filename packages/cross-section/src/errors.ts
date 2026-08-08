@@ -397,6 +397,134 @@ export class TangentKinkWarning extends SectionValidationWarning {
 }
 
 /**
+ * Eine Wölbung, die keine Zahl ist — `bulge` nicht endlich.
+ *
+ * DIE LÜCKE AUS P1, GESCHLOSSEN VON P3. G1 bis G6 sahen Umriss, Ids, Verweise,
+ * `t > 0`, Nulllängenwand und Knick — nie die Wölbung selbst. Ein `NaN` lief
+ * still durch: die Knickprüfung rechnete `notch = NaN`, und `NaN > arcTolerance`
+ * ist `false`. Für `t` prüft G4 ausdrücklich `Number.isFinite`; hier fehlte es.
+ *
+ * FEHLER UND KEINE WARNUNG, aus demselben Grund wie bei `t`: der Wert geht ab
+ * P3 in eine FREMDE Bibliothek, und deren Ergebnis sähe danach plausibel aus.
+ * Die Ableitung filtert ihn deshalb weg und zeichnet die Kante gerade — aber
+ * dass sie das tut, muss jemand sagen, sonst ist es genau die stille Reparatur,
+ * die dieses Repo sonst vermeidet.
+ */
+export class NonFiniteBulgeError extends SectionValidationError {
+  readonly wallId: string;
+  readonly bulge: number;
+
+  constructor(wallId: string, bulge: number) {
+    super(
+      `Wand "${wallId}": Woelbung ${bulge} ist keine endliche Zahl — die ` +
+        'Ableitung liest sie als Gerade, und die Rechnung liefe sonst in eine ' +
+        'fremde Bibliothek.',
+    );
+    this.wallId = wallId;
+    this.bulge = bulge;
+  }
+}
+
+/**
+ * Der mitgeführte Umriss ist nicht mehr der, den die Figur ergibt.
+ *
+ * DAS VERSPRECHEN VON ADR 0030, EINGELÖST. Dort steht *„the gate derives the
+ * outline anyway, so the comparison costs nothing"* — bis P3 war das eine
+ * Absicht: das Gate las `geometry.outline` und prüfte ihn ausschliesslich gegen
+ * sich selbst.
+ *
+ * DIE SCHRANKE WIRD ABGELEITET, NICHT GESETZT — dieselbe Figur wie die
+ * Knickschranke:
+ *
+ * ```text
+ * tol = policy.arcTolerance · U / A       U, A aus dem mitgefuehrten Umriss
+ * warnen, wenn |A_neu − A| > tol · A
+ * ```
+ *
+ * `arcTolerance · U` ist genau die Fläche, die entsteht, wenn der Rand überall
+ * um die Diskretisierungstoleranz wandert; das ist die grösste Abweichung, die
+ * ein zulässiger Bibliothekswechsel erklären kann. Alles darüber ist etwas
+ * anderes. KEIN VIERTES POLICY-FELD: eine gesetzte Schranke wäre eine zweite
+ * Zahl für dieselbe Frage.
+ *
+ * VERGLICHEN WIRD `A`, NICHT PUNKT FÜR PUNKT. Die Punktzahl gegeneinander zu
+ * halten machte jede `arcTolerance`-Änderung zum Befund — und genau die reist
+ * seit ADR 0033 im Satz mit und ist damit erklärbar.
+ *
+ * WARNUNG UND KEIN FEHLER: der Satz ist rechenbar, er ist nur nicht mehr der,
+ * der gespeichert wurde.
+ */
+export class OutlineDriftWarning extends SectionValidationWarning {
+  /** Die Fläche des MITGEFÜHRTEN Umrisses [mm²]. */
+  readonly carried: number;
+  /** Die Fläche der NEUABLEITUNG unter derselben Policy [mm²]. */
+  readonly derived: number;
+  /** Die abgeleitete Schranke [mm²] — `arcTolerance · U`. */
+  readonly limit: number;
+
+  constructor(carried: number, derived: number, limit: number) {
+    super(
+      `Der mitgefuehrte Umriss traegt ${carried} mm², die Neuableitung unter ` +
+        `derselben Policy ${derived} mm² — die Abweichung ${Math.abs(derived - carried)} mm² ` +
+        `liegt ueber der Schranke ${limit} mm². Der Satz ist rechenbar, aber er ` +
+        'ist nicht mehr der, der gespeichert wurde.',
+    );
+    this.carried = carried;
+    this.derived = derived;
+    this.limit = limit;
+  }
+}
+
+/**
+ * Ein Stoss so spitz, dass seine Umrissecke GEKAPPT wird.
+ *
+ * Die Ecke zweier um `t/2` aufgeweiteter Wände liegt beim Innenwinkel `α` um
+ * `(t/2)/sin(α/2)` neben dem Knoten. Clipper2 kappt sie, sobald
+ * `1/sin(α/2) > policy.miterLimit` — bei der Voreinstellung `2` also unter
+ * `60°`.
+ *
+ * WARNUNG UND KEIN FEHLER: das Kappen ist ZULÄSSIG, reale Bleche werden
+ * abgeschnitten. Aber nie stillschweigend — ein Knotenblech unter `30°`
+ * verlöre sonst Fläche, ohne dass irgendwer es gesagt hätte.
+ *
+ * DIESELBE FIGUR WIE DIE KNICKWARNUNG: eine aus einem Policy-Feld abgeleitete
+ * Schranke und ein Satz, der sagt, was sie bedeutet (ADR 0032, ADR 0037).
+ */
+export class MiterLimitExceededWarning extends SectionValidationWarning {
+  readonly nodeId: string;
+  readonly wallIds: readonly string[];
+  /** Der Innenwinkel zwischen den beiden Wänden [rad]. */
+  readonly alpha: number;
+  /** Der Überstand, den der ungekappte Spitz hätte: `1/sin(α/2)`. */
+  readonly overshoot: number;
+  /** Die Schranke, gegen die verglichen wurde. */
+  readonly miterLimit: number;
+
+  constructor(
+    nodeId: string,
+    wallIds: readonly string[],
+    alpha: number,
+    overshoot: number,
+    miterLimit: number,
+  ) {
+    super(
+      `Knoten "${nodeId}": Innenwinkel ${alpha} rad zwischen ${wallIds
+        .map((id) => `"${id}"`)
+        .join(
+          ' und ',
+        )} — der Umrissspitz stuende um das ${overshoot}-fache der ` +
+        `halben Wandstaerke heraus und wird bei ${miterLimit} gekappt. Das ist ` +
+        'zulaessig, aber der Querschnitt verliert dort Flaeche.',
+    );
+    this.nodeId = nodeId;
+    this.wallIds = wallIds;
+    this.alpha = alpha;
+    this.overshoot = overshoot;
+    this.miterLimit = miterLimit;
+  }
+}
+
+/**
  * Die ERZEUGUNGS-EINSTELLUNG selbst ist unbrauchbar (`src/policy.ts`).
  *
  * ERBT WEDER VON `SectionValidationError` NOCH VON

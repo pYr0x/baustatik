@@ -40,10 +40,16 @@ declare module '@baustatik/script' {
   export type SectionGeometry =
     | { kind: 'midline'; nodes: SectionNode[]; walls: Wall[]; idealisation: Idealisation; outline: Polygon[] }
     | { kind: 'outline'; rings: Ring[]; outline: Polygon[] };
+  /** EINGABE — dieselbe Figur OHNE ihren Umriss; den leitet das Modell ab. */
+  export type SectionGeometryInput =
+    | { kind: 'midline'; nodes: SectionNode[]; walls: Wall[]; idealisation: Idealisation }
+    | { kind: 'outline'; rings: Ring[] };
   export type CrossSectionInput =
     | { kind: 'shape'; shape: ShapeSpec }
     | { kind: 'profile'; profile: string }
-    | { kind: 'section-geometry'; geometry: SectionGeometry };
+    | { kind: 'section-geometry'; geometry: SectionGeometry }
+    /** Der Umriss wird unter der Projekt-Policy ABGELEITET statt mitgegeben. */
+    | { kind: 'section-input'; input: SectionGeometryInput };
   export interface CrossSectionHandle {
     readonly id: string;
   }

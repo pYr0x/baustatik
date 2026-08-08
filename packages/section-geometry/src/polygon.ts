@@ -1,11 +1,16 @@
 import { atOrThrow } from '@baustatik/core';
-import { Polygon as GeometryPolygon } from '@baustatik/geometry-2d';
+import {
+  Polygon as GeometryPolygon,
+  type InflateEndType,
+  type InflateOptions,
+} from '@baustatik/geometry-2d';
 import {
   fromXYBoundingBox,
   fromXYPoint,
   toXYLine,
   toXYPoint,
   toXYPolygon,
+  toXYPolyline,
   toXYVector,
   type XYPolygon,
 } from './convert';
@@ -15,6 +20,7 @@ import type {
   Line,
   Point,
   Polygon as SectionPolygon,
+  Polyline,
   Transformable,
 } from './types';
 
@@ -84,8 +90,26 @@ export type PolygonMomentsYZ = {
   readonly Iyz: number;
 };
 
+/**
+ * Ein Zug samt seiner Aufweitung, in der QUERSCHNITTSEBENE.
+ *
+ * Reiner Namenswechsel auf `InflatePath` aus `@baustatik/geometry-2d`: `y`
+ * statt `x`, `z` statt `y`. `delta` und `endType` reisen unverändert durch —
+ * beide sind koordinatenfrei.
+ */
+export type InflatePathYZ = {
+  readonly polyline: Polyline;
+  /** Die Aufweitung nach JEDER Seite [mm] — bei der Wand `t/2`. */
+  readonly delta: number;
+  readonly endType: InflateEndType;
+};
+
 export const Polygon: Transformable<SectionPolygon> & {
   make(points: readonly Point[]): SectionPolygon;
+  inflate(
+    paths: readonly InflatePathYZ[],
+    options?: InflateOptions,
+  ): SectionPolygon[];
   fromLines(lines: Line[]): SectionPolygon;
   area(polygon: SectionPolygon): number;
   signedArea(points: readonly Point[]): number;
@@ -116,6 +140,36 @@ export const Polygon: Transformable<SectionPolygon> & {
       throw new InvalidPolygonError('weniger als 3 Punkte');
     return { points };
   },
+
+  /**
+   * ZÜGE AUFWEITEN UND VEREINIGEN, in y/z
+   * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+   *
+   * Reine Durchreichung wie `union` und `moments`, und aus demselben Grund:
+   * `@baustatik/geometry-2d` wird oberhalb dieses Packages NICHT importiert,
+   * also muss jede Fläche, die ein Verbraucher braucht, hier durch — auch die
+   * koordinatenfreien Teile davon (`delta`, `endType`, `InflateOptions`).
+   *
+   * DIE WINDUNGSREGEL REIST UNVERÄNDERT MIT, weil `convert.ts`
+   * orientierungstreu abbildet: was dort `signedArea > 0` heisst, heisst hier
+   * `signedArea > 0` — Material gegen Loch (ADR 0034). Die Zusage steht an der
+   * Clipper2-Grenze in `geometry-2d` und wird hier nicht ein zweites Mal
+   * gegeben.
+   *
+   * WAS HIER NICHT LIEGT: `deriveOutline` und die Drift-Prüfung. Ihre Signatur
+   * nennt `SectionGeometry` und `SectionPolicy`, also Typen von
+   * `@baustatik/cross-section` — sie liegen dort. Hier liegt allein die
+   * Geometrieoperation, die sie benutzen.
+   */
+  inflate: (paths, options) =>
+    GeometryPolygon.inflate(
+      paths.map((path) => ({
+        polyline: toXYPolyline(path.polyline),
+        delta: path.delta,
+        endType: path.endType,
+      })),
+      options,
+    ).map((polygon) => fromXYPolygon(polygon)),
 
   fromLines: (lines) =>
     fromXYPolygon(

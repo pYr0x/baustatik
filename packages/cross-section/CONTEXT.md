@@ -21,9 +21,58 @@ beziehungsweise Grashof, also P4/P5; fuer den Loeser heisst das `GAs: 'rigid'`,
 und `check()` in `@baustatik/fem-solver` sagt es, wenn jemand Schubverformung
 verlangt hat. `stressPoints` bleibt fuer sie `undefined` (P4).
 
-Fuer `kind: 'outline'` leitet `deriveOutlineFromRings` (`src/derive-outline.ts`)
-den Umriss aus den Ringen ab — nur `Bulge.toPolyline` je Kante, keine
-Bibliothek. Der `midline`-Zweig (Aufweitung um `t/2`) bleibt P3.
+**Beide Zweige sind seit P3 ableitbar**, und zwar hinter EINER Tuer:
+`deriveOutline(geometry, policy)` verzweigt ueber `kind`
+([ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+Dahinter liegen `deriveOutlineFromRings` — nur `Bulge.toPolyline` je Kante,
+keine Bibliothek — und `deriveOutlineFromWalls`: Zerlegung des Graphen in
+Laeufe, Aufweitung um `t/2`, Vereinigung ueber `Polygon.inflate`. Eine Tuer und
+nicht zwei, weil das Gate den Umriss fuer die Drift-Pruefung neu ableitet und
+die Fallunterscheidung sonst zweimal im Repo staende.
+
+`createSectionGeometry(input, policy)` (`src/create-section-geometry.ts`) ist
+die **Fabrik**: Eingabe plus Policy ergeben den vollstaendigen Satz. Der Record
+bleibt daneben **frei konstruierbar** — er ist reine, JSON-serialisierbare
+Daten und muss aus einer geladenen Datei rekonstruierbar sein, ohne durch eine
+Fabrik zu laufen.
+
+### Die Zugregel
+
+> **Geradeste Fortsetzung.** An jedem Knoten wird das Wandpaar mit der
+> kleinsten Richtungsaenderung durchverbunden. Gleichstand entscheidet die
+> Wand-Id.
+
+Sie ist Teil des Vertrags und nicht Implementierungslaune: `JoinType` wirkt
+INNERHALB eines Pfades, also schliesst Clipper2 die Ecke zwischen zwei Waenden
+nur, wenn beide als EIN Pfad hineingehen. Welches Paar das ist, aendert den
+Umriss. Daran haengt die Zusage: **zwei Wandgraphen gleicher Gestalt mit
+anderen Ids liefern denselben Umriss.**
+
+`Branch` (`src/branch.ts`) ist der Lauf zwischen VERZWEIGUNGSKNOTEN (Grad ≠ 2),
+das Wort, das ADR 0030 reserviert hat, und er wird **exportiert** — P5 braucht
+dieselbe Zerlegung fuer den Wandweg. Der Offsetpfad geht weiter als der Branch:
+er kettet an jedem Knoten und wird zusaetzlich an jedem Dickensprung geteilt,
+weil Clipper2 EIN `delta` je Aufruf nimmt. Ein geschlossener Umlauf wird
+**topologisch** erkannt (erster Knoten === letzter Knoten) — zwei Knoten auf
+denselben Koordinaten sind zwei Knoten.
+
+### Die Drift-Pruefung
+
+`validateSectionGeometry` leitet den Umriss NEU AB und vergleicht die Flaeche —
+das Versprechen von ADR 0030, das von P0 bis P2 eine Absicht war. Die Schranke
+wird abgeleitet, nicht gesetzt:
+
+```text
+warnen, wenn |A_neu − A| > policy.arcTolerance · U      U aus dem Umriss
+```
+
+`arcTolerance · U` ist genau die Flaeche, die entsteht, wenn der Rand ueberall
+um die Diskretisierungstoleranz wandert — die groesste Abweichung, die ein
+zulaessiger Bibliothekswechsel erklaeren kann. **Kein viertes Policy-Feld**: eine
+gesetzte Schranke waere eine zweite Zahl fuer dieselbe Frage. Verglichen wird
+`A` und nicht Punkt fuer Punkt, sonst waere jede `arcTolerance`-Aenderung ein
+Befund. **Warnung, kein Fehler** — und sie gilt fuer BEIDE Varianten, womit der
+`outline`-Zweig die Pruefung bekommt, die ihm seit P2 fehlte.
 
 Dazu gehoert seit
 [ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md) das
@@ -57,9 +106,9 @@ Knickwarnung ihre Endtangente aus `2·atan(bulge)` von Hand rechnete und
 `@baustatik/script` keine Geometriebibliothek in den Snapshot-Builder zog. Mit
 `Bulge` (P1) gibt es die Umrechnung an einer Stelle; `outgoingTangent` liest
 `Bulge.sweep`, und die Doppelung ist aufgeloest statt nur getestet. **Der Preis
-ist ausgesprochen:** sobald `geometry-2d` in P3 `clipper2-ts` einzieht, traegt
-`@baustatik/script` es transitiv mit. Den mitgefuehrten Umriss LIEST das Gate
-weiterhin, es leitet ihn nicht ab.
+ist ausgesprochen:** seit `geometry-2d` mit P3 `clipper2-ts` eingezogen hat,
+traegt `@baustatik/script` es transitiv mit. Und das Gate LIEST den mitgefuehrten
+Umriss nicht mehr nur — es leitet ihn seit P3 neu ab und vergleicht (ADR 0037).
 
 ## Die Grenze zur Bemessung, mechanisch pruefbar
 
@@ -279,9 +328,11 @@ Material laeuft mit `signedArea > 0`, ein Loch mit `< 0`.
 | `warnings` | ein Lochring in keinem Materialring (`UnnestedHoleWarning`) | rechenbar und bei zwei getrennten Vollflaechen legitim aussehend — die Lage, fuer die ADR 0032 warnt |
 
 **Ausdruecklich nicht geprueft:** doppelte aufeinanderfolgende Punkte (tragen
-zur Shoelace-Summe exakt null bei) und die **Selbstdurchdringung** — P0 hat sie
-offen gelassen, P2 auch; ab P3 liefert Clipper2 ueberschneidungsfreie Ringe per
-Konstruktion.
+zur Shoelace-Summe exakt null bei) und die **Selbstdurchdringung** — im
+`midline`-Zweig liefert Clipper2 seit P3 ueberschneidungsfreie Ringe per
+Konstruktion, im `outline`-Zweig bleibt sie offen, und die Drift-Pruefung faengt
+sie nicht: ein sich selbst durchdringender Ring leitet zu sich selbst ab, die
+Drift ist null.
 
 **Satz 2 keyt allein auf `yM`**, nicht auf `(yM, zM)`: das ebene Stabwerk kennt
 nur `Vz`, ein z-Versatz erzeugt darin keine Torsion. Andernfalls feuerte jeder
@@ -304,21 +355,39 @@ feuerte damit bei jedem symmetrisch gezeichneten Querschnitt. Bezogen wird auf
 dort, wo `Iy` klein und `Iz` gross ist. Damit ist die in P0 vorgezogene Policy
 an beiden Tueren tatsaechlich in Gebrauch.
 
-### Offene Luecke: `bulge` wird vom Gate NICHT geprueft
+### Die Luecke bei `bulge` ist mit P3 geschlossen
 
-G1 bis G6 sehen den Umriss, doppelte Ids, haengende Verweise, `t > 0`, die
-Nulllaengenwand und den Knick — **nie die Woelbung selbst**. Ein `bulge` von
-`NaN` laeuft still durch: die Knickpruefung rechnet `notch = NaN`, und
-`NaN > arcTolerance` ist `false`, also schweigt sie. Fuer `t` prueft G4
-ausdruecklich `Number.isFinite`; fuer `bulge` gibt es die Entsprechung nicht.
+Bis P2 sahen G1 bis G6 den Umriss, doppelte Ids, haengende Verweise, `t > 0`,
+die Nulllaengenwand und den Knick — **nie die Woelbung selbst**. Ein `bulge` von
+`NaN` lief still durch: die Knickpruefung rechnet `notch = NaN`, und
+`NaN > arcTolerance` ist `false`, also schwieg sie. Fuer `t` prueft G4
+ausdruecklich `Number.isFinite`; fuer `bulge` gab es die Entsprechung nicht.
 
-Solange das so ist, faengt der Zeichenweg es ab: `cross-section-viewer` faellt
-bei einem nicht endlichen `bulge` — und bei einem am Vollkreis-Pol, wo
-`4·atan(bulge)` auf `2π` rundet — auf die Sehne zurueck, statt zu werfen. Das
-ist die Notbremse und nicht die Loesung: ein solcher Satz wird dann falsch
-GEZEICHNET, ohne dass irgendwer ihn gemeldet haette. Ein eigener Befund gehoert
-ins Gate, ist aber eine Erweiterung seiner Befundmenge und damit eine
-Entscheidung, die P1 nicht getroffen hat.
+P3 hat die Entscheidung erzwungen, weil es als erstes darueber stolpert: der
+Wert laeuft ab jetzt in eine **fremde Bibliothek**, deren Ergebnis danach
+*plausibel aussieht*. Das Gate meldet ihn als `NonFiniteBulgeError`, die
+Ableitung liest ihn als Gerade und filtert ihn weg (ADR 0037).
+
+Der Zeichenweg faengt ihn weiterhin ab: `cross-section-viewer` faellt bei einem
+nicht endlichen `bulge` — und bei einem am Vollkreis-Pol, wo `4·atan(bulge)` auf
+`2π` rundet — auf die Sehne zurueck, statt zu werfen. Das bleibt richtig: ein
+Fehler des Gates haelt den Zeichenweg nicht auf, und ein kaputtes Modell soll man
+SEHEN.
+
+### Der gekappte Miter-Spitz
+
+`MiterLimitExceededWarning`, an **durchverbundenen** Stoessen: die Umrissecke
+liegt beim Innenwinkel `α` um `(t/2)/sin(α/2)` neben dem Knoten, und Clipper2
+kappt sie, sobald `1/sin(α/2) > policy.miterLimit`. Bei der Voreinstellung `2`
+also unter `60°`. Warnung und kein Fehler — reale Bleche werden abgeschnitten —,
+aber nie stillschweigend: ein Knotenblech unter `30°` verloere sonst Flaeche,
+ohne dass irgendwer es gesagt haette. Dieselbe Figur wie die Knickwarnung: eine
+aus einem Policy-Feld abgeleitete Schranke und ein Satz, der sagt, was sie
+bedeutet.
+
+Nur an durchverbundenen Stoessen, weil nur dort ueberhaupt eine Miter-Ecke
+entsteht; welche das sind, sagt die Ableitung (`chainedJoints`) und nicht eine
+zweite Rechnung im Gate.
 
 ## `SectionPolicy`: die Erzeugungs-Einstellung
 
@@ -339,14 +408,26 @@ eine Version je Datensatz, und der Datensatz ist der Snapshot (`v7`, wo
 `@baustatik/section-geometry`. Es neu zu setzen brachte den Zustand zurueck, den
 ADR 0032 beseitigt hat — zwei Zahlen fuer eine Modellannahme.
 
-**Zwei Felder heute, zwei datierte Kandidaten:**
+**Drei Felder heute, ein datierter Kandidat:**
 
 | Feld / Kandidat | Stand |
 | --- | --- |
 | `arcTolerance` — die Sehnenabweichung [mm] | seit P1 |
 | `principalAxisTolerance` — dimensionslos, `\|Iyz\| <= tol · max(\|Iy\|, \|Iz\|)`, Default `1e-9` | seit P2 |
-| Miter-Limit + `JoinType` (die Umrissecke bei schraegen Stoessen) | P3 |
+| `miterLimit` — dimensionslos, gekappt ab `1/sin(α/2) > miterLimit`, Default `2` | seit P3 |
 | Schwelle „dicke Wand" (`t/h`) | P5 |
+
+`JoinType` stand in derselben Zeile wie das Miter-Limit und ist **kein Feld
+geworden**: er ist auf Miter festgenagelt, weil `Round` jede Ecke des I-Profils
+abrundete und die Identitaet `2·b·tf + tw·(h − 2·tf)` fiele (ADR 0037). Es gibt
+keine zweite zulaessige Wahl, also auch keine Einstellung. **Ebenfalls kein
+Feld: `OFFSET_PRECISION`** — es rastert den Rechenweg und nicht das Modell und
+wohnt deshalb als Konstante in `@baustatik/geometry-2d`.
+
+`miterLimit` ist **nach unten bei `1` begrenzt**, und die Schranke ist abgelesen
+statt gewaehlt: Clipper2 ersetzt jeden Wert `<= 1` still durch `2`. Eine
+Einstellung, die nicht wirkt und darueber schweigt, ist die eine Sorte Wert, die
+der Eingang nicht durchlassen darf.
 
 `principalAxisTolerance` ist **relativ und dimensionslos**, weil eine absolute
 Schranke in m⁴ bei cm-grossen und m-grossen Querschnitten zwei verschiedene

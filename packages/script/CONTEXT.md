@@ -66,6 +66,16 @@ into a snapshot.
   - **The authored DSL is unchanged.** `CrossSectionInput`/`MaterialInput` still
     name the catalogue entry; the copy is what `finish()` writes, not what
     anyone types. `declarations.ts` needed no edit, and a test holds that.
+- **The builder derives one thing, and only one:** the outline of a wall graph.
+  `crossSection({ kind: 'section-input', input })` runs the figure through
+  `createSectionGeometry` under the builder's own `SectionPolicy`
+  ([ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+  This is the same *procurement* as the catalogue lookup, not a check: the
+  author names what they know, and the model puts beside it what is not to be
+  had without the project setting — which the script author never sees.
+  `{ kind: 'section-geometry', geometry }` stays next to it and is still only
+  **copied**: a record that came from a file already carries its outline, and
+  re-deriving it here would silently replace the stored numbers.
 - **An older `schemaVersion` is rejected, never extended.** A v1 snapshot has a
   `crossSectionId` pointing nowhere; a v2 snapshot's `materialId` *is* the grade
   rather than a reference; a v3 snapshot lacks the copied numbers; a v6 lacks
@@ -76,11 +86,12 @@ into a snapshot.
   discretised at 0.05 mm and judged at `1e-9`, and the drift check the field
   exists for would then judge against an invented number. A migration is a tool
   someone runs and can refuse.
-- **`sectionPolicy` is a mandatory project-level field since v7**, and since v8
-  it carries **two** fields: `arcTolerance` (creation) and
-  `principalAxisTolerance` (judgement)
+- **`sectionPolicy` is a mandatory project-level field since v7**, and since v9
+  it carries **three**: `arcTolerance` (creation), `principalAxisTolerance`
+  (judgement) and `miterLimit` (creation — it changes the stored outline)
   ([ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md),
-  [ADR 0035](../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
+  [ADR 0035](../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md),
+  [ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
   It carries **effective** values, not deviations — otherwise the same project
   would silently compute differently after a change to the software defaults.
   It sits beside `crossSections` rather than inside each one because the fields

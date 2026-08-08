@@ -1,5 +1,13 @@
 # The section editor stores a wall graph with its derived outline
 
+> **Addendum (P3, [ADR 0037](0037-the-outline-comes-from-inflating-wall-runs.md)):**
+> the sentence *"the gate derives the outline anyway, so the comparison costs
+> nothing"* was an **intention** from P0 through P2 — the gate read
+> `geometry.outline` and checked it only against itself. Since P3 the gate really
+> does re-derive it and compares `A`, for **both** variants
+> (`OutlineDriftWarning`). ADR 0037 also cashes in the reservation of the word
+> `Branch` made below.
+
 Adds a **third source** of section values next to the parametric shape and the
 catalogue row, and fixes the record it stores. It decides the *type*, not the
 mathematics: no Green integration, no offsetting, no `bulge` ↔ `Arc`. Those come

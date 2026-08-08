@@ -30,3 +30,27 @@
  * zu lesen.
  */
 export const DEFAULT_ARC_TOLERANCE = 0.05;
+
+/**
+ * Die Nachkommastellen, mit denen `Polygon.inflate` rechnet.
+ *
+ * Clipper2 rechnet auf GANZEN ZAHLEN. Die `…D`-API nimmt Gleitkommazahlen
+ * entgegen und rastert sie beim Eintritt auf ein Gitter der Weite `10^-p`; `p`
+ * ist genau diese Zahl. Die Voreinstellung der Bibliothek ist `2`, also
+ * `0,01 mm` — nur Faktor 5 unter `DEFAULT_ARC_TOLERANCE`, und damit stünde die
+ * Rasterung des Rechenwegs in derselben Grössenordnung wie die
+ * Modellannahme über die Bogenzerlegung. Zwei Näherungen, die man nicht mehr
+ * auseinanderhalten kann.
+ *
+ * `6` heisst `10^-6 mm`. Bei Querschnittsmassen bis `10^4 mm` sind das `10^10`
+ * Gittereinheiten und damit weit innerhalb der `int64`, auf der Clipper2
+ * arbeitet (`~9,2·10^18`).
+ *
+ * QUANTISIERUNG DES RECHENWEGS, KEINE MODELLANNAHME — und deshalb ausdrücklich
+ * KEIN Feld der `SectionPolicy`: sie ändert das Ergebnis nur um Beträge, über
+ * die niemand eine Aussage treffen will, während `arcTolerance` die Punktzahl
+ * bestimmt, aus der `A`, `Iy` und `Iz` fallen (ADR 0033). Eine Einstellung
+ * hier lüde dazu ein, eine numerische Feinheit für eine Ingenieurentscheidung
+ * zu halten.
+ */
+export const OFFSET_PRECISION = 6;
