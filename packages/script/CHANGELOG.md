@@ -1,5 +1,12 @@
 # @baustatik/script
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [8646b0b]
+  - @baustatik/cross-section@1.0.1
+
 ## 2.0.0
 
 ### Major Changes
