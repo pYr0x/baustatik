@@ -34,6 +34,7 @@ import { type ResolvedAnalysis, resolveAnalysis } from './analysis';
 import type { SolverConfig } from './config';
 import {
   LoadOnIsolatedNodeWarning,
+  ShearDeformationUnavailableWarning,
   UnknownSectionStiffnessError,
 } from './errors';
 import { resolveLoadCase } from './resolve-load-case';
@@ -138,13 +139,25 @@ export function checkWith(
   // gehoert trotzdem zu den Modellfehlern — ein Stab ohne Steifigkeit ist kein
   // Rechenproblem, sondern ein unvollstaendiges Modell.
   for (const beam of beams) {
-    if (config.getSectionStiffness(beam) === undefined) {
+    const stiffness = config.getSectionStiffness(beam);
+    if (stiffness === undefined) {
       model.errors.push(
         new UnknownSectionStiffnessError(
           beam.id,
           beam.crossSectionId,
           beam.materialId,
         ),
+      );
+      continue;
+    }
+
+    // M8: verlangte Schubverformung, die der Querschnitt nicht hergibt (ADR
+    // 0035). Der Policy-Schalter greift erst in `solve()`, also kann `'rigid'`
+    // HIER nur aus dem Querschnitt kommen — steht er dort, hat niemand ihn
+    // eingestellt, sondern kappa fehlt.
+    if (analysis.policy.shearDeformation && stiffness.GAs === 'rigid') {
+      model.warnings.push(
+        new ShearDeformationUnavailableWarning(beam.id, beam.crossSectionId),
       );
     }
   }

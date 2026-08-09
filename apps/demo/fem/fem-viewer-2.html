@@ -6,7 +6,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FEM-Viewer</title>
-    <script src="./fem-viewer.ts" type="module"></script>
+    <script src="./fem-viewer-2.ts" type="module"></script>
     <style>
         :root {
             font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -52,6 +52,25 @@
             letter-spacing: 0.08em;
             text-transform: uppercase;
             color: #5c636d;
+        }
+
+        /* Der Rück-Link sitzt als kleine Marke ueber der Zeichenflaeche. */
+        .back {
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            z-index: 100;
+            padding: 2px 8px;
+            border: 1px solid #dfe2e7;
+            border-radius: 4px;
+            background: #fff;
+            font-size: 0.75rem;
+            color: #5c636d;
+            text-decoration: none;
+        }
+
+        .back:hover {
+            text-decoration: underline;
         }
 
         .block {
@@ -157,6 +176,7 @@
 </head>
 
 <body>
+    <a class="back" href="../index.html">← Zur Übersicht</a>
     <main>
         <div id="container"></div>
         <aside id="panel" aria-label="Berichtspalte">

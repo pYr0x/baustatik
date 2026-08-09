@@ -27,7 +27,8 @@ The package provides the following 2D primitives as immutable plain objects:
 - **`Line`**: `{ p1, p2 }`
 - **`Arc`**: `{ center, radius, startAngle, sweep }`
 - **`Polyline`**: `{ points: Point[] }` (open path)
-- **`Polygon`**: `{ points: Point[] }` (closed path, always CCW)
+- **`Polygon`**: `{ points: Point[] }` (closed path; the winding is kept as
+  given — `signedArea > 0` is CCW, `< 0` is CW and can mean a hole)
 
 Alongside them, **`Bulge`** is not a primitive but a codec: it converts between
 the DXF bulge `tan(Δ/4)` — the redundancy-free way to *store* an arc between two
@@ -82,7 +83,22 @@ const points = Arc.intersectLine(arc, l2); // [(0, 5)]
 ```
 
 ### Polygons and Clipping
-Polygons are automatically normalized to **CCW orientation** to ensure consistent area and boolean calculations.
+`Polygon.make` **validates but does not rotate**: the winding comes out the way
+it went in. That is what makes a hole ring expressible at all — consumers such
+as `@baustatik/cross-section` read the winding as *material* (`signedArea > 0`)
+against *hole* (`< 0`), see
+[ADR 0034](../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md).
+
+Two consequences worth knowing:
+
+- `mirror` **reverses** the winding, because a reflection is
+  orientation-reversing. Hiding that would silently turn a hole into material.
+- `union` / `intersect` / `subtract` still return CCW rings. The promise moved
+  from `make` to the martinez boundary: the winding of a foreign library is not
+  a statement of this package, so it is fixed where the data crosses in.
+
+`Polygon.area` returns the **absolute** value and is therefore the wrong door
+for a hole ring; `Polygon.moments(points).A` carries the sign.
 
 ```typescript
 import { Polygon, Point } from '@baustatik/geometry-2d';
@@ -93,6 +109,35 @@ const poly = Polygon.make([...]);
 const intersection = Polygon.intersect(polyA, polyB); // Returns Polygon[]
 const merged = Polygon.union(polyA, polyB);
 const difference = Polygon.subtract(polyA, polyB);
+```
+
+### Inflating runs — `Polygon.inflate`
+
+`Polygon.inflate` takes **open or closed runs** and returns a **ring set with
+holes**: outer rings `signedArea > 0`, holes `< 0`, sorted by `|A|` descending
+with every hole directly behind its outer ring
+([ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+
+It is the only door in this package backed by `clipper2-ts` rather than
+martinez, and it both **inflates and unions** — every run carries its own
+`delta`, Clipper2 takes one `delta` per offset call, so a boolean union always
+follows. The nesting is read from Clipper2's `PolyTreeD` and the winding is then
+**set**, never passed through: the winding of a foreign library is not a
+statement of this package.
+
+`JoinType` is nailed to `Miter` and is not an option — `Round` would round off
+every corner of an I-profile and break the identity `A = 2·b·tf + tw·(h − 2·tf)`.
+The name is `inflate`, not `offset`: `offset` stays free for inflating a closed
+*ring* to one side.
+
+```typescript
+const rings = Polygon.inflate(
+  [
+    { polyline: web, delta: 3, endType: 'butt' },   // t = 6
+    { polyline: flange, delta: 5, endType: 'butt' }, // t = 10
+  ],
+  { arcTolerance: 0.05, miterLimit: 2 },
+);
 ```
 
 ## Error Handling

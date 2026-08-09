@@ -1,4 +1,5 @@
 import {
+  createSectionGeometry,
   createSectionPolicy,
   type CrossSection,
   type SectionPolicy,
@@ -49,10 +50,10 @@ export function defineModel(definition: ModelDefinition): ModelDefinition {
  * Ein Modellbauer.
  *
  * DIE POLICY WIRD GEPRUEFT UND NICHT NUR ENTGEGENGENOMMEN. `SectionPolicy` ist
- * rein strukturell ueber `mm = number & { __unit?: 'mm' }`, also geht
+ * rein strukturell über `mm = number & { __unit?: 'mm' }`, also geht
  * `{ arcTolerance: 0 }` durch den Compiler — und `parseFEMModelSnapshot` wiese
- * den fertigen Satz danach zurueck. Der Bauer duerfte nie einen Satz ausgeben,
- * den sein eigener Parser ablehnt; `createSectionPolicy` ist die pruefende Tuer,
+ * den fertigen Satz danach zurück. Der Bauer dürfte nie einen Satz ausgeben,
+ * den sein eigener Parser ablehnt; `createSectionPolicy` ist die prüfende Tür,
  * und hier wird sie erzwungen statt erhofft. Ohne Argument liefert sie
  * `DEFAULT_SECTION_POLICY`.
  */
@@ -191,19 +192,25 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
   /**
    * Legt einen Querschnitt ins Modell und gibt seine ID heraus.
    *
-   * Anders als Knoten und Staebe reist der Griff NICHT als Argument weiter:
+   * Anders als Knoten und Stäbe reist der Griff NICHT als Argument weiter:
    * `Beam.crossSectionId` bleibt ein String, damit `@baustatik/fem` weiterhin
-   * nur an `errors` haengt (ADR 0023). Aufgerufen wird also
+   * nur an `errors` hängt (ADR 0023). Aufgerufen wird also
    * `model.beam(a, b, { crossSectionId: ipe300.id, materialId: s235.id })`.
    *
    * HIER, und nur hier, wird der Profilkatalog befragt (ADR 0027). Die Zeile
-   * geht als Kopie in den Satz; gespeichert wird ausserdem die KANONISCHE
+   * geht als Kopie in den Satz; gespeichert wird außerdem die KANONISCHE
    * Bezeichnung, `'ipe300'` also als `'IPE 300'`.
    *
    * Die dritte Quelle, `'section-geometry'`, wird nur KOPIERT: es gibt keinen
-   * Katalog dahinter, und geprueft wird sie dort, wo sie gezeichnet wird
-   * (`validateSectionGeometry`). Der Builder zoege sich sonst ein Gate in
-   * eine Zeile, die gar nicht darueber entscheidet.
+   * Katalog dahinter, und geprüft wird sie dort, wo sie gezeichnet wird
+   * (`validateSectionGeometry`). Der Builder zöge sich sonst ein Gate in
+   * eine Zeile, die gar nicht darüber entscheidet.
+   *
+   * `'section-input'` IST DIESELBE QUELLE OHNE IHREN UMRISS (ADR 0037). Hier
+   * leitet der Bauer ihn ab, unter der Policy, die er ohnehin führt — das ist
+   * KEIN Prüfen, sondern dasselbe Beschaffen wie beim Profilkatalog: der
+   * Autor nennt, was er weiß, und das Modell legt daneben, was ohne die
+   * Projekteinstellung nicht zu haben ist.
    */
   crossSection(input: CrossSectionInput): CrossSectionHandle {
     const id = crypto.randomUUID();
@@ -225,6 +232,19 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
           kind: 'section-geometry',
           id,
           geometry: structuredClone(input.geometry),
+        };
+      case 'section-input':
+        // DER EINE ORT, an dem der Bauer mehr tut als kopieren: er leitet den
+        // Umriss unter SEINER Policy ab — derselben, die gleich neben ihm im
+        // Satz landet (ADR 0033, ADR 0037). Der Skriptautor könnte das nicht,
+        // er sieht die Einstellung nie.
+        return {
+          kind: 'section-geometry',
+          id,
+          geometry: createSectionGeometry(
+            structuredClone(input.input),
+            this.#sectionPolicy,
+          ),
         };
     }
   }
@@ -322,7 +342,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
 
   finish(): FEMModelSnapshot {
     return structuredClone({
-      schemaVersion: 7,
+      schemaVersion: 9,
       nodes: this.#nodes,
       beams: this.#beams,
       crossSections: this.#crossSections,
@@ -340,7 +360,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
    *
    * Der Wurf ist die Gegenseite von ADR 0027: weil der Katalog jetzt nur noch
    * BEIM ANLEGEN befragt wird, gibt es genau einen Moment, in dem ein
-   * Tippfehler auffallen kann, und das ist dieser. Frueher wanderte er als
+   * Tippfehler auffallen kann, und das ist dieser. Früher wanderte er als
    * `undefined` bis in den Solver-Bericht und stand dort neben echten
    * Modellfehlern.
    */

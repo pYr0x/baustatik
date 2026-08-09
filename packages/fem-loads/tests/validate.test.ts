@@ -48,7 +48,7 @@ function validateLoads(
   return checkLoads(m, loads).errors;
 }
 
-// Dasselbe Modell wie in apps/demo/fem-viewer.ts: ein waagrechter Stab der
+// Dasselbe Modell wie in apps/demo/fem/fem-viewer.ts: ein waagrechter Stab der
 // Laenge 100 und ein schraeger Stab nach oben (z zeigt abwaerts). Dazu ein
 // senkrechter Stab als Gegenprobe fuer die Bezugslaenge.
 const HORIZONTAL = Line.make(Point.make(0, 0), Point.make(100, 0));

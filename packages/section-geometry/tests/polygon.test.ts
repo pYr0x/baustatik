@@ -22,42 +22,68 @@ describe('Polygon.make and signedArea', () => {
     );
   });
 
-  it('uses signedArea > 0 for YZ-clockwise polygons', () => {
-    const clockwise = [
-      Point.make(0, 0),
-      Point.make(1, 0),
-      Point.make(1, 1),
-      Point.make(0, 1),
-    ];
-    const counterClockwise = [...clockwise].reverse();
-    expect(Polygon.signedArea(clockwise)).toBeGreaterThan(0);
-    expect(Polygon.signedArea(counterClockwise)).toBeLessThan(0);
-  });
-
-  // Normalisiert auf den positiven Drehsinn (+y → +z), passend zu
-  // Vector.angle/cross/Arc.sweep. Im Bild ist das rechtsdrehend.
-  it('normalizes to signedArea >= 0 and keeps input array immutable', () => {
+  // ADR 0034: der positive Drehsinn (+y → +z) IST counter-clockwise, in beiden
+  // Packages dasselbe Wort. `isClockwise` ist deshalb `true` genau für
+  // `signedArea < 0` — dasselbe Beispiel wie in geometry-2d/tests/polygon.test.ts.
+  it('nennt signedArea > 0 counter-clockwise, wie geometry-2d', () => {
     const counterClockwise = [
-      Point.make(0, 1),
-      Point.make(1, 1),
-      Point.make(1, 0),
       Point.make(0, 0),
+      Point.make(1, 0),
+      Point.make(1, 1),
+      Point.make(0, 1),
     ];
-    const snapshot = [...counterClockwise];
-    const polygon = Polygon.make(counterClockwise);
-    expect(Polygon.signedArea(polygon.points)).toBeGreaterThan(0);
-    expect(Polygon.isClockwise(polygon)).toBe(true);
-    expect(counterClockwise).toEqual(snapshot);
+    const clockwise = [...counterClockwise].reverse();
+    expect(Polygon.signedArea(counterClockwise)).toBeGreaterThan(0);
+    expect(Polygon.signedArea(clockwise)).toBeLessThan(0);
+    expect(Polygon.isClockwise({ points: counterClockwise })).toBe(false);
+    expect(Polygon.isClockwise({ points: clockwise })).toBe(true);
   });
 
-  it('leaves an already positively wound ring untouched', () => {
-    const positive = [
-      Point.make(0, 0),
-      Point.make(1, 0),
-      Point.make(1, 1),
+  // ADR 0034: die Fabrik prüft, sie dreht nicht — sonst wäre ein Lochring
+  // (`signedArea < 0`) gar nicht baubar.
+  it('gibt die Punkte unverändert zurück, in beiden Windungen', () => {
+    const clockwise = [
       Point.make(0, 1),
+      Point.make(1, 1),
+      Point.make(1, 0),
+      Point.make(0, 0),
     ];
-    expect(Polygon.make(positive).points).toEqual(positive);
+    const snapshot = [...clockwise];
+    const polygon = Polygon.make(clockwise);
+    expect(polygon.points).toEqual(clockwise);
+    expect(Polygon.signedArea(polygon.points)).toBeLessThan(0);
+    expect(clockwise).toEqual(snapshot);
+
+    const counterClockwise = [...clockwise].reverse();
+    expect(Polygon.make(counterClockwise).points).toEqual(counterClockwise);
+  });
+});
+
+describe('Polygon.moments trägt die Flächenmomente unter den Symbolen der Norm', () => {
+  // Rechteck 4x3, Ecke im Ursprung, y nach rechts und z nach unten:
+  // A = 12, Sy = ∫y dA = 12·2 = 24, Sz = 12·1,5 = 18,
+  // Iy = ∫z² dA = 4·3³/3 = 36, Iz = ∫y² dA = 3·4³/3 = 64,
+  // Iyz = ∫y·z dA = (4²/2)·(3²/2) = 36.
+  it('rechnet sie roh um den Ursprung, mit `Iyz = +∫y·z dA` und ohne Negation', () => {
+    const m = Polygon.moments(rect);
+    expect(m.A).toBeCloseTo(12);
+    expect(m.Sy).toBeCloseTo(24);
+    expect(m.Sz).toBeCloseTo(18);
+    expect(m.Iy).toBeCloseTo(36);
+    expect(m.Iz).toBeCloseTo(64);
+    expect(m.Iyz).toBeCloseTo(36);
+  });
+
+  it('kehrt mit der Windung alle Vorzeichen um — das Loch trägt sich selbst bei', () => {
+    const material = Polygon.moments(rect);
+    const hole = Polygon.moments([...rect].reverse());
+    expect(hole.A).toBeCloseTo(-material.A);
+    expect(hole.Iy).toBeCloseTo(-material.Iy);
+    expect(hole.Iyz).toBeCloseTo(-material.Iyz);
+  });
+
+  it('stimmt in A mit signedArea überein', () => {
+    expect(Polygon.moments(rect).A).toBeCloseTo(Polygon.signedArea(rect));
   });
 });
 
@@ -130,8 +156,8 @@ describe('Polygon construction and boolean ops', () => {
       Point.make(2, 4),
     ]);
 
-    // Alle Ausgaben laufen durch Polygon.make und tragen daher den positiven
-    // Drehsinn (signedArea >= 0).
+    // Die Zusage hängt seit ADR 0034 nicht mehr an `Polygon.make`, sondern an
+    // der martinez-Grenze in geometry-2d — sie gilt trotzdem weiter.
     const positivelyWound = (polygon: { points: Point[] }) =>
       Polygon.signedArea(polygon.points) >= 0;
 
@@ -163,8 +189,8 @@ describe('Polygon transforms and bounding box', () => {
 
   it('translates, rotates and mirrors while preserving winding policy', () => {
     const polygon = Polygon.make(rect);
-    // Ueber die Bounding-Box geprueft statt ueber points[0]: welche Ecke der
-    // Ring zuerst nennt, haengt an der Normalisierung und ist keine Zusage.
+    // Ueber die Bounding-Box geprüft statt über points[0]: welche Ecke der
+    // Ring zuerst nennt, hängt an der Normalisierung und ist keine Zusage.
     const translated = Polygon.translate(polygon, Vector.make(1, 1));
     const box = Polygon.boundingBox(translated);
     expect(box.min).toEqual({ y: 1, z: 1 });
@@ -173,9 +199,53 @@ describe('Polygon transforms and bounding box', () => {
     const rotated = Polygon.rotate(polygon, Math.PI / 2, Point.make(0, 0));
     expect(Polygon.area(rotated)).toBeCloseTo(12); // area is rotation-invariant
 
-    // Spiegeln dreht die Windung um, Polygon.make normalisiert sie zurueck.
+    // Spiegeln KEHRT die Windung UM (ADR 0034) — nichts dreht sie zurück.
     const mirrored = Polygon.mirror(polygon, Point.make(0, 0), Point.make(1, 0));
-    expect(Polygon.signedArea(mirrored.points)).toBeGreaterThanOrEqual(0);
+    expect(Polygon.signedArea(polygon.points)).toBeGreaterThan(0);
+    expect(Polygon.signedArea(mirrored.points)).toBeLessThan(0);
     expect(Polygon.area(mirrored)).toBeCloseTo(12);
+  });
+});
+
+describe('Polygon.inflate reicht die Aufweitung nach y/z durch', () => {
+  it('macht aus einer Wand der Länge 100 mit delta 5 einen Materialring', () => {
+    const [ring, ...rest] = Polygon.inflate([
+      {
+        polyline: { points: [Point.make(0, 0), Point.make(100, 0)] },
+        delta: 5,
+        endType: 'butt',
+      },
+    ]);
+
+    expect(rest).toHaveLength(0);
+    expect(ring).toBeDefined();
+    // Die Windungsregel reist unverändert mit: Material läuft positiv
+    // (ADR 0034, fortgeschrieben in ADR 0037).
+    expect(Polygon.signedArea(ring?.points ?? [])).toBeCloseTo(1000, 9);
+    const box = Polygon.boundingBox(Polygon.make(ring?.points ?? []));
+    expect(box.min).toEqual({ y: 0, z: -5 });
+    expect(box.max).toEqual({ y: 100, z: 5 });
+  });
+
+  it('liefert am geschlossenen Zug das Loch mit — negativ und hinter seinem Ring', () => {
+    const rings = Polygon.inflate([
+      {
+        polyline: {
+          points: [
+            Point.make(0, 0),
+            Point.make(100, 0),
+            Point.make(100, 200),
+            Point.make(0, 200),
+            Point.make(0, 0),
+          ],
+        },
+        delta: 3,
+        endType: 'joined',
+      },
+    ]);
+
+    expect(rings).toHaveLength(2);
+    expect(Polygon.signedArea(rings[0]?.points ?? [])).toBeCloseTo(106 * 206, 9);
+    expect(Polygon.signedArea(rings[1]?.points ?? [])).toBeCloseTo(-(94 * 194), 9);
   });
 });

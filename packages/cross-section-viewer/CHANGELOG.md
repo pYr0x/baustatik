@@ -1,8 +1,8 @@
 # @baustatik/cross-section-viewer
 
-## 2.0.0
+## 0.0.1
 
-### Major Changes
+### Patch Changes
 
 - cec4a27: **Breaking:** `ViewerConfig` bekommt einen zweiten Pull,
   `getSectionPolicy: () => SectionPolicy`, neben `getGeometry` und
@@ -31,19 +31,13 @@
   Vorzeichen-Test, an dem `bulge` → `Arc.sweep` → `ArcPathSpec.sweepAngle`
   aufeinandertreffen — bislang war die Identität nur argumentiert.
 
-### Patch Changes
-
 - Updated dependencies [cec4a27]
-- Updated dependencies [cec4a27]
-  - @baustatik/section-geometry@0.3.0
-  - @baustatik/cross-section@2.0.0
-
-## 1.0.1
-
-### Patch Changes
-
+- Updated dependencies
 - Updated dependencies [8646b0b]
-  - @baustatik/cross-section@1.0.1
+- Updated dependencies [cec4a27]
+- Updated dependencies
+  - @baustatik/section-geometry@0.0.1
+  - @baustatik/cross-section@0.0.1
 
 ## 1.0.0
 

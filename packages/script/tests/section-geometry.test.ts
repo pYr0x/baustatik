@@ -3,6 +3,8 @@ import {
   DEFAULT_SECTION_POLICY,
   InvalidSectionPolicyError,
   type SectionGeometry,
+  sectionProperties,
+  validateSectionGeometry,
 } from '@baustatik/cross-section';
 import { describe, expect, it } from 'vitest';
 import {
@@ -10,13 +12,14 @@ import {
   parseFEMModelSnapshot,
   SnapshotValidationError,
 } from '../src';
+import { SCHEMA_VERSION } from './helpers';
 
 /**
- * Der Pruefstein von P0: der RUNDLAUF durch `@baustatik/script`
+ * Der Prüfstein von P0: der RUNDLAUF durch `@baustatik/script`
  * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
  *
  * Ein Modell mit einem `section-geometry`-Querschnitt bauen, serialisieren,
- * `validate` bestehen, zurueckparsen, Typgleichheit pruefen. Erst damit ist
+ * `validate` bestehen, zurückparsen, Typgleichheit prüfen. Erst damit ist
  * belegt, dass der neue Satz WIRKLICH serialisierbar ist und nicht nur so
  * aussieht.
  */
@@ -61,18 +64,18 @@ function buildSnapshot() {
   return model.finish();
 }
 
-describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
-  it('ueberlebt Bauen, Serialisieren und Zurueckparsen unveraendert', () => {
+describe('Der Snapshot trägt die freie Querschnittsgeometrie mit', () => {
+  it('überlebt Bauen, Serialisieren und Zurückparsen unverändert', () => {
     const built = buildSnapshot();
     // ECHT DURCH JSON, nicht nur durch `structuredClone`: der Satz muss auch
-    // das ueberstehen, was beim Speichern wirklich passiert.
+    // das überstehen, was beim Speichern wirklich passiert.
     const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(built)));
 
-    expect(parsed.schemaVersion).toBe(7);
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
     expect(parsed.crossSections).toHaveLength(1);
     const [section] = parsed.crossSections;
     expect(section?.kind).toBe('section-geometry');
-    // TYPGLEICHHEIT, Feld fuer Feld: `bulge` bleibt erhalten, der mitgefuehrte
+    // TYPGLEICHHEIT, Feld für Feld: `bulge` bleibt erhalten, der mitgeführte
     // Umriss ebenso — er wird NICHT nachgerechnet.
     expect(section).toEqual(built.crossSections[0]);
   });
@@ -112,20 +115,20 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
     expect(parsed.crossSections[0]).toEqual(model.finish().crossSections[0]);
   });
 
-  it('LEHNT einen v5-Satz AB, auch wenn er sonst gueltig waere', () => {
+  it('LEHNT einen v5-Satz AB, auch wenn er sonst gültig wäre', () => {
     // DIE HAUSREGEL, BELEGT STATT BEHAUPTET. v5 unterscheidet sich am Satz
-    // NICHT von v6 — die dritte Variante ist rein additiv, ein v5 liesse sich
+    // NICHT von v6 — die dritte Variante ist rein additiv, ein v5 ließe sich
     // schlicht durchwinken. Genau deshalb steht der Test hier: die stille
-    // Aufloesung waere hier billiger zu uebersehen als bei v3 oder v4.
+    // Auflösung wäre hier billiger zu übersehen als bei v3 oder v4.
     const v5 = { ...buildSnapshot(), schemaVersion: 5 };
     expect(() => parseFEMModelSnapshot(v5)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v5)).toThrow(
-      'Snapshot.schemaVersion muss 7 sein.',
+      'Snapshot.schemaVersion muss 9 sein.',
     );
   });
 
-  it('weist ein `bulge` am ERGEBNISPUNKT zurueck', () => {
-    // Eingabe und Ergebnis sind am Typ unterscheidbar: `Vertex` traegt
+  it('weist ein `bulge` am ERGEBNISPUNKT zurück', () => {
+    // Eingabe und Ergebnis sind am Typ unterscheidbar: `Vertex` trägt
     // `bulge`, `Polygon` nicht. Der Parser setzt das durch, sonst reiste die
     // Unterscheidung nur im Typsystem und nicht im Satz.
     const broken = buildSnapshot();
@@ -144,20 +147,21 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
 /**
  * v7: das REZEPT steht neben dem Ergebnis
  * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
+ * v8: die Policy führt ein ZWEITES Feld, `principalAxisTolerance` (ADR 0035).
  *
  * Der Gewinn, der die Denormalisierung rechtfertigt: mit der Toleranz im
- * SELBEN Satz wie dem Umriss wird die Drift-Pruefung erstmals wohldefiniert.
+ * SELBEN Satz wie dem Umriss wird die Drift-Prüfung erstmals wohldefiniert.
  */
-describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () => {
+describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () => {
   it('legt sie neben crossSections und materials, nicht in den Querschnitt', () => {
     const parsed = parseFEMModelSnapshot(
       JSON.parse(JSON.stringify(buildSnapshot())),
     );
 
     expect(parsed.sectionPolicy).toEqual(DEFAULT_SECTION_POLICY);
-    // NICHT je Querschnitt: zwei der drei kuenftigen Felder BEURTEILEN, sie
-    // erzeugen nicht — derselbe Bericht duerfte sonst fuer zwei Querschnitte
-    // unter zwei Massstaeben schweigen.
+    // NICHT je Querschnitt: zwei der drei künftigen Felder BEURTEILEN, sie
+    // erzeugen nicht — derselbe Bericht dürfte sonst für zwei Querschnitte
+    // unter zwei Maßstäben schweigen.
     expect(parsed.crossSections[0]).not.toHaveProperty('sectionPolicy');
   });
 
@@ -169,17 +173,22 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
     });
     const snapshot = model.finish();
 
-    expect(snapshot.sectionPolicy).toEqual({ arcTolerance: 0.01 });
+    const effective = {
+      arcTolerance: 0.01,
+      principalAxisTolerance: 1e-9,
+      miterLimit: 2,
+    };
+    expect(snapshot.sectionPolicy).toEqual(effective);
     expect(
       parseFEMModelSnapshot(JSON.parse(JSON.stringify(snapshot)))
         .sectionPolicy,
-    ).toEqual({ arcTolerance: 0.01 });
+    ).toEqual(effective);
   });
 
   it('LEHNT einen v6-Satz AB, statt die Voreinstellung einzusetzen', () => {
     // DIE VERFUEHRERISCHSTE ERGAENZUNG VON ALLEN: `DEFAULT_SECTION_POLICY`
-    // liegt bereit. Genau sie waere die schlimmste — sie BEHAUPTETE, der
-    // mitgefuehrte Umriss sei unter 0,05 mm entstanden, und die Drift-Pruefung,
+    // liegt bereit. Genau sie wäre die schlimmste — sie BEHAUPTETE, der
+    // mitgeführte Umriss sei unter 0,05 mm entstanden, und die Drift-Prüfung,
     // um derentwillen das Feld existiert, urteilte gegen eine erfundene Zahl.
     const v6: Record<string, unknown> = {
       ...buildSnapshot(),
@@ -190,8 +199,36 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v6)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v6)).toThrow(
-      'Snapshot.schemaVersion muss 7 sein.',
+      'Snapshot.schemaVersion muss 9 sein.',
     );
+  });
+
+  it('LEHNT einen v7-Satz AB — die Policy führt jetzt zwei Felder', () => {
+    // v7 unterscheidet sich am Satz nur durch das FEHLENDE zweite Feld in der
+    // Policy, und `DEFAULT_SECTION_POLICY` liegt weiterhin bereit. Dieselbe
+    // Antwort wie bei v6, aus demselben Grund: eine eingesetzte
+    // Voreinstellung behauptete, unter ihr sei beurteilt worden.
+    const v7 = {
+      ...buildSnapshot(),
+      schemaVersion: 7,
+      sectionPolicy: { arcTolerance: 0.05 },
+    };
+
+    expect(() => parseFEMModelSnapshot(v7)).toThrow(SnapshotValidationError);
+    expect(() => parseFEMModelSnapshot(v7)).toThrow(
+      'Snapshot.schemaVersion muss 9 sein.',
+    );
+  });
+
+  it('lehnt eine Policy ohne principalAxisTolerance auch bei v8 ab', () => {
+    // Der Gegentest: es ist nicht die Versionsnummer, die den v7-Satz
+    // rettet — das Feld selbst ist Pflicht.
+    expect(() =>
+      parseFEMModelSnapshot({
+        ...buildSnapshot(),
+        sectionPolicy: { arcTolerance: 0.05 },
+      }),
+    ).toThrow(InvalidSectionPolicyError);
   });
 
   it('verlangt sectionPolicy auch bei richtiger Versionsnummer', () => {
@@ -204,9 +241,9 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
     );
   });
 
-  it('laesst ihren Eigentuemer pruefen, samt dessen Fehlerklasse', () => {
-    // Eine zweite Formpruefung hier waeren zwei Wahrheiten ueber dieselbe Form
-    // — dieselbe Arbeitsteilung, mit der `fem-solver` seine Lastscheibe prueft.
+  it('lässt ihren Eigentümer prüfen, samt dessen Fehlerklasse', () => {
+    // Eine zweite Formprüfung hier wären zwei Wahrheiten über dieselbe Form
+    // — dieselbe Arbeitsteilung, mit der `fem-solver` seine Lastscheibe prüft.
     expect(() =>
       parseFEMModelSnapshot({
         ...buildSnapshot(),
@@ -214,10 +251,135 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
       }),
     ).toThrow(InvalidSectionPolicyError);
 
+    // BIS P2 STAND HIER `miterLimit` als das unbekannte Feld. Mit ADR 0037 ist
+    // es das dritte PFLICHTFELD — der Satz geht jetzt durch, und der Gegentest
+    // braucht ein Feld, das es wirklich nicht gibt.
     expect(() =>
       parseFEMModelSnapshot({
         ...buildSnapshot(),
-        sectionPolicy: { arcTolerance: 0.05, miterLimit: 2 },
+        sectionPolicy: {
+          arcTolerance: 0.05,
+          principalAxisTolerance: 1e-9,
+          miterLimit: 2,
+          joinType: 'round',
+        },
+      }),
+    ).toThrow(InvalidSectionPolicyError);
+  });
+});
+
+/**
+ * Der Rundlauf des WANDGRAPHEN — P3 (ADR 0037).
+ *
+ * Bis P2 musste der Autor den Umriss danebentippen. `'section-input'` gibt ihm
+ * die Wahl, nur die Figur zu nennen; der Umriss fällt aus der Policy, die der
+ * Bauer ohnehin führt.
+ */
+describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
+  /** Ein I-Profil als Wandgraph: `A = 2·b·tf + tw·(h − 2·tf)`. */
+  const H = 300;
+  const B = 150;
+  const TW = 7.1;
+  const TF = 10.7;
+  const ZF = H / 2 - TF / 2;
+
+  const I_PROFIL = {
+    kind: 'midline' as const,
+    idealisation: 'thin-walled' as const,
+    nodes: [
+      { id: 'ol', y: -B / 2, z: -ZF },
+      { id: 'om', y: 0, z: -ZF },
+      { id: 'or', y: B / 2, z: -ZF },
+      { id: 'ul', y: -B / 2, z: ZF },
+      { id: 'um', y: 0, z: ZF },
+      { id: 'ur', y: B / 2, z: ZF },
+    ],
+    walls: [
+      { id: 'gurt-o-links', startNodeId: 'ol', endNodeId: 'om', t: TF },
+      { id: 'gurt-o-rechts', startNodeId: 'om', endNodeId: 'or', t: TF },
+      { id: 'steg', startNodeId: 'om', endNodeId: 'um', t: TW },
+      { id: 'gurt-u-links', startNodeId: 'ul', endNodeId: 'um', t: TF },
+      { id: 'gurt-u-rechts', startNodeId: 'um', endNodeId: 'ur', t: TF },
+    ],
+  };
+
+  function buildFromInput() {
+    const model = createFEMModelBuilder();
+    const a = model.node({ x: 0, z: 0 });
+    const b = model.node({ x: 5, z: 0 });
+    const section = model.crossSection({
+      kind: 'section-input',
+      input: I_PROFIL,
+    });
+    const steel = model.material({ kind: 'steel', grade: 'S235' });
+    model.beam(a, b, { crossSectionId: section.id, materialId: steel.id });
+    a.support({ ux: 'fixed', uz: 'fixed', phiY: 'fixed' });
+    b.support({ ux: 'free', uz: 'fixed', phiY: 'free' });
+    return model.finish();
+  }
+
+  it('baut, serialisiert, besteht validate und parst zurück', () => {
+    const built = buildFromInput();
+    const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(built)));
+
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
+    const [section] = parsed.crossSections;
+    expect(section?.kind).toBe('section-geometry');
+    // Der Satz ist am Ende derselbe wie bei `'section-geometry'`: die Variante
+    // ist eine EINGABEFORM und keine zweite Sorte Querschnitt.
+    expect(section).toEqual(built.crossSections[0]);
+  });
+
+  it('trifft mit A und Iy die parametrische Form', () => {
+    const [section] = buildFromInput().crossSections;
+    if (section === undefined) expect.unreachable();
+    const values = sectionProperties(section);
+    if (values === undefined) expect.unreachable();
+
+    // `sectionProperties` rechnet in SI: mm² -> m², mm⁴ -> m⁴.
+    const A = (2 * B * TF + TW * (H - 2 * TF)) * 1e-6;
+    expect(values.A).toBeCloseTo(A, 9);
+
+    // Iy des I aus drei Rechtecken, mit Steiner für die Gurte.
+    const Iy =
+      ((TW * (H - 2 * TF) ** 3) / 12 +
+        2 * ((B * TF ** 3) / 12 + B * TF * ((H - TF) / 2) ** 2)) *
+      1e-12;
+    expect(values.Iy).toBeCloseTo(Iy, 9);
+  });
+
+  it('das Gate schweigt zum frisch gebauten Satz — keine Drift', () => {
+    const [section] = buildFromInput().crossSections;
+    if (section?.kind !== 'section-geometry') expect.unreachable();
+
+    const { errors, warnings } = validateSectionGeometry(
+      section.geometry,
+      DEFAULT_SECTION_POLICY,
+    );
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('LEHNT einen v8-Satz AB — die Policy führt jetzt drei Felder', () => {
+    const v8: Record<string, unknown> = {
+      ...buildSnapshot(),
+      schemaVersion: 8,
+      sectionPolicy: { arcTolerance: 0.05, principalAxisTolerance: 1e-9 },
+    };
+
+    expect(() => parseFEMModelSnapshot(v8)).toThrow(SnapshotValidationError);
+    expect(() => parseFEMModelSnapshot(v8)).toThrow(
+      'Snapshot.schemaVersion muss 9 sein.',
+    );
+  });
+
+  it('lehnt eine Policy ohne miterLimit auch bei richtiger Version ab', () => {
+    // Der Gegentest: nicht die Versionsnummer rettet den v8-Satz — das Feld
+    // selbst ist Pflicht.
+    expect(() =>
+      parseFEMModelSnapshot({
+        ...buildSnapshot(),
+        sectionPolicy: { arcTolerance: 0.05, principalAxisTolerance: 1e-9 },
       }),
     ).toThrow(InvalidSectionPolicyError);
   });

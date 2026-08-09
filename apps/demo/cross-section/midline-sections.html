@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mittellinien-Querschnitte</title>
+    <script src="./midline-sections.ts" type="module"></script>
+    <style>
+        :root {
+            font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+            color: #1c1f24;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 360px;
+            height: 100%;
+        }
+
+        #container {
+            min-width: 0;
+        }
+
+        #panel {
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+            min-width: 0;
+            padding: 0.9rem;
+            overflow: auto;
+            border-left: 1px solid #d5d8dd;
+            background: #f7f8fa;
+            font-size: 0.82rem;
+        }
+
+        h2 {
+            margin: 0 0 0.4rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #5c636d;
+        }
+
+        /* Der Rück-Link sitzt als kleine Marke ueber der Zeichenflaeche. */
+        .back {
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            z-index: 100;
+            padding: 2px 8px;
+            border: 1px solid #dfe2e7;
+            border-radius: 4px;
+            background: #fff;
+            font-size: 0.75rem;
+            color: #5c636d;
+            text-decoration: none;
+        }
+
+        .back:hover {
+            text-decoration: underline;
+        }
+
+        .block {
+            padding: 0.7rem;
+            border: 1px solid #dfe2e7;
+            border-radius: 5px;
+            background: white;
+        }
+
+        .value {
+            font-weight: 700;
+        }
+
+        .muted {
+            color: #6b727c;
+        }
+
+        .note {
+            margin: 0.35rem 0 0;
+            line-height: 1.4;
+            color: #6b727c;
+        }
+
+        button {
+            width: 100%;
+            border: 1px solid #b9bec6;
+            border-radius: 4px;
+            padding: 0.45rem 0.7rem;
+            background: #eceef1;
+            color: inherit;
+            font: inherit;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        button:hover:not(:disabled) {
+            background: #e0e3e8;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        /* Die Auswahlliste: ein Knopf je vorgegebenem Querschnitt. */
+        #presets {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        #presets button[aria-pressed="true"] {
+            border-color: #8aa4c8;
+            background: #e4ecf7;
+            font-weight: 700;
+        }
+
+        #presets .dim {
+            display: block;
+            margin-top: 0.1rem;
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: #6b727c;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #calculate {
+            margin-top: 0.55rem;
+            border-color: #74b88a;
+            background: #28613d;
+            color: white;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        #calculate:hover:not(:disabled) {
+            background: #347c4f;
+        }
+
+        /* Die Policy-Eingabe: Zahlenfeld und Schieber auf derselben Zahl. */
+        .policy-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .policy-row input[type="number"] {
+            width: 5.5rem;
+            border: 1px solid #b9bec6;
+            border-radius: 4px;
+            padding: 0.25rem 0.4rem;
+            font: inherit;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 0.45rem 0 0;
+        }
+
+        .problem {
+            color: #a3312b;
+        }
+
+        table.values {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        table.values th,
+        table.values td {
+            padding: 0.16rem 0 0.16rem 0;
+            text-align: left;
+            font-variant-numeric: tabular-nums;
+        }
+
+        table.values th {
+            font-weight: 600;
+            width: 6.5rem;
+        }
+
+        table.values td {
+            text-align: right;
+        }
+
+        .count {
+            float: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .findings {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .findings li {
+            padding: 0.3rem 0;
+            border-top: 1px solid #eef0f3;
+            line-height: 1.35;
+        }
+
+        .findings li:first-child {
+            border-top: 0;
+        }
+
+        .findings .source {
+            display: inline-block;
+            margin-right: 0.35rem;
+            padding: 0 0.3rem;
+            border-radius: 3px;
+            background: #eceef1;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #5c636d;
+        }
+    </style>
+</head>
+
+<body>
+    <a class="back" href="../index.html">← Zur Übersicht</a>
+    <main>
+        <div id="container"></div>
+        <aside id="panel" aria-label="Querschnittsspalte">
+            <section class="block">
+                <h2>Vorgegebene Querschnitte</h2>
+                <ul id="presets"></ul>
+                <p class="note">
+                    Schwarz die Wandmittellinien (die Eingabe), orange der Umriss
+                    (das Ergebnis). Ziehen verschiebt, Scrollen zoomt.
+                </p>
+            </section>
+
+            <section class="block">
+                <h2>Auswahl</h2>
+                <div id="preset-name" class="value">–</div>
+                <div id="preset-dimensions" class="muted"></div>
+                <p id="preset-note" class="note"></p>
+                <button id="calculate" type="button">Berechnen</button>
+                <div id="outline-status" class="note"></div>
+            </section>
+
+            <section class="block">
+                <h2>Erzeugungs-Einstellung</h2>
+                <label class="policy-row" for="miter-limit">
+                    <span>miterLimit</span>
+                    <input id="miter-limit" type="number" min="1.05" max="20" step="0.05" value="2" />
+                </label>
+                <input id="miter-limit-slider" type="range" min="1.05" max="8" step="0.05" value="2"
+                    aria-label="miterLimit (Schieber)" />
+                <div id="miter-limit-note" class="note"></div>
+            </section>
+
+            <section class="block">
+                <h2>Querschnittswerte</h2>
+                <div id="properties"></div>
+            </section>
+
+            <section class="block">
+                <h2>Warnungen <span id="warning-count" class="count">0</span></h2>
+                <ul id="warnings" class="findings" aria-live="polite"></ul>
+            </section>
+
+            <section class="block">
+                <h2>Fehler <span id="error-count" class="count">0</span></h2>
+                <ul id="errors" class="findings" aria-live="polite"></ul>
+            </section>
+        </aside>
+    </main>
+</body>
+
+</html>

@@ -120,12 +120,20 @@ export type AnalysisPolicy = {
    * ist die native Betriebsart der Timoshenko-Formulierung.
    *
    * Bei `false` ersetzt `solve()` das `GAs` aus `getSectionStiffness` durch
-   * `'rigid'`. Der QUERSCHNITT bleibt unangetastet: jeder Querschnitt HAT eine
-   * Schubsteifigkeit, sie zu vernachlaessigen ist eine Entscheidung ueber die
+   * `'rigid'`. Der QUERSCHNITT bleibt unangetastet: eine vorhandene
+   * Schubsteifigkeit zu vernachlässigen ist eine Entscheidung über die
    * ANALYSE (RSTAB-Konvention, vorweggenommen in `fem-element/src/types.ts`).
    *
-   * Der einzige Schalter hier, den ein Anwender tatsaechlich dreht — die
-   * uebrigen Felder sind numerische Waechter. Er stand frueher auf
+   * DER SCHALTER WIRKT NUR IN EINE RICHTUNG. „Jeder Querschnitt HAT eine
+   * Schubsteifigkeit" stand hier bis P2 und ist seither FALSCH: der
+   * Editor-Querschnitt liefert `EA` und `EI`, aber kein kappa, also `GAs:
+   * 'rigid'` — und `true` macht daraus keine Schubverformung, sondern rechnet
+   * still steifer als eingestellt. Genau dafür meldet `check()` die
+   * `ShearDeformationUnavailableWarning`
+   * ([ADR 0035](../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
+   *
+   * Der einzige Schalter hier, den ein Anwender tatsächlich dreht — die
+   * übrigen Felder sind numerische Wächter. Er stand früher auf
    * `SolverConfig` und ist hierher UMGEZOGEN, nicht verdoppelt.
    */
   readonly shearDeformation: boolean;

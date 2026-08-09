@@ -1,8 +1,8 @@
 # @baustatik/section-geometry
 
-## 0.3.0
+## 0.0.1
 
-### Minor Changes
+### Patch Changes
 
 - cec4a27: `Bulge` als vollständige y/z-Durchreiche hinzugefügt, alle sechs Funktionen —
   auch die drei koordinatenfreien (`sweep`, `sagitta`, `isStraight`), nach dem
@@ -20,10 +20,34 @@
 
   Rein additiv.
 
-### Patch Changes
+- **Breaking:** `Polygon.isClockwise` kehrt seine Antwort um, `Polygon.make`
+  normalisiert nicht mehr, und `mirror` kehrt die Windung um (ADR 0034).
+
+  - `Polygon.isClockwise` ist jetzt `true` für `signedArea < 0` — **dieselbe
+    Antwort wie in `@baustatik/geometry-2d`**. Vorher stand dort `> 0` mit der
+    Begründung „im Bild rechtsdrehend, weil z nach unten zeigt": eine Aussage über
+    die Zeichnung in einer API, die nicht zeichnet. Seit `convert.ts`
+    orientierungstreu abbildet, ist `(y, z)` das mathematische System unter
+    anderem Namen, und `signedArea > 0` heisst counter-clockwise. Wie es im Bild
+    aussieht, ist ein Nachsatz im JSDoc und beantwortet die Viewer-Schicht.
+  - `Polygon.make(points)` **prüft nur** und lässt die Windung stehen — sonst wäre
+    ein Lochring (`signedArea < 0`) nicht baubar.
+  - `Polygon.mirror` **kehrt die Windung um**.
+  - **Unverändert:** `intersect`/`union`/`subtract` liefern weiterhin CCW; die
+    Zusage sitzt jetzt an der martinez-Grenze in `geometry-2d`.
+
+  **Neu:** `Polygon.moments(points)` und der Typ `PolygonMomentsYZ` — die rohen,
+  vorzeichenbehafteten Flächenmomente eines Ringes um den Ursprung, unter den
+  Symbolen der Norm: `A`, `Sy`, `Sz`, `Iy = ∫z² dA`, `Iz = ∫y² dA` und
+  `Iyz = +∫y·z dA`. **Ohne Negation** — das ist die mathematische Konvention, zu
+  der `tan 2α = −2·Iyz/(Iy − Iz)` aus ADR 0031 gehört.
+
+  `Polygon.area` gibt weiterhin den Betrag zurück; `signedArea` trägt das
+  Vorzeichen.
 
 - Updated dependencies [cec4a27]
-  - @baustatik/geometry-2d@0.3.0
+- Updated dependencies
+  - @baustatik/geometry-2d@0.0.1
 
 ## 0.2.0
 

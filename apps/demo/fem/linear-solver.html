@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Linearsolver — K d = F</title>
+    <script src="./linear-solver.ts" type="module"></script>
+    <style>
+        :root {
+            font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+            color: #1c1f24;
+        }
+
+        body {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 1.5rem 1rem 3rem;
+            line-height: 1.5;
+        }
+
+        a {
+            color: #28613d;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            margin: 0 0 0.4rem;
+        }
+
+        p {
+            color: #5c636d;
+            font-size: 0.9rem;
+        }
+
+        button {
+            border: 1px solid #74b88a;
+            border-radius: 4px;
+            padding: 0.55rem 1.2rem;
+            background: #28613d;
+            color: white;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button:hover:not(:disabled) {
+            background: #347c4f;
+        }
+
+        pre {
+            margin-top: 1.2rem;
+            padding: 1rem;
+            border: 1px solid #dfe2e7;
+            border-radius: 5px;
+            background: #f6f7f9;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            font-size: 0.82rem;
+            line-height: 1.6;
+            overflow: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <p><a href="../index.html">← Zur Übersicht</a></p>
+    <h1>Linearsolver</h1>
+    <p>
+        Der kleinste Sichttest für die Verdrahtung von
+        <code>@baustatik/linear-solver-wasm</code>: K&nbsp;d&nbsp;=&nbsp;F im
+        Worker, 2×2 von Hand nachrechenbar.
+    </p>
+    <button id="solve" type="button">Gleichungssystem lösen</button>
+    <pre id="output" aria-live="polite">Noch nichts gelöst.</pre>
+</body>
+
+</html>

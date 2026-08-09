@@ -61,6 +61,19 @@
             text-transform: uppercase;
         }
 
+        .back-link {
+            font-weight: 400;
+            letter-spacing: 0;
+            text-transform: none;
+            color: #8b949e;
+            text-decoration: none;
+        }
+
+        .back-link:hover {
+            color: #e7e9ec;
+            text-decoration: underline;
+        }
+
         button {
             border: 1px solid #74b88a;
             border-radius: 4px;
@@ -139,7 +152,7 @@
         <div id="viewer"></div>
         <section class="workspace" aria-label="TypeScript-Modellskript">
             <header class="toolbar">
-                <span class="title">@baustatik/script</span>
+                <span class="title"><a class="back-link" href="../index.html">← Übersicht</a>&ensp;·&ensp;@baustatik/script</span>
                 <button id="run-script" type="button" title="Strg+Enter">Ausführen</button>
             </header>
             <div id="editor"></div>

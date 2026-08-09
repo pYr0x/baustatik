@@ -1,8 +1,8 @@
 # @baustatik/geometry-2d
 
-## 0.3.0
+## 0.0.1
 
-### Minor Changes
+### Patch Changes
 
 - cec4a27: `Bulge` hinzugefügt — der Umrechner zwischen der DXF-Wölbung `tan(Δ/4)` und
   einem `Arc`, als eigenes Modul `src/bulge.ts`. Sechs Funktionen: `sweep`,
@@ -20,6 +20,35 @@
   in `errors.ts`. `toPolyline` ist total und bedient die Gerade mit.
 
   Rein additiv; nichts Bestehendes ändert sich.
+
+- **Breaking:** `Polygon.make` normalisiert die Windung nicht mehr, und `mirror`
+  kehrt sie um (ADR 0034).
+
+  - `Polygon.make(points)` **prüft nur** (mindestens 3 Punkte) und gibt die Punkte
+    unverändert zurück. Vorher drehte es ein im Uhrzeigersinn laufendes Polygon
+    still um. Damit ist ein **Lochring** erstmals überhaupt baubar — genau den
+    braucht `@baustatik/cross-section`, wo die Windung „Material" gegen „Loch"
+    bedeutet.
+  - `Polygon.mirror` **kehrt die Windung um**, statt sie still zurückzudrehen.
+    Eine Spiegelung ist orientierungsumkehrend; das zu verstecken hiesse, aus
+    einem Loch beim Spiegeln stillschweigend Material zu machen.
+  - `Polygon.fromLines` erbt beides (es geht durch `make`).
+  - **Unverändert:** `union`/`intersect`/`subtract` liefern weiterhin CCW. Die
+    Zusage ist von `make` an die martinez-Grenze gewandert (`fromMartinez`
+    normalisiert jetzt ausdrücklich) — der Umlaufsinn einer fremden Bibliothek ist
+    keine Aussage dieses Packages und wird deshalb an der Grenze festgelegt statt
+    durchgereicht.
+
+  **Neu:** `Polygon.moments(points)` und der Typ `PolygonMoments` — die rohen
+  Flächenmomente eines Ringes um den **Ursprung**, **vorzeichenbehaftet** und
+  skalenfrei: `A = ∫dA`, `Sx = ∫x dA`, `Sy = ∫y dA`, `Ixx = ∫y² dA`,
+  `Iyy = ∫x² dA`, `Ixy = ∫xy dA`. Bewusst nicht schwerpunktsbezogen: roh addieren
+  sich alle sechs Zahlen linear über mehrere Ringe, ein Lochring trägt sich über
+  sein Vorzeichen selbst bei, und die Steiner-Verschiebung passiert einmal am
+  Ende beim Aufrufer.
+
+  `Polygon.area` gibt weiterhin den **Betrag** zurück und ist damit die falsche
+  Tür für einen Lochring; `Polygon.moments(points).A` trägt das Vorzeichen.
 
 ## 0.2.0
 

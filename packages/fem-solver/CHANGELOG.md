@@ -1,12 +1,34 @@
 # @baustatik/fem-solver
 
-## 1.1.2
+## 0.0.1
 
 ### Patch Changes
 
-- @baustatik/fem-geometry@0.0.4
-- @baustatik/fem-load-resolve@0.1.3
-- @baustatik/fem-loads@0.1.2
+- `check()` warnt, wenn Schubverformung verlangt ist, der Querschnitt aber keine
+  hergibt (ADR 0035).
+
+  Neu: `ShearDeformationUnavailableWarning(beamId, crossSectionId)`, eine
+  `ModelValidationWarning`. Sie landet in `model.warnings`, der Zustand bleibt
+  `ready-with-warnings`, `canSolve` bleibt `true` — gerechnet wird, nur eben
+  mitgeteilt.
+
+  **Warum jetzt:** `SectionStiffness.GAs === 'rigid'` war bis heute unerreichbar —
+  alle vier parametrischen Formen rechnen κ in beiden Idealisierungen, alle
+  Katalogzeilen führen `Ay`/`Az`. Seit `@baustatik/cross-section` Werte aus dem
+  gezeichneten Umriss liefert, gibt es den ersten Satz mit `EA`, `EI` und
+  `GAs: 'rigid'`, und `shearDeformation: true` rechnet dann still das Gegenteil
+  des Verlangten — in die steifere Richtung.
+
+  Zur Check-Zeit kann `'rigid'` **nur** aus dem Querschnitt kommen: der
+  Policy-Schalter greift erst in `solve()`.
+
+  Rein additiv: kein neuer Kanal am `CheckReport`, keine geänderte Zustandslogik.
+  Der Kommentar in `policy.ts`, „jeder Querschnitt HAT eine Schubsteifigkeit", ist
+  korrigiert — er war ab P2 falsch.
+
+  - @baustatik/fem-geometry@0.0.1
+  - @baustatik/fem-load-resolve@0.0.1
+  - @baustatik/fem-loads@0.0.1
 
 ## 1.1.1
 

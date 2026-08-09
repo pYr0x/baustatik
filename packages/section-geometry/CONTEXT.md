@@ -38,7 +38,7 @@ Important consumers:
   turn `Wall.bulge` into an `arcPath` spec.
 - [`@baustatik/cross-section`](../cross-section): the gate's kink warning reads
   `Bulge.sweep`.
-- `apps/demo/cross-section-viewer.ts`: through the viewer.
+- `apps/demo/cross-section/cross-section-viewer.ts`: through the viewer.
 
 ## Dependencies
 
@@ -57,16 +57,16 @@ Important consumers:
 - [`src/convert.ts`](src/convert.ts): the mapping to `x`/`y` in both directions,
   with the full rationale for why it is orientation-preserving. Read this first
   if you are tempted to "fix" the missing minus sign.
-- [`src/polygon.ts`](src/polygon.ts): the native `signedAreaYZ` and the winding
-  normalisation — the second place (after `convert.ts`) where a sign convention
-  is decided.
+- [`src/polygon.ts`](src/polygon.ts): the native `signedAreaYZ`, the winding
+  rule and the `y`/`z` naming of `Polygon.moments` — the second place (after
+  `convert.ts`) where a sign convention is decided.
 - [`src/vector.ts`](src/vector.ts): `Vector`. `add`, `subtract`, `scale`,
   `negate`, `dot` and `cross` are implemented natively in `y`/`z`.
 - [`src/line.ts`](src/line.ts), [`src/arc.ts`](src/arc.ts),
   [`src/polyline.ts`](src/polyline.ts), [`src/point.ts`](src/point.ts): thin
   delegating wrappers.
-- [`src/bulge.ts`](src/bulge.ts): `Bulge`, the `bulge` ⇄ `Arc` codec. Six
-  functions, all wrapped; the three coordinate-free ones are wrapped anyway —
+- [`src/bulge.ts`](src/bulge.ts): `Bulge`, the `bulge` ⇄ `Arc` codec. Seven
+  functions, all wrapped; the four coordinate-free ones are wrapped anyway —
   see Boundaries.
 - [`src/errors.ts`](src/errors.ts): a pure re-export of the `geometry-2d` error
   classes. No package-own error types.
@@ -106,18 +106,25 @@ Important consumers:
   delegated counterparts, so this is redundancy rather than divergence — and it
   keeps the sign conventions readable where they are decided.
 - **Winding: `signedArea > 0` means the ring runs in the positive rotation
-  sense** (clockwise as drawn). `Polygon.make` normalises to `signedArea >= 0`,
-  so a constructed polygon's `signedArea` *is* its area and area moments derived
-  later come out signed correctly without a correction factor. Every boolean op
-  and transform routes its output through `Polygon.make`, so the invariant holds
-  package-wide.
-- **`isClockwise` is the on-screen reading** (`signedArea > 0`) and is therefore
-  `true` for a normalised polygon. `toClockwise` / `toCounterClockwise` force a
-  specific winding and **deliberately bypass `Polygon.make`** — routing them
-  through it would let the normalisation immediately undo the request.
-  `toCounterClockwise` was written as `Polygon.make(...)` back when the
-  normalisation happened to point that way; flipping the winding rule turned it
-  into its own opposite, which is why both are now spelled out explicitly.
+  sense** (`+y → +z`) — which is exactly what `geometry-2d` calls
+  counter-clockwise, since `(y, z)` is the mathematical system under a different
+  name. `Polygon.make` **validates but does not rotate** (ADR 0034): the winding
+  comes out the way it went in, because consumers read it as *material*
+  (`> 0`) against *hole* (`< 0`). `mirror` reverses it. Only
+  `intersect`/`union`/`subtract` promise a winding, and that promise sits at the
+  martinez boundary in `geometry-2d`, not here.
+- **`isClockwise` is `true` for `signedArea < 0`** — the same answer as
+  `geometry-2d`, and the same word in both packages. It used to be `> 0` with
+  the rationale "clockwise as drawn, because `z` points down"; that was a
+  statement about the *drawing* in an API that never draws, and since
+  `convert.ts` maps orientation-preservingly it was simply the wrong name for
+  the mathematically positive sense. How it looks on screen is a footnote, not
+  an API statement — the viewer layer decides where "up" is.
+  `toClockwise` / `toCounterClockwise` force a specific winding and stay spelled
+  out explicitly.
+- **`Polygon.area` is the wrong door for a hole ring.** It returns the absolute
+  value; `Polygon.signedArea` carries the sign, and `Polygon.moments` carries it
+  through all six numbers.
 - **`bulge` is a storage form, `Arc` is the derived one.** `bulge = tan(Δ/4)` is
   redundancy-free — it encodes an arc between two points that are already
   stored — but unreadable. `Bulge` is the pair that translates between them, and
@@ -131,8 +138,11 @@ Important consumers:
 - **Asking for an arc where there is none throws.** `Bulge.toArc` /
   `Bulge.fromArc` raise `StraightBulgeError` / `FullCircleBulgeError` rather than
   returning `undefined`: the straight line is a *known* answer, not "I don't
-  know". Callers that want it handled take `Bulge.toPolyline` (total) or ask
-  `Bulge.isStraight`. The value range is the open interval `(−2π, +2π)` — DXF
+  know". Callers that want it handled take `Bulge.toPolyline` (**total only for
+  a `bulge` that `Bulge.isDiscretisable` accepts** — a finite but enormous one
+  describes a near-full circle whose discretisation would exhaust memory, and it
+  throws like any other broken precondition) or ask `Bulge.isStraight`. The
+  value range is the open interval `(−2π, +2π)` — DXF
   draws the same line, an `LWPOLYLINE` cannot carry a full circle. A tube is
   therefore **two nodes and two semicircular walls** (`Δ = ±180°`, `bulge = ±1`),
   and at a semicircle end-tangency is automatic, so the gate's kink warning stays
@@ -152,20 +162,30 @@ pnpm --filter @baustatik/section-geometry lint
 
 Pure functions without Konva/DOM/WASM, testable in Node.
 
-## Coming role: offsetting and the drift check
+## The offset: `Polygon.inflate`
 
 The cross-section editor stores a **wall graph plus the outline it implies**
 ([ADR 0030](../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)). The
 step from the one to the other — widening a centre line by `t/2` on both sides
-and unioning the results — is an **offset**, and it lands here, together with
-`deriveOutline` and `checkOutlineDrift` (P3, with `clipper2-ts`). The carried
-outline is a denormalisation whose whole point is that the drift becomes a
-finding instead of a silent change; this package is the place that produces the
-number the finding compares against.
+and unioning the results — is an **offset**, and the geometry operation for it
+lands here: `Polygon.inflate`, passed through into `y`/`z` like `union` and
+`moments` ([ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+It takes open or closed **runs**, each with its own `delta` and end type, and
+returns a **ring set with holes** — outer `signedArea > 0`, holes `< 0`, sorted.
+A closed run with `delta: 0` passes through the union unchanged; that is how the
+mitre at a thickness jump reaches the outline, which no offset can produce
+([ADR 0038](../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)).
 
-Two of the constraints below are on the critical path for it: boolean operations
-dropping holes, and the missing hole/outer winding distinction. A hollow section
-cannot be derived until both are resolved.
+**`deriveOutline` and the drift check do *not* live here.** An earlier version of
+this file claimed them; that sentence predates P2 and was already contradicted by
+`cross-section/src/derive-outline.ts`. Their signatures name `SectionGeometry`
+and `SectionPolicy`, so they belong to `@baustatik/cross-section`; here lies only
+the geometry operation they use. The rule is the repo's: *whoever owns the type
+owns its rules.*
+
+The two constraints below about holes still hold — but **for the martinez doors
+only**. `inflate` goes through `clipper2-ts` and returns holes and their nesting;
+that is exactly why it is a separate door.
 
 `DEFAULT_ARC_TOLERANCE` (re-exported here from `@baustatik/geometry-2d`) is the
 **one** discretisation tolerance of the repo and the default of `Arc.toPolyline`.
@@ -175,21 +195,26 @@ explicitly wherever the result is stored.
 
 ## Known constraints
 
-- **Boolean operations silently drop holes.** `Polygon.intersect` / `union` /
+- **The martinez doors silently drop holes.** `Polygon.intersect` / `union` /
   `subtract` delegate to `geometry-2d`, whose `fromMartinez`
   (`geometry-2d/src/polygon.ts`) keeps only ring 0 of each result polygon and
   discards the inner rings. Subtracting an inner shape from an outer one
   therefore returns the outer contour with the hole **gone**, not a polygon with
-  a hole. For a cross-section package this is the sharpest edge in the API:
-  hollow sections cannot be built this way today. A multi-ring polygon type
-  would have to come from `geometry-2d` first.
-- **No hole/outer distinction in the winding either.** Because every output ring
-  is normalised to `signedArea >= 0`, the usual convention of giving holes the
-  opposite winding is not available. This has to be resolved together with the
-  point above.
-- **Section properties are absent**, see Boundaries. When they arrive, the
-  positive winding rule above is what makes their signs come out right — do not
-  change it without revisiting them.
+  a hole. A multi-ring polygon type would have to come from `geometry-2d` first.
+  **Does not apply to `inflate`**: the hollow box section *is* derivable since
+  P3, because that door goes through `clipper2-ts` and reads the nesting from
+  its `PolyTreeD`.
+- **No hole/outer distinction in the martinez output.** `Polygon.make` no longer
+  normalises (ADR 0034), so a hole ring is expressible; but `intersect`/`union`/
+  `subtract` still return CCW-only rings, because `fromMartinez` keeps ring 0.
+  Fixing that is the point above, not this one.
+- **Area moments live here, section properties do not.** `Polygon.moments`
+  returns the raw, signed moments about the origin under the `y`/`z` names
+  (`A`, `Sy`, `Sz`, `Iy`, `Iz`, `Iyz`) and nothing else — no centroid shift, no
+  principal axes, no material. `Iyz = +∫y·z dA`, **without** negation: the
+  mathematical convention that goes with `tan 2α = −2·Iyz/(Iy − Iz)` in ADR
+  0031. The composition over several rings, the Steiner shift and the units are
+  `@baustatik/cross-section`'s job.
 - **`Arc.sweep` is where intuition and convention collide.** A caller thinking
   in drafting terms will read "positive sweep" as counter-clockwise on the page;
   here it is the opposite. This is the one API surface where the convention is

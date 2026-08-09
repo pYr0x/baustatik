@@ -12,9 +12,11 @@ Entscheidungen, die dafür wichtig bleiben. Erledigte Stufen sind in ADRs,
 | FEM-Viewer | Schnittgrößen grafisch darstellen | Die Rechenwerte und exakten Auswertungsstellen existieren bereits. |
 | FEM-Rechnung | Lastkombinationen und Hüllkurven | Baut auf Lastfällen und den vorhandenen Schnittgrößen-Auswertungen auf. |
 | Querschnitte | Werte → Profilkatalog → Solver-Anschluss | Liefert echte Steifigkeiten, bevor ein Editor gebaut wird. |
-| Projekt | Behälter und Persistenz entwerfen (ADR) | Der Modellsatz ist versioniert und vollständig; darüber gibt es bis heute nichts, das ihn hält. |
+| Policy | `analysisPolicy` modellgebunden: Snapshot v10, eigenes `schemaVersion` fällt | `sectionPolicy` ist das Muster; Plan: [`plan-refactor-policy.md`](plan-refactor-policy.md). **v9 ist mit P3 vergeben** (`miterLimit`), also nimmt der Refactor die nächste freie. |
+| Projekt | Behälter und Persistenz entwerfen (ADR) | Der Behälter ist die App; die Tool-Dokumente sind die Datensatz-Einheiten. |
 
-Der Viewer- und der Querschnittsstrang können unabhängig weiterlaufen.
+Der Viewer- und der Querschnittsstrang können unabhängig weiterlaufen; der
+Policy-Strang (siehe §6) ebenso.
 
 ## 1. Streckenlasten im Viewer
 
@@ -45,6 +47,17 @@ Sie folgt nur dem Zusammensetzungsmuster der `AnalysisPolicy` (Paket-Slices
 und Default im Composition Root), **nicht** deren Persistenz- und
 Versionsstrenge: Anzeigeeinstellungen dürfen bei fehlenden Feldern auf
 Defaults fallen.
+
+**Erster benannter Anwärter: ein `crossSectionStyle`.** `cross-section-viewer`
+hat heute gar keine Stil-Ebene — `'#000'` steht dreimal wörtlich in
+`src/viewer.ts`, und mit P3 kommt eine zweite Farbe dazu: der abgeleitete
+Umriss wird orange gezeichnet, damit **Eingabe und Ergebnis** unterscheidbar
+sind (Wandmittellinien gegen den Umriss, ADR 0030). Solange es zwei Farben
+sind, bleiben sie Modulkonstanten mit einer Begründung im JSDoc — eine Option
+am Aufruf verschöbe eine Aussage über die Bedeutung der Lagen an den Aufrufer.
+Sobald Auswahl, Fangpunkte und Spannungspunkte dazukommen (P7), wird daraus
+eine Scheibe dieser View-Policy, und die beiden Konstanten sind ihre ersten
+Felder.
 
 ## 3. Schnittgrößen grafisch darstellen
 
@@ -130,7 +143,33 @@ die Spannungspunkte. Bewusst noch nicht angefasst:
 - **`i-shape` mit unabhängigen Gurten**, das I und T subsumiert (T = Grenzfall
   `tf,unten = 0`). Das ist eine Formänderung im Modellsatz, kein Aufräumen.
 
-## 6. Das Projekt als Behälter — und wo die `AnalysisPolicy` landet
+### Zwei Clipping-Bibliotheken in `geometry-2d` — offen seit P3
+
+P3 hat `clipper2-ts` für die Aufweitung der Mittellinien eingezogen und lässt es
+**auch** vereinigen: `Polygon.union` kann es nicht, weil `fromMartinez`
+(`geometry-2d/src/polygon.ts`) je Ergebnispolygon nur Ring 0 behält und auf CCW
+normalisiert — ein Loch überlebt das nicht, und der Umlaufsinn trägt seit
+[ADR 0034](../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)
+Bedeutung. Danach stehen **zwei** Clipping-Bibliotheken nebeneinander: martinez
+für `union`/`intersect`/`subtract`, Clipper2 für Offset und die Vereinigung des
+Wandgraphen.
+
+Das ist bewusst so entschieden (der Austausch quer durch ein Package mit
+fremden Verbrauchern gehört nicht in P3), aber es ist kein Endzustand. Zu
+entscheiden bleibt, ob `clipper2-ts` martinez ganz ablöst:
+
+- **Dafür:** eine Bibliothek statt zweier, Löcher und Verschachtelung fallen
+  über `PolyTreeD` an, `fromMartinez` samt seiner Ring-0-Verkürzung entfällt,
+  und die Zusage über den Umlaufsinn hat dann **eine** Grenze statt zweier.
+- **Dagegen:** `union`/`intersect`/`subtract` haben Verbraucher ausserhalb des
+  Querschnitts, deren Ergebnisse sich in der Punktzahl ändern würden. Die zweite
+  Gegenrede der Sitzung — `clipper2-ts` stehe auf einem Prerelease — ist
+  entfallen: eingezogen ist das freigegebene `2.0.1`, exakt gepinnt.
+- **Voraussetzung:** ein Mehrringpolygon in `geometry-2d`. Solange `Polygon` ein
+  EINZELNER Ring ist, kann keine Boolesche Operation ein Loch zurückgeben —
+  unabhängig von der Bibliothek.
+
+## 6. Das Projekt als Behälter — die Tool-Dokumente und ihre modellgebundenen Policies
 
 **Der Befund, der diesen Abschnitt auslöst:** die `AnalysisPolicy` wird heute
 **nirgends** persistiert. Typ, Default und der strikte `parseAnalysisPolicy`
@@ -139,71 +178,89 @@ und tragen eine eigene `ANALYSIS_POLICY_SCHEMA_VERSION` (heute 2) — aber der
 Parser hat bis heute **keinen produktiven Aufrufer**, und genau deshalb durfte
 der Sprung 1 → 2 ohne Migrationspfad passieren (`fem-solver/CONTEXT.md`). Die
 Einstellung erreicht die Rechnung ausschließlich zur Laufzeit über
-`SolverConfig.analysisPolicy`. Sie ist also als persistierbare Form entworfen
-und hat noch keinen Ort, an dem sie landet. Dieser Abschnitt ist dieser Ort.
+`SolverConfig.analysisPolicy`. Das ändert sich: sie wird modellgebunden, wie es
+`SectionPolicy` schon ist. Der Plan dafür steht in
+[`plan-refactor-policy.md`](plan-refactor-policy.md).
 
-### Die Gliederung, die gilt
+### Die Gliederung, die gilt: Positionen sind Tools
 
 ```text
-Projekt                       Name und die Angaben zum Bauvorhaben
-  ├─ Position (Modell)        FEMModelSnapshot + AnalysisPolicy
-  ├─ Position (Modell)
-  ├─ Querschnitt              aus dem Querschnittseditor
-  └─ Querschnitt
+Projekt                       Name und die Angaben zum Bauvorhaben — gehört der APP
+  ├─ FEM-2D-Stab (Tool)         Tool-Dokument: FEMModelSnapshot + AnalysisPolicy
+  ├─ Querschnittseditor (Tool)  Tool-Dokument: Querschnitte + SectionPolicy
+  ├─ Bemessung (Tool)           später — Stahlbeton und Stahl, eigene Policy
+  └─ … weitere Norm-Nachweise   als weitere Tools
 ```
 
-Ein Projekt ist die **Sammlung der Module**, die das Repo anbietet, und die
-Einheit, die gespeichert und geöffnet wird. Es enthält beliebig viele
-Positionen (Modelle) und beliebig viele selbst gezeichnete Querschnitte.
+Eine **Position** ist kein Datenbehälter, sondern ein **Tool**: FEM-2D-Stab,
+Querschnittseditor, später die Bemessung (Beton und Stahl) und weitere
+normbezogene Nachweise. Jedes Tool hat ein eigenes Dokument, das gespeichert
+und geöffnet wird. Die FEM-2D-Stab-Position ist der `FEMModelSnapshot`
+(zusammen mit der `AnalysisPolicy`); das Querschnitts-Dokument sind die
+Querschnitte des Editors — die **Quelle**, aus der eine Position nach ADR 0027
+kopiert, nicht der Ort, den die Rechnung liest.
 
 **Die `AnalysisPolicy` gehört zu EINER Position, nicht zum Projekt.** Ob eine
 Position schubsteif oder schubweich gerechnet wird, ist eine Entscheidung über
 diese Position; zwei Positionen desselben Projekts dürfen sie verschieden
-treffen. Das ist dieselbe Begründung, mit der
-[ADR 0033](../docs/adr/0033-the-cross-section-has-a-creation-policy.md) die
-`SectionPolicy` **nicht** je `CrossSection` ablegt: die Frage ist immer, über
-welchen Gegenstand die Einstellung urteilt.
+treffen. Dasselbe sagt
+[ADR 0033](../docs/adr/0033-the-cross-section-has-a-creation-policy.md) für die
+`SectionPolicy`: die Frage ist immer, über welchen Gegenstand die Einstellung
+urteilt.
 
-### Was vor der ersten Zeile Code zu entscheiden ist
+### Die Policy ist modellgebunden — der Stand des Austauschs
 
-- **Eigenes Package oder nicht.** Im Projekt steht wenig — Name und Angaben zum
-  Bauvorhaben —, und der Rest sind Verweise auf Sätze, die andere Packages
-  besitzen. Ein Package, das nur einen Behältertyp exportiert, ist zu prüfen,
-  nicht vorauszusetzen. Wer immer ihn bekommt, muss die Sätze der Positionen
-  und der Querschnitte kennen und wäre damit die oberste Ebene des Graphen.
-- **Wie viele `schemaVersion` trägt eine Projektdatei?** Hier stoßen zwei
-  bereits getroffene Entscheidungen aufeinander. ADR 0033 sagt für die
-  `SectionPolicy` *„one version per record, and the record is the snapshot"* —
-  sie hat deshalb bewusst **keine** eigene Version. Die `AnalysisPolicy` hat
-  eine. Legt man beide in eine Datei, stehen zwei bis drei Zahlen über
-  denselben Bytes, und jemand muss sagen, welche gilt. Die Alternative — eine
-  Version am Projekt, die alle Sätze überdeckt — kostet, dass jede Änderung an
-  irgendeinem Teilsatz die Projektversion hebt.
-- **Was „Projektebene" ab dann heißt.** ADR 0033 nennt `sectionPolicy` im
-  Snapshot ein Feld „auf Projektebene". Sobald es ein echtes Projekt mit
-  mehreren Positionen gibt, ist dieselbe Stelle **Positionsebene**. Zu
-  entscheiden ist, ob die Erzeugungs-Einstellung dort bleibt (jede Position
-  ihre eigene) oder an das Projekt wandert (ein Querschnittseditor, eine
-  Toleranz für alle). Der Grund, aus dem sie überhaupt im Satz steht — die
-  Drift-Prüfung braucht die Toleranz **neben** dem Umriss —, spricht dafür,
-  dass sie dort bleibt, wo der Umriss liegt.
-- **Wem gehören die Querschnitte des Editors?** Sie stehen oben als
-  Projektinhalt, weil sie über Positionen hinweg wiederverwendbar sein sollen;
-  im Modellsatz trägt heute jede Position ihre `crossSections` als **Kopie**
-  mit (ADR 0027: nicht nachschlagen, sondern mitführen). Beides ist kein
-  Widerspruch, aber die Richtung muss benannt werden: Projekt-Querschnitte sind
-  die **Quelle**, aus der eine Position kopiert — nicht der Ort, den die
-  Rechnung liest.
-- **Migration bleibt ein Werkzeug, das jemand aufruft.** Die Regel aus v5, v6
-  und v7 gilt weiter: ein älterer Satz wird abgelehnt, nicht still ergänzt.
+- **Eine Policy gehört zum Datensatz ihres Tools, nicht zum Code.** Vollständige
+  effektive Werte, serialisiert, nie still durch eine Package-Änderung
+  überschrieben. Genau das ist die Linie aus ADR 0011 und ADR 0033.
+- **Eine Version je Datensatz (= Tool-Dokument).** Die offene Frage „wie viele
+  `schemaVersion` trägt eine Projektdatei?" ist damit beantwortet: eine pro
+  Tool-Dokument, plus eine für die Projekt-Hülle (Name, Bauvorhaben, Verweise).
+  Eigene Zähler auf Policies (`ANALYSIS_POLICY_SCHEMA_VERSION`) wären die
+  „zweite Wahrheit über dieselben Bytes", gegen die ADR 0033 argumentiert.
+- **Migration verhält sich wie ein Programm-Update.** Ändert ein Package
+  Berechnungsgrundlagen oder Toleranzen, muss die Datei migriert werden, und
+  der Anwender bestätigt. Ausgelöst wird die Migration von der **Version am
+  Datensatz**; ausgeliefert wird das Migrationswissen in der **Package-Version**
+  ([ADR 0036](../docs/adr/0036-release-policy-before-the-first-consumer.md):
+  Format-Version ≠ Paket-Version). „Gespeichert mit Programmversion x" darf es
+  als Metadatum geben, treibt aber nichts.
+- **`sectionPolicy`: Form korrekt, Ort ist eine Brücke.** Vollständig, strikt,
+  Pflicht, kein eigenes `schemaVersion` — so bleibt es. Ihre heutige Lage im
+  FEM-Snapshot besteht nur, weil es keinen anderen Behälter gibt; mit dem
+  Querschnitts-Dokument zieht sie dorthin (die Drift-Prüfung braucht die
+  Toleranz **neben** dem Umriss, und beides zieht gemeinsam). Der Viewer-Port
+  bleibt: er ist strukturell nötig, weil `arcTolerance` die Zeichnung steuert —
+  den FEM-Viewer erreicht eine Policy dagegen nie, er zeichnet das Modell, nicht
+  die Einstellung.
+- **`analysisPolicy`: wird modellgebunden.** Pflichtfeld im FEM-Tool-Dokument
+  (Snapshot v9), eigenes `schemaVersion` fällt im selben Schritt — erst
+  adoptieren, dann Version entfernen. Form, Composition-Root und Striktheit
+  bleiben, wie sie sind. Plan: [`plan-refactor-policy.md`](plan-refactor-policy.md).
+- **Eigenes Package für den Projekt-Behälter: nein.** Die Tool-Dokumente sind
+  Packages (das FEM-Dokument ist es schon, in `@baustatik/script`); der
+  Behälter selbst — Name, Bauvorhaben, Verweise — ist die App. Die oberste
+  Ebene des Graphen bleibt die Composition Root der Anwendung, nicht eine
+  Bibliothek.
 
 ### Was dabei nicht neu zu erfinden ist
 
-Die Form steht: vollständige effektive Werte statt Abweichungslisten, Version
-zuerst und dann die Gestalt prüfen, jede Scheibe wird von ihrem Eigentümer
-geparst und dessen Fehlerklasse reist unverändert nach außen. Ein Projektparser
-ruft `parseFEMModelSnapshot` und `parseAnalysisPolicy` — er prüft deren Formen
-nicht ein zweites Mal.
+Die Form steht: vollständige effektive Werte statt Abweichungslisten, die
+Datensatz-Version zuerst und dann die Gestalt prüfen, jede Scheibe wird von
+ihrem Eigentümer geparst und dessen Fehlerklasse reist unverändert nach außen.
+`parseFEMModelSnapshot` ruft künftig `parseSectionPolicy` **und**
+`parseAnalysisPolicy` — er prüft deren Formen nicht ein zweites Mal.
+
+## Schemabrüche und Changesets, solange es keine Abnehmer gibt — entschieden
+
+**Entschieden mit [ADR 0036](../docs/adr/0036-release-policy-before-the-first-consumer.md).**
+Bis zur ersten Freigabe sind alle Paketversionen `0.0.0`, jeder Changeset ist
+`patch`, und Breaking Changes stehen im Changelog-Text, nicht in der
+Versionsarithmetik. `schemaVersion` ist ein Datenformat-Zähler, kein Paket-Semver,
+und zählt weiter — ein Schemabruch löst also **kein** `major` mehr aus. Die erste
+echte Freigabe startet bewusst bei `1.0.0`. Offen bleibt nur, welcher Moment die
+erste Freigabe auslöst (der erste externe Abnehmer? die erste gespeicherte
+Datei?) — an der Policy ändert die Antwort nichts.
 
 ## Dauerhafte Leitplanken
 

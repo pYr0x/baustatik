@@ -24,7 +24,7 @@ Fertig:
   kennen das Modell weiterhin nicht. Begründung in
   [ADR 0006](../../docs/adr/0006-fem-loads-depends-on-fem.md).
 - `CONTEXT.md` — steht.
-- `apps/demo/fem-viewer.ts:41` — Pseudocode v4 aller Eingabefälle als
+- `apps/demo/fem/fem-viewer.ts:41` — Pseudocode v4 aller Eingabefälle als
   auskommentierte Store-Aufrufe. Das ist die Quelle, aus der `types.ts`
   abgeleitet wurde; beide zusammen lesen.
 - `apps/demo/Knotenlast1.png`, `Stablast1..7.png` — die RFEM-Dialoge, aus denen
@@ -34,7 +34,7 @@ Fertig:
 - `@baustatik/fem-solver` — `createFEMSolver` steht als Einstiegspunkt der
   Rechnung (`validate()` läuft, `solve()` ist ein werfender Stub). Siehe
   [ADR 0007](../../docs/adr/0007-fem-solver-as-calculation-entry-point.md).
-- `apps/demo/fem-viewer.ts` — Store hält `loads`, die Fälle A1, C1 und D4 sind
+- `apps/demo/fem/fem-viewer.ts` — Store hält `loads`, die Fälle A1, C1 und D4 sind
   aktiv, der Rechenkopf prüft sie beim Start.
 
 Noch nicht da: alles im Viewer (Darstellung der Lasten).
@@ -151,7 +151,7 @@ denken.
      `load:{id}:fx` / `:fz` / `:my`, weil eine Last bis zu drei Symbole hat.
 6. ~~**Demo**~~ — erledigt: `addNodeLoad` / `addBeamLoad` stehen im Store, die
    Fälle A1, C1 und D4 sind aktiv. Der schräge Stab steht bei
-   `Point.make(160, 40)` (`apps/demo/fem-viewer.ts`), also nach _unten_, da z
+   `Point.make(160, 40)` (`apps/demo/fem/fem-viewer.ts`), also nach _unten_, da z
    abwärts zeigt — frühere Fassungen dieses Handoffs behaupteten `(160, -40)`
    und „nach oben". Für die Sichttests zur Bezugslänge ist beides gleichwertig;
    wer das Dach lieber steigen sieht, ändert das Vorzeichen dort.

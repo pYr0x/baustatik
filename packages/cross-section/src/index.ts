@@ -1,16 +1,34 @@
+export { type Branch, branches } from './branch';
 export {
+  createSectionGeometry,
+  type SectionGeometryInput,
+} from './create-section-geometry';
+export {
+  deriveOutline,
+  deriveOutlineFromRings,
+  deriveOutlineFromWalls,
+} from './derive-outline';
+export {
+  type BulgeSite,
+  DegenerateOutlineRingError,
   DuplicateSectionIdError,
   EmptyOutlineError,
   InvalidSectionPolicyError,
+  MiterLimitExceededWarning,
+  NegativeOutlineAreaError,
+  NonFiniteBulgeError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
+  OutlineDriftWarning,
   type SectionElement,
   SectionValidationError,
   SectionValidationWarning,
   ShearCentreOffsetWarning,
   ShearCentreUnknownWarning,
   TangentKinkWarning,
+  UndiscretisableBulgeError,
   UnknownSectionNodeError,
+  UnnestedHoleWarning,
   type WallEnd,
   ZeroLengthWallError,
 } from './errors';

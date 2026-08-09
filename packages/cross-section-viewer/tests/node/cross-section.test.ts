@@ -15,7 +15,7 @@ import { screenPoint, viewport } from '@baustatik/viewport-2d';
 import { describe, expect, it } from 'vitest';
 import { createCrossSectionViewer } from '../../src/viewer';
 
-/** Ein Treiber, der nichts zeichnet und nur mitschreibt, was er bekaeme. */
+/** Ein Treiber, der nichts zeichnet und nur mitschreibt, was er bekäme. */
 function recordingDriver(): RenderDriver & { readonly specs: Spec[] } {
   let specs: Spec[] = [];
   return {
@@ -102,7 +102,7 @@ describe('Die gerade Wand bleibt eine Linie mit physikalischer Strichbreite', ()
  *
  * Drei Drehsinne treffen hier aufeinander: `bulge` -> `Arc.sweep` (positiv
  * `+y → +z`) -> `ArcPathSpec.sweepAngle` (positiv `+u → +v`). Das Mapping
- * dazwischen ist `worldPoint(y, z)`, also die Identitaet — und genau das ist
+ * dazwischen ist `worldPoint(y, z)`, also die Identität — und genau das ist
  * bislang nur ARGUMENTIERT worden.
  */
 describe('Die Bogenwand wird als arcPath gezeichnet, ohne Vorzeichenumrechnung', () => {
@@ -127,7 +127,7 @@ describe('Die Bogenwand wird als arcPath gezeichnet, ohne Vorzeichenumrechnung',
     expect(spec.startAngle).toBeCloseTo(Math.PI, 9);
   });
 
-  it('Mittelpunkt, Radius und Winkel kommen unveraendert aus Bulge.toArc', () => {
+  it('Mittelpunkt, Radius und Winkel kommen unverändert aus Bulge.toArc', () => {
     // Der Pin selbst: die Spec ist eine 1:1-Uebernahme, keine Umrechnung.
     const arc = Bulge.toArc(
       Point.make(0, 0),
@@ -146,7 +146,7 @@ describe('Die Bogenwand wird als arcPath gezeichnet, ohne Vorzeichenumrechnung',
 
   it('die Toleranz kommt aus dem PULL und nicht aus einer Modulkonstante', () => {
     // h = 50·0,001 = 0,05 mm: unter der Voreinstellung (0,05) gerade, unter
-    // einer schaerferen Policy ein Bogen.
+    // einer schärferen Policy ein Bogen.
     expect(draw(wall(0.001)).find((s) => s.id === 'w1')?.kind).toBe('line');
     expect(
       draw(wall(0.001), createSectionPolicy({ arcTolerance: 0.01 })).find(
@@ -157,10 +157,10 @@ describe('Die Bogenwand wird als arcPath gezeichnet, ohne Vorzeichenumrechnung',
 });
 
 describe('Der Zeichenweg wirft nicht — auch nicht an einem kaputten bulge', () => {
-  // Das Gate prueft `bulge` heute NICHT: G1-G6 sehen Umriss, doppelte Ids,
-  // haengende Verweise, `t > 0`, Nulllaenge und Knick — nie die Woelbung. Beide
-  // Werte hier koennen also aus einem Store kommen, ohne gemeldet worden zu
-  // sein. Ein Wurf loeschte Grid, Umriss und jede andere Wand mit.
+  // Das Gate prüft `bulge` heute NICHT: G1-G6 sehen Umriss, doppelte Ids,
+  // hängende Verweise, `t > 0`, Nulllänge und Knick — nie die Wölbung. Beide
+  // Werte hier können also aus einem Store kommen, ohne gemeldet worden zu
+  // sein. Ein Wurf löschte Grid, Umriss und jede andere Wand mit.
   for (const [label, bulge] of [
     ['NaN', Number.NaN],
     ['Infinity', Number.POSITIVE_INFINITY],
@@ -169,7 +169,7 @@ describe('Der Zeichenweg wirft nicht — auch nicht an einem kaputten bulge', ()
     // `|sweepAngle| < 2π`.
     ['ein bulge am Vollkreis-Pol', 1e17],
   ] as const) {
-    it(`${label} faellt auf die Sehne zurueck, statt zu werfen`, () => {
+    it(`${label} fällt auf die Sehne zurück, statt zu werfen`, () => {
       let specs: Spec[] = [];
       expect(() => {
         specs = draw(wall(bulge));
@@ -182,8 +182,8 @@ describe('Der Zeichenweg wirft nicht — auch nicht an einem kaputten bulge', ()
   }
 });
 
-describe('Ein haengender Verweis laesst den Rest der Figur stehen', () => {
-  it('die Wand faellt weg, der Umriss bleibt', () => {
+describe('Ein hängender Verweis lässt den Rest der Figur stehen', () => {
+  it('die Wand fällt weg, der Umriss bleibt', () => {
     const specs = draw({
       kind: 'midline',
       idealisation: 'thin-walled',
@@ -196,5 +196,19 @@ describe('Ein haengender Verweis laesst den Rest der Figur stehen', () => {
 
     expect(specs.find((s) => s.id === 'w1')).toBeUndefined();
     expect(specs.find((s) => s.id === 'outline-0')).toBeDefined();
+  });
+});
+
+describe('Der abgeleitete Umriss ist vom eingegebenen Wandgraphen zu unterscheiden', () => {
+  it('zeichnet den Umriss in einer ANDEREN Farbe als die Wände', () => {
+    // Eine Aussage des Viewers und keine Option am Aufruf: der Umriss ist
+    // ABGELEITET, die Wände sind die EINGABE (ADR 0037). In Schwarz auf
+    // Schwarz sieht man die Kerbe am Grad-3-Knoten nicht.
+    const specs = draw(wall());
+    const outline = specs.find((s) => s.id === 'outline-0');
+    const line = specs.find((s) => s.id === 'w1');
+
+    expect(outline?.strokeColor).toBeDefined();
+    expect(outline?.strokeColor).not.toBe(line?.strokeColor);
   });
 });

@@ -25,7 +25,7 @@ truth, is the very ambiguity the report exists to remove.
 
 ## Why a discriminant rather than a boolean plus a reason
 
-The design sketched in `apps/demo/fem-viewer.ts` (v5, section O) proposed
+The design sketched in `apps/demo/fem/fem-viewer.ts` (v5, section O) proposed
 `canSolve: boolean` together with `reason?: 'model-invalid' | 'loads-invalid' |
 'no-loads' | 'empty-model'`. That sketch opens this ADR because it is written
 down in the repository and would otherwise be picked up again.

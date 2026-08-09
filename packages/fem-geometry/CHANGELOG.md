@@ -1,11 +1,12 @@
 # @baustatik/fem-geometry
 
-## 0.0.4
+## 0.0.1
 
 ### Patch Changes
 
 - Updated dependencies [cec4a27]
-  - @baustatik/geometry-2d@0.3.0
+- Updated dependencies
+  - @baustatik/geometry-2d@0.0.1
 
 ## 0.0.3
 

@@ -1,8 +1,8 @@
 # @baustatik/script
 
-## 3.0.0
+## 0.0.1
 
-### Major Changes
+### Patch Changes
 
 - cec4a27: **Breaking: `schemaVersion` 6 → 7.** Jede v6-Datei wird abgelehnt.
 
@@ -25,18 +25,26 @@
   mitgeführte Umriss sei unter `0,05 mm` entstanden, und die Drift-Prüfung, um
   derentwillen das Feld existiert, urteilte gegen eine erfundene Zahl.
 
-### Patch Changes
+- **Breaking:** `schemaVersion` 7 → 8. Die `SectionPolicy` im Satz führt jetzt
+  zwei Felder.
 
-- Updated dependencies [cec4a27]
-  - @baustatik/cross-section@2.0.0
-  - @baustatik/fem-loads@0.1.2
+  `sectionPolicy.principalAxisTolerance` steht neben `arcTolerance` — die
+  Schranke, ab der `Iyz` als null gilt (ADR 0035, Nachtrag zu ADR 0033). Wie bei
+  v5, v6 und v7: **kein Migrationswerkzeug**, jede v7-Datei wird abgelehnt.
 
-## 2.0.1
+  Ein optionales Feld mit Default wäre die naheliegende Alternative und die
+  falsche: eine eingesetzte Voreinstellung BEHAUPTETE, unter ihr sei beurteilt
+  worden. Die Policy führt die **effektiven** Werte, nicht die Abweichungen.
 
-### Patch Changes
+  Am authored DSL ändert sich nichts — `declarations.ts` kennt die Policy nicht,
+  weil ein Skriptautor sie nicht übergibt. `createFEMModelBuilder()` ohne
+  Argumente schreibt weiterhin den vollständigen Default in den Satz.
 
+- Updated dependencies
 - Updated dependencies [8646b0b]
-  - @baustatik/cross-section@1.0.1
+- Updated dependencies [cec4a27]
+  - @baustatik/cross-section@0.0.1
+  - @baustatik/fem-loads@0.0.1
 
 ## 2.0.0
 

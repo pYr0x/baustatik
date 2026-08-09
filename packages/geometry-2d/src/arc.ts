@@ -1,4 +1,4 @@
-import { DEFAULT_ARC_TOLERANCE } from './constants';
+import { DEFAULT_ARC_TOLERANCE, MAX_ARC_SEGMENTS } from './constants';
 import { CollinearPointsError, InvalidArcError } from './errors';
 import type { Line } from './line';
 import { Point } from './point';
@@ -21,6 +21,29 @@ export type Arc = {
 type ToPolylineOptions = { segments: number } | { tolerance: number };
 
 type PolylineLike = { readonly points: Point[] };
+
+/**
+ * Die Segmentzahl, unter der die Sehnenabweichung `tolerance` einhält.
+ *
+ * DIE STABILE FORM, und das ist hier keine Kosmetik: gesucht ist das `θ` mit
+ * `R·(1 − cos θ) = tol`, und `acos(1 − tol/R)` löscht dabei genau die Stellen
+ * aus, auf die es ankommt. Bei `tol/R < 2^-53` wird das Argument zu `1`,
+ * `acos(1)` zu `0`, und die Segmentzahl schoss auf `Infinity` — `toPolyline`
+ * lief danach in den Speicher statt in einen Fehler. Über
+ * `1 − cos θ = 2·sin²(θ/2)` fällt dieselbe Zahl ohne Auslöschung an.
+ *
+ * Sie ist GETRENNT von `Arc.toPolyline`, weil `Bulge.isDiscretisable` dieselbe
+ * Frage VOR dem `Arc` beantworten muss: wer sie zweimal aufschriebe, hätte zwei
+ * Gelegenheiten, verschieden zu antworten.
+ */
+export function arcSegments(
+  radius: number,
+  sweep: number,
+  tolerance: number,
+): number {
+  const step = 2 * Math.asin(Math.min(1, Math.sqrt(tolerance / (2 * radius))));
+  return Math.max(2, Math.ceil(Math.abs(sweep) / step));
+}
 
 export const Arc: Transformable<Arc> & {
   make(center: Point, radius: number, startAngle: number, sweep: number): Arc;
@@ -46,9 +69,13 @@ export const Arc: Transformable<Arc> & {
   intersectArcFull(a: Arc, b: Arc): Point[];
 } = {
   make: (center, radius, startAngle, sweep) => {
-    if (radius <= 0) throw new InvalidArcError(`radius ${radius} <= 0`);
-    if (Math.abs(sweep) < 1e-10)
-      throw new InvalidArcError(`sweep ${sweep} ist 0`);
+    // `NaN` GEHÖRT AUSDRÜCKLICH DAZU: jeder Vergleich mit ihm ist falsch, also
+    // kam ein `radius: NaN` durch beide Schranken unten hindurch und stand
+    // danach in jedem Punkt, den dieser Bogen liefert.
+    if (!Number.isFinite(radius) || radius <= 0)
+      throw new InvalidArcError(`radius ${radius} ist nicht endlich und > 0`);
+    if (!Number.isFinite(sweep) || Math.abs(sweep) < 1e-10)
+      throw new InvalidArcError(`sweep ${sweep} ist 0 oder nicht endlich`);
     if (Math.abs(sweep) > 2 * Math.PI + 1e-10)
       throw new InvalidArcError(
         `sweep ${sweep} überschreitet einen vollen Kreis`,
@@ -160,19 +187,20 @@ export const Arc: Transformable<Arc> & {
     if ('tolerance' in options && options.tolerance <= 0)
       throw new InvalidArcError(`tolerance ${options.tolerance} <= 0`);
 
-    const absSweep = Math.abs(arc.sweep);
     const segments =
       'segments' in options
         ? options.segments
-        : Math.max(
-            2,
-            Math.ceil(
-              absSweep /
-                Math.acos(
-                  Math.max(-1, Math.min(1, 1 - options.tolerance / arc.radius)),
-                ),
-            ),
-          );
+        : arcSegments(arc.radius, arc.sweep, options.tolerance);
+
+    // DIE SCHRANKE STEHT VOR DER SCHLEIFE, nicht in ihr: was hier zu viel ist,
+    // ist eine kaputte Eingabe und keine feine Toleranz (`MAX_ARC_SEGMENTS`).
+    // Eine gebrochene Vorbedingung wirft — still gröber zu zerlegen hiesse, die
+    // zugesagte Toleranz zu verletzen und nichts davon zu sagen.
+    if (segments > MAX_ARC_SEGMENTS)
+      throw new InvalidArcError(
+        `${segments} Segmente für radius ${arc.radius} überschreiten ` +
+          `MAX_ARC_SEGMENTS ${MAX_ARC_SEGMENTS}`,
+      );
 
     const points: Point[] = [];
     for (let i = 0; i <= segments; i++) {

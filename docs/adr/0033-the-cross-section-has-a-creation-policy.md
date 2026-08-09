@@ -1,5 +1,13 @@
 # The cross-section has a creation policy
 
+> **Addendum (P3, [ADR 0037](0037-the-outline-comes-from-inflating-wall-runs.md)):**
+> the third field has snapped in as foreseen — `miterLimit`, default `2`. It
+> passes the criterion above literally: it changes the **stored** outline, so it
+> is a creation setting and not an analysis one. `JoinType`, listed as a
+> candidate in the same line, did **not** become a field: it is nailed to Miter,
+> and there is no second admissible choice to configure. `OFFSET_PRECISION` is
+> not a field either — it quantises the computation path, not the model.
+
 The P1 decision. You look this one up when you are about to add a knob to the
 cross-section and cannot tell whether it belongs in `AnalysisPolicy` or here —
 or when you wonder why a project file stores `arcTolerance` at all.
@@ -156,3 +164,44 @@ stays silent by itself.
 storage form and its sign convention were already decided in
 [0030](0030-the-section-editor-stores-a-wall-graph.md) and
 [0031](0031-the-cross-section-plane.md).
+
+## Addendum (P2): the second field clicked in
+
+`principalAxisTolerance` is in — exactly as the table above dated it, and
+without touching the factory or its merge semantics. That was the point of
+writing the full slice shape at one field.
+
+```ts
+export type SectionPolicy = {
+  readonly arcTolerance: mm;
+  /** Dimensionless. `|Iyz| <= tol · max(|Iy|, |Iz|)` means principal-axis position. */
+  readonly principalAxisTolerance: number;   // default 1e-9
+};
+```
+
+**No new ADR**, because the *form* was decided here. What P2 adds is the field's
+own two decisions, and both are narrow:
+
+- **Relative and dimensionless**, because an absolute bound in m⁴ would be two
+  different statements for a cm-sized and an m-sized cross-section. Referred to
+  `max(|Iy|, |Iz|)` rather than `Iy`, so the question does not fall silent
+  precisely where `Iy` is small and `Iz` is large.
+- **Read by the gate alone.** `principalAxes` stays total, pure and policy-free
+  and returns `alpha ≈ 1e-17` — the right answer to the question asked. Snapping
+  there would be an *analysis* setting on the calculation path (ADR 0011).
+  Whoever wants to know "is this principal-axis position" asks the gate.
+
+The name states the **question** ("does principal-axis position hold"), not the
+quantity — the same figure as `arcTolerance`, which is not called
+`sagittaTolerance` either. `0` is a permitted value and restores the exact
+comparison, which is the right sharpness for anyone carrying only shapes and
+catalogue rows.
+
+`schemaVersion` goes **7 → 8**. `parseSectionPolicy` is strict, so every v7 file
+is rejected; no migration tool, for the same reason as at v5, v6 and v7.
+
+**Three schema breaks in three sub-projects is a pattern, not an accident** —
+P3 (miter limit) and P5 (thick wall) are dated as further policy fields. Whether
+a monorepo without consumers should be counting schema versions and changesets
+at all is recorded in `packages/TODO.md` as its own question. P2 leaves the
+procedure unchanged.

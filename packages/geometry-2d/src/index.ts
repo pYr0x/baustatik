@@ -1,6 +1,10 @@
 export { Arc } from './arc';
 export { Bulge } from './bulge';
-export { DEFAULT_ARC_TOLERANCE } from './constants';
+export {
+  DEFAULT_ARC_TOLERANCE,
+  MAX_ARC_SEGMENTS,
+  OFFSET_PRECISION,
+} from './constants';
 export {
   CollinearPointsError,
   DegenerateAxisError,
@@ -16,6 +20,12 @@ export {
 export type { LineFrame } from './line';
 export { Line } from './line';
 export { Point } from './point';
+export type {
+  InflateEndType,
+  InflateOptions,
+  InflatePath,
+  PolygonMoments,
+} from './polygon';
 export { Polygon } from './polygon';
 export { Polyline } from './polyline';
 export type { BoundingBox, Transformable } from './types';

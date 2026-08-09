@@ -1,33 +1,5 @@
 # demo
 
-## 1.0.9
-
-### Patch Changes
-
-- Updated dependencies [cec4a27]
-- Updated dependencies [cec4a27]
-- Updated dependencies [cec4a27]
-- Updated dependencies [cec4a27]
-  - @baustatik/cross-section-viewer@2.0.0
-  - @baustatik/section-geometry@0.3.0
-  - @baustatik/cross-section@2.0.0
-  - @baustatik/script@3.0.0
-  - @baustatik/fem-geometry@0.0.4
-  - @baustatik/fem-section-resolve@0.2.4
-  - @baustatik/fem-loads@0.1.2
-  - @baustatik/fem-solver@1.1.2
-  - @baustatik/fem-viewer@1.2.2
-
-## 1.0.8
-
-### Patch Changes
-
-- Updated dependencies [8646b0b]
-  - @baustatik/cross-section@1.0.1
-  - @baustatik/cross-section-viewer@1.0.1
-  - @baustatik/fem-section-resolve@0.2.3
-  - @baustatik/script@2.0.1
-
 ## 1.0.7
 
 ### Patch Changes

@@ -136,7 +136,7 @@ Die Lage und die Richtung einer Stablast sind **keine** Viewer-Fragen — sie si
 
 **Dateien:**
 
-- `apps/demo/fem-viewer.ts`
+- `apps/demo/fem/fem-viewer.ts`
 - `packages/fem-viewer/CONTEXT.md`
 - `packages/fem-viewer/docs/usage.md`
 - `AGENTS.md`

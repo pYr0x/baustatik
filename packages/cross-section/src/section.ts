@@ -1,12 +1,13 @@
 import type { SteelProfileData } from '@baustatik/steel-profiles';
 import type { mm } from '@baustatik/units';
+import { greenValues } from './green';
 import type { SectionProperties } from './properties';
 import { hollowRectangle } from './shapes/hollow-rectangle';
 import { iSymmetric } from './shapes/i-symmetric';
 import { toProperties } from './shapes/kernel';
 import { rectangle } from './shapes/rectangle';
 import { tSection } from './shapes/t-section';
-import { toSI } from './to-si';
+import { type CatalogueValues, toSI } from './to-si';
 import type { SectionGeometry } from './types';
 import { MM_TO_CM } from './units';
 
@@ -94,9 +95,11 @@ export type CrossSection =
   | { kind: 'shape'; id: string; shape: ShapeSpec }
   | {
       /**
-       * Die frei gezeichnete Geometrie. In P0 traegt sie ihren Vertrag, aber
-       * noch keine Werte: `sectionProperties` gibt fuer sie `undefined`
-       * zurueck, bis die Green-Rechnung steht.
+       * Die frei gezeichnete Geometrie. Seit P2 trägt sie WERTE: `A`, `Iy`,
+       * `Iz`, `Iyz`, `ys`, `zs` fallen nach Green aus dem mitgeführten
+       * Umriss, `alpha`/`Iu`/`Iv` als Algebra mit. OHNE kappa und OHNE
+       * Schubmittelpunkt — beide brauchen den Wandweg beziehungsweise Grashof
+       * ([ADR 0035](../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
        */
       kind: 'section-geometry';
       id: string;
@@ -145,23 +148,26 @@ export function sectionProperties(
 ): SectionProperties | undefined {
   if (cs.kind === 'profile') return profileProperties(cs.data);
 
-  // Die Geometriequelle traegt in P0 nur ihren VERTRAG. Die Werte fallen aus
-  // dem Umrisspolygon nach Green — das ist P2, und bis dahin ist `undefined`
-  // die ehrliche Antwort: „kenne ich nicht" statt einer geratenen Zahl.
-  // Der Weg dahin ist offen und laeuft ueber `geometry.outline`.
-  if (cs.kind === 'section-geometry') return undefined;
+  if (cs.kind === 'section-geometry') {
+    const geometry = geometryResult(cs.geometry);
+    return geometry === undefined ? undefined : toSI(geometry);
+  }
 
   const shape = shapeResult(cs.shape);
   return shape === undefined ? undefined : toProperties(shape);
 }
 
 /**
- * Die EINE mm -> cm-Stelle des Packages.
+ * Die mm -> cm-Stelle der PARAMETRISCHEN FORM — eine von zweien.
  *
- * Danach rechnet alles unterhalb in Zentimetern: `ShapeResult` liefert cm²,
- * cm⁴ und cm, genau wie `SteelProfileData` sie fuehrt. Die Formfunktionen
- * selbst sind MASSSTABSFREI — sie enthalten keine Einheit, nur Formeln; was
- * hineingeht, bestimmt, was herauskommt.
+ * EINE EINGANGSSTELLE JE QUELLE, EIN GEMEINSAMER AUSGANG (`toSI`). Die
+ * Katalogzeile führt bereits cm und braucht keine; die Form und die Geometrie
+ * führen mm und bekommen je eine. Danach rechnet alles unterhalb in
+ * Zentimetern: `ShapeResult` liefert cm², cm⁴ und cm, genau wie
+ * `SteelProfileData` sie führt.
+ *
+ * Die Formfunktionen selbst sind MASSSTABSFREI — sie enthalten keine Einheit,
+ * nur Formeln; was hineingeht, bestimmt, was herauskommt.
  */
 function shapeResult(spec: ShapeSpec) {
   const c = MM_TO_CM;
@@ -192,6 +198,51 @@ function shapeResult(spec: ShapeSpec) {
         spec.idealisation,
       );
   }
+}
+
+/**
+ * Die mm -> cm-Stelle der GEZEICHNETEN GEOMETRIE — die zweite und letzte.
+ *
+ * SIE SKALIERT DIE PUNKTE, NICHT DAS ERGEBNIS, und das ist dieselbe Figur wie
+ * bei `shapeResult`: dort gehen die Abmessungen umgerechnet in eine
+ * maßstabsfreie Formel, hier gehen die Koordinaten umgerechnet in eine
+ * maßstabsfreie Summation. EIN Faktor an EINER Stelle — das Ergebnis
+ * hinterher zu skalieren brauchte drei verschiedene (`cm²`, `cm⁴`, `cm`) und
+ * damit drei Gelegenheiten, sich zu vertun.
+ *
+ * WARUM NICHT GLEICH IN METERN: dann verlöre man die Diffbarkeit gegen die
+ * gedruckte Tabelle, um derentwillen die ganze cm-Zwischenwelt existiert
+ * ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md)).
+ *
+ * kappa UND SCHUBMITTELPUNKT BLEIBEN `undefined` — „nicht ermittelt", nicht
+ * „null". Beide brauchen den Wandweg beziehungsweise Grashof und kommen mit
+ * P4/P5. Für den Löser heißt das `GAs: 'rigid'`, also die steifere Richtung;
+ * dass jemand Schubverformung VERLANGT und sie nicht bekommt, meldet `check()`
+ * in `@baustatik/fem-solver`
+ * ([ADR 0035](../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
+ */
+function geometryResult(
+  geometry: SectionGeometry,
+): CatalogueValues | undefined {
+  const c = MM_TO_CM;
+  const green = greenValues(
+    geometry.outline.map((polygon) => ({
+      points: polygon.points.map((point) => ({
+        y: point.y * c,
+        z: point.z * c,
+      })),
+    })),
+  );
+  if (green === undefined) return undefined;
+
+  return {
+    A: green.A,
+    Iy: green.Iy,
+    Iz: green.Iz,
+    Iyz: green.Iyz,
+    ys: green.ys,
+    zs: green.zs,
+  };
 }
 
 /**

@@ -1,4 +1,5 @@
 import {
+    createSectionGeometry,
     DEFAULT_SECTION_POLICY,
     type SectionGeometry,
     type SectionNode,
@@ -16,6 +17,10 @@ const pinia = createPinia();
 // genau so, wie ADR 0030 und ADR 0033 sie speichern. Der Umriss reist MIT — der
 // Viewer leitet keinen eigenen ab —, und das REZEPT reist daneben mit, damit
 // beide unter derselben Toleranz gelesen werden.
+//
+// SEIT P3 TIPPT IHN NIEMAND MEHR (ADR 0037): `createSectionGeometry` weitet die
+// Mittellinien um t/2 auf und vereinigt sie. Vorher stand hier eine von Hand
+// gerechnete Punktliste — genau die Miter-Ecke, die Clipper2 jetzt selbst setzt.
 const useStore = defineStore('sections', {
     state: () => ({
         nodes: [] as SectionNode[],
@@ -42,29 +47,44 @@ const useStore = defineStore('sections', {
         addWall(id: string, startNodeId: string, endNodeId: string, t: number) {
             this.walls.push({ id, startNodeId, endNodeId, t });
         },
-        setOutline(points: { y: number; z: number }[]) {
-            this.outline = [{ points }];
+        /**
+         * Der Umriss wird ABGELEITET, unter genau der Policy, die daneben im
+         * Store steht. Von Hand gesetzt war er eine zweite Wahrheit ueber
+         * dieselbe Figur; jetzt sagt das Gate, wenn beide auseinanderlaufen
+         * (`OutlineDriftWarning`).
+         */
+        deriveOutline() {
+            this.outline = createSectionGeometry(
+                {
+                    kind: 'midline',
+                    idealisation: 'thin-walled',
+                    nodes: this.nodes,
+                    walls: this.walls,
+                },
+                this.sectionPolicy,
+            ).outline;
         },
     },
 });
 const store = useStore(pinia);
 
-// Beispiel: ein Winkel aus zwei Waenden. `t` ist die physikalische Wandstaerke.
-store.addNode('n-ecke', 0, 0);
-store.addNode('n-unten', 0, 100);
+// Beispiel: ein Winkel aus drei Waenden. `t` ist die physikalische Wandstaerke.
+//
+// LAUTER GRAD-2-KNOTEN, also EIN Branch von `n-unten` ueber `n-links` und
+// `n-mitte` bis `n-rechts`. An `n-links` faellt beides zusammen: eine ECKE und
+// ein DICKENSPRUNG von 6 auf 8. Clipper2 nimmt ein `delta` je Aufruf, der
+// Offsetpfad wird dort also geteilt (ADR 0037) — und weil zwei stumpfe Enden
+// keine Ecke ergeben, fehlten hier bis ADR 0038 die 3 x 4 mm² des Keils. Jetzt
+// setzt `jointFills` sie: die Aussenecke liegt auf (-63, -4), dem Schnittpunkt
+// der beiden Aussenkanten, und `A` ist 1560 statt 1548 mm².
+store.addNode('n-links', -60, 0);
+store.addNode('n-mitte', 0, 0);
 store.addNode('n-rechts', 60, 0);
-store.addWall('steg', 'n-ecke', 'n-unten', 8);
-store.addWall('gurt', 'n-ecke', 'n-rechts', 8);
-// Der Umriss der beiden um t/2 aufgeweiteten Mittellinien. Ihn abzuleiten ist
-// Sache des Editors (P3, mit Clipper2); hier steht er von Hand.
-store.setOutline([
-    { y: -4, z: -4 },
-    { y: 60, z: -4 },
-    { y: 60, z: 4 },
-    { y: 4, z: 4 },
-    { y: 4, z: 100 },
-    { y: -4, z: 100 },
-]);
+store.addNode('n-unten', 0, 100);
+store.addWall('gurt-links', 'n-links', 'n-mitte', 8);
+store.addWall('gurt-rechts', 'n-mitte', 'n-rechts', 8);
+store.addWall('steg', 'n-links', 'n-unten', 8);
+store.deriveOutline();
 
 // 1. Driver bauen (kennt Konva). Kein onViewIntent hier — der Viewer haengt sich selbst dran.
 const stageSize = { width: window.innerWidth, height: window.innerHeight };
@@ -82,7 +102,7 @@ const viewer = createCrossSectionViewer({
     getGeometry: () => store.geometry,
     getSectionPolicy: () => store.sectionPolicy,
     getScreenSize: () => stageSize,
-    grid: { spacing: 10 }, // Weltkoordinaten; der Querschnitt ist 60–100 Einheiten gross
+    grid: { spacing: 10 }, // Weltkoordinaten; der Querschnitt ist 120–100 Einheiten gross
 });
 
 // 3. Einmal zeichnen. Pan/Zoom laeuft danach automatisch intern.

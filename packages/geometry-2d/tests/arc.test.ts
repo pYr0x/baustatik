@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Arc } from '../src/arc'
+import { MAX_ARC_SEGMENTS } from '../src/constants'
 import { Point } from '../src/point'
 import { Line } from '../src/line'
 import { CollinearPointsError, InvalidArcError } from '../src/errors'
@@ -150,5 +151,51 @@ describe('Arc full circle', () => {
   it('toPolyline generates points for full circle', () => {
     const arc = Arc.fromCenter(Point.make(0, 0), 1, 0, Math.PI * 2)
     expect(Arc.toPolyline(arc, { segments: 8 }).points.length).toBe(9)
+  })
+})
+
+describe('Die Zerlegung bleibt endlich, auch wenn die Toleranz es nicht mehr auflöst', () => {
+  it('wirft, statt in den Speicher zu laufen — MAX_ARC_SEGMENTS', () => {
+    // `acos(1 − tol/R)` wurde bei `tol/R < 2^-53` zu `0`: die Segmentzahl war
+    // `Infinity`, und die Schleife lief bis zum Heap-Ende. Ein Bogen dieser
+    // Grösse ist eine kaputte Eingabe und soll als Fehler ankommen.
+    const riesig = Arc.make(Point.make(0, 0), 1e18, 0, Math.PI)
+
+    expect(() => Arc.toPolyline(riesig, { tolerance: 0.05 })).toThrow(
+      InvalidArcError,
+    )
+  })
+
+  it('deckelt auch die von Hand gesetzte Segmentzahl', () => {
+    const arc = Arc.fromCenter(Point.make(0, 0), 1, 0, Math.PI)
+
+    expect(() => Arc.toPolyline(arc, { segments: MAX_ARC_SEGMENTS + 1 })).toThrow(
+      InvalidArcError,
+    )
+  })
+
+  it('rechnet die Segmentzahl im Normalfall unverändert', () => {
+    // Die stabile Form `2·asin(√(tol/2R))` ist algebraisch dasselbe wie
+    // `acos(1 − tol/R)` — an einem Radius, an dem beide auflösen, muss
+    // dieselbe Punktzahl herauskommen.
+    const arc = Arc.fromCenter(Point.make(0, 0), 50, 0, Math.PI * 2)
+    const alt = Math.max(
+      2,
+      Math.ceil((2 * Math.PI) / Math.acos(1 - 0.05 / 50)),
+    )
+
+    expect(Arc.toPolyline(arc, { tolerance: 0.05 }).points.length).toBe(alt + 1)
+  })
+
+  it('nimmt keinen Bogen mit nicht endlichem Radius an', () => {
+    expect(() => Arc.make(Point.make(0, 0), Number.NaN, 0, Math.PI)).toThrow(
+      InvalidArcError,
+    )
+    expect(() =>
+      Arc.make(Point.make(0, 0), Number.POSITIVE_INFINITY, 0, Math.PI),
+    ).toThrow(InvalidArcError)
+    expect(() => Arc.make(Point.make(0, 0), 1, 0, Number.NaN)).toThrow(
+      InvalidArcError,
+    )
   })
 })

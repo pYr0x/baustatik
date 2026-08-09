@@ -213,37 +213,75 @@ describe('Der allgemeine Zweig: schiefe Hauptachsen', () => {
   });
 });
 
-describe('Die dritte Quelle traegt in P0 nur ihren Vertrag', () => {
-  it('gibt fuer einen section-geometry-Querschnitt keine Werte heraus', () => {
-    // `undefined` heisst „kenne ich nicht" — ehrlicher als eine geratene Zahl.
-    // Die Werte fallen mit P2 aus dem mitgefuehrten Umriss.
-    const cs: CrossSection = {
-      kind: 'section-geometry',
-      id: 'cs',
+describe('Die dritte Quelle liefert seit P2 Werte — ohne kappa und ohne yM', () => {
+  // Das Rechteck 100 x 200 mm, positiv gewickelt (+y → +z), Ecke im Ursprung.
+  const cs: CrossSection = {
+    kind: 'section-geometry',
+    id: 'cs',
+    geometry: {
+      kind: 'outline',
+      rings: [
+        {
+          vertices: [
+            { y: 0, z: 0 },
+            { y: 100, z: 0 },
+            { y: 100, z: 200 },
+            { y: 0, z: 200 },
+          ],
+        },
+      ],
+      outline: [
+        {
+          points: [
+            { y: 0, z: 0 },
+            { y: 100, z: 0 },
+            { y: 100, z: 200 },
+            { y: 0, z: 200 },
+          ],
+        },
+      ],
+    },
+  };
+
+  function values() {
+    const properties = sectionProperties(cs);
+    if (properties === undefined) throw new Error('kein Umriss-Satz');
+    return properties;
+  }
+
+  it('rechnet A, Iy, Iz und den Schwerpunkt aus dem mitgeführten Umriss', () => {
+    const p = values();
+    expect(p.A).toBeCloseTo(0.1 * 0.2, 12);
+    expect(p.Iy).toBeCloseTo((0.1 * 0.2 ** 3) / 12, 15);
+    expect(p.Iz).toBeCloseTo((0.2 * 0.1 ** 3) / 12, 15);
+    expect(p.ys).toBeCloseTo(0.05, 12);
+    expect(p.zs).toBeCloseTo(0.1, 12);
+  });
+
+  it('hält kappa und den Schubmittelpunkt auf `undefined` — nicht auf 0', () => {
+    // „Nicht ermittelt" und nicht „null": kappa braucht den Wandweg (P4/P5),
+    // der Schubmittelpunkt Grashof (P5). Für den Löser heißt das
+    // `GAs: 'rigid'`, also die steifere und damit unauffälligere Richtung
+    // (ADR 0035).
+    const p = values();
+    expect(p.kappaY).toBeUndefined();
+    expect(p.kappaZ).toBeUndefined();
+    expect(p.yM).toBeUndefined();
+    expect(p.zM).toBeUndefined();
+  });
+
+  it('gibt `undefined`, wenn der Umriss verkehrt herum gewickelt ist', () => {
+    // Eine negative Fläche hier durchzulassen erzeugte in
+    // `fem-section-resolve` eine negative Steifigkeit — der einzige Fehler
+    // dieser Ecke, der den Löser STILL kaputtmacht.
+    const reversed: CrossSection = {
+      ...cs,
       geometry: {
         kind: 'outline',
-        rings: [
-          {
-            vertices: [
-              { y: 0, z: 0 },
-              { y: 100, z: 0 },
-              { y: 100, z: 200 },
-              { y: 0, z: 200 },
-            ],
-          },
-        ],
-        outline: [
-          {
-            points: [
-              { y: 0, z: 0 },
-              { y: 100, z: 0 },
-              { y: 100, z: 200 },
-              { y: 0, z: 200 },
-            ],
-          },
-        ],
+        rings: [],
+        outline: [{ points: [...cs.geometry.outline[0]!.points].reverse() }],
       },
     };
-    expect(sectionProperties(cs)).toBeUndefined();
+    expect(sectionProperties(reversed)).toBeUndefined();
   });
 });
