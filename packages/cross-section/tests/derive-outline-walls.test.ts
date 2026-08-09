@@ -29,6 +29,18 @@ const areas = (outline: readonly Polygon[]) =>
 const totalArea = (outline: readonly Polygon[]) =>
   areas(outline).reduce((sum, A) => sum + A, 0);
 
+/**
+ * Ob der Ring diesen Punkt trägt.
+ *
+ * MIT TOLERANZ, weil Clipper2 auf sein Offset-Raster rundet — und ohne
+ * Punktzahl, weil die Vereinigung an der Naht eines Füllrings kollineare
+ * Zwischenpunkte stehen lässt (ADR 0038). Sie tragen zur Fläche nichts bei.
+ */
+const hasPoint = (polygon: Polygon | undefined, y: number, z: number) =>
+  (polygon?.points ?? []).some(
+    (p) => Math.abs(p.y - y) < 1e-6 && Math.abs(p.z - z) < 1e-6,
+  );
+
 /** Die Punkte, unabhängig davon, wo der Ring zu laufen beginnt. */
 const sortedPoints = (polygon: Polygon | undefined) =>
   [...(polygon?.points ?? [])]
@@ -83,6 +95,134 @@ describe('Der Dickensprung teilt den Offsetpfad, nicht den Branch', () => {
     expect(totalArea(outline)).toBeCloseTo(6 * 60 + 10 * 100, 9);
     // Acht Punkte: die Stufe hat zwei Ecken mehr als das Rechteck.
     expect(outline[0]?.points).toHaveLength(8);
+  });
+});
+
+describe('Der Dickensprung IN DER ECKE wird gemitert (ADR 0038)', () => {
+  // Der Winkel aus `apps/demo/cross-section/cross-section-viewer.ts`: Gurt `t = 8` von
+  // `links` nach `rechts`, Steg `t = 6` nach unten. Beide Waende sind
+  // durchverbunden, der Offsetpfad wird am Sprung aber aufgeschnitten — den
+  // Keil dazwischen setzt seit ADR 0038 der Fuellring.
+  const nodes = [
+    node('links', -60, 0),
+    node('mitte', 0, 0),
+    node('rechts', 60, 0),
+    node('unten', -60, 100),
+  ];
+  const walls = [
+    wall('gurt-links', 'links', 'mitte', 8),
+    wall('gurt-rechts', 'mitte', 'rechts', 8),
+    wall('steg', 'links', 'unten', 6),
+  ];
+
+  it('setzt die Ecke auf den Schnittpunkt der beiden Aussenkanten', () => {
+    const outline = deriveOutlineFromWalls(nodes, walls, POLICY);
+
+    expect(outline).toHaveLength(1);
+    // Aussenkante des Gurts `z = −4`, Aussenkante des Stegs `y = −63`: die Ecke
+    // gehoert dorthin, wo die beiden sich treffen.
+    expect(hasPoint(outline[0], -63, -4)).toBe(true);
+    // Und die Stufe, die bis ADR 0038 dort stand, ist weg.
+    expect(hasPoint(outline[0], -60, 0)).toBe(false);
+    // Gurt 120 x 8 plus Steg 6 x 100: mit der Ecke geht die Rechnung GLATT auf,
+    // weil der Keil (3 x 4) genau die Ueberdeckung ausgleicht, die Gurt und Steg
+    // sich teilen (3 x 4). Ohne ihn blieben 1548 statt 1560.
+    expect(totalArea(outline)).toBeCloseTo(120 * 8 + 6 * 100, 6);
+  });
+
+  it('baut dieselbe Ecke wie Clipper2 — stetig bei `t1 → t2`', () => {
+    // DER BEWEIS GEGEN FLICKWERK: bei gleicher Dicke mitert Clipper2 selbst,
+    // eine Winzigkeit daneben uebernimmt der Fuellring. Beide Wege muessen
+    // dieselbe Figur bauen — ohne Fuellung fehlten hier die `4 · 4 = 16` des
+    // Keils, also das Zehntausendfache dessen, was die Dickenaenderung selbst
+    // ausmacht.
+    const gleich = deriveOutlineFromWalls(
+      nodes,
+      walls.map((it) => ({ ...it, t: 8 })),
+      POLICY,
+    );
+    const fastGleich = deriveOutlineFromWalls(
+      nodes,
+      walls.map((it) => ({ ...it, t: it.id === 'steg' ? 8.000001 : 8 })),
+      POLICY,
+    );
+
+    expect(totalArea(fastGleich)).toBeCloseTo(totalArea(gleich), 3);
+  });
+
+  it('gibt dem geschweissten Kasten seine vier Ecken zurück', () => {
+    // Kasten 200 x 400, Gurte `tf = 20`, Stege `tw = 10`: vier durchverbundene
+    // Stoesse, an jedem ein Dickensprung. A ist die Mittellinienlaenge mal ihre
+    // Dicke plus die vier Keile `tf/2 · tw/2`.
+    const b = 200;
+    const h = 400;
+    const tf = 20;
+    const tw = 10;
+    const y = b / 2 - tw / 2;
+    const zTop = tf / 2;
+    const zBottom = h - tf / 2;
+    const kasten = [
+      node('ol', -y, zTop),
+      node('or', y, zTop),
+      node('ur', y, zBottom),
+      node('ul', -y, zBottom),
+    ];
+    const bleche = [
+      wall('gurt-oben', 'ol', 'or', tf),
+      wall('steg-rechts', 'or', 'ur', tw),
+      wall('gurt-unten', 'ur', 'ul', tf),
+      wall('steg-links', 'ul', 'ol', tw),
+    ];
+
+    const outline = deriveOutlineFromWalls(kasten, bleche, POLICY);
+    const [aussen, loch] = areas(outline);
+
+    expect(outline).toHaveLength(2);
+    expect(aussen).toBeGreaterThan(0);
+    expect(loch).toBeLessThan(0);
+    // Mit gemiterten Ecken ist der Kasten das Aussenrechteck minus dem
+    // Innenrechteck — die geschlossene Form, die es ohne die vier Keile nicht
+    // gaebe (dann fehlten `4 · tf/2 · tw/2 = 200 mm²`).
+    expect(totalArea(outline)).toBeCloseTo(
+      b * h - (b - 2 * tw) * (h - 2 * tf),
+      6,
+    );
+  });
+
+  it('kappt den Spitz am spitzen Stoss', () => {
+    // 20° Innenwinkel UND Dickensprung. Der ungekappte Miterpunkt liegt auf der
+    // Aussenkante der dickeren Wand (`z = −5`), dort wo die Aussenkante der
+    // duenneren sie schneidet — rund 23 vom Knoten weg. Gekappt wird bei
+    // `miterLimit · max(t)/2 = 10`, und zwar QUER zur Richtung des Spitzes.
+    const alpha = Math.PI / 9;
+    const spitz = [
+      node('ecke', 0, 0),
+      node('a', 100, 0),
+      node('b', 100 * Math.cos(alpha), 100 * Math.sin(alpha)),
+    ];
+    const bleche = [wall('w1', 'ecke', 'a', 10), wall('w2', 'ecke', 'b', 6)];
+
+    // Der Miterpunkt von Hand: die Aussenkante von `w2` liegt um 3 neben ihrer
+    // Achse, geschnitten mit `z = −5`.
+    const miterZ = -5;
+    const miterY =
+      -3 * Math.sin(alpha) +
+      ((miterZ - 3 * Math.cos(alpha)) / Math.sin(alpha)) * Math.cos(alpha);
+    const reach = Math.hypot(miterY, miterZ);
+    const direction = { y: miterY / reach, z: miterZ / reach };
+
+    const outline = deriveOutlineFromWalls(spitz, bleche, POLICY);
+    const points = outline[0]?.points ?? [];
+
+    expect(reach).toBeGreaterThan(10);
+    expect(hasPoint(outline[0], miterY, miterZ)).toBe(false);
+    // Die Zusage der Kappung: kein Punkt reicht in Richtung des Spitzes weiter
+    // als die Schranke.
+    for (const p of points) {
+      expect(p.y * direction.y + p.z * direction.z).toBeLessThanOrEqual(
+        10 + 1e-6,
+      );
+    }
   });
 });
 

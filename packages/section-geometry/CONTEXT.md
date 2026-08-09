@@ -38,7 +38,7 @@ Important consumers:
   turn `Wall.bulge` into an `arcPath` spec.
 - [`@baustatik/cross-section`](../cross-section): the gate's kink warning reads
   `Bulge.sweep`.
-- `apps/demo/cross-section-viewer.ts`: through the viewer.
+- `apps/demo/cross-section/cross-section-viewer.ts`: through the viewer.
 
 ## Dependencies
 
@@ -169,6 +169,9 @@ lands here: `Polygon.inflate`, passed through into `y`/`z` like `union` and
 `moments` ([ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
 It takes open or closed **runs**, each with its own `delta` and end type, and
 returns a **ring set with holes** — outer `signedArea > 0`, holes `< 0`, sorted.
+A closed run with `delta: 0` passes through the union unchanged; that is how the
+mitre at a thickness jump reaches the outline, which no offset can produce
+([ADR 0038](../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)).
 
 **`deriveOutline` and the drift check do *not* live here.** An earlier version of
 this file claimed them; that sentence predates P2 and was already contradicted by

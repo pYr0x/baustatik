@@ -390,7 +390,7 @@ PULL-Verhalten, und fuer `solve()` in dieser Reihenfolge:
     Beleg fuer ADR 0019. Die Zahlen selbst sind in `fem-element` verankert.
 
 Die Handrechnung gegen den ECHTEN Rust-Loeser steht in
-`apps/demo/fem-cantilever.ts`.
+`apps/demo/fem/fem-cantilever.ts`.
 
 `tests/kinematics-margin.test.ts` ist KEIN Test, sondern ein **Messgeraet**: es
 faehrt rund 250 Systeme mit echter `Timoshenko2D`-Formulierung und echten

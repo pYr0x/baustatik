@@ -108,7 +108,7 @@ keep.
 - The test double in `fem-solver` had to reimplement the detection to satisfy
   the contract. Those tests therefore no longer prove that faer does it — that
   is inherent to any port. `cargo test` in `linear-solver-wasm` and the hand
-  calculation in `apps/demo/fem-cantilever.ts` cover the real path.
+  calculation in `apps/demo/fem/fem-cantilever.ts` cover the real path.
 
 ## Addendum: incomplete, but not wrong
 

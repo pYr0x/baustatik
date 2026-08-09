@@ -532,7 +532,7 @@ const KINEMATIC_SHAPES: readonly Shape[] = [
 /**
  * Der Winkelsweep — der wichtigste Teil der Messung.
  *
- * Dasselbe Modell wie in `apps/demo/fem-viewer.ts`: EIN Auflager, das `ux` und
+ * Dasselbe Modell wie in `apps/demo/fem/fem-viewer.ts`: EIN Auflager, das `ux` und
  * `uz` haelt und `phiY` freilaesst. Die Drehung um diesen Knoten ist immer ein
  * Starrkoerpermodus, unabhaengig vom Winkel — `K_ff` ist per Konstruktion exakt
  * rangdefizit.

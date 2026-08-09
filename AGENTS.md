@@ -84,6 +84,17 @@ What the scripts do not tell you:
 Known tooling gaps, none of them fixed:
 [`docs/agents/tooling-gaps.md`](docs/agents/tooling-gaps.md).
 
+## Browser automation
+
+Do **not** open, drive, or screenshot the browser on your own initiative. The
+`claude-in-chrome` skill and every `mcp__claude-in-chrome__*` tool are used only
+when the user asks for it in that turn — "look at it in the browser", "take a
+screenshot of the demo", or a comparable explicit instruction. Verifying a
+change in the demo app, debugging a rendering question, or "just having a quick
+look" is not such an instruction: report what you can from tests, types, and the
+source, and offer the browser as a next step instead of taking it. The same
+applies to the `run` skill when it would end in browser automation.
+
 ## Coding principles
 
 Rationale, worked examples and the list of packages that currently diverge:

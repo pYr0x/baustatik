@@ -175,15 +175,19 @@ function shapeFindings(
   // G6c — der gekappte Miter-Spitz. NUR AN DURCHVERBUNDENEN STOESSEN, und
   // welche das sind, sagt die Ableitung: nur dort entsteht ueberhaupt eine
   // Miter-Ecke.
+  //
+  // DER UEBERSTAND WIRD NICHT MEHR HIER GERECHNET. `1/sin(α/2)` gilt nur bei
+  // gleicher Wandstaerke; seit ADR 0038 misst die Ableitung ihn an der Ecke,
+  // die sie tatsaechlich baut — sonst schwiege das Gate ausgerechnet dort, wo
+  // gekappt wird (fast gestreckter Stoss MIT Dickensprung).
   for (const joint of chainedJoints(geometry.nodes, geometry.walls)) {
-    const overshoot = 1 / Math.sin(joint.alpha / 2);
-    if (overshoot > policy.miterLimit) {
+    if (joint.overshoot > policy.miterLimit) {
       warnings.push(
         new MiterLimitExceededWarning(
           joint.nodeId,
           joint.wallIds,
           joint.alpha,
-          overshoot,
+          joint.overshoot,
           policy.miterLimit,
         ),
       );

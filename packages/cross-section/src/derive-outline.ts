@@ -23,7 +23,11 @@
  * Toleranz, unter der er entstand, gehören in denselben Satz.
  */
 
-import { Bulge, Polygon as GeometryPolygon } from '@baustatik/section-geometry';
+import {
+  Bulge,
+  Polygon as GeometryPolygon,
+  Line,
+} from '@baustatik/section-geometry';
 import type { mm } from '@baustatik/units';
 import {
   buildGraph,
@@ -141,6 +145,13 @@ export function deriveOutlineFromRings(
  * danach stumpf aneinander, und das ist die richtige Figur — die Stufe ist
  * echt.
  *
+ * FÄLLT DER SPRUNG MIT EINER ECKE ZUSAMMEN, ist er es NICHT: dort fehlte bis
+ * ADR 0038 der Keil zwischen den beiden stumpfen Enden — an jeder Ecke eines
+ * geschweissten Kastens mit `tf ≠ tw` still `tf/2 · tw/2` Fläche zu wenig. Die
+ * Regel „ein durchverbundener Stoss wird gemitert" galt nur, solange Clipper2
+ * ihn selbst mitern konnte. `jointFills` schliesst die Lücke und macht sie
+ * total; die Stufe am GESTRECKTEN Sprung bleibt unberührt.
+ *
  * TOTAL UND OHNE PRÜFUNG, wie der Zwilling: hängende Verweise und
  * Nulllängenwände überspringt sie still. WEGGEFILTERT WERDEN ausserdem eine
  * nicht endliche oder nicht positive `t` und ein nicht endlicher `bulge` — aus
@@ -160,7 +171,8 @@ export function deriveOutlineFromWalls(
   );
   if (graph.walls.length === 0) return Object.freeze([]);
 
-  const runs = traverse(graph, straightestContinuation(graph));
+  const continuation = straightestContinuation(graph);
+  const runs = traverse(graph, continuation);
   const byWallId = new Map(graph.walls.map((it) => [it.wall.id, it]));
 
   const paths = runs.flatMap((run) =>
@@ -171,6 +183,11 @@ export function deriveOutlineFromWalls(
       policy,
     ),
   );
+
+  // Und die Ecken, die dabei aufgeschnitten wurden (ADR 0038). Sie gehen als
+  // `delta: 0`-Ringe in DIESELBE Vereinigung — eine zweite Boolesche Operation
+  // daneben waere eine zweite Bibliothek mit einer zweiten Rundung.
+  paths.push(...jointFills(graph, continuation, policy));
 
   return Object.freeze(
     GeometryPolygon.inflate(paths, {
@@ -243,14 +260,26 @@ function straightestContinuation(graph: WallGraph): Continuation {
  * Miter-Schranke wissen muss.
  *
  * `alpha` ist der Winkel zwischen den beiden abgehenden Tangenten: `π` heisst
- * geradeaus (die Wände setzen einander fort), kleiner heisst spitzer. Der
- * Überstand des ungekappten Spitzes ist `1/sin(α/2)`.
+ * geradeaus (die Wände setzen einander fort), kleiner heisst spitzer.
  */
 export type ChainedJoint = {
   readonly nodeId: string;
   readonly wallIds: readonly string[];
   /** Der Innenwinkel zwischen den beiden Wänden [rad]. */
   readonly alpha: number;
+  /**
+   * Wie weit der UNGEKAPPTE Spitz heraussteht, in Vielfachen der halben
+   * DICKEREN Wandstaerke.
+   *
+   * GEMESSEN, NICHT AUS `alpha` GERECHNET
+   * ([ADR 0038](../../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)).
+   * Bei gleicher Dicke ist das dieselbe Zahl wie `1/sin(α/2)` — sonst nicht:
+   * treffen zwei verschiedene Dicken in einem fast gestreckten Stoss
+   * aufeinander, laeuft der Miterpunkt davon, waehrend `α` nahe `π` bleibt und
+   * die alte Formel `1` sagte. Gekappt wird nach GENAU dieser Zahl, also muss
+   * das Gate sie lesen und keine zweite.
+   */
+  readonly overshoot: number;
 };
 
 /**
@@ -269,8 +298,44 @@ export function chainedJoints(
 ): readonly ChainedJoint[] {
   const graph = buildGraph(nodes, walls);
   const continuation = straightestContinuation(graph);
-  const joints: ChainedJoint[] = [];
 
+  return Object.freeze(
+    chainedPairs(graph, continuation).map((pair) => {
+      const corner = miterCorner(pair);
+      return {
+        nodeId: pair.nodeId,
+        wallIds: [pair.a.of.wall.id, pair.b.of.wall.id],
+        alpha: Math.abs(
+          normalizeAngle(outgoingTangent(pair.a) - outgoingTangent(pair.b)),
+        ),
+        // Ohne Ecke steht nichts heraus: die Aussenkanten laufen parallel, der
+        // Stoss ist gestreckt und die Stufe (falls es eine gibt) ist echt.
+        overshoot: corner === undefined ? 1 : corner.reach / corner.delta,
+      };
+    }),
+  );
+}
+
+/** Ein durchverbundenes Wandpaar an einem Knoten. */
+type ChainedPair = {
+  readonly nodeId: string;
+  readonly a: WallEndRef;
+  readonly b: WallEndRef;
+};
+
+/**
+ * Jedes durchverbundene Paar GENAU EINMAL.
+ *
+ * Die Schleife stand bis ADR 0038 in `chainedJoints`. Sie ist herausgezogen,
+ * weil jetzt ZWEI Fragen an denselben Paaren hängen: was das Gate meldet und
+ * was die Ableitung fuellt. Zwei Schleifen ueber dieselbe Kettung waeren zwei
+ * Gelegenheiten, sie verschieden zu lesen.
+ */
+function chainedPairs(
+  graph: WallGraph,
+  continuation: Continuation,
+): ChainedPair[] {
+  const pairs: ChainedPair[] = [];
   for (const [nodeId, at] of graph.incident) {
     const seen = new Set<WallEndRef>();
     for (const end of at) {
@@ -278,17 +343,192 @@ export function chainedJoints(
       if (other === undefined || seen.has(end)) continue;
       seen.add(end);
       seen.add(other);
-      joints.push({
-        nodeId,
-        wallIds: [end.of.wall.id, other.of.wall.id],
-        alpha: Math.abs(
-          normalizeAngle(outgoingTangent(end) - outgoingTangent(other)),
-        ),
-      });
+      pairs.push({ nodeId, a: end, b: other });
     }
   }
+  return pairs;
+}
 
-  return Object.freeze(joints);
+/**
+ * Ab wann zwei abgehende Tangenten als GESTRECKT gelten [-].
+ *
+ * Der Betrag von `dA + dB` misst genau das: `0` heisst „genau entgegengesetzt",
+ * also eine Wand, die die andere fortsetzt. Dann gibt es keine Aussenseite, an
+ * der eine Ecke sitzen koennte — und die Stufe am Dickensprung ist echt
+ * (ADR 0037). Die Schranke liegt so tief, dass sie nur den exakten Fall trifft;
+ * alles darueber faengt die Kappung ab.
+ */
+const COLLINEAR = 1e-9;
+
+/**
+ * Die Aussenecke eines durchverbundenen Stosses
+ * ([ADR 0038](../../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)).
+ *
+ * Die Aussenkontur am Stoss ist KANONISCH: sie wird von den beiden aeusseren
+ * Offsetgeraden begrenzt, und ihr Schnittpunkt ist der einzige Punkt, der beide
+ * Baender ausfuellt, ohne ueber eines hinauszureichen. Deshalb gibt es hier
+ * nichts zu entscheiden und nichts zu melden — nur zu rechnen.
+ *
+ * `undefined` heisst: die beiden Aussenkanten laufen PARALLEL. Das ist der
+ * gestreckte Stoss, und dort ist die Stufe die richtige Figur.
+ */
+type MiterCorner = {
+  readonly node: PointYZ;
+  /** Einheitsvektor vom Knoten nach AUSSEN, dem Innenwinkel entgegen. */
+  readonly outward: PointYZ;
+  /** Wo die Aussenkante der Wand `a` am Knoten steht: `N + nA·tA/2`. */
+  readonly outerA: PointYZ;
+  readonly outerB: PointYZ;
+  /** Der Schnittpunkt der beiden Aussenkanten. */
+  readonly miter: PointYZ;
+  /** Sein Abstand vom Knoten [mm] — der Ueberstand des Spitzes. */
+  readonly reach: mm;
+  /** Die halbe DICKERE Wandstaerke: der Massstab, an dem gekappt wird [mm]. */
+  readonly delta: mm;
+  /** Die halbe DUENNERE: so tief liegt der Fusspunkt der Fuellung innen [mm]. */
+  readonly depth: mm;
+};
+
+function miterCorner(pair: ChainedPair): MiterCorner | undefined {
+  const node = pair.a.atStart ? pair.a.of.start : pair.a.of.end;
+  const ta = outgoingTangent(pair.a);
+  const tb = outgoingTangent(pair.b);
+  const dA = { y: Math.cos(ta), z: Math.sin(ta) };
+  const dB = { y: Math.cos(tb), z: Math.sin(tb) };
+
+  // Die Winkelhalbierende des INNENwinkels; aussen ist ihr Gegenteil.
+  const bisector = { y: dA.y + dB.y, z: dA.z + dB.z };
+  const length = Math.hypot(bisector.y, bisector.z);
+  if (length < COLLINEAR) return undefined;
+  const outward = { y: -bisector.y / length, z: -bisector.z / length };
+
+  const tA = pair.a.of.wall.t;
+  const tB = pair.b.of.wall.t;
+  const outerA = offsetPoint(node, dA, outward, tA / 2);
+  const outerB = offsetPoint(node, dB, outward, tB / 2);
+
+  // Die Aussenkanten sind die um `t/2` nach aussen geschobenen ACHSEN, und
+  // deshalb reicht ihre Richtung: bei einer Bogenwand ist das die Tangente am
+  // Knoten, also dieselbe Groesse, aus der auch die Kettung entsteht.
+  const miter = Line.intersect(
+    Line.make(outerA, { y: outerA.y + dA.y, z: outerA.z + dA.z }),
+    Line.make(outerB, { y: outerB.y + dB.y, z: outerB.z + dB.z }),
+  );
+  if (miter === null) return undefined;
+
+  return {
+    node,
+    outward,
+    outerA,
+    outerB,
+    miter,
+    reach: Math.hypot(miter.y - node.y, miter.z - node.z),
+    delta: Math.max(tA, tB) / 2,
+    depth: Math.min(tA, tB) / 2,
+  };
+}
+
+/** Der Punkt `N + n·distance` mit der Normalen von `d`, die nach aussen zeigt. */
+function offsetPoint(
+  node: PointYZ,
+  d: PointYZ,
+  outward: PointYZ,
+  distance: number,
+): PointYZ {
+  const sign = -d.z * outward.y + d.y * outward.z >= 0 ? 1 : -1;
+  return {
+    y: node.y + sign * -d.z * distance,
+    z: node.z + sign * d.y * distance,
+  };
+}
+
+/**
+ * Die Miter-Ecken, die Clipper2 NICHT setzen kann — der Kern von ADR 0038.
+ *
+ * DIE REGEL IST DIE ALTE, NUR OHNE LOCH: ein durchverbundener Stoss wird
+ * gemitert. Innerhalb EINES Offsetpfades tut Clipper2 das selbst; wo der Pfad
+ * am Dickensprung aufgeschnitten wurde, faellt die Ecke heute heraus (ADR 0037
+ * hat nur den KOLLINEAREN Sprung betrachtet, wo die Stufe echt ist). Genau
+ * diese Naht wird hier gefuellt, als eigener Ring mit `delta: 0`.
+ *
+ * NUR AM DICKENSPRUNG. Bei gleicher Dicke stehen beide Waende ohnehin in
+ * demselben Pfad, und die Ecke kommt aus Clipper2 — ein Fuellring daneben waere
+ * dieselbe Flaeche zweimal. Dass beide Wege dieselbe Figur bauen, haelt der
+ * Stetigkeitstest in `tests/derive-outline-walls.test.ts` fest.
+ *
+ * NUR AM DURCHVERBUNDENEN STOSS. Die Kehle eines Y-Profils bleibt offen: dort
+ * verzweigt das Material wirklich, und welche zwei Waende einander fortsetzen,
+ * entscheidet die Kettung (ADR 0037) und nicht diese Funktion.
+ */
+function jointFills(
+  graph: WallGraph,
+  continuation: Continuation,
+  policy: SectionPolicy,
+): OffsetPath[] {
+  const fills: OffsetPath[] = [];
+
+  for (const pair of chainedPairs(graph, continuation)) {
+    if (pair.a.of.wall.t === pair.b.of.wall.t) continue;
+    const corner = miterCorner(pair);
+    if (corner === undefined) continue;
+    const ring = fillRing(corner, policy.miterLimit);
+    if (ring === undefined) continue;
+    fills.push({
+      polyline: { points: ring },
+      delta: 0,
+      endType: 'joined',
+    });
+  }
+
+  return fills;
+}
+
+/**
+ * Der Fuellring einer Aussenecke, gekappt wie Clipper2 kappen wuerde.
+ *
+ * DER FUSSPUNKT LIEGT INNEN, um `min(t)/2` hinter dem Knoten: der Ring soll die
+ * beiden Baender UEBERLAPPEN und nicht an sie anstossen. Bei einer Bogenwand
+ * liegt die gezeichnete Kante um bis zu `arcTolerance` neben der Tangente, und
+ * eine Fuge von dieser Groesse waere im Ergebnis eine Kerbe. Der Punkt liegt in
+ * beiden Baendern, weil sein Abstand von jeder Achse hoechstens `min(t)/2` ist.
+ *
+ * GEKAPPT WIRD QUER ZUM SPITZ und nicht quer zur Winkelhalbierenden: bei
+ * gleicher Dicke ist das dieselbe Richtung, bei einem fast gestreckten Stoss mit
+ * Dickensprung laeuft der Miterpunkt aber LAENGS der Wand davon. Ein Schnitt
+ * quer zur Winkelhalbierenden traefe ihn dort nie.
+ *
+ * DIE SCHRANKE IST DIE VON CLIPPER2 (`miterLimit · delta`), DER SCHNITT IST
+ * UNSERER: Clipper2 setzt intern ein Quadrat, hier steht eine Fase. Der
+ * Unterschied ist ein Splitter, und er tritt nur auf, wo das Gate ohnehin
+ * `MiterLimitExceededWarning` meldet (ADR 0038).
+ */
+function fillRing(
+  corner: MiterCorner,
+  miterLimit: number,
+): PointYZ[] | undefined {
+  const { node, outward, outerA, outerB, miter, reach, delta, depth } = corner;
+  const inner = {
+    y: node.y - outward.y * depth,
+    z: node.z - outward.z * depth,
+  };
+
+  const limit = miterLimit * delta;
+  if (reach <= limit) return [inner, outerA, miter, outerB];
+
+  // Der Schnitt steht senkrecht auf der Richtung des Spitzes, im Abstand
+  // `limit` vom Knoten. Beide Aussenkanten kreuzen ihn: ihr Fusspunkt liegt
+  // hoechstens `delta` vom Knoten entfernt, der Miterpunkt weiter als `limit`.
+  const dir = { y: (miter.y - node.y) / reach, z: (miter.z - node.z) / reach };
+  const on = { y: node.y + dir.y * limit, z: node.z + dir.z * limit };
+  const cut = Line.make(on, { y: on.y - dir.z, z: on.z + dir.y });
+
+  const cutA = Line.intersect(Line.make(outerA, miter), cut);
+  const cutB = Line.intersect(Line.make(miter, outerB), cut);
+  // Kann nach der Ueberlegung oben nicht eintreten. Faellt es doch, bleibt die
+  // Kerbe stehen — ein ungekappter Spitz waere die schlechtere Antwort.
+  if (cutA === null || cutB === null) return undefined;
+
+  return [inner, outerA, cutA, cutB, outerB];
 }
 
 /**

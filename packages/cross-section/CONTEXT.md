@@ -56,6 +56,17 @@ weil Clipper2 EIN `delta` je Aufruf nimmt. Ein geschlossener Umlauf wird
 **topologisch** erkannt (erster Knoten === letzter Knoten) — zwei Knoten auf
 denselben Koordinaten sind zwei Knoten.
 
+> **Ein durchverbundener Stoss wird gemitert — auch ueber einen Dickensprung
+> hinweg. Wo die Waende kollinear sind, ist die Stufe echt.**
+> ([ADR 0038](../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md))
+
+Faellt der Dickensprung mit einer ECKE zusammen, kann Clipper2 sie nicht setzen:
+der Pfad ist dort aufgeschnitten, beide Stuecke enden stumpf, und der Keil
+dazwischen fehlte bis P3 (`tf/2 · tw/2` an jeder Ecke eines geschweissten
+Kastens). `jointFills` legt ihn als Ring mit `delta: 0` in dieselbe Vereinigung.
+Die Aussenkontur ist dabei kanonisch — Schnittpunkt der beiden aeusseren
+Offsetgeraden —, deshalb wird gefuellt und nicht gewarnt.
+
 ### Die Drift-Pruefung
 
 `validateSectionGeometry` leitet den Umriss NEU AB und vergleicht die Flaeche —
@@ -377,17 +388,22 @@ SEHEN.
 ### Der gekappte Miter-Spitz
 
 `MiterLimitExceededWarning`, an **durchverbundenen** Stoessen: die Umrissecke
-liegt beim Innenwinkel `α` um `(t/2)/sin(α/2)` neben dem Knoten, und Clipper2
-kappt sie, sobald `1/sin(α/2) > policy.miterLimit`. Bei der Voreinstellung `2`
-also unter `60°`. Warnung und kein Fehler — reale Bleche werden abgeschnitten —,
-aber nie stillschweigend: ein Knotenblech unter `30°` verloere sonst Flaeche,
-ohne dass irgendwer es gesagt haette. Dieselbe Figur wie die Knickwarnung: eine
-aus einem Policy-Feld abgeleitete Schranke und ein Satz, der sagt, was sie
-bedeutet.
+liegt bei gleicher Dicke und dem Innenwinkel `α` um `(t/2)/sin(α/2)` neben dem
+Knoten, und gekappt wird, sobald `1/sin(α/2) > policy.miterLimit`. Bei der
+Voreinstellung `2` also unter `60°`. Warnung und kein Fehler — reale Bleche
+werden abgeschnitten —, aber nie stillschweigend: ein Knotenblech unter `30°`
+verloere sonst Flaeche, ohne dass irgendwer es gesagt haette. Dieselbe Figur wie
+die Knickwarnung: eine aus einem Policy-Feld abgeleitete Schranke und ein Satz,
+der sagt, was sie bedeutet.
 
 Nur an durchverbundenen Stoessen, weil nur dort ueberhaupt eine Miter-Ecke
 entsteht; welche das sind, sagt die Ableitung (`chainedJoints`) und nicht eine
-zweite Rechnung im Gate.
+zweite Rechnung im Gate. **Der Ueberstand wird GEMESSEN und nicht aus `α`
+gerechnet** (ADR 0038): treffen zwei verschiedene Wandstaerken in einem fast
+gestreckten Stoss aufeinander, laeuft der Miterpunkt laengs der Wand davon,
+waehrend `α` nahe `π` bleibt — die alte Formel schwieg ausgerechnet dort, wo
+gekappt wird. Bezug ist die halbe **dickere** Wandstaerke; bei gleicher Dicke
+kommt dieselbe Zahl heraus wie vorher.
 
 ## `SectionPolicy`: die Erzeugungs-Einstellung
 

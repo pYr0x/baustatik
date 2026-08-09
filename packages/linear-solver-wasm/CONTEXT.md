@@ -129,7 +129,7 @@ schlechteste aller Ergebnisse.
 8. **`SolveOutcome` muss in JS freigegeben werden.** Es ist eine
    wasm-bindgen-Struct, also ein Zeiger in den WASM-Speicher — kein
    `structuredClone`, kein `postMessage`. Der Aufrufer liest die Getter aus und
-   ruft `free()` (siehe `apps/demo/linear-solver.worker.ts`).
+   ruft `free()` (siehe `apps/demo/fem/linear-solver.worker.ts`).
 
 ## Known constraints
 

@@ -120,6 +120,43 @@ describe('Polygon.inflate setzt den Umlaufsinn, statt ihn durchzureichen', () =>
   });
 });
 
+describe('Polygon.inflate nimmt `delta: 0` als Ring in die Vereinigung', () => {
+  it('gibt den geschlossenen Zug unveraendert heraus', () => {
+    // Die Identitaet: aufgeweitet wird um nichts, der Ring IST das Ergebnis.
+    // Gebraucht wird das fuer Flaeche, die kein Offset erzeugen kann — die
+    // Miter-Ecke am Dickensprung (ADR 0038).
+    const rings = Polygon.inflate([
+      closed([[0, 0], [10, 0], [10, 10], [0, 10]], 0),
+    ]);
+
+    expect(signedAreas(rings)).toHaveLength(1);
+    expect(signedAreas(rings)[0]).toBeCloseTo(100, 9);
+  });
+
+  it('vereinigt ihn mit den aufgeweiteten Zuegen, statt ein Loch zu reissen', () => {
+    // Der Ring ueberlappt den Zug zur Haelfte: die Vereinigung laeuft mit
+    // NonZero, und ein gegenlaeufig gezeichneter Ring loeschte dort Flaeche.
+    // Deshalb dreht `inflate` ihn in den Umlaufsinn der Offsets.
+    const zug = open([[0, 0], [100, 0]], 5);
+    const rueckwaerts = closed([[100, -5], [100, 5], [120, 5], [120, -5]], 0);
+
+    const rings = Polygon.inflate([zug, rueckwaerts]);
+
+    expect(signedAreas(rings)).toHaveLength(1);
+    expect(signedAreas(rings)[0]).toBeCloseTo(1000 + 200, 9);
+  });
+
+  it('ueberspringt den OFFENEN Zug mit `delta: 0` — er traegt keine Flaeche', () => {
+    const rings = Polygon.inflate([
+      open([[0, 0], [100, 0]], 5),
+      open([[0, 50], [100, 50]], 0),
+    ]);
+
+    expect(signedAreas(rings)).toHaveLength(1);
+    expect(signedAreas(rings)[0]).toBeCloseTo(1000, 9);
+  });
+});
+
 describe('Polygon.inflate liest die Optionen', () => {
   it('kappt den spitzen Stoss, sobald das miterLimit unterschritten wird', () => {
     // Zwei Waende unter 20°: mit grosszuegigem Limit steht die Spitze, mit dem

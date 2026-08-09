@@ -99,7 +99,14 @@ export type PolygonMomentsYZ = {
  */
 export type InflatePathYZ = {
   readonly polyline: Polyline;
-  /** Die Aufweitung nach JEDER Seite [mm] — bei der Wand `t/2`. */
+  /**
+   * Die Aufweitung nach JEDER Seite [mm] — bei der Wand `t/2`.
+   *
+   * `0` mit `endType: 'joined'` ist die IDENTITÄT: der Ring geht unverändert in
+   * die Vereinigung. So kommt die Miter-Ecke am Dickensprung in den Umriss, die
+   * kein Offset erzeugen kann
+   * ([ADR 0038](../../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)).
+   */
   readonly delta: number;
   readonly endType: InflateEndType;
 };

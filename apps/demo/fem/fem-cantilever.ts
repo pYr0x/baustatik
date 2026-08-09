@@ -20,10 +20,21 @@ import {
 import { solveLinearSystem } from './linear-solver-port';
 import { convert } from '@baustatik/units';
 
-const solveButton = document.querySelector<HTMLButtonElement>('#solve');
+const solveButton = requireElement<HTMLButtonElement>('#solve');
+const output = requireElement<HTMLPreElement>('#output');
 
-if (!solveButton) {
-  throw new Error('Der Button zum Lösen wurde nicht gefunden.');
+/** Holt ein Element und scheitert laut, wenn es fehlt. */
+function requireElement<T extends HTMLElement>(id: string): T {
+  const element = document.querySelector<T>(id);
+  if (element === null) {
+    throw new Error(`Das Element #${id.slice(1)} wurde nicht gefunden.`);
+  }
+  return element;
+}
+
+/** Zahlen ohne Float-Rauschen ausgeben; `undefined` wird zu „–”. */
+function fmt(value: number | undefined): string {
+  return value === undefined ? '–' : String(Number(value.toFixed(6)));
 }
 
 // Koordinaten in METERN (siehe `Node.position`), Kraefte in kN.
@@ -106,15 +117,18 @@ const solver = createFEMSolver({
 
 async function run(): Promise<void> {
   const report = solver.check(loadCase.id);
-  console.log('Zustand:', report.state);
+  const lines: string[] = [`Zustand: ${report.state}`];
 
   if (!report.canSolve) {
-    console.warn('Noch nicht rechenbar.', {
-      modell: report.model.errors.map((error) => error.message),
-      lasten: report.loads.assessed
-        ? report.loads.errors.map((error) => error.message)
-        : 'wegen Modellfehler nicht beurteilt',
-    });
+    lines.push(
+      '',
+      'Noch nicht rechenbar:',
+      `  Modell: ${report.model.errors.map((error) => error.message).join('; ')}`,
+      report.loads.assessed
+        ? `  Lasten: ${report.loads.errors.map((error) => error.message).join('; ')}`
+        : '  Lasten: wegen Modell nicht beurteilt',
+    );
+    output.textContent = lines.join('\n');
     return;
   }
 
@@ -123,43 +137,49 @@ async function run(): Promise<void> {
   const tip = result.displacements.get('n2');
   const reaction = result.reactions.get('n1');
 
-  console.log('Verformung am freien Ende', {
-    uz: tip?.uz,
-    // Die Erwartung folgt der Einstellung, nicht umgekehrt: mit Schub kommt zur
-    // Biegelinie PL^3/3EI der Anteil PL/GAs dazu.
-    uzErwartet:
-      (P * L ** 3) / (3 * SECTION.EI) +
-      (analysisPolicy.shearDeformation ? (P * L) / (G * Az) : 0),
-    phiY: tip?.phiY,
-    // Negativ: die Tangente dreht im Bild im Uhrzeigersinn, phiY zaehlt
-    // dagegen (ADR 0005).
-    phiYErwartet: -(P * L ** 2) / (2 * SECTION.EI),
-  });
+  // Die Erwartung folgt der Einstellung, nicht umgekehrt: mit Schub kommt zur
+  // Biegelinie PL^3/3EI der Anteil PL/GAs dazu.
+  const uzErwartet =
+    (P * L ** 3) / (3 * SECTION.EI) +
+    (analysisPolicy.shearDeformation ? (P * L) / (G * Az) : 0);
+  // Negativ: die Tangente dreht im Bild im Uhrzeigersinn, phiY zaehlt
+  // dagegen (ADR 0005).
+  const phiYErwartet = -(P * L ** 2) / (2 * SECTION.EI);
 
-  console.log('Einspannung', {
-    ...reaction,
-    // Die Kraft, die das Auflager auf das TRAGWERK ausuebt: Summe aller Lasten
-    // plus aller Auflagerkraefte ist 0.
-    fzErwartet: -P,
-    myErwartet: P * L,
-  });
+  const beiNull = internalForcesAt(result, 'b1', 0);
+  const beiL = internalForcesAt(result, 'b1', L);
 
-  console.log(
-    'Stabendkraefte b1 (lokal, [Fx1 Fz1 My1 Fx2 Fz2 My2])',
-    result.beamStates.get('b1')?.endForces,
+  lines.push(
+    '',
+    'Verformung am freien Ende (Knoten n2):',
+    `  uz = ${fmt(tip?.uz)} m   (erwartet ${fmt(uzErwartet)} m, PL^3/3EI${
+      analysisPolicy.shearDeformation ? ' + PL/GAs' : ''
+    })`,
+    `  phiY = ${fmt(tip?.phiY)} rad  (erwartet ${fmt(phiYErwartet)} rad)`,
+    '',
+    'Einspannung (Knoten n1):',
+    `  fx = ${fmt(reaction?.fx)} kN`,
+    `  fz = ${fmt(reaction?.fz)} kN   (erwartet ${fmt(-P)} kN)`,
+    `  my = ${fmt(reaction?.my)} kNm  (erwartet ${fmt(P * L)} kNm)`,
+    '',
+    'Stabendkräfte b1 — lokal [Fx1, Fz1, My1, Fx2, Fz2, My2]:',
+    `  [${result.beamStates.get('b1')?.endForces.map(fmt).join(', ')}]`,
+    '',
+    'Schnittgrößen b1 — M erwartet linear von -P·L auf 0:',
+    `  x = 0: N = ${fmt(beiNull.N)} kN, V = ${fmt(beiNull.V)} kN, M = ${fmt(beiNull.M)} kNm  (erwartet ${fmt(-P * L)})`,
+    `  x = L: N = ${fmt(beiL.N)} kN, V = ${fmt(beiL.V)} kN, M = ${fmt(beiL.M)} kNm  (auch 0)`,
+    '',
+    '  Verlauf:',
   );
 
-  // Der beste Handprueftstein fuer die Schnittgroessen: M laeuft linear von
-  // -P*L auf 0, V ist konstant P.
-  console.log('Schnittgroessen b1', {
-    beiNull: internalForcesAt(result, 'b1', 0),
-    mErwartet: -P * L,
-    beiL: internalForcesAt(result, 'b1', L),
-    verlauf: internalForcesAlong(result, 'b1', { subdivisions: 4 }),
-  });
-}
+  for (const point of internalForcesAlong(result, 'b1', { subdivisions: 4 })) {
+    lines.push(
+      `    x = ${fmt(point.x)} m:  N = ${fmt(point.N)} kN,  V = ${fmt(point.V)} kN,  M = ${fmt(point.M)} kNm`,
+    );
+  }
 
-// void run();
+output.textContent = lines.join('\n');
+}
 
 // Zum Ausprobieren in der Konsole.
 Object.assign(globalThis, { solver, nodes, beams, supports, loadCase });

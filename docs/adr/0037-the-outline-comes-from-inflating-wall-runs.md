@@ -65,6 +65,11 @@ Clipper2 takes **one** `delta` per offset call, so two wall thicknesses never
 enter the same offset. Two collinear walls `t = 6` and `t = 10` then butt against
 each other, and that is the correct figure — the step is real.
 
+> **Extended by [ADR 0038](0038-a-chained-joint-is-mitered-across-a-thickness-jump.md).**
+> The sentence above holds for *collinear* walls only. Where the jump coincides
+> with a corner, the split left the wedge between the two butt ends out of the
+> figure; the mitre is now filled in explicitly.
+
 ## 2 · `clipper2-ts` inflates and unions; martinez is untouched
 
 `Polygon.union` cannot return a hole: `fromMartinez` keeps only ring 0 of each

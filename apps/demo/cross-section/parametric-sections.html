@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Parametrische Querschnitte — baustatik</title>
+    <script src="./parametric-sections.js" type="module"></script>
+    <style>
+        :root {
+            font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+            color: #1c1f24;
+        }
+
+        body {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 1.5rem 1rem 3rem;
+            line-height: 1.5;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            margin: 0 0 0.4rem;
+        }
+
+        .intro {
+            color: #5c636d;
+            font-size: 0.9rem;
+            margin: 0 0 0.6rem;
+        }
+
+        .back {
+            display: inline-block;
+            margin: 0 0 1rem;
+            color: #5c636d;
+            font-size: 0.8rem;
+            text-decoration: none;
+        }
+
+        .back:hover {
+            text-decoration: underline;
+        }
+
+        button {
+            border: 1px solid #b9bec6;
+            border-radius: 4px;
+            padding: 0.5rem 1rem;
+            background: #eceef1;
+            color: inherit;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #e0e3e8;
+        }
+
+        h2 {
+            font-size: 0.95rem;
+            margin: 1.6rem 0 0.6rem;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px solid #dfe2e7;
+        }
+
+        .card {
+            margin-bottom: 0.9rem;
+            padding: 0.9rem 1rem;
+            border: 1px solid #dfe2e7;
+            border-radius: 5px;
+            background: white;
+        }
+
+        h3 {
+            font-size: 0.95rem;
+            margin: 0 0 0.3rem;
+        }
+
+        .spec {
+            color: #5c636d;
+            font-size: 0.85rem;
+            margin: 0 0 0.5rem;
+        }
+
+        .input {
+            margin: 0 0 0.7rem;
+            padding: 0.5rem 0.6rem;
+            border-radius: 4px;
+            background: #f6f7f9;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            font-size: 0.72rem;
+            line-height: 1.4;
+            overflow: auto;
+        }
+
+        .muted {
+            color: #5c636d;
+            font-size: 0.82rem;
+            margin: 0 0 0.4rem;
+        }
+
+        .error {
+            color: #b3261e;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        table {
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-top: 0.35rem;
+        }
+
+        table.values td,
+        table.values th {
+            padding: 0.15rem 0.6rem 0.15rem 0;
+            text-align: left;
+            font-variant-numeric: tabular-nums;
+        }
+
+        table.values th {
+            font-weight: 600;
+            min-width: 8.5rem;
+        }
+
+        table.points {
+            width: 100%;
+        }
+
+        table.points th,
+        table.points td {
+            padding: 0.2rem 0.6rem;
+            text-align: right;
+            border-top: 1px solid #eef0f3;
+            font-variant-numeric: tabular-nums;
+        }
+
+        table.points thead th {
+            border-top: 0;
+            border-bottom: 1px solid #dfe2e7;
+            color: #5c636d;
+            font-weight: 600;
+        }
+
+        table.points tbody tr:first-child td {
+            border-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <a class="back" href="../index.html">← Zur Übersicht</a>
+    <h1>Parametrische Querschnitte</h1>
+    <p class="intro">
+        Alle Beispiele mit <code>kind: 'shape'</code> aus
+        <code>@baustatik/cross-section</code>. Jede Karte zeigt den Eingabesatz;
+        „Berechnen" ruft für alle <code>sectionProperties</code> und
+        <code>stressPoints</code> auf. Abmessungen in mm — die Werte in den
+        Katalogeinheiten cm², cm⁴, mm und cm³.
+    </p>
+    <button id="calculate" type="button">Berechnen</button>
+    <div id="sections"></div>
+</body>
+
+</html>

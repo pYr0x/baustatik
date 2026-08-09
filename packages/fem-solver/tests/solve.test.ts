@@ -57,7 +57,7 @@ const { EI, GAs } = STIFF;
 
 /**
  * Kragarm: bei n1 eingespannt, Laenge L, Einzellast P nach unten am freien Ende.
- * Das Modell aus `apps/demo/fem-cantilever.ts`.
+ * Das Modell aus `apps/demo/fem/fem-cantilever.ts`.
  */
 function cantilever(L = 2, P = 10): Store {
   return {

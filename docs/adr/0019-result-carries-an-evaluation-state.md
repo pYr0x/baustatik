@@ -104,7 +104,7 @@ come from the element and not from the solver.
 - Breaking change to `@baustatik/fem-solver`: `elementEndForces` is gone. The
   numbers live on as `beamStates.get(id).endForces`; two copies would have been
   two things to keep in step when serialising. Outside the tests, one call site
-  was affected (`apps/demo/fem-cantilever.ts`).
+  was affected (`apps/demo/fem/fem-cantilever.ts`).
 - Size, for the storage decision: roughly 1.5–3 MB per load case at 2000 nodes
   and 2500 beams. The `Map<loadCaseId, SolveResult>` itself is application
   state and belongs in the store, not in a package.

@@ -36,7 +36,7 @@ cross-section catalogue and no particular beam theory.
 which does not run in Vitest under Node without contortions. A direct dependency
 would have made the calculation-chain package the least testable one in the
 repo. It also would have prevented the application from putting the solve on a
-worker — which is the only wiring that exists today (`apps/demo/linear-solver.ts`
+worker — which is the only wiring that exists today (`apps/demo/fem/linear-solver.ts`
 predates this change). Tests inject a twenty-line Gaussian elimination.
 
 `getSectionProperties`. The path `crossSectionId → stiffness` does not exist yet

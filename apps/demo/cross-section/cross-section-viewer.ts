@@ -71,17 +71,19 @@ const store = useStore(pinia);
 // Beispiel: ein Winkel aus drei Waenden. `t` ist die physikalische Wandstaerke.
 //
 // LAUTER GRAD-2-KNOTEN, also EIN Branch von `n-unten` ueber `n-links` und
-// `n-mitte` bis `n-rechts`. Zu sehen ist daran zweierlei (ADR 0037): die
-// Miter-Ecke an `n-links`, die nur zustande kommt, weil beide Waende als EIN
-// Pfad in Clipper2 gehen — und der Dickensprung von 6 auf 8 an `n-links`, der
-// den Offsetpfad trotzdem teilt, weil Clipper2 ein `delta` je Aufruf nimmt.
+// `n-mitte` bis `n-rechts`. An `n-links` faellt beides zusammen: eine ECKE und
+// ein DICKENSPRUNG von 6 auf 8. Clipper2 nimmt ein `delta` je Aufruf, der
+// Offsetpfad wird dort also geteilt (ADR 0037) — und weil zwei stumpfe Enden
+// keine Ecke ergeben, fehlten hier bis ADR 0038 die 3 x 4 mm² des Keils. Jetzt
+// setzt `jointFills` sie: die Aussenecke liegt auf (-63, -4), dem Schnittpunkt
+// der beiden Aussenkanten, und `A` ist 1560 statt 1548 mm².
 store.addNode('n-links', -60, 0);
 store.addNode('n-mitte', 0, 0);
 store.addNode('n-rechts', 60, 0);
-store.addNode('n-unten', -60, 100);
+store.addNode('n-unten', 0, 100);
 store.addWall('gurt-links', 'n-links', 'n-mitte', 8);
 store.addWall('gurt-rechts', 'n-mitte', 'n-rechts', 8);
-store.addWall('steg', 'n-links', 'n-unten', 6);
+store.addWall('steg', 'n-links', 'n-unten', 8);
 store.deriveOutline();
 
 // 1. Driver bauen (kennt Konva). Kein onViewIntent hier — der Viewer haengt sich selbst dran.

@@ -5,8 +5,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FEM-Viewer</title>
-    <script src="./fem-viewer-2.ts" type="module"></script>
+    <title>Mittellinien-Querschnitte</title>
+    <script src="./midline-sections.ts" type="module"></script>
     <style>
         :root {
             font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -25,7 +25,7 @@
 
         main {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 320px;
+            grid-template-columns: minmax(0, 1fr) 360px;
             height: 100%;
         }
 
@@ -88,17 +88,22 @@
             color: #6b727c;
         }
 
+        .note {
+            margin: 0.35rem 0 0;
+            line-height: 1.4;
+            color: #6b727c;
+        }
+
         button {
             width: 100%;
-            margin-top: 0.55rem;
             border: 1px solid #b9bec6;
             border-radius: 4px;
             padding: 0.45rem 0.7rem;
             background: #eceef1;
             color: inherit;
             font: inherit;
-            font-weight: 600;
             cursor: pointer;
+            text-align: left;
         }
 
         button:hover:not(:disabled) {
@@ -110,28 +115,91 @@
             opacity: 0.5;
         }
 
-        #solve {
+        /* Die Auswahlliste: ein Knopf je vorgegebenem Querschnitt. */
+        #presets {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        #presets button[aria-pressed="true"] {
+            border-color: #8aa4c8;
+            background: #e4ecf7;
+            font-weight: 700;
+        }
+
+        #presets .dim {
+            display: block;
+            margin-top: 0.1rem;
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: #6b727c;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #calculate {
+            margin-top: 0.55rem;
             border-color: #74b88a;
             background: #28613d;
             color: white;
+            font-weight: 600;
+            text-align: center;
         }
 
-        #solve:hover:not(:disabled) {
+        #calculate:hover:not(:disabled) {
             background: #347c4f;
         }
 
-        /* Der Zustand ist die Kernaussage des Berichts — er faerbt, nicht der
-           Zaehler daneben. */
-        #state[data-state="ready"] {
-            color: #1d7a45;
+        /* Die Policy-Eingabe: Zahlenfeld und Schieber auf derselben Zahl. */
+        .policy-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
         }
 
-        #state[data-state="ready-with-warnings"] {
-            color: #9a6400;
+        .policy-row input[type="number"] {
+            width: 5.5rem;
+            border: 1px solid #b9bec6;
+            border-radius: 4px;
+            padding: 0.25rem 0.4rem;
+            font: inherit;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
         }
 
-        #state[data-state="invalid"] {
-            color: #b3261e;
+        input[type="range"] {
+            width: 100%;
+            margin: 0.45rem 0 0;
+        }
+
+        .problem {
+            color: #a3312b;
+        }
+
+        table.values {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        table.values th,
+        table.values td {
+            padding: 0.16rem 0 0.16rem 0;
+            text-align: left;
+            font-variant-numeric: tabular-nums;
+        }
+
+        table.values th {
+            font-weight: 600;
+            width: 6.5rem;
+        }
+
+        table.values td {
+            text-align: right;
         }
 
         .count {
@@ -165,13 +233,6 @@
             font-weight: 700;
             color: #5c636d;
         }
-
-        #solve-status {
-            margin-top: 0.55rem;
-            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-            font-size: 0.75rem;
-            white-space: pre-wrap;
-        }
     </style>
 </head>
 
@@ -179,19 +240,39 @@
     <a class="back" href="../index.html">← Zur Übersicht</a>
     <main>
         <div id="container"></div>
-        <aside id="panel" aria-label="Berichtspalte">
+        <aside id="panel" aria-label="Querschnittsspalte">
             <section class="block">
-                <h2>Aktiver Lastfall</h2>
-                <div id="load-case-name" class="value">–</div>
-                <div id="load-case-position" class="muted"></div>
-                <button id="next-load-case" type="button">Nächster Lastfall</button>
+                <h2>Vorgegebene Querschnitte</h2>
+                <ul id="presets"></ul>
+                <p class="note">
+                    Schwarz die Wandmittellinien (die Eingabe), orange der Umriss
+                    (das Ergebnis). Ziehen verschiebt, Scrollen zoomt.
+                </p>
             </section>
 
             <section class="block">
-                <h2>Zustand</h2>
-                <div id="state" class="value">–</div>
-                <button id="solve" type="button">Berechnen</button>
-                <div id="solve-status" class="muted"></div>
+                <h2>Auswahl</h2>
+                <div id="preset-name" class="value">–</div>
+                <div id="preset-dimensions" class="muted"></div>
+                <p id="preset-note" class="note"></p>
+                <button id="calculate" type="button">Berechnen</button>
+                <div id="outline-status" class="note"></div>
+            </section>
+
+            <section class="block">
+                <h2>Erzeugungs-Einstellung</h2>
+                <label class="policy-row" for="miter-limit">
+                    <span>miterLimit</span>
+                    <input id="miter-limit" type="number" min="1.05" max="20" step="0.05" value="2" />
+                </label>
+                <input id="miter-limit-slider" type="range" min="1.05" max="8" step="0.05" value="2"
+                    aria-label="miterLimit (Schieber)" />
+                <div id="miter-limit-note" class="note"></div>
+            </section>
+
+            <section class="block">
+                <h2>Querschnittswerte</h2>
+                <div id="properties"></div>
             </section>
 
             <section class="block">

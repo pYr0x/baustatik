@@ -1,6 +1,6 @@
 /**
  * Validierung des Lastmodells — die Regeln aus Abschnitt G des Pseudocodes in
- * `apps/demo/fem-viewer.ts`.
+ * `apps/demo/fem/fem-viewer.ts`.
  *
  * ZWECK: Das Tor vor `@baustatik/fem-load-resolve`. Wer hier durchkommt, darf
  * dort ohne weitere Pruefung `0 <= from <= to <= L` annehmen, eine Stablaenge

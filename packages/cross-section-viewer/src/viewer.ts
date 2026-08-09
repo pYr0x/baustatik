@@ -119,7 +119,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
       const spec = wallSpec(wall, byId);
       if (spec !== undefined) specs.push(spec);
     }
-    return specs;
+    return specs.reverse(); // Wände unter Umriss, damit der Umriss sichtbar bleibt
   }
 
   /**

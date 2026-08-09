@@ -476,12 +476,20 @@ export class OutlineDriftWarning extends SectionValidationWarning {
 }
 
 /**
- * Ein Stoss so spitz, dass seine Umrissecke GEKAPPT wird.
+ * Ein Stoss, dessen Umrissecke GEKAPPT wird, weil ihr Spitz zu weit heraussteht.
  *
- * Die Ecke zweier um `t/2` aufgeweiteter Wände liegt beim Innenwinkel `α` um
- * `(t/2)/sin(α/2)` neben dem Knoten. Clipper2 kappt sie, sobald
+ * Die Ecke zweier um `t/2` aufgeweiteter Wände liegt bei gleicher Dicke und dem
+ * Innenwinkel `α` um `(t/2)/sin(α/2)` neben dem Knoten; gekappt wird, sobald
  * `1/sin(α/2) > policy.miterLimit` — bei der Voreinstellung `2` also unter
  * `60°`.
+ *
+ * ZWEI URSACHEN, EINE SCHRANKE. Seit
+ * [ADR 0038](../../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)
+ * wird `overshoot` an der GEBAUTEN Ecke gemessen statt aus `α` gerechnet, und
+ * damit meldet sich auch der zweite Fall: treffen zwei verschiedene
+ * Wandstaerken in einem fast gestreckten Stoss aufeinander, laeuft der
+ * Miterpunkt LAENGS der Wand davon, waehrend `α` nahe `π` bleibt. Der Bezug ist
+ * dann die halbe DICKERE Wandstaerke.
  *
  * WARNUNG UND KEIN FEHLER: das Kappen ist ZULÄSSIG, reale Bleche werden
  * abgeschnitten. Aber nie stillschweigend — ein Knotenblech unter `30°`
@@ -495,7 +503,10 @@ export class MiterLimitExceededWarning extends SectionValidationWarning {
   readonly wallIds: readonly string[];
   /** Der Innenwinkel zwischen den beiden Wänden [rad]. */
   readonly alpha: number;
-  /** Der Überstand, den der ungekappte Spitz hätte: `1/sin(α/2)`. */
+  /**
+   * Der Überstand, den der ungekappte Spitz hätte, in Vielfachen der halben
+   * DICKEREN Wandstaerke. Bei gleicher Dicke ist das `1/sin(α/2)`.
+   */
   readonly overshoot: number;
   /** Die Schranke, gegen die verglichen wurde. */
   readonly miterLimit: number;
@@ -513,7 +524,7 @@ export class MiterLimitExceededWarning extends SectionValidationWarning {
         .join(
           ' und ',
         )} — der Umrissspitz stuende um das ${overshoot}-fache der ` +
-        `halben Wandstaerke heraus und wird bei ${miterLimit} gekappt. Das ist ` +
+        `halben (dickeren) Wandstaerke heraus und wird bei ${miterLimit} gekappt. Das ist ` +
         'zulaessig, aber der Querschnitt verliert dort Flaeche.',
     );
     this.nodeId = nodeId;

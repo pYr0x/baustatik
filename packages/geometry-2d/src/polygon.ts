@@ -71,6 +71,23 @@ const signedArea = (points: Point[]): number => {
 };
 
 /**
+ * Ein Ring in dem Umlaufsinn, in dem Clipper2 seine Aussenkonturen liefert.
+ *
+ * Die Vereinigung läuft mit `FillRule.NonZero`, und darin LÖSCHT ein
+ * gegenläufiger Ring, was ein anderer setzt: ein `delta: 0`-Ring, den jemand
+ * andersherum gezeichnet hat, risse ein Loch, statt Fläche zu ergänzen.
+ * Gedreht wird deshalb hier — und das ist kein Bruch mit
+ * [ADR 0034](../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md):
+ * `inflate` SETZT den Umlaufsinn seines Ergebnisses ohnehin selbst, und die
+ * Richtung eines EINGABEZUGES hat in dieser Tür nie etwas bedeutet.
+ */
+const positive = (points: readonly Point[]): PathD => {
+  const ring = [...points];
+  const ordered = signedArea(ring) < 0 ? ring.reverse() : ring;
+  return ordered.map((p) => ({ x: p.x, y: p.y }));
+};
+
+/**
  * Die Rückabbildung von martinez — und die Stelle, die den Umlaufsinn FESTLEGT.
  *
  * AUSDRÜCKLICH NORMALISIERT, seit `Polygon.make` es nicht mehr tut: der
@@ -109,6 +126,13 @@ export type InflatePath = {
   /**
    * Die Aufweitung nach JEDER Seite — beim Wandquerschnitt `t/2`. In der
    * Einheit der Punkte; dieses Package kennt keine.
+   *
+   * `0` IST DIE IDENTITÄT und ausdrücklich erlaubt: der geschlossene Zug geht
+   * dann UNVERÄNDERT in die Vereinigung, ohne Clipper2s Offset zu durchlaufen.
+   * Gebraucht wird das für ein Stück Fläche, das kein Offset erzeugen kann —
+   * die Miter-Ecke am Dickensprung
+   * ([ADR 0038](../../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)).
+   * Ein OFFENER Zug mit `delta: 0` trägt keine Fläche und wird übersprungen.
    */
   readonly delta: number;
   readonly endType: InflateEndType;
@@ -263,8 +287,23 @@ export const Polygon: Transformable<Polygon> & {
       string,
       { delta: number; endType: InflateEndType; paths: PathD[] }
     >();
+    // Was OHNE Offset in die Vereinigung geht: die `delta: 0`-Ringe.
+    const offset: PathD[] = [];
+
     for (const path of paths) {
       if (path.polyline.points.length < 2) continue;
+
+      // `delta: 0` GEHT AM OFFSET VORBEI, statt sich auf Clipper2s internen
+      // Kurzschluss für kleine Deltas zu verlassen: der ist an eine Schwelle in
+      // skalierten Einheiten gebunden, die dieses Package nicht kontrolliert.
+      // Ein offener Zug trägt dabei keine Fläche — er fällt heraus.
+      if (path.delta === 0) {
+        if (path.endType === 'joined' && path.polyline.points.length >= 3) {
+          offset.push(positive(path.polyline.points));
+        }
+        continue;
+      }
+
       const key = `${path.endType}:${path.delta}`;
       const group = groups.get(key) ?? {
         delta: path.delta,
@@ -275,7 +314,6 @@ export const Polygon: Transformable<Polygon> & {
       groups.set(key, group);
     }
 
-    const offset: PathD[] = [];
     for (const group of groups.values()) {
       offset.push(
         ...Clipper.inflatePathsD(

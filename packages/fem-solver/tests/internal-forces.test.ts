@@ -39,7 +39,7 @@ function solve(store: Store) {
 
 describe('internalForcesAt', () => {
   it('trifft am Kragarm die Handrechnung: M laeuft von -P*L auf 0', async () => {
-    // Der Prueftstein aus `apps/demo/fem-cantilever.ts`, jetzt als Verlauf.
+    // Der Prueftstein aus `apps/demo/fem/fem-cantilever.ts`, jetzt als Verlauf.
     const L = 2;
     const P = 10;
     const result = await solve(cantilever(L, P));

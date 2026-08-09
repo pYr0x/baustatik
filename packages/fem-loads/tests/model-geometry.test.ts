@@ -3,7 +3,7 @@ import { Line, Point } from '@baustatik/fem-geometry';
 import { describe, expect, it } from 'vitest';
 import { modelGeometry } from '../src/model-geometry';
 
-// Dasselbe Modell wie in apps/demo/fem-viewer.ts: ein waagrechter Stab der
+// Dasselbe Modell wie in apps/demo/fem/fem-viewer.ts: ein waagrechter Stab der
 // Laenge 100 und ein schraeger Stab daran.
 function makeModel() {
   const nodes: Node[] = [

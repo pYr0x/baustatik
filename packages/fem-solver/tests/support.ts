@@ -90,7 +90,7 @@ const SINGULAR_PIVOT_TOLERANCE = 1e-12;
  * EHRLICHE GRENZE: dass die Erkennung hier nachgebaut ist, heisst, dass diese
  * Tests NICHT beweisen, dass `faer` sie leistet. Das ist jedem Port eigen.
  * Dafuer stehen die `cargo test` in `linear-solver-wasm` und die Handrechnung
- * in `apps/demo/fem-cantilever.ts`.
+ * in `apps/demo/fem/fem-cantilever.ts`.
  *
  * Ohne Spaltenpivotierung, anders als frueher: nach der Skalierung ist die
  * Matrix symmetrisch positiv definit mit Einsdiagonale, da ist Gauss ohne

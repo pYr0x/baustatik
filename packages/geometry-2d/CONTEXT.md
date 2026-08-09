@@ -29,7 +29,7 @@ by preference:
 | Door | Library | Why |
 | --- | --- | --- |
 | `union` / `intersect` / `subtract` | `martinez-polygon-clipping` | in place since before P0; each result keeps ring 0 only, so these doors **cannot return a hole** |
-| `inflate` | `clipper2-ts` | inflating open or closed runs, and the union that must follow it — including holes and their nesting ([ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)) |
+| `inflate` | `clipper2-ts` | inflating open or closed runs, and the union that must follow it — including holes and their nesting ([ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)). A closed run with `delta: 0` is the **identity** and joins that union unchanged, turned into the winding of the offsets first ([ADR 0038](../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)) |
 
 **This is not an end state.** Whether `clipper2-ts` replaces martinez entirely is
 an open point in `packages/TODO.md` §5, and it hangs on a prerequisite this

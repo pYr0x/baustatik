@@ -4,10 +4,16 @@ import { solveLinearSystem } from './linear-solver-port';
 // nachrechenbar. Die Worker-Verwaltung selbst steht in `linear-solver-port.ts`,
 // weil die Kragarm-Demo dieselbe braucht.
 
-const solveButton = document.querySelector<HTMLButtonElement>('#solve');
+const solveButton = requireElement<HTMLButtonElement>('#solve');
+const output = requireElement<HTMLPreElement>('#output');
 
-if (!solveButton) {
-  throw new Error('Der Button zum Lösen wurde nicht gefunden.');
+/** Holt ein Element und scheitert laut, wenn es fehlt. */
+function requireElement<T extends HTMLElement>(id: string): T {
+  const element = document.querySelector<T>(id);
+  if (element === null) {
+    throw new Error(`Das Element #${id.slice(1)} wurde nicht gefunden.`);
+  }
+  return element;
 }
 
 async function solve(button: HTMLButtonElement): Promise<void> {
@@ -20,15 +26,16 @@ async function solve(button: HTMLButtonElement): Promise<void> {
   try {
     const outcome = await solveLinearSystem(2, stiffness, load);
     if (outcome.kind === 'singular') {
-      console.error(
+      output.textContent =
         `Das System ist kinematisch — aufgefallen in Zeile ${outcome.index}, ` +
-          `kleinstes Pivot ${outcome.pivotRatio}.`,
-      );
+        `kleinstes Pivot ${outcome.pivotRatio}.`;
       return;
     }
-    console.log('d =', outcome.d); // erwartet: [2, 3]
+    output.textContent = `d = [${outcome.d.join(', ')}]   (erwartet: [2, 3])`;
   } catch (error) {
-    console.error('Das Gleichungssystem konnte nicht gelöst werden.', error);
+    output.textContent = `Das Gleichungssystem konnte nicht gelöst werden: ${
+      error instanceof Error ? error.message : String(error)
+    }`;
   } finally {
     button.disabled = false;
   }

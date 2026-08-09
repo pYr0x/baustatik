@@ -54,6 +54,25 @@
             color: #5c636d;
         }
 
+        /* Der Rück-Link sitzt als kleine Marke ueber der Zeichenflaeche. */
+        .back {
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            z-index: 100;
+            padding: 2px 8px;
+            border: 1px solid #dfe2e7;
+            border-radius: 4px;
+            background: #fff;
+            font-size: 0.75rem;
+            color: #5c636d;
+            text-decoration: none;
+        }
+
+        .back:hover {
+            text-decoration: underline;
+        }
+
         .block {
             padding: 0.7rem;
             border: 1px solid #dfe2e7;
@@ -157,6 +176,7 @@
 </head>
 
 <body>
+    <a class="back" href="../index.html">← Zur Übersicht</a>
     <main>
         <div id="container"></div>
         <aside id="panel" aria-label="Berichtspalte">
