@@ -55,7 +55,7 @@ export type GreenValues = {
    *
    *   `Iyz = +∫y·z dA` mit `tan 2α = −2·Iyz/(Iy − Iz)`   (mathematisch;
    *      Hibbeler, Timoshenko, angelsächsische Literatur)
-   *   `Iyz = −∫y·z dA` mit `tan 2α = +2·Iyz/(Iy − Iz)`   (Gross/Hauger/
+   *   `Iyz = −∫y·z dA` mit `tan 2α = +2·Iyz/(Iy − Iz)`   (Groß/Hauger/
    *      Schröder/Wall, klassische deutsche Elastostatik)
    *
    * — und beide liefern dasselbe `α`. Das Haus steht durchgehend auf dem

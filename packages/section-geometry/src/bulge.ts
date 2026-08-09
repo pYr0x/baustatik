@@ -2,9 +2,10 @@
  * `bulge` in der Querschnittsebene — die Durchreiche von
  * `@baustatik/geometry-2d`.
  *
- * VOLLSTÄNDIG GEWRAPPT, alle sechs Funktionen, auch die drei koordinatenfreien.
+ * VOLLSTÄNDIG GEWRAPPT, alle sieben Funktionen, auch die vier
+ * koordinatenfreien.
  * Vorbild ist `normalizeAngleYZ` in `convert.ts`: dieses Package ist DIE
- * Durchreiche in die Querschnittsebene, und wer für drei von sechs Funktionen
+ * Durchreiche in die Querschnittsebene, und wer für vier von sieben Funktionen
  * am Package vorbei nach `@baustatik/geometry-2d` greifen müsste, hätte die
  * Regel schon gebrochen.
  *
@@ -25,6 +26,11 @@ export const Bulge: {
   sweep(bulge: number): number;
   sagitta(chordLength: number, bulge: number): number;
   isStraight(chordLength: number, bulge: number, tolerance: number): boolean;
+  isDiscretisable(
+    chordLength: number,
+    bulge: number,
+    tolerance: number,
+  ): boolean;
   toArc(p1: Point, p2: Point, bulge: number, tolerance: number): Arc;
   fromArc(arc: Arc): number;
   toPolyline(
@@ -48,7 +54,7 @@ export const Bulge: {
    * Die Stichhöhe `h = (Sehne/2)·|bulge|` — EXAKT.
    *
    * RECHNET NICHTS UM: zwei Längen und eine dimensionslose Zahl, in beiden
-   * Welten dieselbe Grösse. Die Einheit ist die des Aufrufers; im Querschnitt
+   * Welten dieselbe Größe. Die Einheit ist die des Aufrufers; im Querschnitt
    * sind das MILLIMETER (ADR 0031).
    */
   sagitta: (chordLength, bulge) => GeometryBulge.sagitta(chordLength, bulge),
@@ -61,6 +67,16 @@ export const Bulge: {
    */
   isStraight: (chordLength, bulge, tolerance) =>
     GeometryBulge.isStraight(chordLength, bulge, tolerance),
+
+  /**
+   * Ob `toPolyline` diese Wölbung trägt — die Frage VOR dem Wurf.
+   *
+   * RECHNET NICHTS UM. Sie steht hier, weil die Umriss-Ableitung des
+   * Querschnitts total bleiben muss: sie liest ein `false` als Gerade, statt
+   * eine unbrauchbare Zahl in `toPolyline` laufen zu lassen.
+   */
+  isDiscretisable: (chordLength, bulge, tolerance) =>
+    GeometryBulge.isDiscretisable(chordLength, bulge, tolerance),
 
   /** Der Bogen zwischen zwei Punkten. WIRFT `StraightBulgeError` bei einer Geraden. */
   toArc: (p1, p2, bulge, tolerance) =>

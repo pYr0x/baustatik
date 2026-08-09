@@ -11,7 +11,7 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      // Beide Clipping-Bibliotheken bleiben aussen vor: sie sind Abhaengigkeiten
+      // Beide Clipping-Bibliotheken bleiben außen vor: sie sind Abhängigkeiten
       // und keine Bestandteile dieses Bundles (ADR 0037).
       external: ['clipper2-ts', 'martinez-polygon-clipping'],
     },

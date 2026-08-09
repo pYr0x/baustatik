@@ -11,7 +11,7 @@ const wall = (
   t = 8,
 ): Wall => ({ id, startNodeId, endNodeId, t });
 
-describe('branches zerlegt den Wandgraphen in Laeufe zwischen Verzweigungsknoten', () => {
+describe('branches zerlegt den Wandgraphen in Läufe zwischen Verzweigungsknoten', () => {
   it('legt eine Kette aus lauter Grad-2-Knoten in EINEN Branch', () => {
     const nodes = [node('a', 0, 0), node('b', 100, 0), node('c', 100, 100)];
     const walls = [wall('w1', 'a', 'b'), wall('w2', 'b', 'c')];
@@ -24,7 +24,7 @@ describe('branches zerlegt den Wandgraphen in Laeufe zwischen Verzweigungsknoten
     expect(result[0]?.closed).toBe(false);
   });
 
-  it('beendet den Lauf am Grad-3-Knoten — drei Waende, drei Branches', () => {
+  it('beendet den Lauf am Grad-3-Knoten — drei Wände, drei Branches', () => {
     // Das T: der Steg trifft die durchlaufende Gurtplatte in ihrer Mitte.
     const nodes = [
       node('links', -50, 0),
@@ -72,7 +72,7 @@ describe('branches zerlegt den Wandgraphen in Laeufe zwischen Verzweigungsknoten
     expect(result[0]?.nodeIds.at(0)).toBe(result[0]?.nodeIds.at(-1));
   });
 
-  it('haelt zwei Knoten auf denselben Koordinaten fuer zwei Knoten', () => {
+  it('hält zwei Knoten auf denselben Koordinaten für zwei Knoten', () => {
     // Der Umlauf ist NICHT geschlossen: `d` und `a` liegen aufeinander, sind
     // aber verschiedene Knoten. Eine Epsilon-Frage hat im Graphen nichts zu
     // suchen.
@@ -95,7 +95,7 @@ describe('branches zerlegt den Wandgraphen in Laeufe zwischen Verzweigungsknoten
     expect(result[0]?.nodeIds).toEqual(['a', 'b', 'c', 'd']);
   });
 
-  it('bleibt total: haengende Verweise und Nulllaengenwaende fallen still weg', () => {
+  it('bleibt total: hängende Verweise und Nulllängenwände fallen still weg', () => {
     const nodes = [node('a', 0, 0), node('b', 100, 0), node('c', 100, 0)];
     const walls = [
       wall('gut', 'a', 'b'),
@@ -108,7 +108,7 @@ describe('branches zerlegt den Wandgraphen in Laeufe zwischen Verzweigungsknoten
     expect(result.flatMap((branch) => branch.wallIds)).toEqual(['gut']);
   });
 
-  it('gibt fuer einen leeren Graphen eine leere Zerlegung zurueck', () => {
+  it('gibt für einen leeren Graphen eine leere Zerlegung zurück', () => {
     expect(branches([], [])).toEqual([]);
   });
 });

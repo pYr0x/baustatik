@@ -105,11 +105,20 @@ Damit schlaegt dieses Package **nichts mehr nach** — `sectionProperties` und
 `stressPoints` sind im Profilzweig total, und `undefined` heisst nur noch
 „unsinnige Abmessungen" bzw. „fuer diese Form gibt es keine Vorlage".
 
-Vier Abhaengigkeiten: `@baustatik/steel-profiles` (nur noch der **Typ**
+Fuenf Abhaengigkeiten: `@baustatik/steel-profiles` (nur noch der **Typ**
 `SteelProfileData`, kein `lookupProfile` mehr im `src`), `@baustatik/units`
 (die Umrechnungsfaktoren und die Quantity-Typen), `@baustatik/errors` (die
-Wurzel der Gate-Klassen, ADR 0030) und seit ADR 0033
-`@baustatik/section-geometry`.
+Wurzel der Gate-Klassen, ADR 0030), seit ADR 0033
+`@baustatik/section-geometry` und `@baustatik/core`.
+
+`@baustatik/core` steht dort für **`atOrThrow` und sonst nichts**. Die
+Zerlegung des Wandgraphen indiziert an mehreren Stellen über eine Invariante —
+`nodeIds` hat einen Eintrag mehr als `wallIds`, ein Stück hat immer einen ersten
+Schritt —, und TypeScript engt durch eine Längenprüfung nicht ein. Bis dahin
+stand dort ein `if (x === undefined) continue`: es machte aus dem Bruch einer
+Invariante ein stilles Überspringen. Die Kante ist die schmalste im Repo — ein
+Package, das ohnehin unter `section-geometry` liegt — und sie kauft, dass ein
+solcher Bruch als `AssertionError` sichtbar wird.
 
 **Die Geometriekante ist neu und war vorher ausdruecklich verboten.** ADR 0032
 schrieb „keine neue Abhaengigkeit ausser `@baustatik/errors`", damit die
@@ -378,6 +387,27 @@ P3 hat die Entscheidung erzwungen, weil es als erstes darueber stolpert: der
 Wert laeuft ab jetzt in eine **fremde Bibliothek**, deren Ergebnis danach
 *plausibel aussieht*. Das Gate meldet ihn als `NonFiniteBulgeError`, die
 Ableitung liest ihn als Gerade und filtert ihn weg (ADR 0037).
+
+**`Number.isFinite` ist dabei nur die halbe Frage**, und die zweite Hälfte hat
+P3 zunächst offen gelassen: `bulge = 10^14` ist endlich und beschreibt trotzdem
+einen fast vollen Kreis mit `2,5·10^15 mm` Radius durch zwei Punkte, die
+`100 mm` auseinanderliegen. Seine Zerlegung unter `arcTolerance` verlangte
+Milliarden Punkte — die Ableitung starb am Speicher, statt einen Umriss zu
+liefern. Was `Bulge.isDiscretisable` verneint, liest sie jetzt ebenfalls als
+Gerade, und das Gate meldet es als `UndiscretisableBulgeError`. Beide Zweige
+halten sich daran: der Ringzweig ebenso wie der Wandzweig, denn das Gate leitet
+für die Drift-Prüfung neu ab — ein Wurf dort machte aus dem Sammelbefund einen
+Absturz.
+
+**Beide Befunde gelten für BEIDE Eingabearten**, und deshalb tragen sie den Ort
+als Feld: `at: BulgeSite` ist entweder `{ kind: 'wall', wallId }` oder
+`{ kind: 'vertex', ringIndex, vertexIndex }`. Der Ring-Zweig hatte bis dahin
+überhaupt keine Wölbungsprüfung — G6b sah nur `geometry.walls`, während
+`Vertex.bulge` dieselbe Zahl mit derselben Bedeutung trägt (ADR 0030). Vier
+Klassen für zwei Regeln an zwei Orten wären die Doppelung, gegen die
+`DuplicateSectionIdError` schon über `SectionElement` geht statt über zwei
+Namen. Am Ring läuft die Sehne zum **nächsten** Punkt, weil `bulge` der
+abgehenden Kante gehört — genau der Kante, die `deriveOutlineFromRings` zeichnet.
 
 Der Zeichenweg faengt ihn weiterhin ab: `cross-section-viewer` faellt bei einem
 nicht endlichen `bulge` — und bei einem am Vollkreis-Pol, wo `4·atan(bulge)` auf

@@ -20,6 +20,7 @@
  * brauchbarer Graph ist, wäre genau die Doppelung, die das Gate abschafft.
  */
 
+import { atOrThrow } from '@baustatik/core';
 import { Bulge } from '@baustatik/section-geometry';
 import type { SectionNode, Wall } from './types';
 
@@ -63,7 +64,7 @@ export type WallEndRef = {
  *
  * ENTARTETE WÄNDE FEHLEN DARIN, und zwar VOR jeder Gradzählung: eine Wand mit
  * hängendem Verweis hat kein zweites Ende, eine Wand der Länge 0 keine
- * Richtung. Beide erst hinterher zu überspringen hiesse, einen Grad zu zählen,
+ * Richtung. Beide erst hinterher zu überspringen hieße, einen Grad zu zählen,
  * den es nicht gibt — der Knoten daneben bekäme Grad 3 und der Lauf endete an
  * einer Wand, die gar nicht da ist.
  */
@@ -169,8 +170,9 @@ function junctionsEndTheRun(graph: WallGraph): Continuation {
   const continuation = new Map<WallEndRef, WallEndRef>();
   for (const at of graph.incident.values()) {
     if (at.length !== 2) continue;
-    const [a, b] = at;
-    if (a === undefined || b === undefined) continue;
+    // Die Längenprüfung engt den Typ nicht ein — dafür ist `atOrThrow` da.
+    const a = atOrThrow(at, 0);
+    const b = atOrThrow(at, 1);
     continuation.set(a, b);
     continuation.set(b, a);
   }
@@ -228,8 +230,11 @@ export function traverse(
       entry = next !== undefined && !used.has(next.of) ? next : undefined;
     }
 
-    const first = nodeIds[0];
-    const last = nodeIds[nodeIds.length - 1];
+    // `nodeIds` trägt den Startknoten schon vor der Schleife, ist also nie
+    // leer: `atOrThrow` meldet einen Bruch DIESER Invariante als solchen,
+    // statt ihn in einem `undefined === undefined` verschwinden zu lassen.
+    const first = atOrThrow(nodeIds, 0);
+    const last = atOrThrow(nodeIds, nodeIds.length - 1);
     return Object.freeze({
       wallIds: Object.freeze(wallIds),
       nodeIds: Object.freeze(nodeIds),

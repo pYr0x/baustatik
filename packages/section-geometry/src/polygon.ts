@@ -25,7 +25,7 @@ import type {
 } from './types';
 
 /**
- * Schleifenflaeche nach der Gauss'schen Trapezformel, direkt in y/z gerechnet.
+ * Schleifenfläche nach der Gauß'schen Trapezformel, direkt in y/z gerechnet.
  *
  * Vorzeichen: **positiv, wenn der Ring im positiven Drehsinn (+y → +z)
  * umläuft**. Damit zählt sie im selben Sinn wie `Vector.angle`,
@@ -158,7 +158,7 @@ export const Polygon: Transformable<SectionPolygon> & {
    * koordinatenfreien Teile davon (`delta`, `endType`, `InflateOptions`).
    *
    * DIE WINDUNGSREGEL REIST UNVERÄNDERT MIT, weil `convert.ts`
-   * orientierungstreu abbildet: was dort `signedArea > 0` heisst, heisst hier
+   * orientierungstreu abbildet: was dort `signedArea > 0` heißt, heißt hier
    * `signedArea > 0` — Material gegen Loch (ADR 0034). Die Zusage steht an der
    * Clipper2-Grenze in `geometry-2d` und wird hier nicht ein zweites Mal
    * gegeben.

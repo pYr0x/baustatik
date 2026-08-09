@@ -71,6 +71,12 @@ with the release tag, which removes the only serious objection to it.)
   many points an outline carries and therefore which `A`, `Iy`, `Iz` fall out of
   it. Consumers that store the result pass their own explicitly (ADR 0032,
   ADR 0033).
+- `MAX_ARC_SEGMENTS = 100 000` — the ceiling on the points **one** arc is
+  discretised into. A memory guard, not a fineness limit: the segment count grows
+  with `√(R/tol)` and `R` comes from a `bulge` somebody typed, so it is unbounded
+  from above. `Arc.toPolyline` throws `InvalidArcError` beyond it instead of
+  allocating until the process dies; `Bulge.isDiscretisable` answers the same
+  question **before** the throw, for callers that must stay total.
 - `OFFSET_PRECISION = 6` — the decimal places `inflate` rasters to. Clipper2
   computes on integers; its `…D` API quantises on entry, and the library default
   of `2` (`0.01 mm`) would sit in the same order of magnitude as

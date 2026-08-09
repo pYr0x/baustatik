@@ -14,7 +14,7 @@
  * dimensionslose Zahl.
  *
  * WARUM KEINE METHODEN AN `Arc`: `sagitta` und `isStraight` brauchen gar keinen
- * `Arc` und hiessen dort „ein Bogen, der keiner ist".
+ * `Arc` und hießen dort „ein Bogen, der keiner ist".
  *
  * DIE TRAGENDE IDENTITÄT dieses Moduls, algebraisch und nicht genähert:
  *
@@ -30,12 +30,13 @@
  * ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
  * VORZEICHEN WIE `Arc.sweep`: positiv dreht von der ersten Achse auf die
- * zweite. In der Querschnittsebene heisst das `+y → +z`
+ * zweite. In der Querschnittsebene heißt das `+y → +z`
  * ([ADR 0031](../../../docs/adr/0031-the-cross-section-plane.md)); dieses
- * Package weiss davon nichts und sagt nur „positiv dreht `+x` auf `+y`".
+ * Package weiß davon nichts und sagt nur „positiv dreht `+x` auf `+y`".
  */
 
-import { Arc } from './arc';
+import { Arc, arcSegments } from './arc';
+import { MAX_ARC_SEGMENTS } from './constants';
 import {
   FullCircleBulgeError,
   InvalidArcError,
@@ -45,10 +46,26 @@ import { Point } from './point';
 
 type PolylineLike = { readonly points: Point[] };
 
+/**
+ * Der Radius allein aus Sehne und Wölbung: `R = c·(1 + t²) / (4·|t|)`.
+ *
+ * Steht neben `toArc` und nicht darin, weil `isDiscretisable` ihn braucht, OHNE
+ * einen `Arc` zu bauen — und ein `Arc`, der nur gebaut wird, um verworfen zu
+ * werden, wäre genau der Wurf, den die Frage vermeiden soll.
+ */
+function radiusOf(chordLength: number, bulge: number): number {
+  return (chordLength * (1 + bulge ** 2)) / (4 * Math.abs(bulge));
+}
+
 export const Bulge: {
   sweep(bulge: number): number;
   sagitta(chordLength: number, bulge: number): number;
   isStraight(chordLength: number, bulge: number, tolerance: number): boolean;
+  isDiscretisable(
+    chordLength: number,
+    bulge: number,
+    tolerance: number,
+  ): boolean;
   toArc(p1: Point, p2: Point, bulge: number, tolerance: number): Arc;
   fromArc(arc: Arc): number;
   toPolyline(
@@ -86,6 +103,36 @@ export const Bulge: {
     Bulge.sagitta(chordLength, bulge) <= tolerance,
 
   /**
+   * Ob `toPolyline` diese Wölbung TRÄGT — die Frage vor dem Wurf.
+   *
+   * TOTAL UND OHNE AUSNAHME, und genau dafür gibt es sie: `toArc` und
+   * `toPolyline` brechen bei einer unbrauchbaren Zahl eine Vorbedingung und
+   * WERFEN. Wer total bleiben muss — die Umriss-Ableitung des Querschnitts —
+   * fragt vorher und liest ein `false` als Gerade.
+   *
+   * ZWEI SORTEN UNBRAUCHBAR, und beide sind derselbe Befund:
+   *
+   *   nicht endlich — `NaN` und `±Infinity` haben keinen Öffnungswinkel.
+   *   nicht zerlegbar — eine ENDLICHE, aber riesige Wölbung beschreibt einen
+   *                     fast vollen Kreis von gewaltigem Radius. `bulge = 10^14`
+   *                     auf `100 mm` Sehne verlangt unter `0,05 mm` Toleranz
+   *                     rund `10^10` Punkte (`MAX_ARC_SEGMENTS`).
+   *
+   * Die GERADE ist immer zerlegbar: sie durchläuft `toArc` gar nicht.
+   */
+  isDiscretisable: (chordLength, bulge, tolerance) => {
+    if (!Number.isFinite(bulge)) return false;
+    if (Bulge.isStraight(chordLength, bulge, tolerance)) return true;
+    return (
+      arcSegments(
+        radiusOf(chordLength, bulge),
+        Bulge.sweep(bulge),
+        tolerance,
+      ) <= MAX_ARC_SEGMENTS
+    );
+  },
+
+  /**
    * Der Bogen zwischen zwei Punkten. WIRFT `StraightBulgeError`, wenn
    * `isStraight` — nach einem Bogen zu fragen, wo keiner ist, ist eine
    * gebrochene Vorbedingung und nicht der `undefined`-Kanal des Repos.
@@ -115,7 +162,7 @@ export const Bulge: {
       throw new StraightBulgeError(bulge, chordLength, tolerance);
     }
 
-    const radius = (chordLength * (1 + bulge ** 2)) / (4 * Math.abs(bulge));
+    const radius = radiusOf(chordLength, bulge);
     const apothem = (chordLength * (1 - bulge ** 2)) / (4 * bulge);
 
     // Linksnormale der Sehnenrichtung: (dx, dy) um +90° gedreht, normiert.
@@ -157,6 +204,10 @@ export const Bulge: {
    * DIE TOLERANZ WIRKT ZWEIMAL, und das ist Absicht: sie entscheidet, ob die
    * Kante überhaupt gekrümmt ist, UND wie fein der Bogen zerlegt wird. Eine
    * Modellannahme, nicht zwei.
+   *
+   * TOTAL HEISST NICHT WURFFREI: eine Wölbung, die `isDiscretisable` verneint,
+   * bricht eine Vorbedingung und wirft `InvalidArcError`. Wer total bleiben
+   * muss, fragt vorher.
    */
   toPolyline: (p1, p2, bulge, tolerance) => {
     if (Bulge.isStraight(Point.distance(p1, p2), bulge, tolerance)) {

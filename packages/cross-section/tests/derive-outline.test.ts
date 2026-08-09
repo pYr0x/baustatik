@@ -143,6 +143,34 @@ describe('Es wird nichts geprüft — das ist die Aufgabe des Gates', () => {
     ).toEqual([{ points: [{ y: 1, z: 2 }] }]);
   });
 
+  it('liest eine unbrauchbare Wölbung als Gerade, statt zu werfen', () => {
+    // TOTAL HEISST TOTAL. Das Gate leitet den Umriss für die Drift-Prüfung neu
+    // ab — eine Wölbung, die hier würfe, machte aus dem Sammelbefund einen
+    // Absturz. Beide Sorten fallen auf `0`: die nicht endliche und die
+    // endliche, die einen fast vollen Kreis von gewaltigem Radius beschreibt.
+    for (const bulge of [Number.NaN, Number.POSITIVE_INFINITY, 1e14]) {
+      const rings: Ring[] = [
+        {
+          vertices: [
+            { y: 0, z: 0, bulge },
+            { y: 100, z: 0 },
+            { y: 100, z: 50 },
+          ],
+        },
+      ];
+
+      expect(deriveOutlineFromRings(rings, POLICY)).toEqual([
+        {
+          points: [
+            { y: 0, z: 0 },
+            { y: 100, z: 0 },
+            { y: 100, z: 50 },
+          ],
+        },
+      ]);
+    }
+  });
+
   it('hält die Reihenfolge der Ringe', () => {
     const result = deriveOutlineFromRings(
       [

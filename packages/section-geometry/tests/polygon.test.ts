@@ -189,8 +189,8 @@ describe('Polygon transforms and bounding box', () => {
 
   it('translates, rotates and mirrors while preserving winding policy', () => {
     const polygon = Polygon.make(rect);
-    // Ueber die Bounding-Box geprueft statt ueber points[0]: welche Ecke der
-    // Ring zuerst nennt, haengt an der Normalisierung und ist keine Zusage.
+    // Ueber die Bounding-Box geprüft statt über points[0]: welche Ecke der
+    // Ring zuerst nennt, hängt an der Normalisierung und ist keine Zusage.
     const translated = Polygon.translate(polygon, Vector.make(1, 1));
     const box = Polygon.boundingBox(translated);
     expect(box.min).toEqual({ y: 1, z: 1 });
@@ -208,7 +208,7 @@ describe('Polygon transforms and bounding box', () => {
 });
 
 describe('Polygon.inflate reicht die Aufweitung nach y/z durch', () => {
-  it('macht aus einer Wand der Laenge 100 mit delta 5 einen Materialring', () => {
+  it('macht aus einer Wand der Länge 100 mit delta 5 einen Materialring', () => {
     const [ring, ...rest] = Polygon.inflate([
       {
         polyline: { points: [Point.make(0, 0), Point.make(100, 0)] },
@@ -219,7 +219,7 @@ describe('Polygon.inflate reicht die Aufweitung nach y/z durch', () => {
 
     expect(rest).toHaveLength(0);
     expect(ring).toBeDefined();
-    // Die Windungsregel reist unveraendert mit: Material laeuft positiv
+    // Die Windungsregel reist unverändert mit: Material läuft positiv
     // (ADR 0034, fortgeschrieben in ADR 0037).
     expect(Polygon.signedArea(ring?.points ?? [])).toBeCloseTo(1000, 9);
     const box = Polygon.boundingBox(Polygon.make(ring?.points ?? []));

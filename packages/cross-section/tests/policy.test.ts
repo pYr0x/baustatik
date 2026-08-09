@@ -11,12 +11,12 @@ import {
  * Die Erzeugungs-Policy des Querschnitts
  * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  *
- * ZWEI EINGAENGE mit verschiedenen Aufgaben: die Fabrik prueft WERTE, der
- * Parser zusaetzlich die FORM. Genau das halten die beiden Bloecke fest.
+ * ZWEI EINGAENGE mit verschiedenen Aufgaben: die Fabrik prüft WERTE, der
+ * Parser zusätzlich die FORM. Genau das halten die beiden Blöcke fest.
  */
 describe('Die Voreinstellung liest ihre Zahl, statt sie neu zu setzen', () => {
   it('arcTolerance ist DEFAULT_ARC_TOLERANCE aus section-geometry', () => {
-    // Sonst kehrte der Zustand zurueck, den P0 beseitigt hat: zwei Zahlen fuer
+    // Sonst kehrte der Zustand zurück, den P0 beseitigt hat: zwei Zahlen für
     // eine Modellannahme (ADR 0032).
     expect(DEFAULT_SECTION_POLICY.arcTolerance).toBe(DEFAULT_ARC_TOLERANCE);
   });
@@ -28,7 +28,7 @@ describe('Die Voreinstellung liest ihre Zahl, statt sie neu zu setzen', () => {
   });
 
   it('miterLimit ist 2 — die Vorgabe von Clipper2, hier benannt', () => {
-    // Sie kappt unter 60 Grad Innenwinkel; der rechtwinklige Stoss jedes
+    // Sie kappt unter 60 Grad Innenwinkel; der rechtwinklige Stoß jedes
     // gewalzten Profils bleibt mit 1/sin(45 Grad) = 1,41 weit darunter
     // (ADR 0037).
     expect(DEFAULT_SECTION_POLICY.miterLimit).toBe(2);
@@ -39,7 +39,7 @@ describe('Die Voreinstellung liest ihre Zahl, statt sie neu zu setzen', () => {
   });
 });
 
-describe('createSectionPolicy nimmt Abweichungen und prueft nur Werte', () => {
+describe('createSectionPolicy nimmt Abweichungen und prüft nur Werte', () => {
   it('ohne Overrides ist das Ergebnis der Default SELBST, keine Kopie', () => {
     expect(createSectionPolicy()).toBe(DEFAULT_SECTION_POLICY);
     expect(createSectionPolicy({})).toBe(DEFAULT_SECTION_POLICY);
@@ -52,9 +52,9 @@ describe('createSectionPolicy nimmt Abweichungen und prueft nur Werte', () => {
     expect(DEFAULT_SECTION_POLICY.arcTolerance).toBe(DEFAULT_ARC_TOLERANCE);
   });
 
-  it('eine Toleranz von 0 oder darunter waere keine Diskretisierung', () => {
-    // 0 verlangte unendlich viele Punkte; negativ liesse `Bulge.isStraight` nie
-    // mehr wahr werden — die Gerade waere abgeschafft.
+  it('eine Toleranz von 0 oder darunter wäre keine Diskretisierung', () => {
+    // 0 verlangte unendlich viele Punkte; negativ ließe `Bulge.isStraight` nie
+    // mehr wahr werden — die Gerade wäre abgeschafft.
     for (const arcTolerance of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => createSectionPolicy({ arcTolerance })).toThrow(
         InvalidSectionPolicyError,
@@ -62,9 +62,9 @@ describe('createSectionPolicy nimmt Abweichungen und prueft nur Werte', () => {
     }
   });
 
-  it('ein miterLimit bis 1 waere eine Einstellung, die nicht wirkt', () => {
+  it('ein miterLimit bis 1 wäre eine Einstellung, die nicht wirkt', () => {
     // Clipper2 ersetzt jeden Wert <= 1 STILL durch 2 (`Offset.ts`, `mitLimSqr`).
-    // Die Schranke ist damit abgelesen und nicht gewaehlt.
+    // Die Schranke ist damit abgelesen und nicht gewählt.
     for (const miterLimit of [
       1,
       0.5,
@@ -90,8 +90,8 @@ describe('createSectionPolicy nimmt Abweichungen und prueft nur Werte', () => {
   });
 });
 
-describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
-  it('nimmt einen vollstaendigen Satz an und friert ihn ein', () => {
+describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
+  it('nimmt einen vollständigen Satz an und friert ihn ein', () => {
     const policy = parseSectionPolicy({
       arcTolerance: 0.1,
       principalAxisTolerance: 1e-8,
@@ -113,7 +113,7 @@ describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
     );
   });
 
-  // Und derselbe Satz ist kein gueltiger Satz aus P3.
+  // Und derselbe Satz ist kein gültiger Satz aus P3.
   it('lehnt einen Satz ohne miterLimit ab', () => {
     expect(() =>
       parseSectionPolicy({ arcTolerance: 0.1, principalAxisTolerance: 1e-9 }),
@@ -121,7 +121,7 @@ describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
   });
 
   it('lehnt ein unbekanntes Feld ab, statt es zu ignorieren', () => {
-    // Ein stillschweigend geschluckter Tippfehler waere eine Einstellung, die
+    // Ein stillschweigend geschluckter Tippfehler wäre eine Einstellung, die
     // nicht wirkt.
     expect(() =>
       parseSectionPolicy({
@@ -133,7 +133,7 @@ describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
     ).toThrow(InvalidSectionPolicyError);
   });
 
-  it('lehnt einen unvollstaendigen Satz ab — es gibt keine Teil-Policy', () => {
+  it('lehnt einen unvollständigen Satz ab — es gibt keine Teil-Policy', () => {
     expect(() => parseSectionPolicy({})).toThrow(InvalidSectionPolicyError);
   });
 
@@ -143,7 +143,7 @@ describe('parseSectionPolicy ist der Grenzuebertritt aus Fremddaten', () => {
     }
   });
 
-  it('prueft die Werte mit derselben Regel wie die Fabrik', () => {
+  it('prüft die Werte mit derselben Regel wie die Fabrik', () => {
     const full = {
       arcTolerance: 0.05,
       principalAxisTolerance: 1e-9,

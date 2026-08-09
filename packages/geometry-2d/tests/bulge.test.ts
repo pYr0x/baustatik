@@ -83,7 +83,7 @@ describe('Der Rundlauf Arc → bulge → Arc erhält den Bogen', () => {
 
 describe('Der Halbkreis steht an BEIDEN Enden senkrecht auf der Sehne', () => {
   // Der Grund, warum Wellblech und Rohr ohne Knickwarnung durchgehen: bei
-  // `Δ = ±180°` ist die Tangentialität am Stoss automatisch.
+  // `Δ = ±180°` ist die Tangentialität am Stoß automatisch.
   it('bulge = 1 zwischen zwei Punkten', () => {
     const p1 = Point.make(-4, 1);
     const p2 = Point.make(2, 5);
@@ -263,5 +263,65 @@ describe('Der Vollkreis hat keine Wölbung', () => {
     expect(() =>
       Bulge.fromArc(Arc.make(Point.make(0, 0), 1, 0, 2 * Math.PI - 1e-9)),
     ).not.toThrow();
+  });
+});
+
+describe('Bulge.isDiscretisable trennt die zerlegbare Wölbung von der unbrauchbaren', () => {
+  const CHORD = 100;
+
+  it('trägt jede Wölbung, die ein Querschnitt zeichnet', () => {
+    for (const bulge of [0, 0.1, 1, -1, 5, -5, 1000]) {
+      expect(
+        Bulge.isDiscretisable(CHORD, bulge, DEFAULT_ARC_TOLERANCE),
+      ).toBe(true);
+    }
+  });
+
+  it('verneint die nicht endliche Zahl', () => {
+    for (const bulge of [Number.NaN, Number.POSITIVE_INFINITY, -Infinity]) {
+      expect(
+        Bulge.isDiscretisable(CHORD, bulge, DEFAULT_ARC_TOLERANCE),
+      ).toBe(false);
+    }
+  });
+
+  it('verneint die ENDLICHE Riesenwölbung — der fast volle Kreis', () => {
+    // Radius `c·(1 + t²)/(4·|t|)` ist hier `2,5·10^15 mm`; unter `0,05 mm`
+    // Sehnenabweichung verlangte seine Zerlegung Milliarden Punkte.
+    expect(
+      Bulge.isDiscretisable(CHORD, 1e14, DEFAULT_ARC_TOLERANCE),
+    ).toBe(false);
+    expect(
+      Bulge.isDiscretisable(CHORD, 1e17, DEFAULT_ARC_TOLERANCE),
+    ).toBe(false);
+    expect(
+      Bulge.isDiscretisable(CHORD, Number.MAX_VALUE, DEFAULT_ARC_TOLERANCE),
+    ).toBe(false);
+  });
+
+  it('sagt für dieselbe Zahl DASSELBE wie toPolyline — die eine wirft, wo die andere verneint', () => {
+    const p1 = Point.make(0, 0);
+    const p2 = Point.make(CHORD, 0);
+
+    expect(() =>
+      Bulge.toPolyline(p1, p2, 1e14, DEFAULT_ARC_TOLERANCE),
+    ).toThrow(InvalidArcError);
+    expect(() =>
+      Bulge.toPolyline(p1, p2, 1000, DEFAULT_ARC_TOLERANCE),
+    ).not.toThrow();
+  });
+
+  it('macht aus der Riesenwölbung KEINEN Bogen mit NaN-Radius', () => {
+    // `radius = c·(1 + t²)/(4·|t|)` läuft bei `t = 10^308` über: `Infinity`
+    // durch `Infinity` ist `NaN`, und `NaN <= 0` ist falsch — der Bogen kam
+    // durch jede Schranke und trug sein `NaN` in jeden Punkt weiter.
+    expect(() =>
+      Bulge.toArc(
+        Point.make(0, 0),
+        Point.make(CHORD, 0),
+        Number.MAX_VALUE,
+        DEFAULT_ARC_TOLERANCE,
+      ),
+    ).toThrow(InvalidArcError);
   });
 });

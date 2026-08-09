@@ -9,6 +9,7 @@ export {
   deriveOutlineFromWalls,
 } from './derive-outline';
 export {
+  type BulgeSite,
   DegenerateOutlineRingError,
   DuplicateSectionIdError,
   EmptyOutlineError,
@@ -25,6 +26,7 @@ export {
   ShearCentreOffsetWarning,
   ShearCentreUnknownWarning,
   TangentKinkWarning,
+  UndiscretisableBulgeError,
   UnknownSectionNodeError,
   UnnestedHoleWarning,
   type WallEnd,

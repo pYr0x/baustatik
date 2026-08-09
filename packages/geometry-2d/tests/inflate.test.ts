@@ -50,8 +50,8 @@ describe('Polygon.inflate weitet offene Züge auf', () => {
     ]);
 
     expect(rings).toHaveLength(1);
-    // Gurt 100 x 10, Steg 6 x 45 oberhalb des Gurtes — sie ueberlappen sich
-    // im Gurt und werden nicht doppelt gezaehlt.
+    // Gurt 100 x 10, Steg 6 x 45 oberhalb des Gurtes — sie überlappen sich
+    // im Gurt und werden nicht doppelt gezählt.
     expect(signedAreas(rings)[0]).toBeCloseTo(1000 + 6 * 45, 9);
   });
 
@@ -63,7 +63,7 @@ describe('Polygon.inflate weitet offene Züge auf', () => {
 describe('Polygon.inflate weitet einen geschlossenen Zug zum Ring mit Loch auf', () => {
   const loop: readonly XY[] = [[0, 0], [100, 0], [100, 200], [0, 200], [0, 0]];
 
-  it('liefert Aussenring und Loch — der Aussenring positiv, das Loch negativ', () => {
+  it('liefert Außenring und Loch — der Außenring positiv, das Loch negativ', () => {
     const rings = Polygon.inflate([closed(loop, 3)]);
 
     expect(rings).toHaveLength(2);
@@ -72,10 +72,10 @@ describe('Polygon.inflate weitet einen geschlossenen Zug zum Ring mit Loch auf',
     expect(hole).toBeCloseTo(-(94 * 194), 9);
   });
 
-  it('stellt das Loch UNMITTELBAR hinter seinen Aussenring', () => {
-    // Zwei getrennte Kaesten, der kleinere zuerst hineingegeben: sortiert
+  it('stellt das Loch UNMITTELBAR hinter seinen Außenring', () => {
+    // Zwei getrennte Kästen, der kleinere zuerst hineingegeben: sortiert
     // wird nach |A| absteigend, und das Loch folgt seinem eigenen Ring — nicht
-    // dem groesseren.
+    // dem größeren.
     const small: readonly XY[] = [[0, 0], [40, 0], [40, 40], [0, 40], [0, 0]];
     const large: readonly XY[] = [
       [200, 0],
@@ -121,9 +121,9 @@ describe('Polygon.inflate setzt den Umlaufsinn, statt ihn durchzureichen', () =>
 });
 
 describe('Polygon.inflate nimmt `delta: 0` als Ring in die Vereinigung', () => {
-  it('gibt den geschlossenen Zug unveraendert heraus', () => {
-    // Die Identitaet: aufgeweitet wird um nichts, der Ring IST das Ergebnis.
-    // Gebraucht wird das fuer Flaeche, die kein Offset erzeugen kann — die
+  it('gibt den geschlossenen Zug unverändert heraus', () => {
+    // Die Identität: aufgeweitet wird um nichts, der Ring IST das Ergebnis.
+    // Gebraucht wird das für Fläche, die kein Offset erzeugen kann — die
     // Miter-Ecke am Dickensprung (ADR 0038).
     const rings = Polygon.inflate([
       closed([[0, 0], [10, 0], [10, 10], [0, 10]], 0),
@@ -133,9 +133,9 @@ describe('Polygon.inflate nimmt `delta: 0` als Ring in die Vereinigung', () => {
     expect(signedAreas(rings)[0]).toBeCloseTo(100, 9);
   });
 
-  it('vereinigt ihn mit den aufgeweiteten Zuegen, statt ein Loch zu reissen', () => {
-    // Der Ring ueberlappt den Zug zur Haelfte: die Vereinigung laeuft mit
-    // NonZero, und ein gegenlaeufig gezeichneter Ring loeschte dort Flaeche.
+  it('vereinigt ihn mit den aufgeweiteten Zügen, statt ein Loch zu reißen', () => {
+    // Der Ring überlappt den Zug zur Hälfte: die Vereinigung läuft mit
+    // NonZero, und ein gegenläufig gezeichneter Ring löschte dort Fläche.
     // Deshalb dreht `inflate` ihn in den Umlaufsinn der Offsets.
     const zug = open([[0, 0], [100, 0]], 5);
     const rueckwaerts = closed([[100, -5], [100, 5], [120, 5], [120, -5]], 0);
@@ -146,7 +146,7 @@ describe('Polygon.inflate nimmt `delta: 0` als Ring in die Vereinigung', () => {
     expect(signedAreas(rings)[0]).toBeCloseTo(1000 + 200, 9);
   });
 
-  it('ueberspringt den OFFENEN Zug mit `delta: 0` — er traegt keine Flaeche', () => {
+  it('überspringt den OFFENEN Zug mit `delta: 0` — er trägt keine Fläche', () => {
     const rings = Polygon.inflate([
       open([[0, 0], [100, 0]], 5),
       open([[0, 50], [100, 50]], 0),
@@ -158,9 +158,9 @@ describe('Polygon.inflate nimmt `delta: 0` als Ring in die Vereinigung', () => {
 });
 
 describe('Polygon.inflate liest die Optionen', () => {
-  it('kappt den spitzen Stoss, sobald das miterLimit unterschritten wird', () => {
-    // Zwei Waende unter 20°: mit grosszuegigem Limit steht die Spitze, mit dem
-    // Vorgabewert 2 ist sie gekappt und die Flaeche damit kleiner.
+  it('kappt den spitzen Stoß, sobald das miterLimit unterschritten wird', () => {
+    // Zwei Wände unter 20°: mit großzügigem Limit steht die Spitze, mit dem
+    // Vorgabewert 2 ist sie gekappt und die Fläche damit kleiner.
     const spike: readonly XY[] = [[0, 0], [100, 0], [0, 35]];
     const sharp = Polygon.inflate([open(spike, 4)], { miterLimit: 100 });
     const capped = Polygon.inflate([open(spike, 4)], { miterLimit: 2 });

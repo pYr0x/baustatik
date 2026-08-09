@@ -56,8 +56,8 @@ describe('clipper2-ts weitet einen offenen Zug beidseitig auf', () => {
     expect(bounds.bottom).toBeCloseTo(5, 9);
   });
 
-  it('setzt am rechtwinkligen Stoss die Miter-Ecke — sechs Punkte, A = 1600', () => {
-    // Der Winkel der Demo: zwei Waende t = 8 ueber einen Grad-2-Knoten, als EIN
+  it('setzt am rechtwinkligen Stoß die Miter-Ecke — sechs Punkte, A = 1600', () => {
+    // Der Winkel der Demo: zwei Wände t = 8 über einen Grad-2-Knoten, als EIN
     // Zug hineingegeben. Genau darum weitet ADR 0037 den ZUG auf und nicht die
     // Wand: einzeln aufgeweitet und danach vereinigt bliebe hier eine Kerbe.
     const result = inflate([path([[0, 0], [100, 0], [100, -100]])], 4, EndType.Butt);
@@ -68,10 +68,10 @@ describe('clipper2-ts weitet einen offenen Zug beidseitig auf', () => {
   });
 });
 
-describe('clipper2-ts weitet einen geschlossenen Ring nach aussen und nach innen auf', () => {
+describe('clipper2-ts weitet einen geschlossenen Ring nach außen und nach innen auf', () => {
   const square = path([[0, 0], [100, 0], [100, 100], [0, 100]]);
 
-  it('vergroessert das Quadrat 100 mit delta +10 auf A = 14400', () => {
+  it('vergrößert das Quadrat 100 mit delta +10 auf A = 14400', () => {
     const result = inflate([square], 10, EndType.Polygon);
     expect(total(result)).toBeCloseTo(14400, 9);
     const bounds = Clipper.getBoundsPathsD(result);
@@ -89,7 +89,7 @@ describe('clipper2-ts weitet einen geschlossenen Ring nach aussen und nach innen
     ]);
   });
 
-  it('liefert bei umgekehrtem Umlaufsinn dieselben Betraege — nur negativ', () => {
+  it('liefert bei umgekehrtem Umlaufsinn dieselben Beträge — nur negativ', () => {
     // Genau deshalb setzt `Polygon.inflate` den Umlaufsinn selbst, statt ihn
     // durchzureichen (ADR 0034, fortgeschrieben in ADR 0037).
     const reversed = [...square].reverse();
@@ -101,7 +101,7 @@ describe('clipper2-ts weitet einen geschlossenen Ring nach aussen und nach innen
 describe('clipper2-ts liest die arcTolerance als Sehnenabweichung', () => {
   const square = path([[0, 0], [100, 0], [100, 100], [0, 100]]);
 
-  // Die Reihe pinnt, dass eine ZEHNTELUNG der Toleranz die Punktzahl erhoeht,
+  // Die Reihe pinnt, dass eine ZEHNTELUNG der Toleranz die Punktzahl erhöht,
   // und mit welcher Konstante. `JoinType.Round` ist hier nur das Messmittel —
   // der Querschnitt selbst rundet nach ADR 0037 NIE eine Ecke ab.
   it.each([
@@ -116,8 +116,8 @@ describe('clipper2-ts liest die arcTolerance als Sehnenabweichung', () => {
 });
 
 describe('clipper2-ts liefert am geschlossenen Zug den Innenring mit', () => {
-  // DER MESSPOSTEN aus ADR 0037. Faellt er, traegt die ganze Ableitung des
-  // hohlen Kastens nicht mehr: dann muesste zweimal mit `EndType.Polygon`
+  // DER MESSPOSTEN aus ADR 0037. Fällt er, trägt die ganze Ableitung des
+  // hohlen Kastens nicht mehr: dann müsste zweimal mit `EndType.Polygon`
   // aufgeweitet und subtrahiert werden.
   const loop = path([[0, 0], [100, 0], [100, 200], [0, 200], [0, 0]]);
 
@@ -125,7 +125,7 @@ describe('clipper2-ts liefert am geschlossenen Zug den Innenring mit', () => {
     const result = inflate([loop], 3, EndType.Joined);
 
     expect(result).toHaveLength(2);
-    // Aussen 106 x 206, innen 94 x 194 — die Restflaeche ist der Streifen.
+    // Außen 106 x 206, innen 94 x 194 — die Restfläche ist der Streifen.
     expect(total(result)).toBeCloseTo(106 * 206 - 94 * 194, 9);
     expect(Math.max(...areas(result))).toBeCloseTo(106 * 206, 9);
     expect(Math.min(...areas(result))).toBeCloseTo(-(94 * 194), 9);

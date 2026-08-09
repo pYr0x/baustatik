@@ -65,8 +65,8 @@ Important consumers:
 - [`src/line.ts`](src/line.ts), [`src/arc.ts`](src/arc.ts),
   [`src/polyline.ts`](src/polyline.ts), [`src/point.ts`](src/point.ts): thin
   delegating wrappers.
-- [`src/bulge.ts`](src/bulge.ts): `Bulge`, the `bulge` ⇄ `Arc` codec. Six
-  functions, all wrapped; the three coordinate-free ones are wrapped anyway —
+- [`src/bulge.ts`](src/bulge.ts): `Bulge`, the `bulge` ⇄ `Arc` codec. Seven
+  functions, all wrapped; the four coordinate-free ones are wrapped anyway —
   see Boundaries.
 - [`src/errors.ts`](src/errors.ts): a pure re-export of the `geometry-2d` error
   classes. No package-own error types.
@@ -138,8 +138,11 @@ Important consumers:
 - **Asking for an arc where there is none throws.** `Bulge.toArc` /
   `Bulge.fromArc` raise `StraightBulgeError` / `FullCircleBulgeError` rather than
   returning `undefined`: the straight line is a *known* answer, not "I don't
-  know". Callers that want it handled take `Bulge.toPolyline` (total) or ask
-  `Bulge.isStraight`. The value range is the open interval `(−2π, +2π)` — DXF
+  know". Callers that want it handled take `Bulge.toPolyline` (**total only for
+  a `bulge` that `Bulge.isDiscretisable` accepts** — a finite but enormous one
+  describes a near-full circle whose discretisation would exhaust memory, and it
+  throws like any other broken precondition) or ask `Bulge.isStraight`. The
+  value range is the open interval `(−2π, +2π)` — DXF
   draws the same line, an `LWPOLYLINE` cannot carry a full circle. A tube is
   therefore **two nodes and two semicircular walls** (`Δ = ±180°`, `bulge = ±1`),
   and at a semicircle end-tangency is automatic, so the gate's kink warning stays

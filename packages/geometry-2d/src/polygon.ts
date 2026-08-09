@@ -71,7 +71,7 @@ const signedArea = (points: Point[]): number => {
 };
 
 /**
- * Ein Ring in dem Umlaufsinn, in dem Clipper2 seine Aussenkonturen liefert.
+ * Ein Ring in dem Umlaufsinn, in dem Clipper2 seine Außenkonturen liefert.
  *
  * Die Vereinigung läuft mit `FillRule.NonZero`, und darin LÖSCHT ein
  * gegenläufiger Ring, was ein anderer setzt: ein `delta: 0`-Ring, den jemand
@@ -144,7 +144,7 @@ export type InflatePath = {
  * `joinType` STEHT NICHT DARIN: er ist auf Miter festgenagelt. `Round` rundete
  * jede Ecke ab, und am I-Profil fiele damit die Identität
  * `A = 2·b·tf + tw·(h − 2·tf)`; auf einem bereits zerlegten Bogen wäre es
- * ausserdem eine ZWEITE Näherung derselben Krümmung (ADR 0037). Es gibt keine
+ * außerdem eine ZWEITE Näherung derselben Krümmung (ADR 0037). Es gibt keine
  * zweite zulässige Wahl, also auch keine Einstellung.
  */
 export type InflateOptions = {
@@ -166,7 +166,7 @@ const END_TYPE: Record<InflateEndType, EndType> = {
  * Der Baum von Clipper2, TIEFENZUERST in eine sortierte Ringliste gelegt.
  *
  * Je Ebene absteigend nach `|A|`, und jeder Knoten wird VOR seinen Kindern
- * ausgegeben. Damit folgt jedes Loch unmittelbar seinem Aussenring, und eine
+ * ausgegeben. Damit folgt jedes Loch unmittelbar seinem Außenring, und eine
  * Insel im Loch findet ihren Platz, ohne dass die Regel einen Sonderfall
  * bekäme.
  *
@@ -192,7 +192,7 @@ function collectRings(node: PolyPathD, out: Polygon[]): void {
   for (const { child, A } of children) {
     const points = (child.poly ?? []).map(({ x, y }) => Point.make(x, y));
     if (points.length >= 3) {
-      // Aussen `> 0`, Loch `< 0`. Was Clipper2 zurueckgab, entscheidet das
+      // Außen `> 0`, Loch `< 0`. Was Clipper2 zurückgab, entscheidet das
       // nicht — `isHole` tut es.
       const wanted = child.isHole ? -1 : 1;
       out.push({
@@ -269,7 +269,7 @@ export const Polygon: Transformable<Polygon> & {
    * gespeichert, serialisiert und gegen eine Neuableitung verglichen. Eine
    * Bibliotheksreihenfolge machte jeden Versionswechsel zu einer Umordnung im
    * Modell-Diff, die nichts bedeutet. Sortiert wird nach `|A|` absteigend, und
-   * jedes Loch folgt UNMITTELBAR seinem Aussenring.
+   * jedes Loch folgt UNMITTELBAR seinem Außenring.
    *
    * TOTAL: eine leere Eingabe gibt eine leere Ringmenge, ein Zug mit weniger
    * als zwei Punkten trägt nichts bei. Geprüft wird nichts — was an der Eingabe
@@ -281,7 +281,7 @@ export const Polygon: Transformable<Polygon> & {
 
     // Gruppiert nach (delta, endType), weil beide an `inflatePathsD` je Aufruf
     // hängen. Der Schlüssel ist die Zahl selbst — zwei Wände gleicher Dicke
-    // gehen damit in EINEN Aufruf, und nur das schliesst nach ADR 0037 die
+    // gehen damit in EINEN Aufruf, und nur das schließt nach ADR 0037 die
     // Ecke zwischen ihnen.
     const groups = new Map<
       string,
@@ -351,7 +351,7 @@ export const Polygon: Transformable<Polygon> & {
   fromLines: (lines) => {
     if (lines.length < 3)
       throw new InvalidPolygonError(
-        'weniger als 3 Linien fuer ein Polygon noetig',
+        'weniger als 3 Linien für ein Polygon nötig',
       );
 
     const points: Point[] = [atOrThrow(lines, 0).p1];

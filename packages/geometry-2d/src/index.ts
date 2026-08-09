@@ -1,6 +1,10 @@
 export { Arc } from './arc';
 export { Bulge } from './bulge';
-export { DEFAULT_ARC_TOLERANCE, OFFSET_PRECISION } from './constants';
+export {
+  DEFAULT_ARC_TOLERANCE,
+  MAX_ARC_SEGMENTS,
+  OFFSET_PRECISION,
+} from './constants';
 export {
   CollinearPointsError,
   DegenerateAxisError,

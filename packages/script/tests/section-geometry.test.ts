@@ -15,11 +15,11 @@ import {
 import { SCHEMA_VERSION } from './helpers';
 
 /**
- * Der Pruefstein von P0: der RUNDLAUF durch `@baustatik/script`
+ * Der Prüfstein von P0: der RUNDLAUF durch `@baustatik/script`
  * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
  *
  * Ein Modell mit einem `section-geometry`-Querschnitt bauen, serialisieren,
- * `validate` bestehen, zurueckparsen, Typgleichheit pruefen. Erst damit ist
+ * `validate` bestehen, zurückparsen, Typgleichheit prüfen. Erst damit ist
  * belegt, dass der neue Satz WIRKLICH serialisierbar ist und nicht nur so
  * aussieht.
  */
@@ -64,18 +64,18 @@ function buildSnapshot() {
   return model.finish();
 }
 
-describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
-  it('ueberlebt Bauen, Serialisieren und Zurueckparsen unveraendert', () => {
+describe('Der Snapshot trägt die freie Querschnittsgeometrie mit', () => {
+  it('überlebt Bauen, Serialisieren und Zurückparsen unverändert', () => {
     const built = buildSnapshot();
     // ECHT DURCH JSON, nicht nur durch `structuredClone`: der Satz muss auch
-    // das ueberstehen, was beim Speichern wirklich passiert.
+    // das überstehen, was beim Speichern wirklich passiert.
     const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(built)));
 
     expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
     expect(parsed.crossSections).toHaveLength(1);
     const [section] = parsed.crossSections;
     expect(section?.kind).toBe('section-geometry');
-    // TYPGLEICHHEIT, Feld fuer Feld: `bulge` bleibt erhalten, der mitgefuehrte
+    // TYPGLEICHHEIT, Feld für Feld: `bulge` bleibt erhalten, der mitgeführte
     // Umriss ebenso — er wird NICHT nachgerechnet.
     expect(section).toEqual(built.crossSections[0]);
   });
@@ -115,11 +115,11 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
     expect(parsed.crossSections[0]).toEqual(model.finish().crossSections[0]);
   });
 
-  it('LEHNT einen v5-Satz AB, auch wenn er sonst gueltig waere', () => {
+  it('LEHNT einen v5-Satz AB, auch wenn er sonst gültig wäre', () => {
     // DIE HAUSREGEL, BELEGT STATT BEHAUPTET. v5 unterscheidet sich am Satz
-    // NICHT von v6 — die dritte Variante ist rein additiv, ein v5 liesse sich
+    // NICHT von v6 — die dritte Variante ist rein additiv, ein v5 ließe sich
     // schlicht durchwinken. Genau deshalb steht der Test hier: die stille
-    // Aufloesung waere hier billiger zu uebersehen als bei v3 oder v4.
+    // Auflösung wäre hier billiger zu übersehen als bei v3 oder v4.
     const v5 = { ...buildSnapshot(), schemaVersion: 5 };
     expect(() => parseFEMModelSnapshot(v5)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v5)).toThrow(
@@ -127,8 +127,8 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
     );
   });
 
-  it('weist ein `bulge` am ERGEBNISPUNKT zurueck', () => {
-    // Eingabe und Ergebnis sind am Typ unterscheidbar: `Vertex` traegt
+  it('weist ein `bulge` am ERGEBNISPUNKT zurück', () => {
+    // Eingabe und Ergebnis sind am Typ unterscheidbar: `Vertex` trägt
     // `bulge`, `Polygon` nicht. Der Parser setzt das durch, sonst reiste die
     // Unterscheidung nur im Typsystem und nicht im Satz.
     const broken = buildSnapshot();
@@ -150,18 +150,18 @@ describe('Der Snapshot traegt die freie Querschnittsgeometrie mit', () => {
  * v8: die Policy führt ein ZWEITES Feld, `principalAxisTolerance` (ADR 0035).
  *
  * Der Gewinn, der die Denormalisierung rechtfertigt: mit der Toleranz im
- * SELBEN Satz wie dem Umriss wird die Drift-Pruefung erstmals wohldefiniert.
+ * SELBEN Satz wie dem Umriss wird die Drift-Prüfung erstmals wohldefiniert.
  */
-describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () => {
+describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () => {
   it('legt sie neben crossSections und materials, nicht in den Querschnitt', () => {
     const parsed = parseFEMModelSnapshot(
       JSON.parse(JSON.stringify(buildSnapshot())),
     );
 
     expect(parsed.sectionPolicy).toEqual(DEFAULT_SECTION_POLICY);
-    // NICHT je Querschnitt: zwei der drei kuenftigen Felder BEURTEILEN, sie
-    // erzeugen nicht — derselbe Bericht duerfte sonst fuer zwei Querschnitte
-    // unter zwei Massstaeben schweigen.
+    // NICHT je Querschnitt: zwei der drei künftigen Felder BEURTEILEN, sie
+    // erzeugen nicht — derselbe Bericht dürfte sonst für zwei Querschnitte
+    // unter zwei Maßstäben schweigen.
     expect(parsed.crossSections[0]).not.toHaveProperty('sectionPolicy');
   });
 
@@ -187,8 +187,8 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
 
   it('LEHNT einen v6-Satz AB, statt die Voreinstellung einzusetzen', () => {
     // DIE VERFUEHRERISCHSTE ERGAENZUNG VON ALLEN: `DEFAULT_SECTION_POLICY`
-    // liegt bereit. Genau sie waere die schlimmste — sie BEHAUPTETE, der
-    // mitgefuehrte Umriss sei unter 0,05 mm entstanden, und die Drift-Pruefung,
+    // liegt bereit. Genau sie wäre die schlimmste — sie BEHAUPTETE, der
+    // mitgeführte Umriss sei unter 0,05 mm entstanden, und die Drift-Prüfung,
     // um derentwillen das Feld existiert, urteilte gegen eine erfundene Zahl.
     const v6: Record<string, unknown> = {
       ...buildSnapshot(),
@@ -241,9 +241,9 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
     );
   });
 
-  it('laesst ihren Eigentuemer pruefen, samt dessen Fehlerklasse', () => {
-    // Eine zweite Formpruefung hier waeren zwei Wahrheiten ueber dieselbe Form
-    // — dieselbe Arbeitsteilung, mit der `fem-solver` seine Lastscheibe prueft.
+  it('lässt ihren Eigentümer prüfen, samt dessen Fehlerklasse', () => {
+    // Eine zweite Formprüfung hier wären zwei Wahrheiten über dieselbe Form
+    // — dieselbe Arbeitsteilung, mit der `fem-solver` seine Lastscheibe prüft.
     expect(() =>
       parseFEMModelSnapshot({
         ...buildSnapshot(),
@@ -272,8 +272,8 @@ describe('Der Snapshot traegt die Erzeugungs-Policy auf Projektebene mit', () =>
  * Der Rundlauf des WANDGRAPHEN — P3 (ADR 0037).
  *
  * Bis P2 musste der Autor den Umriss danebentippen. `'section-input'` gibt ihm
- * die Wahl, nur die Figur zu nennen; der Umriss faellt aus der Policy, die der
- * Bauer ohnehin fuehrt.
+ * die Wahl, nur die Figur zu nennen; der Umriss fällt aus der Policy, die der
+ * Bauer ohnehin führt.
  */
 describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
   /** Ein I-Profil als Wandgraph: `A = 2·b·tf + tw·(h − 2·tf)`. */
@@ -318,7 +318,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
     return model.finish();
   }
 
-  it('baut, serialisiert, besteht validate und parst zurueck', () => {
+  it('baut, serialisiert, besteht validate und parst zurück', () => {
     const built = buildFromInput();
     const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(built)));
 
@@ -340,7 +340,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
     const A = (2 * B * TF + TW * (H - 2 * TF)) * 1e-6;
     expect(values.A).toBeCloseTo(A, 9);
 
-    // Iy des I aus drei Rechtecken, mit Steiner fuer die Gurte.
+    // Iy des I aus drei Rechtecken, mit Steiner für die Gurte.
     const Iy =
       ((TW * (H - 2 * TF) ** 3) / 12 +
         2 * ((B * TF ** 3) / 12 + B * TF * ((H - TF) / 2) ** 2)) *
@@ -360,7 +360,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
     expect(warnings).toEqual([]);
   });
 
-  it('LEHNT einen v8-Satz AB — die Policy fuehrt jetzt drei Felder', () => {
+  it('LEHNT einen v8-Satz AB — die Policy führt jetzt drei Felder', () => {
     const v8: Record<string, unknown> = {
       ...buildSnapshot(),
       schemaVersion: 8,
