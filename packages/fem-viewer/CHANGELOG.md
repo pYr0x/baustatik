@@ -1,5 +1,16 @@
 # @baustatik/fem-viewer
 
+## 0.0.2
+
+### Patch Changes
+
+- @baustatik/fem-geometry@0.0.2
+- @baustatik/render-core@0.0.1
+- @baustatik/fem-load-resolve@0.0.2
+- @baustatik/fem-loads@0.0.2
+- @baustatik/fem-solver@0.0.2
+- @baustatik/grid-2d@0.0.1
+
 ## 0.0.1
 
 ### Patch Changes

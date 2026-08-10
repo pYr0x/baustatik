@@ -1,5 +1,208 @@
 # @baustatik/cross-section
 
+## 0.0.2
+
+### Patch Changes
+
+- fd949a4: Eine **endliche, aber riesige Wölbung** bringt die Umriss-Ableitung nicht mehr
+  zum Absturz, und die Zerlegung eines Bogens bleibt in jedem Fall endlich.
+
+  **Nach [ADR 0036](../docs/adr/0036-release-policy-before-the-first-consumer.md)
+  ist das ein `patch`; die Brüche stehen hier im Text.**
+
+  ## Der Defekt
+
+  `Wall.bulge = 1e14` ist endlich, beschreibt aber einen fast vollen Kreis mit
+  `2,5·10^15 mm` Radius durch zwei Punkte, die `100 mm` auseinanderliegen.
+  `deriveOutline` filterte nur `Number.isFinite` weg und reichte den Rest an
+  `Bulge.toPolyline` weiter. Dahinter rechnete `Arc.toPolyline` seine Segmentzahl
+  aus `acos(1 − tol/R)` — bei `tol/R < 2^-53` wird das Argument zu `1`, `acos(1)`
+  zu `0` und die Segmentzahl zu `Infinity`. Die Schleife lief in den Heap, bis der
+  Prozess starb. Bei `bulge = 1e308` lief zusätzlich der Radius über: `Arc.make`
+  liess `NaN` durch, weil jeder Vergleich mit `NaN` falsch ist, und der `NaN`
+  stand danach in jedem Punkt des Umrisses.
+
+  Getroffen war auch das **Gate**: es leitet den Umriss für die Drift-Prüfung neu
+  ab, `validateSectionGeometry` starb also am selben Wert, statt ihn zu melden.
+
+  ## Additiv
+
+  - **`Bulge.isDiscretisable(chordLength, bulge, tolerance)`** in
+    `@baustatik/geometry-2d` und `@baustatik/section-geometry` — total, und die
+    Frage vor dem Wurf: sie verneint die nicht endliche Wölbung UND die, deren
+    Bogen sich unter der Toleranz nicht mehr in `MAX_ARC_SEGMENTS` Punkte zerlegen
+    lässt.
+  - **`MAX_ARC_SEGMENTS = 100 000`** in `@baustatik/geometry-2d` — ein
+    Speicherschutz, keine Feinheitsgrenze.
+  - **`UndiscretisableBulgeError`** in `@baustatik/cross-section` — der
+    Gate-Befund zur zweiten Sorte, neben `NonFiniteBulgeError`.
+  - **`BulgeSite`** in `@baustatik/cross-section` — der Ort einer Wölbung, Wand
+    oder Ring-Punkt. Das Gate prüft `Vertex.bulge` damit erstmals überhaupt:
+    G6b sah bisher nur `geometry.walls`, obwohl der `outline`-Zweig dieselbe Zahl
+    mit derselben Bedeutung trägt.
+
+  ## Brüche
+
+  - **`Arc.toPolyline` wirft `InvalidArcError`**, wenn die verlangte Segmentzahl
+    `MAX_ARC_SEGMENTS` überschreitet — auch bei einer von Hand gesetzten
+    `segments`-Option. Vorher belegte derselbe Aufruf Speicher, bis der Prozess
+    starb.
+  - **`Arc.make` wirft bei nicht endlichem `radius` oder `sweep`.** Vorher kam ein
+    `NaN` durch beide Schranken.
+  - **`Arc.toPolyline` rechnet die Segmentzahl stabil** über
+    `2·asin(√(tol/2R))` statt `acos(1 − tol/R)`. Algebraisch dieselbe Zahl; für
+    jeden Radius, an dem beide auflösen, kommt dieselbe Punktzahl heraus.
+  - **`deriveOutline` liest eine unbrauchbare Wölbung als Gerade** — in BEIDEN
+    Zweigen. Der Ringzweig warf dabei bisher sogar bei `bulge: NaN`, und weil das
+    Gate für die Drift-Prüfung neu ableitet, starb `validateSectionGeometry` an
+    dem Wert, statt ihn zu melden.
+  - **`NonFiniteBulgeError` und `UndiscretisableBulgeError` tragen `at: BulgeSite`
+    statt `wallId: string`.** Wer die betroffene Wand markiert, fragt jetzt
+    `error.at.kind === 'wall'` — und bekommt dafür den Ring-Punkt mit, den es
+    vorher gar nicht als Befund gab.
+
+  ## Nebenbei
+
+  - `@baustatik/cross-section` hängt jetzt an `@baustatik/core`, ausschliesslich
+    für `atOrThrow`: die Zerlegung des Wandgraphen indizierte über Invarianten und
+    machte aus deren Bruch ein stilles `continue`.
+  - `pairKey` trennt die beiden Wand-Ids mit einem als Escape geschriebenen
+    NUL statt mit dem rohen Byte im Quelltext, das `grep` die Datei für binär
+    halten liess. Dieselbe Zeichenkette, nur sichtbar.
+
+- a7a1863: Ein durchverbundener Stoss wird jetzt **gemitert, auch ueber einen
+  Dickensprung** — [ADR 0038](../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md).
+
+  **Nach ADR 0036 ist das ein `patch`; der Bruch steht hier im Text.**
+
+  ## Der Bruch: Umrisse und Werte aendern sich
+
+  Faellt ein Dickensprung mit einer ECKE zusammen, schnitt ADR 0037 den
+  Offsetpfad dort auf, beide Stuecke endeten stumpf, und der Keil zwischen ihren
+  Aussenkanten fehlte. Betroffen ist jeder gezeichnete Querschnitt mit
+  `kind: 'midline'`, an dem zwei verschieden dicke Waende in einem Winkel
+  durchverbunden sind — der geschweisste Kasten mit `tf ≠ tw` an allen vier Ecken.
+
+  ```text
+  Winkel Gurt 8 / Steg 6, 90°   A = 1548 mm²  ->  1560 mm²
+  Kasten 400 x 200, tf 20/tw 10  A = 15000 mm² ->  15200 mm²
+  ```
+
+  Die neuen Zahlen sind die richtigen: die Aussenkontur am Stoss ist durch die
+  beiden aeusseren Offsetgeraden begrenzt, und ihr Schnittpunkt ist der einzige
+  Punkt, der beide Baender ausfuellt, ohne ueber eines hinauszureichen. **Wer
+  gespeicherte Umrisse mitfuehrt, bekommt beim naechsten Gate-Lauf eine
+  `OutlineDriftWarning`** — die Figur ist neu abzuleiten.
+
+  Der KOLLINEARE Dickensprung bleibt unveraendert: dort ist die Stufe echt.
+
+  ## Additiv
+
+  - **`@baustatik/geometry-2d` / `@baustatik/section-geometry`: `delta: 0`** in
+    `Polygon.inflate` ist die Identitaet — ein geschlossener Zug geht unveraendert
+    in die Vereinigung, in den Umlaufsinn der Offsets gedreht. Ein offener Zug mit
+    `delta: 0` traegt keine Flaeche und faellt heraus.
+  - **`@baustatik/cross-section`: `ChainedJoint.overshoot`.** Der Ueberstand des
+    ungekappten Spitzes wird an der GEBAUTEN Ecke gemessen statt aus `α`
+    gerechnet, und das Gate liest ihn, statt eine zweite Formel zu fuehren.
+
+  ## Geaendertes Verhalten
+
+  - `MiterLimitExceededWarning` meldet sich jetzt auch am fast gestreckten Stoss
+    MIT Dickensprung: dort laeuft der Miterpunkt laengs der Wand davon, waehrend
+    `α` nahe `π` bleibt. Bei gleicher Wandstaerke ist `overshoot` unveraendert
+    `1/sin(α/2)`. Der Bezug im Meldungstext ist die halbe **dickere** Wandstaerke.
+  - Gekappt wird quer zur Richtung des Spitzes, an derselben Schranke wie bisher
+    (`miterLimit · max(t)/2`). Der Schnitt ist eine Fase, wo Clipper2 intern ein
+    Quadrat setzt — der Unterschied ist ein Splitter und tritt nur dort auf, wo
+    das Gate ohnehin meldet.
+  - Der Umriss traegt an der Naht eines Fuellrings kollineare Zwischenpunkte. Sie
+    tragen zu `A`, `Iy` und `Iz` nichts bei.
+
+- 90c195f: Der Umriss des gezeichneten Querschnitts entsteht jetzt aus dem **Wandgraphen**
+  — P3, [ADR 0037](../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md).
+  `kind: 'midline'` ist damit vollständig benutzbar: zeichnen, ableiten, rechnen,
+  prüfen.
+
+  **Nach ADR 0036 ist das ein `patch`; die Brüche stehen hier im Text.**
+
+  ## Additiv
+
+  - **`@baustatik/geometry-2d`: `Polygon.inflate(paths, options)`** — weitet
+    offene oder geschlossene **Züge** um ein `delta` je Zug auf und vereinigt sie
+    zu einer **Ringmenge mit Löchern** (aussen `signedArea > 0`, Loch `< 0`,
+    sortiert nach `|A|`, jedes Loch unmittelbar hinter seinem Aussenring). Neue
+    Typen `InflatePath`, `InflateOptions`, `InflateEndType`, neue Konstante
+    `OFFSET_PRECISION`. Neue Abhängigkeit **`clipper2-ts`, exakt gepinnt** — die
+    zweite Clipping-Bibliothek des Packages; martinez bleibt für
+    `union`/`intersect`/`subtract` unberührt. Das ist bewusst kein Endzustand
+    (`packages/TODO.md` §5).
+  - **`@baustatik/section-geometry`: `Polygon.inflate`** in `y`/`z`
+    durchgereicht, samt `InflatePathYZ` und den koordinatenfreien Optionstypen.
+  - **`@baustatik/cross-section`**: `deriveOutline(geometry, policy)` als die EINE
+    Tür über beide Varianten, `deriveOutlineFromWalls` dahinter,
+    `createSectionGeometry(input, policy)` als Fabrik, `branches(nodes, walls)`
+    und der Typ `Branch` (die Zerlegung, die P5 für den Wandweg braucht).
+  - **`@baustatik/script`**: `crossSection({ kind: 'section-input', input })` —
+    der Bauer leitet den Umriss unter seiner eigenen `SectionPolicy` ab, statt ihn
+    entgegenzunehmen.
+
+  ## Breaking
+
+  - **`@baustatik/cross-section`: `SectionPolicy` hat ein drittes Pflichtfeld**,
+    `miterLimit` (dimensionslos, Default `2`, muss `> 1` sein — Clipper2 ersetzt
+    jeden Wert bis `1` still durch `2`). Es verändert den GESPEICHERTEN Umriss und
+    ist damit nach ADR 0033 eine Erzeugungs- und keine Analyse-Einstellung.
+    `parseSectionPolicy` lehnt jeden Satz ohne das Feld ab.
+  - **`@baustatik/cross-section`: drei neue Befunde des Gates.**
+    `OutlineDriftWarning` (der mitgeführte Umriss weicht von seiner Neuableitung
+    ab, Schranke `arcTolerance · U` — für **beide** Varianten, der `outline`-Zweig
+    bekommt damit erstmals eine Prüfung), `MiterLimitExceededWarning` (ein
+    durchverbundener Stoss, dessen Umrissecke gekappt wird) und
+    `NonFiniteBulgeError` (die offene Lücke aus P1). Wer die Befundlisten
+    auszählt, zählt ab jetzt anders.
+  - **`@baustatik/script`: `schemaVersion` steht auf `9`.** Jede v8-Datei wird
+    abgelehnt, ohne Migrationswerkzeug und aus demselben Grund wie bei v5 bis v8:
+    eine eingesetzte Voreinstellung behauptete, der Umriss sei unter ihr
+    entstanden.
+
+  ## Sonst
+
+  - **`@baustatik/cross-section-viewer`** zeichnet den Umriss **orange**, die
+    Wandmittellinien bleiben schwarz. Dass der Umriss abgeleitet und die Wände die
+    Eingabe sind, ist eine Aussage des Viewers und keine Option am Aufruf.
+
+- d6d245f: Die mit P2 hinzugekommenen öffentlichen Werte verlassen ihr Package jetzt
+  **eingefroren und `readonly`**, wie es `CODING_STANDARDS.md` §4 verlangt.
+
+  - `Polygon.moments` gibt in `@baustatik/geometry-2d` und
+    `@baustatik/section-geometry` ein `Object.freeze`-tes Ergebnis zurück und
+    nimmt seine Punkte als `readonly`.
+  - `greenValues` und `deriveOutlineFromRings` in `@baustatik/cross-section`
+    ebenso; `deriveOutlineFromRings` liefert jetzt `readonly Polygon[]` mit
+    eingefrorenen Ringen.
+  - `atOrThrow` in `@baustatik/core` nimmt `readonly T[]` statt `T[]` — reine
+    Erweiterung, jeder bisherige Aufruf bleibt gültig.
+
+  **Bruch am Typ, nicht am Verhalten:** `Polygon.points` ist in
+  `@baustatik/section-geometry` und `@baustatik/cross-section` ein
+  `readonly`-Array. Wer die Punktliste eines Polygons bisher an Ort und Stelle
+  verändert hat, bekommt einen Compilerfehler; wer sie liest, merkt nichts. Die
+  Laufzeitwerte sind unverändert.
+
+  Dazu die Korrekturen aus dem Code-Review: die Kantenbildung in
+  `deriveOutlineFromRings` und die Lochprobe in `validateSectionGeometry` kommen
+  ohne direkten Index aus, `packages/section-geometry/README.md` behauptet nicht
+  länger eine Normalisierung durch `Polygon.make`, und die JSDoc von
+  `principalAxes` sagt jetzt, dass seit P2 **beide** Zweige in Gebrauch sind.
+
+- Updated dependencies [fd949a4]
+- Updated dependencies [a7a1863]
+- Updated dependencies [90c195f]
+- Updated dependencies [d6d245f]
+  - @baustatik/section-geometry@0.0.2
+  - @baustatik/core@0.0.1
+
 ## 0.0.1
 
 ### Patch Changes
