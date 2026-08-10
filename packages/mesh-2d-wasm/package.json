@@ -1,0 +1,48 @@
+{
+  "name": "@baustatik/mesh-2d-wasm",
+  "version": "0.0.0",
+  "private": false,
+  "description": "Triangle 1.6 WebAssembly facade for two-dimensional triangular meshes (non-commercial use only).",
+  "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
+  "files": [
+    "pkg",
+    "src",
+    "native",
+    "vendor/triangle/triangle.c",
+    "vendor/triangle/triangle.h",
+    "vendor/triangle/README",
+    "vendor/triangle/PROVENANCE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md",
+    "CONTEXT.md"
+  ],
+  "type": "module",
+  "main": "./pkg/index.js",
+  "types": "./pkg/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./pkg/index.d.ts",
+      "import": "./pkg/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "pnpm build && vitest run --project Unit",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --fix .",
+    "format": "oxfmt --write ."
+  },
+  "dependencies": {
+    "@baustatik/core": "workspace:*",
+    "@baustatik/errors": "workspace:*"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.58.0",
+    "oxlint": "^1.73.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

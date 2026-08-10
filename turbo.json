@@ -17,12 +17,43 @@
         "rust/Cargo.toml"
       ]
     },
+    "@baustatik/mesh-2d-wasm#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "native/**",
+        "vendor/triangle/triangle.c",
+        "vendor/triangle/triangle.h",
+        "scripts/build.mjs",
+        "toolchain.json",
+        "package.json",
+        "tsconfig.json"
+      ],
+      "outputs": ["pkg/**"]
+    },
+    "@baustatik/mesh-2d-wasm#test": {
+      "dependsOn": ["build"],
+      "inputs": [
+        "src/**",
+        "tests/**",
+        "native/**",
+        "vendor/triangle/triangle.c",
+        "vendor/triangle/triangle.h",
+        "scripts/build.mjs",
+        "toolchain.json",
+        "package.json",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
+      "outputs": ["coverage/**"]
+    },
     "test:watch": {
       "cache": false,
       "persistent": true
     },
     "lint": {},
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     }

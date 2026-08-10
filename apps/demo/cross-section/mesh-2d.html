@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2D-Mesher</title>
+  <script src="./mesh-2d.ts" type="module"></script>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #1c1f24; }
+    body { max-width: 780px; margin: 0 auto; padding: 1.5rem 1rem 3rem; line-height: 1.5; }
+    a { color: #28613d; }
+    h1 { font-size: 1.4rem; margin: 0 0 0.4rem; }
+    p { color: #5c636d; font-size: 0.9rem; }
+    button { border: 1px solid #74b88a; border-radius: 4px; padding: 0.55rem 1.2rem; background: #28613d; color: white; font: inherit; font-weight: 600; cursor: pointer; }
+    button:hover:not(:disabled) { background: #347c4f; }
+    pre { margin-top: 1.2rem; padding: 1rem; border: 1px solid #dfe2e7; border-radius: 5px; background: #f6f7f9; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.82rem; line-height: 1.6; }
+    .options { margin-top: 1rem; padding: 0.9rem 1.1rem; border: 1px solid #dfe2e7; border-radius: 5px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem 1.2rem; }
+    .options legend { color: #28613d; font-size: 0.85rem; font-weight: 600; padding: 0 0.3rem; }
+    .options label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; color: #3a4048; }
+    .options input[type="number"] { width: 6.5rem; border: 1px solid #dfe2e7; border-radius: 4px; padding: 0.3rem 0.45rem; font: inherit; color: inherit; }
+    .options input[type="range"] { flex: 1; min-width: 8rem; accent-color: #28613d; }
+    .options output { min-width: 3rem; text-align: right; font-variant-numeric: tabular-nums; }
+    .options input[type="checkbox"] { accent-color: #28613d; }
+    .mesh-figure { flex: none; width: 100%; margin: 1.2rem 0 0; }
+    .mesh-figure figcaption { margin-bottom: 0.3rem; color: #5c636d; font-size: 0.82rem; font-weight: 600; }
+    .mesh-figure svg { display: block; width: 100%; max-width: 480px; border: 1px solid #dfe2e7; border-radius: 5px; background: #fff; shape-rendering: geometricPrecision; }
+  </style>
+</head>
+
+<body>
+  <p><a href="../index.html">← Zur Übersicht</a></p>
+  <h1>2D-Mesher</h1>
+  <p>
+    Rechteckiger Querschnitt mit rechteckigem Loch, im persistenten Worker als
+    Tri6 vernetzt. Die Flächensumme muss 52.800 mm² ergeben.
+  </p>
+  <button id="generate" type="button">Netz erzeugen</button>
+  <fieldset class="options">
+    <legend>Einstellungen</legend>
+    <label for="max-area">maxElementArea (a) <input id="max-area" type="number" min="1" step="1" value="500" /></label>
+    <label for="quality">Qualitätswinkel q (°) <input id="quality" type="range" min="20.7" max="34" step="0.1" value="20.7" /><output id="quality-value">20.7</output></label>
+    <label for="steiner">Steiner-Punkte S <input id="steiner" type="number" min="0" step="1" placeholder="unbegrenzt" /></label>
+    <label for="ccdt"><input id="ccdt" type="checkbox" /> konforme zwischenbeschränkte Delaunay (D)</label>
+    <label for="jettison"><input id="jettison" type="checkbox" /> doppelte Punkte abwerfen (j)</label>
+    <label for="quiet"><input id="quiet" type="checkbox" checked /> Triangle-Ausgabe unterdrücken (Q)</label>
+  </fieldset>
+  <pre id="output" aria-live="polite">Noch keine Netze erzeugt.</pre>
+  <figure class="mesh-figure">
+    <figcaption>Tri6</figcaption>
+    <svg id="mesh-tri6" role="img" aria-label="Tri6-Netz" xmlns="http://www.w3.org/2000/svg"></svg>
+  </figure>
+</body>
+
+</html>

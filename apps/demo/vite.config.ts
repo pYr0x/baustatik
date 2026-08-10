@@ -14,6 +14,7 @@ export default defineConfig({
         crossSectionViewer: page('cross-section/cross-section-viewer.html'),
         parametricSections: page('cross-section/parametric-sections.html'),
         midlineSections: page('cross-section/midline-sections.html'),
+        mesh2d: page('cross-section/mesh-2d.html'),
         outlineSections: page('cross-section/outline-sections.html'),
         femCantilever: page('fem/fem-cantilever.html'),
         femScripting: page('fem/fem-scripting.html'),

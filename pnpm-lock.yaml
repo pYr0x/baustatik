@@ -17,6 +17,12 @@ importers:
       '@types/node':
         specifier: ^25.2.3
         version: 25.2.3
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
       turbo:
         specifier: ^2.8.7
         version: 2.8.7
@@ -62,6 +68,9 @@ importers:
       '@baustatik/material':
         specifier: workspace:*
         version: link:../../packages/material
+      '@baustatik/mesh-2d-wasm':
+        specifier: workspace:*
+        version: link:../../packages/mesh-2d-wasm
       '@baustatik/round':
         specifier: workspace:*
         version: link:../../packages/round
@@ -639,6 +648,28 @@ importers:
       vitest:
         specifier: ^4.1.5
         version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+
+  packages/mesh-2d-wasm:
+    dependencies:
+      '@baustatik/core':
+        specifier: workspace:*
+        version: link:../core
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+    devDependencies:
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
 
   packages/render-core:
     dependencies:

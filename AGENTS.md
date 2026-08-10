@@ -37,6 +37,7 @@ table. Confirm a package's `package.json` before adding a dependency.
 | `@baustatik/fem-load-resolve` | Resolves abstract loads onto beams: frame rotation, reference length, positions, merge per beam. | `fem-element`, `fem-geometry`, `fem-loads` |
 | `@baustatik/fem-solver` | Entry point of the calculation (`createFEMSolver`): `check`, `solve`, `solveAll`, and the composition root for the versioned `AnalysisPolicy`. `check` also warns when shear deformation is asked for but the cross-section is shear-rigid (`ShearDeformationUnavailableWarning`). | `errors`, `fem`, `fem-element`, `fem-geometry`, `fem-load-resolve`, `fem-loads` |
 | `@baustatik/linear-solver-wasm` | Rust/faer WASM binding for `K d = F` via Cholesky, including kinematics detection. | — |
+| `@baustatik/mesh-2d-wasm` | Generic Triangle 1.6 WASM mesher for `Tri3`/`Tri6`; no cross-section, unit, FEM, Worker, or rendering dependency. Commercial Triangle use requires a direct arrangement with its author. | `core`, `errors` |
 | `@baustatik/fem-viewer` | Viewer-facing FEM frame composition and visualization, including loads and support reactions. `N`/`V`/`M` diagrams are still missing. | `errors`, `fem`, `fem-geometry`, `fem-load-resolve`, `fem-loads`, `fem-solver`, `grid-2d`, `render-core`, `round`, `viewport-2d` |
 
 The dependency direction is broadly: foundational utilities and errors →
@@ -58,12 +59,12 @@ pnpm --filter @baustatik/cross-section test
 
 What the scripts do not tell you:
 
-- **`typecheck` runs in no Turbo task and in no CI step.** 22 packages define
+- **`typecheck` runs in no Turbo task and in no CI step.** 24 packages define
   `tsc --noEmit`; nothing invokes it. Run
   `pnpm --filter @baustatik/<pkg> typecheck` yourself before handing off.
 - Every `lint` script writes (`--fix` / `--write`), so CI's lint step cannot
   fail on formatting drift — it silently reformats.
-- Seven packages lint with Biome, sixteen with Oxlint/Oxfmt. This is an
+- Seven packages lint with Biome, seventeen with Oxlint/Oxfmt. This is an
   unfinished migration, not a layered setup: follow the package-local scripts.
   Root `pnpm check` runs Biome over `packages/**` regardless.
 - CI runs `build → lint → test` on Node 24; `engines` says `>=18`. The pinned
@@ -72,6 +73,9 @@ What the scripts do not tell you:
   `cargo` is missing locally, so the repo builds on machines without Rust as
   long as a prebuilt `pkg/` was copied in. Never skipped in CI or with
   `FORCE_WASM_BUILD=1`. See that package's `CONTEXT.md`.
+- `@baustatik/mesh-2d-wasm` builds its generated `pkg/` with Emscripten 6.0.6:
+  Docker locally, native `emcc` in CI and releases. Its `toolchain.json` and
+  `scripts/build.mjs` are the single source of that toolchain contract.
 - The demo app is `apps/demo`, started by the root `pnpm dev`.
 - Releases go through Changesets (`pnpm changeset`). Never hand-edit versions.
   Until the first real release (ADR 0036) every package stays in the `0.0.x`

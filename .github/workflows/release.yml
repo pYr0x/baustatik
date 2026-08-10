@@ -38,8 +38,40 @@ jobs:
           node --version
           pnpm --version
 
+      - name: Setup Rust
+        run: |
+          rustup toolchain install stable
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Read Emscripten pin
+        id: emscripten
+        run: echo "version=$(node -p \"require('./packages/mesh-2d-wasm/toolchain.json').emscriptenVersion\")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Emscripten SDK and system libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.emsdk
+            ~/.cache/emscripten
+          key: ${{ runner.os }}-emscripten-${{ hashFiles('packages/mesh-2d-wasm/toolchain.json') }}
+
+      - name: Setup Emscripten
+        uses: emscripten-core/setup-emsdk@667eb33f24e84e7f362c16d8d7fff0629a73e15e
+        with:
+          version: ${{ steps.emscripten.outputs.version }}
+
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build publishable artifacts
+        run: pnpm build
+
+      - name: Verify mesh package contents
+        run: pnpm --filter @baustatik/mesh-2d-wasm exec npm pack --dry-run
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets

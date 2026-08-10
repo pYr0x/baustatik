@@ -25,6 +25,7 @@
     "@baustatik/konva-adapter": "workspace:*",
     "@baustatik/linear-solver-wasm": "workspace:*",
     "@baustatik/material": "workspace:*",
+    "@baustatik/mesh-2d-wasm": "workspace:*",
     "@baustatik/script": "workspace:*",
     "@baustatik/section-geometry": "workspace:*",
     "@baustatik/steel-profiles": "workspace:*",

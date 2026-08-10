@@ -37,6 +37,23 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
+      - name: Read Emscripten pin
+        id: emscripten
+        run: echo "version=$(node -p \"require('./packages/mesh-2d-wasm/toolchain.json').emscriptenVersion\")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Emscripten SDK and system libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.emsdk
+            ~/.cache/emscripten
+          key: ${{ runner.os }}-emscripten-${{ hashFiles('packages/mesh-2d-wasm/toolchain.json') }}
+
+      - name: Setup Emscripten
+        uses: emscripten-core/setup-emsdk@667eb33f24e84e7f362c16d8d7fff0629a73e15e
+        with:
+          version: ${{ steps.emscripten.outputs.version }}
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
