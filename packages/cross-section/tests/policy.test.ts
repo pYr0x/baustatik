@@ -34,6 +34,22 @@ describe('Die Voreinstellung liest ihre Zahl, statt sie neu zu setzen', () => {
     expect(DEFAULT_SECTION_POLICY.miterLimit).toBe(2);
   });
 
+  it('thickWallRatio ist 1/3 — grosszügig, und das mit Absicht', () => {
+    // Die Literatur nennt 1/10 bis 1/5 als „dünnwandig"; die Warnung soll den
+    // Fall treffen, in dem die Theorie nicht daneben, sondern falsch liegt
+    // (ADR 0040).
+    expect(DEFAULT_SECTION_POLICY.thickWallRatio).toBe(1 / 3);
+  });
+
+  it('shearCentreTolerance ist 1e-6 und damit weiter als die der Hauptachsen', () => {
+    // `yM` fällt aus ZWEI numerischen Integrationen über zwei Figuren, `Iyz`
+    // aus einer.
+    expect(DEFAULT_SECTION_POLICY.shearCentreTolerance).toBe(1e-6);
+    expect(DEFAULT_SECTION_POLICY.shearCentreTolerance).toBeGreaterThan(
+      DEFAULT_SECTION_POLICY.principalAxisTolerance,
+    );
+  });
+
   it('sie ist eingefroren', () => {
     expect(Object.isFrozen(DEFAULT_SECTION_POLICY)).toBe(true);
   });
@@ -92,16 +108,15 @@ describe('createSectionPolicy nimmt Abweichungen und prüft nur Werte', () => {
 
 describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
   it('nimmt einen vollständigen Satz an und friert ihn ein', () => {
-    const policy = parseSectionPolicy({
+    const full = {
       arcTolerance: 0.1,
       principalAxisTolerance: 1e-8,
       miterLimit: 3,
-    });
-    expect(policy).toEqual({
-      arcTolerance: 0.1,
-      principalAxisTolerance: 1e-8,
-      miterLimit: 3,
-    });
+      thickWallRatio: 0.25,
+      shearCentreTolerance: 1e-7,
+    };
+    const policy = parseSectionPolicy(full);
+    expect(policy).toEqual(full);
     expect(Object.isFrozen(policy)).toBe(true);
   });
 
@@ -120,14 +135,31 @@ describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
     ).toThrow(InvalidSectionPolicyError);
   });
 
-  it('lehnt ein unbekanntes Feld ab, statt es zu ignorieren', () => {
-    // Ein stillschweigend geschluckter Tippfehler wäre eine Einstellung, die
-    // nicht wirkt.
+  // Und derselbe Satz ist kein gültiger Satz aus P5.
+  it('lehnt einen Satz ohne die beiden Beurteilungsfelder ab', () => {
     expect(() =>
       parseSectionPolicy({
         arcTolerance: 0.1,
         principalAxisTolerance: 1e-9,
         miterLimit: 2,
+      }),
+    ).toThrow(InvalidSectionPolicyError);
+    expect(() =>
+      parseSectionPolicy({
+        arcTolerance: 0.1,
+        principalAxisTolerance: 1e-9,
+        miterLimit: 2,
+        thickWallRatio: 1 / 3,
+      }),
+    ).toThrow(InvalidSectionPolicyError);
+  });
+
+  it('lehnt ein unbekanntes Feld ab, statt es zu ignorieren', () => {
+    // Ein stillschweigend geschluckter Tippfehler wäre eine Einstellung, die
+    // nicht wirkt.
+    expect(() =>
+      parseSectionPolicy({
+        ...DEFAULT_SECTION_POLICY,
         arcTolerence: 0.2,
       }),
     ).toThrow(InvalidSectionPolicyError);
@@ -144,11 +176,7 @@ describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
   });
 
   it('prüft die Werte mit derselben Regel wie die Fabrik', () => {
-    const full = {
-      arcTolerance: 0.05,
-      principalAxisTolerance: 1e-9,
-      miterLimit: 2,
-    };
+    const full = { ...DEFAULT_SECTION_POLICY };
     expect(() => parseSectionPolicy({ ...full, arcTolerance: 0 })).toThrow(
       InvalidSectionPolicyError,
     );
@@ -161,5 +189,17 @@ describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
     expect(() => parseSectionPolicy({ ...full, miterLimit: 1 })).toThrow(
       InvalidSectionPolicyError,
     );
+    // `thickWallRatio: 0` liesse `t/L > 0` bei jeder Wand wahr werden.
+    expect(() => parseSectionPolicy({ ...full, thickWallRatio: 0 })).toThrow(
+      InvalidSectionPolicyError,
+    );
+    expect(() =>
+      parseSectionPolicy({ ...full, shearCentreTolerance: -1 }),
+    ).toThrow(InvalidSectionPolicyError);
+    // `0` ist zulässig: das ist der exakte Vergleich, die Schärfe bis P5.
+    expect(
+      parseSectionPolicy({ ...full, shearCentreTolerance: 0 })
+        .shearCentreTolerance,
+    ).toBe(0);
   });
 });

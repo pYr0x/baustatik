@@ -461,6 +461,48 @@ describe('Die Warnseite der Zahlen: Sätze 1, 2 und 4', () => {
       expect(validateSectionProperties(ipe, exact).warnings).toEqual([]);
     });
   });
+
+  /**
+   * Satz 2 vergleicht seit P5 ebenfalls RELATIV — dieselbe Bewegung, und aus
+   * demselben Grund: `yM` fällt beim gezeichneten Querschnitt aus zwei
+   * numerischen Integrationen über zwei verschiedene Figuren (ADR 0041).
+   */
+  describe('Satz 2: die Schranke am Trägheitsradius', () => {
+    const ipe = properties('IPE 300');
+    const radius = Math.sqrt(Math.max(ipe.Iy, ipe.Iz) / ipe.A);
+
+    it('schweigt bei Gleitkommarauschen aus dem Wandweg', () => {
+      const noise: SectionProperties = {
+        ...ipe,
+        ys: 0,
+        yM: 1e-9 * radius,
+      };
+      expect(validateSectionProperties(noise, POLICY).warnings).toEqual([]);
+    });
+
+    it('feuert beim echten Versatz und nennt die Schranke als Feld', () => {
+      const offset: SectionProperties = { ...ipe, ys: 0, yM: 1e-3 * radius };
+      const { warnings } = validateSectionProperties(offset, POLICY);
+      expect(warnings).toHaveLength(1);
+      expect(
+        (warnings[0] as ShearCentreOffsetWarning).limit,
+      ).toBeCloseTo(DEFAULT_SECTION_POLICY.shearCentreTolerance * radius, 20);
+    });
+
+    it('mit Toleranz 0 ist es wieder der exakte Vergleich', () => {
+      const exact = createSectionPolicy({ shearCentreTolerance: 0 });
+      const noise: SectionProperties = { ...ipe, ys: 0, yM: Number.MIN_VALUE };
+      expect(validateSectionProperties(noise, exact).warnings).toHaveLength(1);
+    });
+
+    it('`zM` bekommt keinen eigenen Satz — im ebenen Rahmen gibt es nur Vz', () => {
+      // Ein z-Versatz erzeugt in der ebenen Rechnung keine Torsion; ein Satz
+      // darüber feuerte bei jedem Plattenbalken und meinte dabei ein
+      // räumliches Modell, das es nicht gibt.
+      const offset: SectionProperties = { ...ipe, zs: 0, zM: 10 * radius };
+      expect(validateSectionProperties(offset, POLICY).warnings).toEqual([]);
+    });
+  });
 });
 
 /**

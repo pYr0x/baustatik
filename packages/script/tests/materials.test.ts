@@ -41,7 +41,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
     // biome-ignore lint/performance/noDelete: der Test baut genau einen v2-Satz.
     delete (v2 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v2, schemaVersion: 2 })).toThrow(
-      'Snapshot.schemaVersion muss 9 sein.',
+      'Snapshot.schemaVersion muss 10 sein.',
     );
   });
 
@@ -55,7 +55,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
           materials: [{ kind: 'steel', id: 'm-1', grade: 'S235' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 9 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 10 sein.');
   });
 
   it('verlangt materials auch dann, wenn es leer bleibt', () => {
@@ -247,11 +247,10 @@ describe('Der Builder befragt den Sortenkatalog — und nur er', () => {
     model.material({ kind: 'steel', grade: 'S235' });
     const snapshot = model.finish();
 
-    expect(snapshot.sectionPolicy).toEqual({
-      arcTolerance: 0.01,
-      principalAxisTolerance: 1e-9,
-      miterLimit: 2,
-    });
+    expect(snapshot.sectionPolicy).toEqual(
+      createSectionPolicy({ arcTolerance: 0.01 }),
+    );
+    expect(snapshot.sectionPolicy.arcTolerance).toBe(0.01);
     expect(snapshot.materials[0].moduli).toEqual(
       lookupMaterial('steel', 'S235')?.moduli,
     );

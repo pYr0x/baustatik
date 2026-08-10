@@ -62,6 +62,13 @@ export function report(title: string, cs: CrossSection): void {
   // z = 0 an der Oberkante, beim Walzprofil bereits schwerpunktsbezogen (0/0).
   console.log(line('ys', p.ys, 'm', M_TO_MM, 'mm'));
   console.log(line('zs', p.zs, 'm', M_TO_MM, 'mm'));
+  // `It` steht nur beim duennwandigen Modell und beim Walzprofil; kompakt ist
+  // es ein Randwertproblem und bleibt „nicht ermittelt" (ADR 0040).
+  console.log(
+    p.It === undefined
+      ? '  It     = nicht ermittelt'
+      : line('It', p.It, 'm4', M4_TO_CM4, 'cm4'),
+  );
   console.log(
     `  kappaY = ${kappa(p.kappaY)}   kappaZ = ${kappa(p.kappaZ)}   [-]`,
   );

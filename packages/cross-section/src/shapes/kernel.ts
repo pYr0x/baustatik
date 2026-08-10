@@ -39,6 +39,22 @@ export type ShapeResult = {
    */
   readonly yM?: cm;
   readonly zM?: cm;
+  /**
+   * Torsionstraegheitsmoment [cm4] — der GESCHLOSSENE Ausdruck der Form.
+   *
+   * ER STEHT HIER ALS ORAKEL und nicht als Bequemlichkeit: dieselbe Zahl faellt
+   * mit P5 auch aus dem gezeichneten Wandgraphen, und ein Test haelt beide
+   * gegeneinander. Eine Form, die ihre eigene Formel hinschreibt, ist der
+   * unabhaengige Zeuge fuer den gerechneten Weg — genau die Rolle, die
+   * `tests/oracle.ts` fuer kappa spielt.
+   *
+   * `undefined` bei JEDER kompakten Idealisierung: fuer den Vollquerschnitt ist
+   * `It` weder `⅓Σl·t³` noch Bredt, sondern die Loesung eines
+   * Randwertproblems. Zwischen den beiden zulaessigen Formeln liegen drei
+   * Zehnerpotenzen, und eine davon zu raten waere schlimmer als die Auskunft
+   * „nicht ermittelt".
+   */
+  readonly It?: cm4;
   /** Schubflussweg fuer eine Querkraft in y-Richtung (gehoert zu `Iz`). */
   readonly pathY: readonly ShearFlowInterval[];
   /** Schubflussweg fuer eine Querkraft in z-Richtung (gehoert zu `Iy`). */
@@ -67,6 +83,7 @@ export function toProperties(shape: ShapeResult): SectionProperties {
     zs: shape.zs,
     yM: shape.yM,
     zM: shape.zM,
+    It: shape.It,
     kappaY: shearArea(shape.Iz, shape.pathY) / shape.A,
     kappaZ: shearArea(shape.Iy, shape.pathZ) / shape.A,
   });

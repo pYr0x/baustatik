@@ -51,7 +51,25 @@ export function hollowRectangle(
         };
 
   // Doppeltsymmetrisch: Schubmittelpunkt = Schwerpunkt.
-  return { A, Iy, Iz, Iyz: 0, ys: 0, zs: h / 2, yM: 0, zM: h / 2, ...paths };
+  return {
+    A,
+    Iy,
+    Iz,
+    Iyz: 0,
+    ys: 0,
+    zs: h / 2,
+    yM: 0,
+    zM: h / 2,
+    // BREDT, ausgeschrieben: `4·A_m²/∮(ds/t)` mit `A_m = (b−t)(h−t)` und
+    // `∮ds/t = 2((b−t)+(h−t))/t`. Gegenueber `⅓Σl·t³` sind das drei
+    // Zehnerpotenzen — der geschlossene Kasten ist genau der Fall, an dem
+    // `idealisation` bei `It` am meisten haengt.
+    It:
+      idealisation === 'thin-walled'
+        ? (2 * t * (b - t) ** 2 * (h - t) ** 2) / (b - t + (h - t))
+        : undefined,
+    ...paths,
+  };
 }
 
 /**

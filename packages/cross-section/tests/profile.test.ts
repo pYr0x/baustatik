@@ -42,6 +42,16 @@ describe('Walzprofil -> SectionProperties', () => {
     expect(ipe80?.kappaZ).not.toBeCloseTo(3.57 / 7.64, 2);
   });
 
+  it('reicht `It` aus der Tabelle durch, statt es zu rechnen', () => {
+    // Katalog IPE 80: It = 0,70 cm4. Das Walzprofil hat eine AUSRUNDUNG, und
+    // die traegt bei `It` mehr als anderswo — der Wandgraph desselben Profils
+    // laege deutlich darunter. Deshalb ist der Katalog fuer den GERECHNETEN
+    // Weg ausdruecklich kein Orakel (ADR 0040).
+    const row = lookupProfile('IPE 80');
+    if (row === undefined) throw new Error('IPE 80 fehlt im Katalog');
+    expect(ipe80?.It).toBeCloseTo(row.It * 1e-8, 16);
+  });
+
   it('liest `data` und nicht den Namen — die Aussage von ADR 0027', () => {
     // Der Katalog wird hier gar nicht mehr befragt: derselbe Datensatz unter
     // einem Namen, den es nirgends gibt, liefert dieselben Werte. Genau das

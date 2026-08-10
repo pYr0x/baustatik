@@ -235,10 +235,22 @@ export type FEMModelBuilderConfig = {
  * ADR 0033. Pflicht, wie ihre beiden Vorgängerinnen, und `parseSectionPolicy`
  * ist strikt, also weist jede v8-Datei ab.
  *
- * DASS DER BRUCH IN DREI TEILPROJEKTEN NACHEINANDER FÄLLT, IST EIN MUSTER: P5
- * (dicke Wand) ist als weiteres Policy-Feld bereits datiert. Die Frage, ob ein
- * Monorepo ohne Abnehmer überhaupt Schemabrüche zählen sollte, steht in
- * `packages/TODO.md` — hier bleibt das Verfahren unverändert.
+ * v10 setzt die BEIDEN LETZTEN Felder in die `SectionPolicy`:
+ * `thickWallRatio` und `shearCentreTolerance`
+ * ([ADR 0040](../../../docs/adr/0040-the-wall-path-is-positioned.md),
+ * [ADR 0041](../../../docs/adr/0041-two-figures-for-the-wall-path.md)). Beide
+ * sind BEURTEILUNGSFELDER — sie ändern den gespeicherten Umriss nicht, sie
+ * urteilen über ihn — und stehen trotzdem aus dem Grund im Satz, aus dem
+ * `principalAxisTolerance` es seit v8 tut: die Policy führt die EFFEKTIVEN
+ * Werte, und derselbe Bericht soll nach einer Änderung der Software-Defaults
+ * nicht still andere Warnungen zeigen. Pflicht, wie alle vor ihnen, und
+ * `parseSectionPolicy` ist strikt, also weist jede v9-Datei ab.
+ *
+ * DASS DER BRUCH IN VIER TEILPROJEKTEN NACHEINANDER FÄLLT, IST EIN MUSTER —
+ * und mit v10 ist die Liste der datierten Kandidaten abgearbeitet. Die Frage,
+ * ob ein Monorepo ohne Abnehmer überhaupt Schemabrüche zählen sollte, steht in
+ * `packages/TODO.md`; der nächste Zähler ist dort für den Policy-Refactor
+ * vorgemerkt und heisst v11.
  *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein älterer Snapshot
  * wird ABGELEHNT. Ein v3 per Lookup zu ergänzen wäre genau die stille
@@ -249,7 +261,7 @@ export type FEMModelBuilderConfig = {
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 9;
+  readonly schemaVersion: 10;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];
@@ -257,10 +269,11 @@ export interface FEMModelSnapshot {
   /**
    * Die Erzeugungs-Einstellung des Projekts, VOLLSTAENDIG und PFLICHT.
    *
-   * PROJEKTEBENE UND NICHT JE `CrossSection`: zwei der drei künftigen Felder
-   * (`Iyz`-Schwelle, dicke Wand) BEURTEILEN, sie erzeugen nicht — sie je
-   * Querschnitt zu speichern hieße, dass derselbe Bericht für zwei
-   * Querschnitte unter zwei Maßstäben schweigen darf.
+   * PROJEKTEBENE UND NICHT JE `CrossSection`: drei der fünf Felder
+   * (`principalAxisTolerance`, `thickWallRatio`, `shearCentreTolerance`)
+   * BEURTEILEN, sie erzeugen nicht — sie je Querschnitt zu speichern hieße,
+   * dass derselbe Bericht für zwei Querschnitte unter zwei Maßstäben schweigen
+   * darf.
    */
   readonly sectionPolicy: SectionPolicy;
   readonly supports: readonly NodeSupport[];

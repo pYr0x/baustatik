@@ -1,4 +1,9 @@
-export { type Branch, branches } from './branch';
+export {
+  type Branch,
+  branches,
+  cellCount,
+  componentCount,
+} from './branch';
 export {
   createSectionGeometry,
   type SectionGeometryInput,
@@ -11,10 +16,12 @@ export {
 export {
   type BulgeSite,
   DegenerateOutlineRingError,
+  DisconnectedWallGraphWarning,
   DuplicateSectionIdError,
   EmptyOutlineError,
   InvalidSectionPolicyError,
   MiterLimitExceededWarning,
+  MultipleCellsWarning,
   NegativeOutlineAreaError,
   NonFiniteBulgeError,
   NonPositiveWallThicknessError,
@@ -26,6 +33,7 @@ export {
   ShearCentreOffsetWarning,
   ShearCentreUnknownWarning,
   TangentKinkWarning,
+  ThickWallWarning,
   UndiscretisableBulgeError,
   UnknownSectionNodeError,
   UnnestedHoleWarning,
@@ -47,6 +55,13 @@ export {
   type ShapeSpec,
   sectionProperties,
 } from './section';
+export {
+  type Segment,
+  type SegmentRun,
+  segments,
+  type WallMoments,
+  wallMoments,
+} from './segment';
 export { type StressPoint, stressPoints } from './stress-points/index';
 export type {
   Polygon,
@@ -61,3 +76,4 @@ export {
   validateSectionGeometry,
   validateSectionProperties,
 } from './validate';
+export { type OutlineFigure, type WallPath, wallPath } from './wall-path';

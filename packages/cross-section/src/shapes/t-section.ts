@@ -85,11 +85,36 @@ export function tSection(
 
   // NUR EINFACH SYMMETRISCH, und das ist der einzige Fall dieses Standes, in
   // dem der Schubmittelpunkt nicht mit dem Schwerpunkt zusammenfaellt: `yM = 0`
-  // liegt auf der Symmetrieachse und ist damit bekannt, `zM` liegt in
-  // Gurtmitte-Naehe und faellt erst aus dem Wandweg ab. `undefined` heisst
-  // NICHT ERMITTELT — `zs` hinzuschreiben waere eine Unwahrheit, und das Gate
-  // meldete dann keine Torsion, wo es keine gibt (Satz 2 keyt allein auf `yM`).
-  return { A, Iy, Iz, Iyz: 0, ys: 0, zs, yM: 0, zM: undefined, ...paths };
+  // liegt auf der Symmetrieachse, `zM` in der GURTMITTE.
+  //
+  // `zM = hf/2` IST EXAKT UND KEINE NAEHERUNG. Im duennwandigen Modell besteht
+  // das T aus zwei Linien; beide gehen durch den Schnittpunkt von Gurt- und
+  // Stegmittellinie, und der Schubmittelpunkt liegt immer dort, wo alle Wandzuege
+  // sich treffen — jeder Zug hat um diesen Punkt den Hebelarm 0, das Moment des
+  // Schubflusses ist also null. Bis P5 stand hier `undefined`, und der
+  // `ShearCentreUnknownWarning` feuerte damit bei JEDEM T.
+  //
+  // FUER `solid` BLEIBT ES `undefined`: der Vollquerschnitt hat keinen Wandzug,
+  // durch den das Argument liefe.
+  const zM = idealisation === 'thin-walled' ? hf / 2 : undefined;
+
+  return {
+    A,
+    Iy,
+    Iz,
+    Iyz: 0,
+    ys: 0,
+    zs,
+    yM: 0,
+    zM,
+    // Offenes Profil: Gurt der Laenge `bf` mit `t = hf`, Steg von der
+    // Gurtmittellinie bis zur Unterkante (`h − hf/2`) mit `t = bw`.
+    It:
+      idealisation === 'thin-walled'
+        ? (bf * hf ** 3 + (h - hf / 2) * bw ** 3) / 3
+        : undefined,
+    ...paths,
+  };
 }
 
 function solidPaths(
