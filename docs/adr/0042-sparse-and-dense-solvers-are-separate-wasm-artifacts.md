@@ -1,4 +1,4 @@
-# `0040` Sparse and dense solvers are separate WASM artifacts
+# `0042` Sparse and dense solvers are separate WASM artifacts
 
 Status: accepted
 

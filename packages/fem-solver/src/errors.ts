@@ -404,6 +404,35 @@ export class InvalidAnalysisPolicyError extends BaustatikError {
 }
 
 /**
+ * Die Policy verlangt einen Rechenweg, den die Config nicht bedienen kann.
+ *
+ * GEWORFEN BEIM ERZEUGEN, nicht beim Rechnen: `createFEMSolver` loest die
+ * Konfiguration einmal auf, und eine Config ohne den passenden Loeser-Port ist
+ * ab da falsch — nicht erst, wenn jemand auf „rechnen" drueckt. Ein
+ * Rechenkopf, der zurueckgegeben wird und nie rechnen konnte, ist die
+ * Zweideutigkeit, die dieses Package ueberall vermeidet.
+ *
+ * KEIN BERICHTSBEFUND: der Bericht sagt, wie weit das MODELL ist. Ein fehlender
+ * Port ist ein Verdrahtungsfehler der Anwendung und hat mit dem Modell nichts
+ * zu tun (ADR 0043).
+ */
+export class InvalidSolverConfigError extends BaustatikError {
+  /** Die eingestellte Betriebsart, die den Port verlangt. */
+  readonly linearSystem: string;
+  /** Das Feld auf `SolverConfig`, das fehlt. */
+  readonly port: string;
+
+  constructor(linearSystem: string, port: string) {
+    super(
+      `Die Analyse-Einstellung "linearSystem: ${linearSystem}" verlangt den ` +
+        `Port "${port}", den die Config nicht liefert.`,
+    );
+    this.linearSystem = linearSystem;
+    this.port = port;
+  }
+}
+
+/**
  * Der Datensatz traegt eine Schema-Version, die diese Fassung nicht kennt.
  *
  * EIGENE KLASSE und nicht `InvalidAnalysisPolicyError`, weil der Anwender

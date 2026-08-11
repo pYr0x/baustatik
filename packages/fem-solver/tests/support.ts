@@ -1,8 +1,8 @@
 /**
- * Bausteine der Solver-Tests: ein Modell-Bauer, ein Linearsolver und eine
+ * Bausteine der Solver-Tests: ein Modell-Bauer, zwei Linearsolver und eine
  * triviale Elementformulierung.
  *
- * Alle drei sind das, wofuer die Ports da sind. Ohne sie liefe jeder Test durch
+ * Alle sind das, wofuer die Ports da sind. Ohne sie liefe jeder Test durch
  * WASM und durch echte Timoshenko-Zahlen, und ein Vorzeichenfehler in der
  * Transformation waere von einem Elementfehler nicht zu unterscheiden.
  */
@@ -100,6 +100,7 @@ const SINGULAR_PIVOT_TOLERANCE = 1e-12;
 export function gaussSolve(
   n: number,
   K: Float64Array,
+  rhsColumns: number,
   F: Float64Array,
 ): LinearSolveOutcome {
   if (n === 0) return { kind: 'solved', d: new Float64Array(0) };
@@ -113,9 +114,13 @@ export function gaussSolve(
     s[i] = 1 / Math.sqrt(diagonal);
   }
 
+  // ALLE rechten Seiten haengen an derselben Matrix: eine Elimination, `k`
+  // erweiterte Spalten. Genau das leistet die produktive Fassung ueber eine
+  // geteilte Zerlegung.
+  const width = n + rhsColumns;
   const a = Array.from({ length: n }, (_, r) =>
-    Array.from({ length: n + 1 }, (_, c) =>
-      c === n ? F[r] * s[r] : K[r * n + c] * s[r] * s[c],
+    Array.from({ length: width }, (_, c) =>
+      c < n ? K[r * n + c] * s[r] * s[c] : F[(c - n) * n + r] * s[r],
     ),
   );
 
@@ -130,27 +135,67 @@ export function gaussSolve(
     for (let row = col + 1; row < n; row += 1) {
       const factor = a[row][col] / pivot;
       if (factor === 0) continue;
-      for (let c = col; c <= n; c += 1) {
+      for (let c = col; c < width; c += 1) {
         a[row][c] -= factor * a[col][c];
       }
     }
   }
 
+  // Zurueckskalieren: `d = S y`. Spaltenweise flach, wie der Port-Vertrag es
+  // verlangt.
+  const d = new Float64Array(n * rhsColumns);
   const y = new Float64Array(n);
-  for (let row = n - 1; row >= 0; row -= 1) {
-    let sum = a[row][n];
-    for (let c = row + 1; c < n; c += 1) {
-      sum -= a[row][c] * y[c];
+  for (let column = 0; column < rhsColumns; column += 1) {
+    for (let row = n - 1; row >= 0; row -= 1) {
+      let sum = a[row][n + column];
+      for (let c = row + 1; c < n; c += 1) {
+        sum -= a[row][c] * y[c];
+      }
+      y[row] = sum / a[row][row];
     }
-    y[row] = sum / a[row][row];
-  }
-
-  // Zurueckskalieren: `d = S y`.
-  const d = new Float64Array(n);
-  for (let i = 0; i < n; i += 1) {
-    d[i] = s[i] * y[i];
+    for (let i = 0; i < n; i += 1) {
+      d[column * n + i] = s[i] * y[i];
+    }
   }
   return { kind: 'solved', d };
+}
+
+/**
+ * Die Testfassung des DUENNBESETZTEN Ports.
+ *
+ * SIE BAUT DICHT AUF UND LOEST MIT DEMSELBEN `gaussSolve` — es ist eine
+ * Testfassung, keine Rechnung. Was sie prueft, ist der VERTRAG: dass
+ * `SparseSystemMatrix` das untere Dreieck in der reduzierten Nummerierung
+ * abliefert und dass daraus dieselben Zahlen fallen wie auf dem dichten Weg.
+ * Ob `faer` eine duennbesetzte Cholesky-Zerlegung beherrscht, beweist sie
+ * nicht — dafuer stehen die `cargo test` in `@baustatik/sparse-solver-wasm`.
+ *
+ * SIE WEIST DAS OBERE DREIECK ZURUECK, wie das Crate es tut. Eine Testfassung,
+ * die mehr annimmt als die produktive, verdeckt genau den Fehler, den sie
+ * fangen soll.
+ */
+export function fakeSparseSolve(
+  n: number,
+  rows: Uint32Array,
+  cols: Uint32Array,
+  values: Float64Array,
+  rhsColumns: number,
+  F: Float64Array,
+): LinearSolveOutcome {
+  const K = new Float64Array(n * n);
+  for (let i = 0; i < values.length; i += 1) {
+    const row = rows[i];
+    const col = cols[i];
+    if (row < col) {
+      throw new Error(
+        `Triplet (${row}, ${col}) liegt oberhalb der Diagonale; erwartet ` +
+          'wird nur das untere Dreieck.',
+      );
+    }
+    K[row * n + col] += values[i];
+    if (row !== col) K[col * n + row] += values[i];
+  }
+  return gaussSolve(n, K, rhsColumns, F);
 }
 
 /**
@@ -198,6 +243,11 @@ export function fakeFormulation(
 /**
  * Eine Config ueber einen Store, mit den Ports vorbelegt.
  *
+ * BEIDE LOESER-PORTS sind gesetzt, damit die Betriebsart allein an der Policy
+ * haengt: ein Test, der den Rechenweg umstellt, soll nicht auch noch die
+ * Verdrahtung nachziehen muessen. Die Anwendung tut es genauso — sie liefert
+ * beide Ports und stellt die Wahl ein.
+ *
  * OHNE SCHUB als Voreinstellung, damit die Handrechnungen die reinen
  * Lehrbuchformeln treffen. Der Schalter kommt aus der `AnalysisPolicy` und
  * nicht mehr aus der Config; wer ihn braucht, gibt eine eigene
@@ -225,6 +275,7 @@ export function configOver(
     ],
     getSectionStiffness: () => STIFF,
     solveLinearSystem: gaussSolve,
+    solveSparseSystem: fakeSparseSolve,
     analysisPolicy: createAnalysisPolicy({ shearDeformation: false }),
     ...overrides,
   };

@@ -1,14 +1,16 @@
 /**
- * Der Linearsolver als PORT: `K d = F` im Worker, damit der Hauptthread nicht
- * blockiert.
+ * Der DUENNBESETZTE Linearsolver als PORT: `K d = F` im Worker, damit der
+ * Hauptthread nicht blockiert.
  *
- * Diese Datei ist die Verdrahtung, die `@baustatik/fem-solver` bewusst NICHT
- * kennt. Das Package bekommt nur die Funktion herein (`solveLinearSystem` in
- * seiner Config) und haengt dadurch weder an WASM noch an `Worker` — und bleibt
- * ohne beides testbar. Siehe ADR 0009.
+ * Das Gegenstueck zu `linear-solver-port.ts`, und bewusst eine eigene Datei mit
+ * einem eigenen Worker. Beide Wege haben ein eigenes WASM-Artefakt; ein
+ * gemeinsamer Worker laedt beide, auch wer nur einen rechnet (ADR 0042). Der
+ * Worker startet deshalb erst beim ersten Aufruf — wer `linearSystem: 'sparse'`
+ * eingestellt hat, laedt den dichten Loeser nie.
  *
- * Herausgezogen aus `linear-solver.ts`, damit die Kragarm-Demo dieselbe
- * Verdrahtung benutzt statt einer zweiten Kopie.
+ * `@baustatik/fem-solver` kennt diese Verdrahtung nicht. Es bekommt nur die
+ * Funktion herein (`solveSparseSystem` in seiner Config) und haengt dadurch
+ * weder an WASM noch an `Worker` (ADR 0009).
  */
 
 import type { LinearSolveOutcome } from '@baustatik/fem-solver';
@@ -64,34 +66,39 @@ function rejectPendingSolves(reason: Error): void {
 function getWorker(): Worker {
   if (worker) return worker;
 
-  worker = new Worker(new URL('./linear-solver.worker.ts', import.meta.url), {
+  worker = new Worker(new URL('./sparse-solver.worker.ts', import.meta.url), {
     type: 'module',
   });
 
   worker.addEventListener('message', handleWorkerMessage);
   worker.addEventListener('error', ({ message }: ErrorEvent) => {
     rejectPendingSolves(
-      new Error(message || 'Der Solver-Worker konnte nicht gestartet werden.'),
+      new Error(
+        message || 'Der dünnbesetzte Solver-Worker konnte nicht gestartet werden.',
+      ),
     );
   });
   worker.addEventListener('messageerror', () => {
-    rejectPendingSolves(new Error('Die Nachricht des Solver-Workers ist ungültig.'));
+    rejectPendingSolves(
+      new Error('Die Nachricht des dünnbesetzten Solver-Workers ist ungültig.'),
+    );
   });
 
   return worker;
 }
 
 /**
- * Passt auf `LinearSolve` aus `@baustatik/fem-solver`.
+ * Passt auf `SparseSolve` aus `@baustatik/fem-solver`.
  *
- * `K` und `F` werden KOPIERT, nicht übertragen. Übertragen wäre schneller, aber
- * es würde die Arrays des Aufrufers im Hauptthread unbrauchbar zurücklassen —
- * und der Port-Vertrag sagt nichts darüber aus, dass er sie verschlingen darf.
- * Bei den heutigen Modellgrößen ist die Kopie nicht messbar.
+ * Die vier Arrays werden KOPIERT, nicht übertragen — derselbe Grund wie beim
+ * dichten Port: übertragen ließe sie im Hauptthread unbrauchbar zurück, und der
+ * Port-Vertrag sagt nichts darüber, dass er sie verschlingen darf.
  */
-export function solveLinearSystem(
+export function solveSparseSystem(
   n: number,
-  K: Float64Array,
+  rows: Uint32Array,
+  cols: Uint32Array,
+  values: Float64Array,
   rhsColumns: number,
   F: Float64Array,
 ): Promise<LinearSolveOutcome> {
@@ -100,6 +107,15 @@ export function solveLinearSystem(
 
   return new Promise((resolve, reject) => {
     pendingSolves.set(id, { resolve, reject });
-    solverWorker.postMessage({ type: 'solve', id, n, k: K, rhsColumns, f: F });
+    solverWorker.postMessage({
+      type: 'solve',
+      id,
+      n,
+      rows,
+      cols,
+      values,
+      rhsColumns,
+      f: F,
+    });
   });
 }

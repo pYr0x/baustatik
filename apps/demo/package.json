@@ -28,6 +28,7 @@
     "@baustatik/mesh-2d-wasm": "workspace:*",
     "@baustatik/script": "workspace:*",
     "@baustatik/section-geometry": "workspace:*",
+    "@baustatik/sparse-solver-wasm": "workspace:*",
     "@baustatik/steel-profiles": "workspace:*",
     "@baustatik/units": "workspace:*",
     "@baustatik/viewport-2d": "workspace:*",

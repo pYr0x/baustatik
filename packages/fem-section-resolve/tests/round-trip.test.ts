@@ -18,6 +18,7 @@ import type {
 } from '@baustatik/cross-section';
 import type { Beam } from '@baustatik/fem';
 import {
+  createAnalysisPolicy,
   createFEMSolver,
   type LinearSolveOutcome,
   type SolveResult,
@@ -27,14 +28,24 @@ import { createFEMModelBuilder, parseFEMModelSnapshot } from '@baustatik/script'
 import { describe, expect, it } from 'vitest';
 import { resolveSectionStiffness } from '../src/index';
 
-/** Dichtes Gauss ohne Pivotierung — `K` ist symmetrisch positiv definit. */
+/**
+ * Dichtes Gauss ohne Pivotierung — `K` ist symmetrisch positiv definit.
+ *
+ * `F` und `d` liegen spaltenweise flach als `n x rhsColumns` vor; hier wird
+ * immer genau ein Lastfall gerechnet, die Schleife bleibt trotzdem allgemein,
+ * damit die Testfassung dem Port-Vertrag entspricht.
+ */
 function gaussSolve(
   n: number,
   K: Float64Array,
+  rhsColumns: number,
   F: Float64Array,
 ): LinearSolveOutcome {
+  const width = n + rhsColumns;
   const a = Array.from({ length: n }, (_, r) =>
-    Array.from({ length: n + 1 }, (_, c) => (c === n ? F[r] : K[r * n + c])),
+    Array.from({ length: width }, (_, c) =>
+      c < n ? K[r * n + c] : F[(c - n) * n + r],
+    ),
   );
   for (let col = 0; col < n; col++) {
     const pivot = a[col][col];
@@ -44,17 +55,29 @@ function gaussSolve(
     for (let row = col + 1; row < n; row++) {
       const factor = a[row][col] / pivot;
       if (factor === 0) continue;
-      for (let c = col; c <= n; c++) a[row][c] -= factor * a[col][c];
+      for (let c = col; c < width; c++) a[row][c] -= factor * a[col][c];
     }
   }
-  const d = new Float64Array(n);
-  for (let row = n - 1; row >= 0; row--) {
-    let sum = a[row][n];
-    for (let c = row + 1; c < n; c++) sum -= a[row][c] * d[c];
-    d[row] = sum / a[row][row];
+  const d = new Float64Array(n * rhsColumns);
+  for (let column = 0; column < rhsColumns; column++) {
+    for (let row = n - 1; row >= 0; row--) {
+      let sum = a[row][n + column];
+      for (let c = row + 1; c < n; c++) sum -= a[row][c] * d[column * n + c];
+      d[column * n + row] = sum / a[row][row];
+    }
   }
   return { kind: 'solved', d };
 }
+
+/**
+ * Die Analyse-Einstellung dieser Datei: DICHT rechnen.
+ *
+ * Die Voreinstellung ist seit ADR 0042 `'sparse'`, und dann verlangte die
+ * Config den zweiten Port. Hier geht es um den Weg vom Snapshot zu den
+ * Steifigkeiten und nicht um das Matrixformat — ein Loeser genuegt, und dieser
+ * ist der von Hand nachrechenbare.
+ */
+const DENSE = createAnalysisPolicy({ linearSystem: 'dense' });
 
 /** Ein Kragarm mit IPE 300 aus S235 und einer Einzellast am freien Ende. */
 function buildCantilever() {
@@ -91,6 +114,7 @@ async function solve(snapshot: {
     getSectionStiffness: (beam) =>
       resolveSectionStiffness(beam, snapshot),
     solveLinearSystem: gaussSolve,
+    analysisPolicy: DENSE,
   });
   return solver.solve(snapshot.loadCases[0].id);
 }
@@ -157,6 +181,7 @@ describe('Ein Snapshot ist selbsttragend', () => {
           sectionPolicy: built.sectionPolicy,
         }),
       solveLinearSystem: gaussSolve,
+      analysisPolicy: DENSE,
     });
     const report = solver.check(built.loadCases[0].id);
     expect(report.canSolve).toBe(false);

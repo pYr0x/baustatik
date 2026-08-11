@@ -16,6 +16,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import {
   ImplausibleDisplacementError,
+  InvalidSolverConfigError,
   SingularStiffnessMatrixError,
   SmallRotationAssumptionWarning,
   UnknownLoadCaseError,
@@ -24,6 +25,8 @@ import {
 import {
   createAnalysisPolicy,
   DEFAULT_ANALYSIS_POLICY,
+  LINEAR_SYSTEM_KINDS,
+  type LinearSystemKind,
 } from '../src/policy';
 import type { SolverConfig } from '../src/config';
 import {
@@ -36,6 +39,7 @@ import {
   beam,
   configOver,
   fakeFormulation,
+  fakeSparseSolve,
   gaussSolve,
   node,
   resultant,
@@ -53,6 +57,33 @@ function solve(config: SolverConfig): Promise<SolveResult> {
   return solveCase(config, TEST_LOAD_CASE_ID);
 }
 
+/**
+ * Eine Config auf dem GENANNTEN Rechenweg.
+ *
+ * Die Bloecke, in denen Zahlen herauskommen — Assemblierung, Handrechnungen,
+ * Gelenke, Gleichgewicht und die Kinematik-Netze —, laufen ueber beide
+ * Fassungen der Steifigkeitsmatrix. Dieselben Knoten, dieselben
+ * Handrechnungen, zwei Matrixformate: was dabei auseinanderliefe, waere ein
+ * Fehler in genau einer der beiden Fassungen, und keine Handrechnung allein
+ * fiele darauf herein.
+ *
+ * Die uebrigen Bloecke — Lastfallauswahl, Fallfaktor, Verformungspruefung —
+ * laufen einmal, auf der Voreinstellung: sie sehen die Matrix gar nicht.
+ */
+function over(
+  linearSystem: LinearSystemKind,
+  store: Store,
+  overrides: Partial<SolverConfig> = {},
+): SolverConfig {
+  return configOver(store, {
+    analysisPolicy: createAnalysisPolicy({
+      shearDeformation: false,
+      linearSystem,
+    }),
+    ...overrides,
+  });
+}
+
 const { EI, GAs } = STIFF;
 
 /**
@@ -68,7 +99,9 @@ function cantilever(L = 2, P = 10): Store {
   };
 }
 
-describe('solve — Assemblierung mit trivialer Formulierung', () => {
+describe.each(LINEAR_SYSTEM_KINDS)(
+  'solve — Assemblierung mit trivialer Formulierung — Rechenweg %s',
+  (linearSystem) => {
   /**
    * Einheitssteifigkeit und fester Lastvektor: damit sind
    * Freiheitsgrad-Nummerierung, Assemblierung, Transformation von `f` und die
@@ -83,7 +116,7 @@ describe('solve — Assemblierung mit trivialer Formulierung', () => {
     };
 
     const result = await solve(
-      configOver(store, { formulation: fakeFormulation() }),
+      over(linearSystem, store, { formulation: fakeFormulation() }),
     );
 
     // f_lokal = [1,2,3,4,5,6]; die Transformation dreht nur das Vorzeichen der
@@ -104,11 +137,14 @@ describe('solve — Assemblierung mit trivialer Formulierung', () => {
     // r = K d - F; die Einheitsmatrix koppelt die Knoten nicht.
     expect(result.reactions.get('n1')).toEqual({ fx: -1, fz: -2, my: 3 });
   });
-});
+  },
+);
 
-describe('solve — Kragarm gegen die Handrechnung', () => {
+describe.each(LINEAR_SYSTEM_KINDS)(
+  'solve — Kragarm gegen die Handrechnung — Rechenweg %s',
+  (linearSystem) => {
   it('trifft w = PL^3/3EI und phi = -PL^2/2EI ohne Schub', async () => {
-    const result = await solve(configOver(cantilever()));
+    const result = await solve(over(linearSystem, cantilever()));
 
     const tip = result.displacements.get('n2');
     expect(tip?.uz).toBeCloseTo((10 * 2 ** 3) / (3 * EI), 12);
@@ -121,9 +157,14 @@ describe('solve — Kragarm gegen die Handrechnung', () => {
 
   it('addiert mit Schub den Anteil PL/GAs', async () => {
     // Der Schalter kommt aus der Policy, nicht aus der Config — und `true` ist
-    // dort die Voreinstellung, also genuegt die Default-Policy.
+    // dort die Voreinstellung.
     const result = await solve(
-      configOver(cantilever(), { analysisPolicy: DEFAULT_ANALYSIS_POLICY }),
+      over(linearSystem, cantilever(), {
+        analysisPolicy: createAnalysisPolicy({
+          shearDeformation: true,
+          linearSystem,
+        }),
+      }),
     );
 
     expect(result.displacements.get('n2')?.uz).toBeCloseTo(
@@ -138,7 +179,7 @@ describe('solve — Kragarm gegen die Handrechnung', () => {
   });
 
   it('rechnet die Einspannung zurueck', async () => {
-    const result = await solve(configOver(cantilever()));
+    const result = await solve(over(linearSystem, cantilever()));
 
     // Die Kraft, die das Auflager auf das TRAGWERK ausuebt: die Last zeigt nach
     // unten (fz positiv), das Auflager haelt dagegen.
@@ -149,10 +190,10 @@ describe('solve — Kragarm gegen die Handrechnung', () => {
 
   it('liefert dieselben Zahlen mit beiden Formulierungen', async () => {
     const closed = await solve(
-      configOver(cantilever(), { formulation: Timoshenko2D }),
+      over(linearSystem, cantilever(), { formulation: Timoshenko2D }),
     );
     const integrated = await solve(
-      configOver(cantilever(), { formulation: Timoshenko2DIntegrated }),
+      over(linearSystem, cantilever(), { formulation: Timoshenko2DIntegrated }),
     );
 
     expect(integrated.displacements.get('n2')?.uz).toBeCloseTo(
@@ -160,7 +201,8 @@ describe('solve — Kragarm gegen die Handrechnung', () => {
       12,
     );
   });
-});
+  },
+);
 
 describe('solve — die Analyse-Einstellung', () => {
   /** Eine Formulierung, die nur festhaelt, WAS bei ihr ankommt. */
@@ -226,9 +268,36 @@ describe('solve — die Analyse-Einstellung', () => {
 
     expect(custom.seen).toHaveLength(1);
   });
+
+  it('wirft BEIM ERZEUGEN, wenn der Port zur Betriebsart fehlt', () => {
+    // Nicht beim Rechnen: ein Rechenkopf, der zurueckgegeben wird und nie
+    // rechnen konnte, ist genau die Zweideutigkeit, gegen die dieses Package
+    // gebaut ist (ADR 0043).
+    expect(() =>
+      createFEMSolver(
+        configOver(cantilever(), {
+          solveSparseSystem: undefined,
+          analysisPolicy: createAnalysisPolicy({ linearSystem: 'sparse' }),
+        }),
+      ),
+    ).toThrow(InvalidSolverConfigError);
+
+    // Der andere Weg braucht den anderen Port — und den einen ohne den anderen
+    // nimmt er an.
+    expect(() =>
+      createFEMSolver(
+        configOver(cantilever(), {
+          solveSparseSystem: undefined,
+          analysisPolicy: createAnalysisPolicy({ linearSystem: 'dense' }),
+        }),
+      ),
+    ).not.toThrow();
+  });
 });
 
-describe('solve — Einfeldtraeger mit Gleichlast', () => {
+describe.each(LINEAR_SYSTEM_KINDS)(
+  'solve — Einfeldtraeger mit Gleichlast — Rechenweg %s',
+  (linearSystem) => {
   /** Zwei Elemente, damit die Durchbiegung in Feldmitte an einem Knoten liegt. */
   function simplySupported(L = 4, q = 6): Store {
     return {
@@ -257,7 +326,7 @@ describe('solve — Einfeldtraeger mit Gleichlast', () => {
   it('trifft w_mitte = 5qL^4/384EI', async () => {
     // Prueft die Ersatzknotenlast in der Kette: eine Streckenlast wird nur
     // ueber `consistentLoad` zu Knotenkraeften.
-    const result = await solve(configOver(simplySupported()));
+    const result = await solve(over(linearSystem, simplySupported()));
 
     expect(result.displacements.get('n2')?.uz).toBeCloseTo(
       (5 * 6 * 4 ** 4) / (384 * EI),
@@ -266,7 +335,7 @@ describe('solve — Einfeldtraeger mit Gleichlast', () => {
   });
 
   it('teilt die Auflagerkraefte je qL/2', async () => {
-    const result = await solve(configOver(simplySupported()));
+    const result = await solve(over(linearSystem, simplySupported()));
 
     expect(result.reactions.get('n1')?.fz).toBeCloseTo(-12, 10);
     expect(result.reactions.get('n3')?.fz).toBeCloseTo(-12, 10);
@@ -274,9 +343,12 @@ describe('solve — Einfeldtraeger mit Gleichlast', () => {
     expect(result.reactions.get('n1')?.my).toBe(0);
     expect(result.reactions.get('n3')?.fx).toBe(0);
   });
-});
+  },
+);
 
-describe('solve — schraeger Stab', () => {
+describe.each(LINEAR_SYSTEM_KINDS)(
+  'solve — schraeger Stab — Rechenweg %s',
+  (linearSystem) => {
   /**
    * Der einzige Test, der die 6x6-Transformation wirklich prueft: derselbe
    * Kragarm, um 30 Grad gedreht, mit mitgedrehter Last. Das Ergebnis muss die
@@ -290,7 +362,7 @@ describe('solve — schraeger Stab', () => {
     const L = 2;
     const P = 10;
 
-    const straight = await solve(configOver(cantilever(L, P)));
+    const straight = await solve(over(linearSystem, cantilever(L, P)));
 
     const rotated: Store = {
       nodes: [node('n1', 0, 0), node('n2', L * cos, L * sin)],
@@ -308,7 +380,7 @@ describe('solve — schraeger Stab', () => {
       ],
     };
 
-    const result = await solve(configOver(rotated));
+    const result = await solve(over(linearSystem, rotated));
 
     const before = straight.displacements.get('n2');
     const after = result.displacements.get('n2');
@@ -322,9 +394,12 @@ describe('solve — schraeger Stab', () => {
     );
     expect(after?.phiY).toBeCloseTo(before?.phiY as number, 12);
   });
-});
+  },
+);
 
-describe('solve — Gelenke', () => {
+describe.each(LINEAR_SYSTEM_KINDS)(
+  'solve — Gelenke — Rechenweg %s',
+  (linearSystem) => {
   /**
    * Kragarm mit gefuehrtem Ende: n2 kann sich nur verschieben, nicht verdrehen.
    * Damit haengt die Durchbiegung direkt an der Quersteifigkeit — ohne Gelenk
@@ -343,9 +418,9 @@ describe('solve — Gelenke', () => {
   }
 
   it('macht aus 12EI/L^3 die 3EI/L^3', async () => {
-    const rigid = await solve(configOver(guided()));
+    const rigid = await solve(over(linearSystem, guided()));
     const hinged = await solve(
-      configOver(guided({ start: { theta: true } })),
+      over(linearSystem, guided({ start: { theta: true } })),
     );
 
     expect(rigid.displacements.get('n2')?.uz).toBeCloseTo(
@@ -360,7 +435,7 @@ describe('solve — Gelenke', () => {
 
   it('uebertraegt am Gelenk kein Moment', async () => {
     const result = await solve(
-      configOver(guided({ start: { theta: true } })),
+      over(linearSystem, guided({ start: { theta: true } })),
     );
 
     // Selbstpruefende Eigenschaft der Kondensation: an der freigesetzten Stelle
@@ -400,12 +475,12 @@ describe('solve — Gelenke', () => {
       };
     }
 
-    const rigid = await solve(configOver(propped()));
+    const rigid = await solve(over(linearSystem, propped()));
     expect(rigid.reactions.get('n1')?.fz).toBeCloseTo(-15, 10);
     expect(rigid.reactions.get('n2')?.fz).toBeCloseTo(-9, 10);
 
     const hinged = await solve(
-      configOver(propped({ start: { theta: true } })),
+      over(linearSystem, propped({ start: { theta: true } })),
     );
     expect(hinged.reactions.get('n1')?.fz).toBeCloseTo(-12, 10);
     expect(hinged.reactions.get('n2')?.fz).toBeCloseTo(-12, 10);
@@ -433,7 +508,7 @@ describe('solve — Gelenke', () => {
     // EA/L]] wird nach der Kondensation von u1 genau K[u2][u2] = 0 — ein Stab,
     // der an einer Stelle gleitet, traegt nirgends Normalkraft.
     const result = await solve(
-      configOver(sliding({ start: { u: true } })),
+      over(linearSystem, sliding({ start: { u: true } })),
     );
 
     const forces = result.beamStates.get('b1')?.endForces;
@@ -463,7 +538,7 @@ describe('solve — Gelenke', () => {
     // Jetzt faengt es die Modellpruefung ab, VOR jeder Rechnung — dieselbe
     // Stelle, an der `UnsupportedComponentError` steht.
     await expect(
-      solve(configOver(sliding({ start: { u: true }, end: { u: true } }))),
+      solve(over(linearSystem, sliding({ start: { u: true }, end: { u: true } }))),
     ).rejects.toThrow(UnrestrainedBeamError);
   });
 
@@ -472,7 +547,8 @@ describe('solve — Gelenke', () => {
     // traegt er, die dritte laeuft auf Pivot 0 — auch ohne `w`-Paar.
     await expect(
       solve(
-        configOver(
+        over(
+          linearSystem,
           sliding({ start: { w: true, theta: true }, end: { theta: true } }),
         ),
       ),
@@ -498,8 +574,8 @@ describe('solve — Gelenke', () => {
       };
     }
 
-    const rigid = await solve(configOver(sheared()));
-    const hinged = await solve(configOver(sheared({ start: { w: true } })));
+    const rigid = await solve(over(linearSystem, sheared()));
+    const hinged = await solve(over(linearSystem, sheared({ start: { w: true } })));
 
     expect(rigid.displacements.get('n2')?.phiY).toBeCloseTo(
       (10 * 2) / (4 * EI),
@@ -517,9 +593,12 @@ describe('solve — Gelenke', () => {
     expect(forces?.[1]).toBe(0);
     expect(forces?.[4]).toBeCloseTo(0, 10);
   });
-});
+  },
+);
 
-describe('solve — Gleichgewicht', () => {
+describe.each(LINEAR_SYSTEM_KINDS)(
+  'solve — Gleichgewicht — Rechenweg %s',
+  (linearSystem) => {
   /**
    * Der einzige Test, der die GANZE Kette auf einmal prueft: Aufloesung,
    * Ersatzknotenlast, Kondensation, Transformation, Assemblierung,
@@ -578,7 +657,7 @@ describe('solve — Gleichgewicht', () => {
 
   for (const [name, store] of cases) {
     it(`haelt beim ${name} das Gleichgewicht`, async () => {
-      const config = configOver(store);
+      const config = over(linearSystem, store);
       const result = await solve(config);
 
       const positionOf = new Map(
@@ -611,14 +690,17 @@ describe('solve — Gleichgewicht', () => {
       expect(total.my + beamLoadResultant.my).toBeCloseTo(0, 8);
     });
   }
-});
+  },
+);
 
-describe('solve — das Tor und die Kinematik', () => {
+describe.each(LINEAR_SYSTEM_KINDS)(
+  'solve — das Tor und die Kinematik — Rechenweg %s',
+  (linearSystem) => {
   it('wirft den Modellfehler, bevor irgendetwas gerechnet wird', async () => {
     const store = cantilever();
     store.beams = [beam('b1', 'n1', 'weg')];
 
-    await expect(solve(configOver(store))).rejects.toBeInstanceOf(
+    await expect(solve(over(linearSystem, store))).rejects.toBeInstanceOf(
       UnknownNodeReferenceError,
     );
   });
@@ -627,7 +709,7 @@ describe('solve — das Tor und die Kinematik', () => {
     const store = cantilever();
     store.loads = [{ id: 'l1', target: 'node', nodeIds: ['n2'], fz: 0 }];
 
-    await expect(solve(configOver(store))).rejects.toBeInstanceOf(
+    await expect(solve(over(linearSystem, store))).rejects.toBeInstanceOf(
       ZeroNodeLoadError,
     );
   });
@@ -642,7 +724,7 @@ describe('solve — das Tor und die Kinematik', () => {
       beam('b1', 'n1', 'n2', { start: { theta: true }, end: { theta: true } }),
     ];
 
-    const failure = await solve(configOver(store)).catch(
+    const failure = await solve(over(linearSystem, store)).catch(
       (error: unknown) => error,
     );
 
@@ -666,7 +748,7 @@ describe('solve — das Tor und die Kinematik', () => {
       loads: [{ id: 'l1', target: 'node', nodeIds: ['n2'], fz: 10 }],
     };
 
-    const result = await solve(configOver(store));
+    const result = await solve(over(linearSystem, store));
 
     // Der Pendelstab steht senkrecht unter dem Lastknoten und nimmt Laengskraft
     // auf: die Durchbiegung bleibt weit unter der des freien Kragarms.
@@ -687,7 +769,7 @@ describe('solve — das Tor und die Kinematik', () => {
       support('s2', 'n2', 'free', 'fixed', 'free'),
     ];
 
-    const failure = await solve(configOver(store)).catch(
+    const failure = await solve(over(linearSystem, store)).catch(
       (error: unknown) => error,
     );
 
@@ -715,14 +797,23 @@ describe('solve — das Tor und die Kinematik', () => {
       support('s2', 'n2', 'free', 'fixed', 'free'),
     ];
 
+    // Angestupst wird auf BEIDEN Wegen dieselbe Diagonale — dicht ueber die
+    // flache Zeile, duennbesetzt ueber die Triplets mit `row === col`.
     const failure = await solve(
-      configOver(store, {
-        solveLinearSystem: (n, K, F) => {
+      over(linearSystem, store, {
+        solveLinearSystem: (n, K, rhsColumns, F) => {
           const nudged = Float64Array.from(K);
           for (let i = 0; i < n; i += 1) {
             nudged[i * n + i] *= 1 + 1e-14;
           }
-          return gaussSolve(n, nudged, F);
+          return gaussSolve(n, nudged, rhsColumns, F);
+        },
+        solveSparseSystem: (n, rows, cols, values, rhsColumns, F) => {
+          const nudged = Float64Array.from(values);
+          for (let i = 0; i < nudged.length; i += 1) {
+            if (rows[i] === cols[i]) nudged[i] *= 1 + 1e-14;
+          }
+          return fakeSparseSolve(n, rows, cols, nudged, rhsColumns, F);
         },
       }),
     ).catch((error: unknown) => error);
@@ -742,13 +833,13 @@ describe('solve — das Tor und die Kinematik', () => {
     const store = cantilever();
     store.supports = [support('s1', 'n1'), support('s2', 'n2')];
 
-    const result = await solve(configOver(store));
+    const result = await solve(over(linearSystem, store));
 
     expect(result.displacements.get('n2')).toEqual({ ux: 0, uz: 0, phiY: 0 });
   });
 
   it('rechnet auch ueber den Rechenkopf', async () => {
-    const result = await createFEMSolver(configOver(cantilever())).solve(
+    const result = await createFEMSolver(over(linearSystem, cantilever())).solve(
       TEST_LOAD_CASE_ID,
     );
 
@@ -761,9 +852,13 @@ describe('solve — das Tor und die Kinematik', () => {
   it('nimmt einen asynchronen Linearsolver an', async () => {
     // Die produktive Fassung laeuft ueber einen Worker.
     const result = await solve(
-      configOver(cantilever(), {
-        solveLinearSystem: async (n, K, F) =>
-          await Promise.resolve(gaussSolve(n, K, F)),
+      over(linearSystem, cantilever(), {
+        solveLinearSystem: async (n, K, rhsColumns, F) =>
+          await Promise.resolve(gaussSolve(n, K, rhsColumns, F)),
+        solveSparseSystem: async (n, rows, cols, values, rhsColumns, F) =>
+          await Promise.resolve(
+            fakeSparseSolve(n, rows, cols, values, rhsColumns, F),
+          ),
       }),
     );
 
@@ -772,7 +867,8 @@ describe('solve — das Tor und die Kinematik', () => {
       12,
     );
   });
-});
+  },
+);
 
 describe('solve — die Verformungspruefung', () => {
   /**
@@ -802,8 +898,11 @@ describe('solve — die Verformungspruefung', () => {
     const failure = await solve(
       configOver(demoMechanism(165, 10), {
         formulation: Timoshenko2D,
-        solveLinearSystem: (n, K, F) => {
-          const outcome = gaussSolve(n, K, F);
+        // Belauscht wird der Port der VOREINSTELLUNG — das ist der Weg, den
+        // die Anwendung rechnet, und die Aussage dieses Tests haengt daran,
+        // was DIESER Port meldet.
+        solveSparseSystem: (n, rows, cols, values, rhsColumns, F) => {
+          const outcome = fakeSparseSolve(n, rows, cols, values, rhsColumns, F);
           outcomes.push(outcome.kind);
           return outcome;
         },
@@ -1113,6 +1212,45 @@ describe('solveAll — alle Lastfaelle', () => {
       -(plain.displacements.get('n2')?.uz as number),
       12,
     );
+  });
+
+  it('assembliert und zerlegt EINMAL fuer alle Faelle', async () => {
+    // ADR 0044: `K` ist ueber alle Lastfaelle identisch, weil
+    // `getSectionStiffness(beam)` keinen Lastfall bekommt. Gezaehlt wird
+    // deshalb, wie oft der Port ueberhaupt gerufen wird — einmal, mit so
+    // vielen rechten Seiten, wie es Faelle gibt.
+    const store = cantilever();
+    const calls: number[] = [];
+
+    const results = await solveAll(
+      configOver(store, {
+        getLoadCases: () => twoCases(store),
+        solveSparseSystem: (n, rows, cols, values, rhsColumns, F) => {
+          calls.push(rhsColumns);
+          return fakeSparseSolve(n, rows, cols, values, rhsColumns, F);
+        },
+      }),
+    );
+
+    expect(calls).toEqual([2]);
+    expect(results).toHaveLength(2);
+  });
+
+  it('liefert dieselben Zahlen wie der einzeln gerechnete Fall', async () => {
+    // Die Gegenprobe zur Buendelung: eine geteilte Zerlegung darf am Ergebnis
+    // nichts aendern. Bitgenau, nicht auf zwoelf Stellen — es ist dieselbe
+    // Rechnung.
+    const store = cantilever();
+    const cases = twoCases(store);
+    const config = configOver(store, { getLoadCases: () => cases });
+
+    const bundled = await solveAll(config);
+    for (const loadCase of cases) {
+      const single = await solveCase(config, loadCase.id);
+      const both = bundled.find((r) => r.loadCaseId === loadCase.id);
+      expect(both?.displacements).toEqual(single.displacements);
+      expect(both?.reactions).toEqual(single.reactions);
+    }
   });
 
   it('liefert ein leeres Array, wenn es keinen Lastfall gibt', async () => {

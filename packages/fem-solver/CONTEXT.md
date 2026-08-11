@@ -66,14 +66,15 @@ jeder Stelle beantworten. Die Biegelinie fehlt — siehe _Known constraints_.
 - `@baustatik/fem-element` — `Timoshenko2D`, `SectionStiffness`, `Vector6`.
 - `@baustatik/fem-geometry` — `Line`, `Vector` fuer Stablaenge und Richtung.
 
-**Nicht dabei:** `@baustatik/linear-solver-wasm`, `@baustatik/cross-section`,
-`@baustatik/material`. Alle drei kaemen ueber Ports herein
+**Nicht dabei:** `@baustatik/linear-solver-wasm`,
+`@baustatik/sparse-solver-wasm`, `@baustatik/cross-section`,
+`@baustatik/material`. Alle vier kaemen ueber Ports herein
 ([ADR 0009](../../docs/adr/0009-fem-solver-ports-and-async-solve.md)).
 
 ## Navigation
 
-- [`src/config.ts`](src/config.ts): `SolverConfig` — vier Getter, drei Ports,
-  eine Policy.
+- [`src/config.ts`](src/config.ts): `SolverConfig` — vier Getter, vier Ports
+  (zwei davon Loeser, und beide optional), eine Policy.
 - [`src/policy.ts`](src/policy.ts): `AnalysisPolicy` — die versionierte,
   persistierbare Analyse-Einstellung samt Factory und striktem Parser.
 - [`src/analysis.ts`](src/analysis.ts): `ResolvedAnalysis` — die Config einmal
@@ -84,7 +85,15 @@ jeder Stelle beantworten. Die Biegelinie fehlt — siehe _Known constraints_.
 - [`src/check.ts`](src/check.ts): `CheckReport`, die fuenf Zustaende, die
   Reihenfolge und der Kurzschluss.
 - [`src/solve.ts`](src/solve.ts): die Rechenkette von den Rohdaten bis zu den
-  Auswertungszustaenden der Staebe.
+  Auswertungszustaenden der Staebe. `solveBatch` ist ihr Kern — EINE
+  Assemblierung, EINE Zerlegung, alle Lastfaelle
+  ([ADR 0044](../../docs/adr/0044-solveall-bundles-the-load-cases.md)).
+- [`src/system-matrix/`](src/system-matrix/): die Steifigkeitsmatrix als
+  Faehigkeit. `types.ts` haelt das Interface (`add`, `diagonal`, `rowDot`,
+  `solve`), `dense.ts` und `sparse.ts` je eine Fassung samt ihrem Port,
+  `index.ts` bindet Betriebsart und Port zu einer Fabrik ueber `n`. Package-
+  intern: `solve.ts` sieht nie ein Matrixformat
+  ([ADR 0043](../../docs/adr/0043-the-solver-is-an-analysis-setting.md)).
 - [`src/internal-forces.ts`](src/internal-forces.ts): die Verlauf-API
   `internalForcesAt`/`internalForcesAlong` als FREIE Funktionen ueber das
   Ergebnis — keine Methoden, weil `SolveResult` klonbar bleiben muss (ADR 0019).
@@ -158,31 +167,46 @@ Fehlerliste kann das nicht sagen. Ausfuehrlich in
 Analyse-Einstellungen zerfallen in zwei Sorten, und die Trennlinie ist der ganze
 Entwurf:
 
-| Sorte                           | Beispiele                                                  | Wohnt in                | Persistiert     |
-| ------------------------------- | ---------------------------------------------------------- | ----------------------- | --------------- |
-| **Daten** — schreibbar als JSON | Toleranzen, Warnschwellen, `shearDeformation`              | `AnalysisPolicy`        | ja, versioniert |
-| **Faehigkeit** — ist Code       | `formulation`, `solveLinearSystem`, `getSectionStiffness` | Ports in `SolverConfig` | nein            |
+| Sorte                           | Beispiele                                                             | Wohnt in                | Persistiert     |
+| ------------------------------- | --------------------------------------------------------------------- | ----------------------- | --------------- |
+| **Daten** — schreibbar als JSON | Toleranzen, Warnschwellen, `shearDeformation`, `linearSystem`         | `AnalysisPolicy`        | ja, versioniert |
+| **Faehigkeit** — ist Code       | `formulation`, `solveLinearSystem`, `solveSparseSystem`, `getSectionStiffness` | Ports in `SolverConfig` | nein            |
 
 `formulation` ist begrifflich sehr wohl eine Analyse-Einstellung — sie laesst
-sich nur nicht schreiben. Ein Funktionsobjekt hat keine JSON-Form. Dieselbe
-Regel erklaert `solveLinearSystem`: „direkt oder iterativ" waere eine
-persistierbare Einstellung, „diese Solver-Implementierung" ist ein Port.
+sich nur nicht schreiben. Ein Funktionsobjekt hat keine JSON-Form.
+
+**Die Loeserwahl liegt auf BEIDEN Seiten dieser Trennlinie**, und das ist kein
+Widerspruch: „direkt oder iterativ", „dicht oder duennbesetzt" ist eine
+persistierbare Einstellung und heisst `linearSystem`; „diese
+Solver-Implementierung" ist ein Port. Fehlt der Port zur eingestellten
+Betriebsart, wirft `createFEMSolver` einen `InvalidSolverConfigError` — beim
+ERZEUGEN, nicht beim Rechnen
+([ADR 0043](../../docs/adr/0043-the-solver-is-an-analysis-setting.md)).
 
 ```text
 AnalysisPolicy = {
-  schemaVersion:      2                       Eigentuemer: fem-solver
+  schemaVersion:      3                       Eigentuemer: fem-solver
   loads:              LoadValidationPolicy    Eigentuemer: fem-loads
   shearDeformation:   boolean (Default true)  Eigentuemer: fem-solver
   deformationLimits:  warn/fail x rotation/   Eigentuemer: fem-solver
                       relativeDisplacement
+  linearSystem:       'dense' | 'sparse'      Eigentuemer: fem-solver
+                      (Default 'sparse')
 }
 ```
 
-**Version 2 hat keinen Migrationspfad.** Ein v1-Dokument kennt
-`deformationLimits` nicht und scheitert am strikten Parser. Das ist zulaessig,
-weil `parseAnalysisPolicy` zum Zeitpunkt des Sprungs keinen produktiven Aufrufer
+**Warum `'sparse'` die Voreinstellung ist**, und zwar aus Speicher- und nicht
+aus Geschwindigkeitsgruenden: 2 000 Knoten sind 6 000 Freiheitsgrade und damit
+`36e6` Zahlen — 288 MB allein fuer `K` im Hauptthread, bei rund zwoelf besetzten
+Eintraegen je Zeile.
+
+**Weder Version 2 noch Version 3 hat einen Migrationspfad.** Ein v1-Dokument
+kennt `deformationLimits` nicht, ein v2-Dokument kennt `linearSystem` nicht, und
+beide scheitern am strikten Parser. Das ist zulaessig, weil
+`parseAnalysisPolicy` zu keinem der beiden Zeitpunkte einen produktiven Aufrufer
 hatte — es liegt nichts Persistiertes herum. Ein stillschweigend ergaenzter
-Default waere ausserdem eine Einstellung, die der Anwender nie gewaehlt hat.
+Default waere ausserdem eine Einstellung, die der Anwender nie gewaehlt hat —
+bei `linearSystem` waere es die Wahl des Loesers.
 
 **Jedes Package bringt seine eigene Scheibe mit** — samt Default und
 Werteprueferei. Dieses Package setzt sie zusammen: `createAnalysisPolicy`
@@ -248,6 +272,25 @@ und der strikte Parser sind die Naht dafuer. Ausfuehrlich in
 - **`solve()` prueft trotz `check()` selbst nach.** Wer den Bericht ueberspringt,
   darf nicht am Tor vorbei (`error-handling-in-libraries.md`). Warnungen halten
   nichts auf.
+- **`K` ist ueber alle Lastfaelle IDENTISCH.** `getSectionStiffness(beam)`
+  bekommt keinen Lastfall, also sind Elementsteifigkeit, Kondensation,
+  Transformation und damit die assemblierte Matrix lastfrei. Genau darauf ruht
+  `solveBatch`: eine Assemblierung, eine Zerlegung, alle Faelle. `solve(id)`
+  ist `solveBatch([case])[0]` — es gibt nicht zwei Rechnungen, die auseinander-
+  laufen koennten. **Diese Invariante hat ein Ablaufdatum**, siehe *Known
+  constraints* und
+  [ADR 0044](../../docs/adr/0044-solveall-bundles-the-load-cases.md).
+- **Alle Lastfaelle werden geprueft, bevor die erste Zahl gerechnet wird.**
+  Modell einmal, dann jeder Fall und seine Lasten. Wer zwei fehlerhafte Faelle
+  hat, bekommt damit den Lastfehler und nicht das Ergebnis des ersten — welcher
+  von zwei Fehlern zuerst auffaellt, soll nicht davon abhaengen, wie weit die
+  Arithmetik gekommen ist.
+- **Die Matrix besitzt ihren Loeser-Port.** `solve.ts` sieht nie ein
+  Matrixformat: es traegt ueber `add` ein, liest `diagonal` und `rowDot` und
+  laesst `solve` loesen. Das Format — und mit ihm die Wahl zwischen den beiden
+  Ports — steckt in `src/system-matrix/`. Andersherum gaebe es die Rechenkette
+  zweimal, einmal je Format
+  ([ADR 0043](../../docs/adr/0043-the-solver-is-an-analysis-setting.md)).
 - **Erst kondensieren, dann drehen.** Das Gelenk ist am LOKALEN Freiheitsgrad
   definiert; nach der Drehung gibt es ihn als eigene Zeile nicht mehr. Bei der
   Verdrehung faellt das nicht auf (rahmeninvariant), bei `u` auf einem schraegen
@@ -422,6 +465,21 @@ mit den Grenzen, die aus ihm hervorgegangen sind, bewiese es nur sich selbst.
 - **Der Port wird nicht auf Vertragstreue geprueft.** Eine Fassung, die `K`
   spaltenweise statt zeilenweise liest, liefert still falsche Verformungen —
   und weil `K` symmetrisch ist, faellt gerade dieser Fehler nicht auf.
+- **Die beiden Rechenwege sind nicht bitgleich, und das faellt nur an einem
+  Mechanismus auf.** `rotateStiffness` rechnet `T^T K T` eintragsweise: `K[r][c]`
+  und `K[c][r]` sind zwei getrennte Skalarprodukte und stimmen nur bis auf die
+  letzte Stelle ueberein. Der dichte Weg reicht diese Matrix weiter, wie sie ist
+  — nicht exakt symmetrisch. Der duennbesetzte reicht das untere Dreieck
+  weiter, der Loeser spiegelt es, und seine Matrix IST exakt symmetrisch. Bei
+  einem tragfaehigen System ist das folgenlos; bei einem Mechanismus ist das
+  gemessene Pivot reines Rauschen, und dann entscheidet die letzte Stelle
+  darueber, ob Netz 2 oder erst Netz 4 zuschlaegt. Gemessen in
+  `docs/messungen/kinematik-abstand.md`, Abschnitt „Wo die beiden Wege sich
+  uneins sind".
+- **`pivotRatio` und `singularIndex` sind EINWERTIG, auch bei `k` rechten
+  Seiten.** Sie gehoeren der Zerlegung und damit der Matrix, nicht einer
+  Lastseite. Ein Rangabfall trifft folgerichtig das ganze Buendel: ein
+  kinematisches Modell ist in jedem Lastfall kinematisch.
 - **Keine Kombinationen.** Es gibt genau zwei Rechenoperationen:
   `solve(loadCaseId)` fuer einen bestimmten Fall und `solveAll()` fuer alle. Beide
   rechnen die Faelle NEBENEINANDER. Sie zu einer Kombination zu UEBERLAGERN ist
@@ -451,6 +509,14 @@ mit den Grenzen, die aus ihm hervorgegangen sind, bewiese es nur sich selbst.
   Schalter kommt, aendert sich diese Signatur mit — siehe
   `fem-section-resolve/CONTEXT.md`, „Zustand I ist die stillschweigende
   Annahme".
+
+  **An dieser Signatur haengt seit ADR 0044 mehr als die Summierbarkeit.**
+  `solveBatch` assembliert und zerlegt EINMAL fuer alle Lastfaelle, weil `K`
+  lastfrei ist. Waechst die Signatur, wird die Buendelung nicht langsam, sondern
+  **falsch**: jeder Fall nach dem ersten rechnete still mit der Steifigkeit des
+  ersten, mit plausibel aussehenden Zahlen. Wer die Signatur aendert, muss
+  `solveBatch` im selben Zug entbuendeln. Kein Test faengt das, weil es bis zur
+  Signaturaenderung nichts zu fangen gibt.
 - **Ergebnisse werden nicht aufgehoben.** `SolveResult` sagt ueber
   `loadCaseId`, WOVON es das Ergebnis ist, aber nicht, gegen welchen Stand des
   Modells oder welchen Faktor gerechnet wurde. Ein Ergebnis veraltet still,

@@ -12,6 +12,7 @@ import {
   createAnalysisPolicy,
   DEFAULT_ANALYSIS_POLICY,
   DEFAULT_DEFORMATION_LIMITS,
+  LINEAR_SYSTEM_KINDS,
   parseAnalysisPolicy,
 } from '../src/policy';
 
@@ -22,8 +23,17 @@ describe('DEFAULT_ANALYSIS_POLICY', () => {
       loads: DEFAULT_LOAD_VALIDATION_POLICY,
       shearDeformation: true,
       deformationLimits: DEFAULT_DEFORMATION_LIMITS,
+      linearSystem: 'sparse',
     });
-    expect(ANALYSIS_POLICY_SCHEMA_VERSION).toBe(2);
+    expect(ANALYSIS_POLICY_SCHEMA_VERSION).toBe(3);
+  });
+
+  it('rechnet voreingestellt duennbesetzt', () => {
+    // Eine Speicherfrage und keine Geschwindigkeitsfrage: 2 000 Knoten sind
+    // 6 000 Freiheitsgrade und damit 288 MB allein fuer `K`, bei rund zwoelf
+    // besetzten Eintraegen je Zeile (ADR 0043).
+    expect(DEFAULT_ANALYSIS_POLICY.linearSystem).toBe('sparse');
+    expect(LINEAR_SYSTEM_KINDS).toEqual(['dense', 'sparse']);
   });
 
   it('traegt die gemessenen Verformungsgrenzen', () => {
@@ -175,7 +185,7 @@ describe('parseAnalysisPolicy', () => {
     // die Overrides — sonst waeren Projekte nicht mehr reproduzierbar, sobald
     // die Software-Defaults sich aendern.
     expect(json).toEqual({
-      schemaVersion: 2,
+      schemaVersion: 3,
       loads: {
         stationRelativeTolerance: 1e-9,
         minimumReferenceFactor: 1e-9,
@@ -186,6 +196,7 @@ describe('parseAnalysisPolicy', () => {
         warn: { rotation: 0.1, relativeDisplacement: 0.1 },
         fail: { rotation: 1e3, relativeDisplacement: 1e4 },
       },
+      linearSystem: 'sparse',
     });
     expect(parseAnalysisPolicy(json)).toEqual(policy);
   });
@@ -342,7 +353,56 @@ describe('parseAnalysisPolicy', () => {
         loads: { stationRelativeTolerance: 1e-9 },
         shearDeformation: true,
         deformationLimits: DEFAULT_DEFORMATION_LIMITS,
+        linearSystem: 'sparse',
       }),
     ).toThrow(InvalidLoadValidationPolicyError);
+  });
+
+  it('lehnt ein v2-Dokument ab, statt `linearSystem` zu ergaenzen', () => {
+    // Derselbe Grund wie bei 1 -> 2: ein stillschweigend ergaenzter Default
+    // waere eine Einstellung, die der Anwender nie gewaehlt hat — und hier
+    // waere es die WAHL DES LOESERS. Auch zu diesem Zeitpunkt hatte
+    // `parseAnalysisPolicy` keinen produktiven Aufrufer.
+    const v2 = {
+      schemaVersion: 2,
+      loads: DEFAULT_LOAD_VALIDATION_POLICY,
+      shearDeformation: true,
+      deformationLimits: DEFAULT_DEFORMATION_LIMITS,
+    };
+
+    expect(() => parseAnalysisPolicy(v2)).toThrow(
+      UnsupportedAnalysisPolicySchemaVersionError,
+    );
+  });
+
+  it('verlangt `linearSystem` und nimmt keine fremde Zeichenkette an', () => {
+    const complete = JSON.parse(JSON.stringify(DEFAULT_ANALYSIS_POLICY));
+
+    const { linearSystem: _weg, ...ohne } = complete;
+    expect(() => parseAnalysisPolicy(ohne)).toThrow(InvalidAnalysisPolicyError);
+
+    expect(() =>
+      parseAnalysisPolicy({ ...complete, linearSystem: 'iterativ' }),
+    ).toThrow(InvalidAnalysisPolicyError);
+  });
+});
+
+describe('createAnalysisPolicy — die Loeserwahl', () => {
+  it('nimmt beide Betriebsarten an', () => {
+    for (const linearSystem of LINEAR_SYSTEM_KINDS) {
+      expect(createAnalysisPolicy({ linearSystem }).linearSystem).toBe(
+        linearSystem,
+      );
+    }
+  });
+
+  it('weist eine unbekannte Betriebsart zurueck', () => {
+    // Die Werteregel gilt auch fuer die Factory: ein Aufrufer aus reinem
+    // JavaScript hat den Typ nicht.
+    expect(() =>
+      createAnalysisPolicy({
+        linearSystem: 'iterativ' as never,
+      }),
+    ).toThrow(InvalidAnalysisPolicyError);
   });
 });

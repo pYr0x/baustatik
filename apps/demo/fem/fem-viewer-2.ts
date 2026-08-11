@@ -17,6 +17,7 @@ import { Point } from '@baustatik/fem-geometry';
 import { defineStore, createPinia } from 'pinia';
 import { viewport, screenPoint } from '@baustatik/viewport-2d';
 import { solveLinearSystem } from './linear-solver-port';
+import { solveSparseSystem } from './sparse-solver-port';
 import { round } from '@baustatik/round';
 
 const pinia = createPinia();
@@ -415,7 +416,9 @@ const solver = createFEMSolver({
     // Ein Katalog kommt hier NICHT mehr dazu: die Saetze tragen ihre Zahlen
     // selbst (ADR 0027), und der Rechenweg sieht keinen Nationalen Anhang.
     getSectionStiffness: (beam) => resolveSectionStiffness(beam, store),
+    // BEIDE Ports: welcher rechnet, sagt die `AnalysisPolicy` (ADR 0042).
     solveLinearSystem,
+    solveSparseSystem,
 });
 
 // ---------------------------------------------------------------------------

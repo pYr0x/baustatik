@@ -24,6 +24,7 @@ import type {
   ExecuteScriptResponse,
 } from './fem-script-protocol';
 import { solveLinearSystem } from './linear-solver-port';
+import { solveSparseSystem } from './sparse-solver-port';
 
 const SCRIPT_URI = monaco.Uri.parse('file:///fem-model.ts');
 const SCRIPT_MODULE_URI =
@@ -171,7 +172,9 @@ const solver = createFEMSolver({
   // Moduln reisen als Kopie mit (ADR 0027). Deshalb steht hier kein Katalog
   // mehr, und ein Modell rechnet in zwei Jahren, was es heute rechnet.
   getSectionStiffness: (beam) => resolveSectionStiffness(beam, store),
+  // BEIDE Ports: welcher rechnet, sagt die `AnalysisPolicy` (ADR 0042).
   solveLinearSystem,
+  solveSparseSystem,
 });
 
 runButton.addEventListener('click', () => void runScript());

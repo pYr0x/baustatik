@@ -80,6 +80,9 @@ importers:
       '@baustatik/section-geometry':
         specifier: workspace:*
         version: link:../../packages/section-geometry
+      '@baustatik/sparse-solver-wasm':
+        specifier: workspace:*
+        version: link:../../packages/sparse-solver-wasm
       '@baustatik/steel-profiles':
         specifier: workspace:*
         version: link:../../packages/steel-profiles

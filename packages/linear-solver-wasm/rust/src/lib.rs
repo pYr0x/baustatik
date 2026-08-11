@@ -1,8 +1,9 @@
 //! Der Gleichungsloeser `K d = F` — und die Erkennung, dass es keine Loesung
 //! gibt.
 //!
-//! `K` kommt ZEILENWEISE flach herein (die JS-Seite legt Zeile fuer Zeile ab),
-//! `F` und das Ergebnis sind je eine Spalte.
+//! `K` kommt ZEILENWEISE flach herein (die JS-Seite legt Zeile fuer Zeile ab).
+//! `F` und das Ergebnis liegen SPALTENWEISE flach als `n x k` vor: zuerst die
+//! `n` Werte der ersten rechten Seite, dann die der zweiten.
 //!
 //! Dieses Paket kennt keine Knoten, Staebe oder Auflager. Es meldet nur, DASS
 //! die Matrix singulaer ist und an welcher ZEILE das aufgefallen ist; die
@@ -39,7 +40,8 @@ pub struct SolveOutcome {
 
 #[wasm_bindgen]
 impl SolveOutcome {
-    /// Die Verschiebungen. Leer, wenn `singularIndex >= 0`.
+    /// Die Verschiebungen, spaltenweise flach als `n x k`. Leer, wenn
+    /// `singularIndex >= 0`.
     #[wasm_bindgen(getter)]
     pub fn d(&self) -> Vec<f64> {
         self.d.clone()
@@ -98,9 +100,18 @@ impl SolveOutcome {
 ///
 /// NICHT ueber SVD oder `col_piv_qr`: die GELINGEN bei einem Mechanismus und
 /// liefern ein beliebiges Least-Squares-Verschiebungsfeld, statt zu scheitern.
+///
+/// MEHRERE RECHTE SEITEN teilen sich EINE Zerlegung. `pivotRatio` und
+/// `singularIndex` bleiben dabei EINWERTIG — sie gehoeren der Zerlegung und
+/// damit der Matrix, nicht einer einzelnen rechten Seite.
 #[wasm_bindgen]
-pub fn solve(n: usize, k: &[f64], f: &[f64]) -> Result<SolveOutcome, JsError> {
-    solve_checked(n, k, f).map_err(|reason| JsError::new(&reason))
+pub fn solve(
+    n: usize,
+    k: &[f64],
+    rhs_columns: usize,
+    f: &[f64],
+) -> Result<SolveOutcome, JsError> {
+    solve_checked(n, k, rhs_columns, f).map_err(|reason| JsError::new(&reason))
 }
 
 /// Der Rechenkern ohne WASM-Grenze.
@@ -108,7 +119,12 @@ pub fn solve(n: usize, k: &[f64], f: &[f64]) -> Result<SolveOutcome, JsError> {
 /// Getrennt, weil `JsError` sich auf einem Nicht-WASM-Ziel nicht bauen laesst —
 /// `cargo test` liefe sonst in eine Panik, und die Fehlerwege waeren die
 /// einzigen, die ungetestet blieben.
-fn solve_checked(n: usize, k: &[f64], f: &[f64]) -> Result<SolveOutcome, String> {
+fn solve_checked(
+    n: usize,
+    k: &[f64],
+    rhs_columns: usize,
+    f: &[f64],
+) -> Result<SolveOutcome, String> {
     if k.len() != n * n {
         return Err(format!(
             "K braucht n * n = {} Werte, bekommen hat es {}.",
@@ -116,10 +132,13 @@ fn solve_checked(n: usize, k: &[f64], f: &[f64]) -> Result<SolveOutcome, String>
             k.len()
         ));
     }
-    if f.len() != n {
+    let rhs_len = n
+        .checked_mul(rhs_columns)
+        .ok_or_else(|| "n * rhs_columns laeuft ueber usize.".to_owned())?;
+    if f.len() != rhs_len {
         return Err(format!(
-            "F braucht n = {} Werte, bekommen hat es {}.",
-            n,
+            "F braucht n * rhs_columns = {} Werte, bekommen hat es {}.",
+            rhs_len,
             f.len()
         ));
     }
@@ -175,19 +194,23 @@ fn solve_checked(n: usize, k: &[f64], f: &[f64]) -> Result<SolveOutcome, String>
         return Ok(SolveOutcome::singular(min_index, min_pivot));
     }
 
-    // `Ks y = S F` loesen und mit `d = S y` zurueckskalieren.
-    let rhs = Mat::from_fn(n, 1, |i, _| f[i] * s[i]);
+    // `Ks y = S F` loesen und mit `d = S y` zurueckskalieren — alle rechten
+    // Seiten auf einmal, damit die Zerlegung nur einmal bezahlt wird.
+    let rhs = Mat::from_fn(n, rhs_columns, |i, column| f[column * n + i] * s[i]);
     let y = llt.solve(rhs.as_ref());
 
-    let mut d = vec![0.0f64; n];
-    for i in 0..n {
-        let value = s[i] * y[(i, 0)];
-        // Guertel und Hosentraeger: kommt hier trotz allem etwas Unendliches
-        // heraus, ist es keine Loesung — lieber melden als ausliefern.
-        if !value.is_finite() {
-            return Ok(SolveOutcome::singular(i, min_pivot));
+    let mut d = Vec::with_capacity(rhs_len);
+    for column in 0..rhs_columns {
+        for i in 0..n {
+            let value = s[i] * y[(i, column)];
+            // Guertel und Hosentraeger: kommt hier trotz allem etwas
+            // Unendliches heraus, ist es keine Loesung — lieber melden als
+            // ausliefern.
+            if !value.is_finite() {
+                return Ok(SolveOutcome::singular(i, min_pivot));
+            }
+            d.push(value);
         }
-        d[i] = value;
     }
 
     Ok(SolveOutcome::solved(d, min_pivot))
@@ -204,8 +227,13 @@ mod tests {
         (actual - expected).abs() <= 1e-12 * expected.abs().max(1.0)
     }
 
+    /// Eine rechte Seite — die Form, in der die meisten Tests unten rechnen.
     fn solved(n: usize, k: &[f64], f: &[f64]) -> SolveOutcome {
-        let outcome = solve_checked(n, k, f).expect("Vertrag eingehalten");
+        solved_many(n, k, 1, f)
+    }
+
+    fn solved_many(n: usize, k: &[f64], rhs_columns: usize, f: &[f64]) -> SolveOutcome {
+        let outcome = solve_checked(n, k, rhs_columns, f).expect("Vertrag eingehalten");
         assert_eq!(
             outcome.singular_index, -1,
             "haette loesen muessen, meldet aber Zeile {}",
@@ -215,7 +243,7 @@ mod tests {
     }
 
     fn singular(n: usize, k: &[f64], f: &[f64]) -> SolveOutcome {
-        let outcome = solve_checked(n, k, f).expect("Vertrag eingehalten");
+        let outcome = solve_checked(n, k, 1, f).expect("Vertrag eingehalten");
         assert!(
             outcome.singular_index >= 0,
             "haette singulaer sein muessen, liefert aber {:?}",
@@ -335,8 +363,11 @@ mod tests {
 
     #[test]
     fn ein_vertragsbruch_ist_ein_fehler_und_keine_panik() {
-        assert!(solve_checked(2, &[1.0, 0.0, 0.0], &[1.0, 1.0]).is_err());
-        assert!(solve_checked(2, &[1.0, 0.0, 0.0, 1.0], &[1.0]).is_err());
+        assert!(solve_checked(2, &[1.0, 0.0, 0.0], 1, &[1.0, 1.0]).is_err());
+        assert!(solve_checked(2, &[1.0, 0.0, 0.0, 1.0], 1, &[1.0]).is_err());
+        // Die Laenge von F haengt jetzt an `rhs_columns` — zwei Spalten
+        // brauchen 2n Werte.
+        assert!(solve_checked(2, &[1.0, 0.0, 0.0, 1.0], 2, &[1.0, 1.0]).is_err());
     }
 
     #[test]
@@ -344,5 +375,41 @@ mod tests {
         let outcome = solved(0, &[], &[]);
 
         assert!(outcome.d.is_empty());
+    }
+
+    #[test]
+    fn eine_zerlegung_traegt_alle_rechten_seiten() {
+        // [4 1; 1 3] mit drei rechten Seiten. Verglichen wird das Buendel mit
+        // der Spalte-fuer-Spalte-Rechnung: dass die Zerlegung geteilt wird,
+        // darf am Ergebnis nichts aendern.
+        let k = [4.0, 1.0, 1.0, 3.0];
+        let f = [1.0, 2.0, 1.0, 0.0, 0.0, 1.0];
+
+        let buendel = solved_many(2, &k, 3, &f);
+        assert_eq!(buendel.d.len(), 6);
+        for column in 0..3 {
+            let einzeln = solved(2, &k, &f[column * 2..(column + 1) * 2]);
+            for row in 0..2 {
+                assert!(
+                    nahe(buendel.d[column * 2 + row], einzeln.d[row]),
+                    "Spalte {column}, Zeile {row}"
+                );
+            }
+        }
+
+        // Die erste Spalte ist die von Hand nachgerechnete: d = [1/11, 7/11].
+        assert!(nahe(buendel.d[0], 1.0 / 11.0), "d0 = {}", buendel.d[0]);
+        assert!(nahe(buendel.d[1], 7.0 / 11.0), "d1 = {}", buendel.d[1]);
+    }
+
+    #[test]
+    fn das_pivot_gehoert_der_zerlegung_und_nicht_der_rechten_seite() {
+        // Zwei rechte Seiten, ein Pivot — und dasselbe Pivot wie mit einer.
+        let k = [2.0, 0.0, 0.0, 3.0];
+        let eine = solved(2, &k, &[4.0, 9.0]);
+        let zwei = solved_many(2, &k, 2, &[4.0, 9.0, 2.0, 3.0]);
+
+        assert_eq!(eine.pivot_ratio, zwei.pivot_ratio);
+        assert_eq!(zwei.singular_index, -1);
     }
 }

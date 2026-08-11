@@ -45,8 +45,24 @@ import {
  * Steht am Datensatz und nicht am Programm, weil ein Projekt laenger lebt als
  * eine Fassung der Software: der Parser muss sagen koennen „das ist eine
  * neuere Datei", statt an einem unbekannten Feld zu scheitern.
+ *
+ * `3` seit `linearSystem` dazugekommen ist, OHNE Migrationspfad — dieselbe
+ * Begruendung wie bei 1 -> 2: es liegt nichts Persistiertes herum, das zu
+ * migrieren waere. Eine Version 2 wird abgelehnt, nicht ergaenzt.
  */
-export const ANALYSIS_POLICY_SCHEMA_VERSION = 2;
+export const ANALYSIS_POLICY_SCHEMA_VERSION = 3;
+
+/**
+ * Die beiden Rechenwege durch `K d = F`.
+ *
+ * KEIN `enum`, sondern eine string-literal union: sie ist das, was im
+ * Datensatz steht (`AGENTS.md`, Coding principles). Das Array traegt die
+ * Laufzeitseite fuer den Parser, der Typ die Compilerseite — eine Wahrheit,
+ * zwei Blickrichtungen.
+ */
+export const LINEAR_SYSTEM_KINDS = ['dense', 'sparse'] as const;
+
+export type LinearSystemKind = (typeof LINEAR_SYSTEM_KINDS)[number];
 
 /**
  * Die zwei Stufen, an denen eine Verformung beurteilt wird.
@@ -147,6 +163,24 @@ export type AnalysisPolicy = {
    * Richtung liegt: `linear-solver-wasm` kennt nur Zahlen.
    */
   readonly deformationLimits: DeformationLimits;
+
+  /**
+   * Welcher der beiden Rechenwege durch `K d = F` geht. Voreinstellung
+   * `'sparse'`.
+   *
+   * DIE WAHL IST EINE EINSTELLUNG, DIE FAEHIGKEIT IST EIN PORT — die Trennlinie
+   * dieser Datei, angewandt auf den Loeser. „Direkt oder iterativ loesen" nennt
+   * die Doku oben als Beispiel einer persistierbaren Einstellung; „dicht oder
+   * duennbesetzt" ist derselbe Fall. Welcher Code das dann tut, sagt
+   * `SolverConfig.solveLinearSystem` beziehungsweise `solveSparseSystem`.
+   *
+   * WARUM DUENNBESETZT DIE VOREINSTELLUNG IST: 2 000 Knoten sind 6 000
+   * Freiheitsgrade und damit `36e6` Zahlen — 288 MB allein fuer `K` im
+   * Hauptthread, bei rund zwoelf besetzten Eintraegen je Zeile. Das ist eine
+   * Speicherfrage und keine Geschwindigkeitsfrage
+   * ([ADR 0043](../../../docs/adr/0043-the-solver-is-an-analysis-setting.md)).
+   */
+  readonly linearSystem: LinearSystemKind;
 };
 
 /**
@@ -163,6 +197,7 @@ export type AnalysisPolicyOverrides = {
     readonly warn?: Partial<DeformationLimit>;
     readonly fail?: Partial<DeformationLimit>;
   };
+  readonly linearSystem?: LinearSystemKind;
 };
 
 /** Die Voreinstellung der gesamten Rechenkette. */
@@ -171,6 +206,7 @@ export const DEFAULT_ANALYSIS_POLICY: AnalysisPolicy = Object.freeze({
   loads: DEFAULT_LOAD_VALIDATION_POLICY,
   shearDeformation: true,
   deformationLimits: DEFAULT_DEFORMATION_LIMITS,
+  linearSystem: 'sparse',
 });
 
 const FIELDS = [
@@ -178,6 +214,7 @@ const FIELDS = [
   'loads',
   'shearDeformation',
   'deformationLimits',
+  'linearSystem',
 ] as const;
 
 const STAGES = ['warn', 'fail'] as const;
@@ -204,7 +241,29 @@ export function createAnalysisPolicy(
     shearDeformation:
       overrides.shearDeformation ?? DEFAULT_ANALYSIS_POLICY.shearDeformation,
     deformationLimits: createDeformationLimits(overrides.deformationLimits),
+    linearSystem: assertValidLinearSystem(
+      overrides.linearSystem ?? DEFAULT_ANALYSIS_POLICY.linearSystem,
+    ),
   });
+}
+
+/**
+ * Die Werteregel fuer `linearSystem` — dieselbe fuer Factory und Parser.
+ *
+ * Die Factory braucht sie trotz des Typs: ein Aufrufer aus reinem JavaScript
+ * hat ihn nicht, und die Voreinstellung `'sparse'` waere dann still eine
+ * unbekannte Zeichenkette.
+ */
+function assertValidLinearSystem(value: unknown): LinearSystemKind {
+  if (!(LINEAR_SYSTEM_KINDS as readonly unknown[]).includes(value)) {
+    throw new InvalidAnalysisPolicyError(
+      `"linearSystem" muss ${LINEAR_SYSTEM_KINDS.map((kind) => `"${kind}"`).join(
+        ' oder ',
+      )} sein (war: ${typeof value === 'string' ? `"${value}"` : typeof value}).`,
+      'linearSystem',
+    );
+  }
+  return value as LinearSystemKind;
 }
 
 /**
@@ -325,12 +384,20 @@ export function parseAnalysisPolicy(input: unknown): AnalysisPolicy {
     throw new InvalidAnalysisPolicyError('"loads" fehlt.', 'loads');
   }
 
+  if (record.linearSystem === undefined) {
+    throw new InvalidAnalysisPolicyError(
+      '"linearSystem" fehlt.',
+      'linearSystem',
+    );
+  }
+
   return Object.freeze({
     schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
     // Das Blatt prueft sein Eigentuemer — samt seiner eigenen Fehlerklasse.
     loads: parseLoadValidationPolicy(record.loads),
     shearDeformation,
     deformationLimits: parseDeformationLimits(record.deformationLimits),
+    linearSystem: assertValidLinearSystem(record.linearSystem),
   });
 }
 
