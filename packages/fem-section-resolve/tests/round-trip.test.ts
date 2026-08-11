@@ -12,7 +12,10 @@
  * der Test gehoert hierher, weil dieses Package das fehlende Glied IST.
  */
 
-import type { CrossSection } from '@baustatik/cross-section';
+import type {
+  CrossSection,
+  SectionPolicy,
+} from '@baustatik/cross-section';
 import type { Beam } from '@baustatik/fem';
 import {
   createFEMSolver,
@@ -72,6 +75,9 @@ async function solve(snapshot: {
   beams: readonly Beam[];
   crossSections: readonly CrossSection[];
   materials: readonly Material[];
+  // Seit P5 gehoert sie zu `SectionModel`: der gezeichnete Wandquerschnitt
+  // zerlegt seine Boegen unter DERSELBEN Toleranz wie sein Umriss.
+  sectionPolicy: SectionPolicy;
   supports: readonly unknown[];
   loadCases: readonly { id: string }[];
 }): Promise<SolveResult> {
@@ -148,6 +154,7 @@ describe('Ein Snapshot ist selbsttragend', () => {
         resolveSectionStiffness(beam, {
           crossSections: [],
           materials: built.materials,
+          sectionPolicy: built.sectionPolicy,
         }),
       solveLinearSystem: gaussSolve,
     });

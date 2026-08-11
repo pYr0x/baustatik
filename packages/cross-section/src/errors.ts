@@ -307,22 +307,149 @@ export class NotPrincipalAxesWarning extends SectionValidationWarning {
  * bei JEDEM Plattenbalken zu feuern — der ist einfach symmetrisch, hat
  * `yM = ys = 0` und tordiert trotzdem nicht. `zM` bleibt Auskunft und Vorrat
  * für ein räumliches Modell.
+ *
+ * DER VERGLEICH IST SEIT P5 RELATIV: `|yM − ys| > tol · max(√(Iy/A), √(Iz/A))`
+ * mit `SectionPolicy.shearCentreTolerance`. Bis dahin stand hier `yM !== ys`,
+ * und der exakte Vergleich war richtig, solange jede Quelle beide Zahlen als
+ * literale `0` hinschrieb. Der GEZEICHNETE Querschnitt integriert sie
+ * numerisch und über zwei verschiedene Figuren; ein symmetrisch gezeichnetes I
+ * liefert dabei Rauschen, und der exakte Vergleich meldete Torsion, wo keine
+ * ist. Dieselbe Bewegung wie bei Satz 1 in P2.
  */
 export class ShearCentreOffsetWarning extends SectionValidationWarning {
   /** Der Hebelarm `e = yM − ys` [m]. */
   readonly e: number;
   readonly yM: number;
   readonly ys: number;
+  /** Die Schranke, gegen die verglichen wurde [m]. */
+  readonly limit: number;
 
-  constructor(yM: number, ys: number) {
+  constructor(yM: number, ys: number, limit: number) {
     super(
       `Schubmittelpunkt yM = ${yM} m liegt ${yM - ys} m neben dem Schwerpunkt ` +
-        `ys = ${ys} m — eine Querkraft Vz durch den Schwerpunkt erzeugt das ` +
-        'Torsionsmoment T = Vz·e.',
+        `ys = ${ys} m und damit über der Schranke ${limit} m — eine Querkraft ` +
+        'Vz durch den Schwerpunkt erzeugt das Torsionsmoment T = Vz·e.',
     );
     this.e = yM - ys;
     this.yM = yM;
     this.ys = ys;
+    this.limit = limit;
+  }
+}
+
+/**
+ * Der Wandgraph hat MEHR ALS EINE Zelle — der Wandweg bleibt unbestimmt.
+ *
+ * Bei genau einer Zelle kommt EINE skalare Verträglichkeitsgleichung dazu, und
+ * ihr Ergebnis ist ein konstanter Zuschlag auf den Schubfluss der Zelle
+ * (`src/wall-path.ts`). Ab zwei Zellen sind es `n` gekoppelte Unbekannte, also
+ * ein Gleichungssystem — ein anderes Vorhaben, und keines, das sich hinter
+ * einer Zahl verstecken sollte.
+ *
+ * WARNUNG UND KEIN FEHLER: `A`, `Iy`, `Iz`, `ys`, `zs` und die Hauptachsen
+ * fallen weiterhin aus dem Umriss, der Satz ist also rechenbar. Was fehlt,
+ * sind κ, der Schubmittelpunkt und `It`, und sie stehen als `undefined` da —
+ * „nicht ermittelt", nach dem Muster von `kappaY?`.
+ *
+ * DIE GEOMETRIE-TÜR MELDET IHN und nicht die Eigenschaften-Tür: nur sie sieht
+ * die Topologie. Am Wertesatz wäre eine fehlende Zahl von jeder anderen
+ * fehlenden Zahl nicht mehr zu unterscheiden.
+ */
+export class MultipleCellsWarning extends SectionValidationWarning {
+  /** Die zyklomatische Zahl des Wandgraphen — `>= 2`. */
+  readonly cells: number;
+
+  constructor(cells: number) {
+    super(
+      `Der Wandgraph hat ${cells} Zellen — κ, Schubmittelpunkt und It bleiben ` +
+        'unermittelt. Eine Zelle bringt eine skalare Verträglichkeit mit, ab ' +
+        'zwei ein Gleichungssystem.',
+    );
+    this.cells = cells;
+  }
+}
+
+/**
+ * Der Wandgraph zerfällt in mehrere UNVERBUNDENE Teile.
+ *
+ * Der Schubfluss läuft ENTLANG der Wände; zwischen zwei Teilen, die sich nicht
+ * berühren, gibt es keinen Weg, auf dem er sich ausgliche. Wie sich die
+ * Querkraft auf die Teile aufteilt, ist keine Frage der Querschnittsgeometrie
+ * allein — die Teile müssten irgendwo verbunden sein, und wo, sagt die
+ * Zeichnung nicht.
+ *
+ * WARNUNG UND KEIN FEHLER, aus demselben Grund wie bei den Zellen: die Werte
+ * aus dem Umriss stehen, die Schubgrössen fehlen. Die Lage ist ausserdem beim
+ * mehrteiligen Querschnitt (Verbundstütze) legitim GEZEICHNET — nur eben nicht
+ * dünnwandig rechenbar.
+ */
+export class DisconnectedWallGraphWarning extends SectionValidationWarning {
+  readonly components: number;
+
+  constructor(components: number) {
+    super(
+      `Der Wandgraph zerfällt in ${components} unverbundene Teile — κ, ` +
+        'Schubmittelpunkt und It bleiben unermittelt: es gibt keinen Weg, auf ' +
+        'dem der Schubfluss sich zwischen ihnen ausgliche.',
+    );
+    this.components = components;
+  }
+}
+
+/**
+ * Ein Lauf ist für die dünnwandige Theorie zu DICK.
+ *
+ * ```text
+ * offener   Lauf:  t / L        L = Länge der Mittellinie
+ * geschlossener:   t / √A_m     A_m = von der Mittellinie umschlossen
+ * ```
+ *
+ * ZWEI FORMELN, EINE SCHRANKE (`SectionPolicy.thickWallRatio`): der
+ * geschlossene Lauf hat keine Länge, an der zu messen wäre, und sein Umfang
+ * wächst bei gleicher Fläche mit jeder Einbuchtung. Belegt an beiden Enden:
+ * QRO 60×6,3 kommt auf `0,117` und schweigt, ein Kasten `100×100` mit `t = 30`
+ * auf `0,43` und meldet sich.
+ *
+ * WARNUNG UND KEIN FEHLER: gerechnet wird weiter, und die Werte sind es auch —
+ * sie gelten nur unter einer Annahme, die hier nicht mehr trägt. Dieselbe
+ * Figur wie bei Satz 1: eine Annahme, die nicht Eigenschaft des Querschnitts
+ * ist, sondern der Rechnung darüber.
+ *
+ * DER LAUF WIRD ÜBER SEINE WÄNDE BENANNT und nicht über eine Id: ein `Branch`
+ * ist eine Zerlegung und kein gezeichnetes Ding, er trägt also keine. `index`
+ * nennt seine Stelle in der Zerlegung, `wallIds` die Wände, die eine
+ * Oberfläche markieren kann — dieselbe Form wie bei
+ * `MiterLimitExceededWarning`.
+ */
+export class ThickWallWarning extends SectionValidationWarning {
+  /** Die Stelle des Laufs in der Zerlegung. */
+  readonly index: number;
+  readonly wallIds: readonly string[];
+  /** Ob nach `t/√A_m` (geschlossen) statt nach `t/L` (offen) gemessen wurde. */
+  readonly closed: boolean;
+  /** Das gemessene Verhältnis. */
+  readonly ratio: number;
+  /** Die Schranke, gegen die verglichen wurde. */
+  readonly thickWallRatio: number;
+
+  constructor(
+    index: number,
+    wallIds: readonly string[],
+    closed: boolean,
+    ratio: number,
+    thickWallRatio: number,
+  ) {
+    super(
+      `Lauf ${index} (${wallIds.map((id) => `"${id}"`).join(', ')}): ` +
+        `${closed ? 't/√A_m' : 't/L'} = ${ratio} liegt über der Schranke ` +
+        `${thickWallRatio} — die dünnwandige Theorie, aus der κ, der ` +
+        'Schubmittelpunkt und It fallen, gilt dort nicht mehr.',
+    );
+    this.index = index;
+    this.wallIds = wallIds;
+    this.closed = closed;
+    this.ratio = ratio;
+    this.thickWallRatio = thickWallRatio;
   }
 }
 
@@ -330,9 +457,11 @@ export class ShearCentreOffsetWarning extends SectionValidationWarning {
  * Satz 4 — `yM === undefined`: der Schubmittelpunkt ist NICHT ERMITTELT.
  *
  * Damit ist die Bedingung aus Satz 2 ungeprüft, und das ist etwas anderes als
- * „geprüft und in Ordnung". Der Satz ist SELBSTLOESCHEND: er feuert zwischen
- * P0 und P5 für Wandquerschnitte, verstummt mit P5 und bleibt beim freien
- * Vollquerschnitt dauerhaft stehen.
+ * „geprüft und in Ordnung". Der Satz WAR SELBSTLOESCHEND und ist es zur Hälfte
+ * geblieben: er feuerte zwischen P0 und P5 bei JEDEM gezeichneten Querschnitt,
+ * verstummt mit P5 beim dünnwandigen Wandgraphen mit höchstens einer Zelle und
+ * bleibt beim Vollquerschnitt (`solid`, `kind: 'outline'`) sowie beim
+ * Mehrzeller dauerhaft stehen.
  *
  * EIN ERSATZINDIKATOR IST NICHT MOEGLICH: `Iyz = 0` schließt Torsion nicht aus
  * (das symmetrisch gestellte U), und `Iyz != 0` impliziert sie nicht (das

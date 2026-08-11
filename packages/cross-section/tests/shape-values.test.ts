@@ -157,6 +157,124 @@ describe('Querprobe Parametrik gegen Katalog', () => {
   });
 });
 
+/**
+ * `It` steht bei jeder Form als GESCHLOSSENER Ausdruck da — und nur bei der
+ * duennwandigen Idealisierung
+ * ([ADR 0040](../../../docs/adr/0040-the-wall-path-is-positioned.md)).
+ *
+ * Die Ausdruecke sind zugleich das ORAKEL fuer den gerechneten Wandweg
+ * (`tests/wall-path.test.ts`); hier stehen sie gegen die Handrechnung.
+ */
+describe('It: geschlossener Ausdruck duennwandig, `undefined` kompakt', () => {
+  const It = (cs: CrossSection) => values(cs).It;
+
+  it('I-Profil: ⅓·(2·b·tf³ + (h−tf)·tw³)', () => {
+    const [h, b, tw, tf] = [300, 150, 7.1, 10.7];
+    const shape = (idealisation: 'solid' | 'thin-walled'): CrossSection => ({
+      kind: 'shape',
+      id: 'i',
+      shape: { kind: 'i-symmetric', h, b, tw, tf, idealisation },
+    });
+
+    // In cm gerechnet, wie das ganze Package innen, und dann nach m⁴.
+    const c = 0.1;
+    const expected =
+      ((2 * (b * c) * (tf * c) ** 3 + (h - tf) * c * (tw * c) ** 3) / 3) *
+      CM4_TO_M4;
+    expect(It(shape('thin-walled'))).toBeCloseTo(expected, 15);
+    expect(It(shape('solid'))).toBeUndefined();
+  });
+
+  it('T-Profil: ⅓·(bf·hf³ + (h − hf/2)·bw³)', () => {
+    const [bf, hf, bw, h] = [200, 20, 10, 200];
+    const c = 0.1;
+    const expected =
+      (((bf * c) * (hf * c) ** 3 + (h - hf / 2) * c * (bw * c) ** 3) / 3) *
+      CM4_TO_M4;
+
+    expect(
+      It({
+        kind: 'shape',
+        id: 't',
+        shape: { kind: 't-section', bf, hf, bw, h, idealisation: 'thin-walled' },
+      }),
+    ).toBeCloseTo(expected, 15);
+    expect(
+      It({
+        kind: 'shape',
+        id: 't',
+        shape: { kind: 't-section', bf, hf, bw, h, idealisation: 'solid' },
+      }),
+    ).toBeUndefined();
+  });
+
+  it('geschlossener Kasten: Bredt, und das sind Zehnerpotenzen mehr', () => {
+    const [b, h, t] = [100, 200, 8];
+    const c = 0.1;
+    const [bc, hc, tc] = [b * c, h * c, t * c];
+    const bredt =
+      ((2 * tc * (bc - tc) ** 2 * (hc - tc) ** 2) / (bc - tc + (hc - tc))) *
+      CM4_TO_M4;
+    const open =
+      ((2 * (bc - tc) * tc ** 3 + 2 * (hc - tc) * tc ** 3) / 3) * CM4_TO_M4;
+
+    const closed = It({
+      kind: 'shape',
+      id: 'k',
+      shape: { kind: 'hollow-rectangle', b, h, t, idealisation: 'thin-walled' },
+    });
+    expect(closed).toBeCloseTo(bredt, 15);
+    // DER GRUND, warum `idealisation` bei `It` nicht geraten werden darf:
+    // haette derselbe Kasten offen gerechnet, waere `It` bei diesem
+    // Seitenverhaeltnis um Faktor 181 zu klein — und der Faktor waechst, je
+    // duenner die Wand wird.
+    expect((closed ?? 0) / open).toBeCloseTo(181.3, 1);
+  });
+
+  it('das Vollrechteck traegt keins — es ist ein Randwertproblem', () => {
+    expect(
+      It({ kind: 'shape', id: 'r', shape: { kind: 'rectangle', b: 200, h: 500 } }),
+    ).toBeUndefined();
+  });
+});
+
+describe('Der Schubmittelpunkt des duennwandigen T liegt in der Gurtmitte', () => {
+  it('`zM = hf/2` — exakt, und nicht mehr `undefined`', () => {
+    // Im duennwandigen Modell ist das T zweier Linien Schnittpunkt; jeder
+    // Wandzug hat um ihn den Hebelarm 0, das Moment des Schubflusses also
+    // ebenfalls. Bis P5 stand hier `undefined`, und Satz 4 des Gates feuerte
+    // damit bei JEDEM T.
+    const [bf, hf, bw, h] = [2000, 200, 250, 500];
+    const thin = values({
+      kind: 'shape',
+      id: 't',
+      shape: { kind: 't-section', bf, hf, bw, h, idealisation: 'thin-walled' },
+    });
+
+    expect(thin.zM).toBeCloseTo(hf / 2 / 1000, 15);
+    expect(thin.yM).toBe(0);
+    // Und er faellt NICHT mit dem Schwerpunkt zusammen — das ist der Punkt.
+    expect(thin.zM).not.toBeCloseTo(thin.zs, 4);
+  });
+
+  it('kompakt bleibt er unermittelt — dort braucht es Grashof', () => {
+    expect(
+      values({
+        kind: 'shape',
+        id: 't',
+        shape: {
+          kind: 't-section',
+          bf: 2000,
+          hf: 200,
+          bw: 250,
+          h: 500,
+          idealisation: 'solid',
+        },
+      }).zM,
+    ).toBeUndefined();
+  });
+});
+
 describe('Unsinnige Abmessungen liefern undefined statt NaN', () => {
   it('lehnt nicht-positive und widerspruechliche Masse ab', () => {
     expect(

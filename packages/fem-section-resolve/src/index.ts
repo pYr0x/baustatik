@@ -30,6 +30,7 @@
 
 import {
   type CrossSection,
+  type SectionPolicy,
   type SectionProperties,
   sectionProperties,
 } from '@baustatik/cross-section';
@@ -96,15 +97,30 @@ export function sectionStiffness(
 
 /**
  * Was der Resolver vom Modell braucht: die beiden Satzlisten, auf die
- * `Beam.crossSectionId` und `Beam.materialId` zeigen.
+ * `Beam.crossSectionId` und `Beam.materialId` zeigen, und die Policy, unter der
+ * die Querschnitte entstanden sind.
  *
  * Ein Objekt statt drei Positionsargumenten — drei Positionen waeren
- * verwechselbar, und ein Store, der beide Listen ohnehin fuehrt, passt so als
- * EIN Stueck hinein: `resolveSectionStiffness(beam, store)`.
+ * verwechselbar, und ein `FEMModelSnapshot`, der alle drei Felder ohnehin
+ * fuehrt, passt so als EIN Stueck hinein:
+ * `resolveSectionStiffness(beam, snapshot)`.
+ *
+ * `sectionPolicy` IST PFLICHT UND HAT KEINEN DEFAULT, und das ist die Lehre aus
+ * P5: seit dem Wandweg liest `sectionProperties` beim gezeichneten
+ * Mittellinienquerschnitt `arcTolerance`, um seine Bogenwaende zu zerlegen.
+ * Setzte der Resolver hier die Voreinstellung ein, zerlegte er den WEG feiner
+ * oder groeber als den mitgefuehrten UMRISS, aus dem `I` faellt — zwei
+ * Diskretisierungen derselben Figur, und der Unterschied stuende in kappa,
+ * ohne dass irgendwo etwas fehlte. Die Policy reist im Snapshot mit (seit
+ * `schemaVersion: 7`), also ist sie da, wo dieser Adapter steht; ein
+ * `?? DEFAULT_SECTION_POLICY` waere eine ERFUNDENE Zahl an der Rechenstrecke
+ * ([ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md),
+ * [ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md)).
  */
 export type SectionModel = {
   readonly crossSections: readonly CrossSection[];
   readonly materials: readonly Material[];
+  readonly sectionPolicy: SectionPolicy;
 };
 
 /**
@@ -154,7 +170,9 @@ export function resolveSectionStiffness(
   );
   if (section === undefined) return undefined;
 
-  const props = sectionProperties(section);
+  // MIT DER POLICY DES MODELLS: der gezeichnete Wandquerschnitt zerlegt seine
+  // Bogenwaende unter derselben Toleranz, unter der sein Umriss entstanden ist.
+  const props = sectionProperties(section, model.sectionPolicy);
   if (props === undefined) return undefined;
 
   const material = model.materials.find((m) => m.id === beam.materialId);

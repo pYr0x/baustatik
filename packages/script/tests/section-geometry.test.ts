@@ -123,7 +123,7 @@ describe('Der Snapshot trägt die freie Querschnittsgeometrie mit', () => {
     const v5 = { ...buildSnapshot(), schemaVersion: 5 };
     expect(() => parseFEMModelSnapshot(v5)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v5)).toThrow(
-      'Snapshot.schemaVersion muss 9 sein.',
+      'Snapshot.schemaVersion muss 10 sein.',
     );
   });
 
@@ -174,9 +174,8 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
     const snapshot = model.finish();
 
     const effective = {
+      ...DEFAULT_SECTION_POLICY,
       arcTolerance: 0.01,
-      principalAxisTolerance: 1e-9,
-      miterLimit: 2,
     };
     expect(snapshot.sectionPolicy).toEqual(effective);
     expect(
@@ -199,7 +198,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v6)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v6)).toThrow(
-      'Snapshot.schemaVersion muss 9 sein.',
+      'Snapshot.schemaVersion muss 10 sein.',
     );
   });
 
@@ -216,7 +215,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v7)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v7)).toThrow(
-      'Snapshot.schemaVersion muss 9 sein.',
+      'Snapshot.schemaVersion muss 10 sein.',
     );
   });
 
@@ -369,7 +368,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
 
     expect(() => parseFEMModelSnapshot(v8)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v8)).toThrow(
-      'Snapshot.schemaVersion muss 9 sein.',
+      'Snapshot.schemaVersion muss 10 sein.',
     );
   });
 
@@ -380,6 +379,40 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
       parseFEMModelSnapshot({
         ...buildSnapshot(),
         sectionPolicy: { arcTolerance: 0.05, principalAxisTolerance: 1e-9 },
+      }),
+    ).toThrow(InvalidSectionPolicyError);
+  });
+
+  it('LEHNT einen v9-Satz AB — die Policy führt jetzt fünf Felder', () => {
+    // Die beiden neuen sind BEURTEILUNGSFELDER (ADR 0040/0041) und ändern den
+    // gespeicherten Umriss nicht. Sie stehen trotzdem im Satz, aus demselben
+    // Grund wie `principalAxisTolerance` seit v8: derselbe Bericht soll nach
+    // einer Änderung der Software-Defaults nicht still andere Warnungen zeigen.
+    const v9: Record<string, unknown> = {
+      ...buildSnapshot(),
+      schemaVersion: 9,
+      sectionPolicy: {
+        arcTolerance: 0.05,
+        principalAxisTolerance: 1e-9,
+        miterLimit: 2,
+      },
+    };
+
+    expect(() => parseFEMModelSnapshot(v9)).toThrow(SnapshotValidationError);
+    expect(() => parseFEMModelSnapshot(v9)).toThrow(
+      'Snapshot.schemaVersion muss 10 sein.',
+    );
+  });
+
+  it('lehnt eine Policy ohne die Beurteilungsfelder auch bei v10 ab', () => {
+    expect(() =>
+      parseFEMModelSnapshot({
+        ...buildSnapshot(),
+        sectionPolicy: {
+          arcTolerance: 0.05,
+          principalAxisTolerance: 1e-9,
+          miterLimit: 2,
+        },
       }),
     ).toThrow(InvalidSectionPolicyError);
   });

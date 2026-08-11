@@ -5,7 +5,7 @@
 Der **Rechenkern der Querschnittswerte**. Aus einem Querschnitt — parametrische
 Form, Katalogprofil oder die frei gezeichnete Geometrie des Editors — werden
 `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs`, die Hauptachsen `alpha`/`Iu`/`Iv`, der
-Schubmittelpunkt `yM`/`zM` und κ.
+Schubmittelpunkt `yM`/`zM`, κ und `It`.
 
 **Drei Quellen, eine Frage.** Die dritte, `SectionGeometry`, kam mit
 [ADR 0030](../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md) dazu:
@@ -16,10 +16,15 @@ die Mittellinie gegen den Umriss. Seit
 [ADR 0035](../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)
 traegt sie auch **Werte**: `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` fallen nach Green
 aus dem mitgefuehrten Umriss (`src/green.ts`), `alpha`/`Iu`/`Iv` als Algebra
-mit. **Ohne κ und ohne Schubmittelpunkt** — beide brauchen den Wandweg
-beziehungsweise Grashof, also P4/P5; fuer den Loeser heisst das `GAs: 'rigid'`,
-und `check()` in `@baustatik/fem-solver` sagt es, wenn jemand Schubverformung
-verlangt hat. `stressPoints` bleibt fuer sie `undefined` (P4).
+mit. Seit P5 kommen **κ, der Schubmittelpunkt und `It`** dazu — aber nur fuer
+das **duennwandig gerechnete Mittellinienmodell mit hoechstens einer Zelle**,
+und zwar aus dem positionierten Wandweg (`src/segment.ts`, `src/wall-path.ts`,
+[ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md)). Fuer
+`kind: 'outline'`, fuer `midline` + `solid` und fuer den Mehrzeller bleiben sie
+`undefined`: dort braucht es Grashof (P4) oder ein Gleichungssystem (P6). Wo sie
+fehlen, heisst das fuer den Loeser `GAs: 'rigid'`, und `check()` in
+`@baustatik/fem-solver` sagt es, wenn jemand Schubverformung verlangt hat.
+`stressPoints` bleibt fuer die gezeichnete Geometrie weiterhin `undefined` (P4).
 
 **Beide Zweige sind seit P3 ableitbar**, und zwar hinter EINER Tuer:
 `deriveOutline(geometry, policy)` verzweigt ueber `kind`
@@ -146,7 +151,7 @@ Was das Package liefert, ist der **Nenner** solcher Formeln, nie der Zaehler.
 
 | | Inhalt | vom Material abhaengig |
 | --- | --- | --- |
-| `SectionProperties` (hier) | `A` [m²], `Iy`, `Iz`, `Iyz`, `Iu`, `Iv` [m⁴], `ys`, `zs`, `yM`, `zM` [m], `alpha` [rad], `kappaY`, `kappaZ` [–] | **nein** |
+| `SectionProperties` (hier) | `A` [m²], `Iy`, `Iz`, `Iyz`, `Iu`, `Iv`, `It` [m⁴], `ys`, `zs`, `yM`, `zM` [m], `alpha` [rad], `kappaY`, `kappaZ` [–] | **nein** |
 | `SectionStiffness` (`fem-element`) | `EA` [kN], `EI` [kNm²], `GAs` [kN] | **ja** |
 
 Der Name sass frueher auf der anderen Seite; die Umbenennung und ihr Grund
@@ -234,8 +239,14 @@ Antworten auf eine Zahl.
 **Bekannte Luecke:** `A`, `Iy`, `Iz`, `Iyz`, `ys` und `zs` werden weiterhin in
 beiden Faellen exakt aus der Umrissfigur gerechnet — die klassische duennwandige
 Naeherung (Mittellinie, `t³`-Anteil entfaellt) brauchen wir nicht, weil
-geschlossene Formeln vorliegen. Mit `It` kommt sie wieder, und dort liegen
-zwischen `⅓Σl·t³` und Bredt drei Zehnerpotenzen.
+geschlossene Formeln vorliegen.
+
+Mit P5 wirkt `idealisation` auf eine **dritte** Groesse: `It`. Und dort ist der
+Unterschied nicht klein, sondern der ganze Punkt — zwischen `⅓Σl·t³` und Bredt
+liegen Zehnerpotenzen (beim Kasten `100×200`, `t = 8`: Faktor 181, und er
+waechst, je duenner die Wand wird). Kompakt bleibt `It` **`undefined`**: dort
+ist es die Loesung eines Randwertproblems, und eine der beiden Formeln zu raten
+waere schlimmer als die Auskunft „nicht ermittelt".
 
 Ein Sonderfall, der beim Lesen der Formeln auffaellt: beim **unsymmetrischen**
 T-Querschnitt rechnet der duennwandige Weg `S` um den Schwerpunkt des
@@ -305,16 +316,133 @@ die allgemeine Formel — bei einer achsparallel gezeichneten Figur mit
 Ob **Hauptachsenlage** vorliegt, entscheidet deshalb nicht dieser Vergleich,
 sondern das Gate mit `SectionPolicy.principalAxisTolerance`.
 
-## Der Schubmittelpunkt, und warum er beim T fehlt
+## Der Schubmittelpunkt, und wo er fehlt
 
 `yM = ys` bei jeder Quelle: alle haben eine Symmetrieachse in y. `zM = zs` bei
 `rectangle`, `i-symmetric`, `hollow-rectangle`, IPE und HEA — sie sind
 doppeltsymmetrisch.
 
-**Beim `t-section` bleibt `zM` `undefined`.** Die Form ist nur EINFACH
-symmetrisch: `yM = ys = 0` steht, aber `zM != zs`, und die Zahl faellt erst aus
-dem Wandweg. `undefined` heisst **nicht ermittelt**, nach dem Muster von
-`kappaY?` — `zs` hinzuschreiben waere eine Unwahrheit.
+**Beim duennwandigen `t-section` ist `zM = hf/2`** — die Gurtmittellinie, und
+das ist **exakt** und keine Naeherung: im duennwandigen Modell besteht das T aus
+zwei Linien, beide gehen durch den Schnittpunkt von Gurt- und Stegmittellinie,
+und um diesen Punkt hat jeder Wandzug den Hebelarm 0. Bis P5 stand hier
+`undefined`, und Satz 4 des Gates feuerte damit bei JEDEM T. **Kompakt
+(`solid`) bleibt es `undefined`**: dort gibt es keinen Wandzug, durch den das
+Argument liefe.
+
+## Der Wandweg: `Segment`, und was er liefert
+
+> **`Segment` ist das POSITIONIERTE Wegstueck: Startpunkt, Richtung, Laenge,
+> `t`, `wallId` — und KEIN `S`.**
+> ([ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md))
+
+Das Wort war seit ADR 0030 und [`../TODO.md`](../TODO.md) §5 reserviert und ist
+mit P5 vergeben. Die Abgrenzung, um die es dabei ging:
+
+| Typ | Datei | lagelos? | wofuer |
+| --- | --- | --- | --- |
+| `Segment` | `src/segment.ts` | **nein** — Startpunkt und Richtung | der Weg entlang der Wandmittellinien |
+| `ShearFlowInterval` | `src/shear.ts` | **ja** — nur ein Stueck von `s` | die abgeleitete Energieform |
+
+**Kein `S` im `Segment`**, und das ist die tragende Entscheidung: `Sy` und `Sz`
+sind zwei verschieden parametrisierte Laeufe ueber DIESELBE Geometrie. Steckte
+`S` darin, braeuchte eine Figur zwei Listen, deren Stationen korreliert werden
+muessten. `shearArea` bleibt die eine Stelle, an der aus einem Weg eine Zahl
+wird; `src/shear.ts` ist fuer P5 **unveraendert** geblieben.
+
+**Boegen sind vor dem Weg weg**: `Bulge.toPolyline` unter `policy.arcTolerance`,
+dieselbe Modellannahme wie in der Umriss-Ableitung. Jedes `Segment` ist damit
+gerade und `S` darauf quadratisch. Die **geschlossene Form fuer Kreisboegen
+bleibt additiv nachruestbar** — sie ersetzte die Zerlegung innerhalb von
+`segments`, nicht den Typ, und nichts darueber zoege mit.
+
+### Das Wandmodell ist intern und wird nie veroeffentlicht
+
+`wallMoments(segments)` liefert `{ A, ys, zs, Iy, Iz, Iyz }` der
+**Mittellinienfigur** — Linienelemente mal `t`, **ohne `t³/12`**. `S` wird immer
+um DEREN Schwerpunkt aufsummiert; um jeden anderen Punkt schloesse der Weg am
+freien Ende nicht auf null, und `S` waere zweideutig. `ys`/`zs` in
+`SectionProperties` bleiben die der **Umrissfigur**; das Wandmodell ist eine
+Rechenfigur und kein drittes Bezugssystem.
+
+**„Nie veroeffentlicht" heisst: nicht im Barrel.** `src/index.ts` traegt weder
+`wallMoments`/`WallMoments` noch `Segment`/`segments`, `wallPath`/`WallPath`
+oder `cellCount`/`componentCount` — der ganze Rechenweg von P5 bleibt innen.
+Nach aussen tragen ihn `SectionProperties` (κ, `yM`/`zM`, `It`) und die Befunde
+des Gates (`MultipleCellsWarning`, `DisconnectedWallGraphWarning`,
+`ThickWallWarning`). `Branch`/`branches` stehen weiterhin im Barrel: sie sind
+seit ADR 0030/0037 die Zerlegung selbst und aelter als P5. Die Tests des
+Wandwegs importieren aus `../src/…` und nicht aus dem Barrel — genau dafuer ist
+die Trennung da.
+
+### Zwei Figuren, mit je einem Grund
+
+> ([ADR 0041](../../docs/adr/0041-two-figures-for-the-wall-path.md))
+
+| Groesse | `S` aus | `I` aus | warum |
+| --- | --- | --- | --- |
+| κ | Wandmodell | **Umrissfigur** | nach aussen gebunden: so rechnet RSTAB, daran haengt die IPE-Reihe (ADR 0021) — es ist die bestehende Mischung aus `shapes/t-section.ts` |
+| `yM`/`zM` | Wandmodell | **Wandmodell** | nach innen gebunden: `∫S·u_z ds = −I` gilt nur fuer EINE Figur; gemischt waere die Resultierende `V·I_wand/I_umriss` (IPE 300: rund 2 %) |
+
+### Eine Zelle ja, zwei nein
+
+`Zellen = E − V + C`, gezaehlt ueber die **Laeufe** (`cellCount`,
+`componentCount` in `src/branch.ts`) — die zyklomatische Zahl ist gegen das
+Unterteilen einer Kante unempfindlich, also lesen Gate und Wandweg DIESELBE
+Zerlegung.
+
+- `0` — Baumtraversierung von den freien Enden.
+- `1` — die Zelle wird aufgeschnitten (ihr Anfangsknoten verdoppelt), und EINE
+  skalare Verträglichkeit gibt zurueck, was der Schnitt weggenommen hat:
+  `S₀ = − ∮(S_offen/t) ds / ∮(ds/t)`. Auf den Zellsegmenten ist `S₀` ein
+  **konstanter Zuschlag auf `c0`** — deshalb bleiben `ShearFlowInterval` und
+  `shearArea` unveraendert.
+- `≥ 2` Zellen oder mehrere Teile — κ, `yM`/`zM` und `It` bleiben `undefined`,
+  und das Gate meldet `MultipleCellsWarning` beziehungsweise
+  `DisconnectedWallGraphWarning`. Zwei Zellen sind kein „eine mehr", sondern
+  `n` gekoppelte Unbekannte (P6).
+
+**Vorzeichen und Reproduzierbarkeit stehen fest:** Zellumlauf im Sinn
+`signedArea > 0` (ADR 0034), `r = y·dz − z·dy` im Drehsinn `+y → +z`
+(ADR 0031), **aufgeschnitten wird am Lauf mit der kleinsten Wand-Id**. Vor dem
+ersten Schritt hat die Zellentraversierung nichts erreicht, alle Zellkanten
+stehen also gleich — und Gleichstand entscheidet die Id, nicht die Stelle im
+Eingabe-Array: sonst haette dieselbe Figur mit gedrehter Wandliste einen
+anderen Schnitt. Wo geschnitten wird, aendert das Ergebnis nicht; `cutWallId`
+in `WallPath` nennt den Ort, und zwei Tests halten beides fest — die Wahl und
+ihre Folgenlosigkeit.
+
+### `It`
+
+```text
+It = 4·A_m²/∮(ds/t) + ⅓·Σ_offen l·t³
+```
+
+Der zweite Term laeuft **nur ueber die offenen Zweige**: die Zellwandungen
+tragen ihren Anteil bereits ueber Bredt, und ihn zweimal zu zaehlen waere
+zwischen den beiden Termen ein Faktor von Zehnerpotenzen. `undefined` heisst
+**nicht ermittelt** — bei jedem Vollquerschnitt, wo `It` weder `⅓Σl·t³` noch
+Bredt ist, sondern die Loesung eines Randwertproblems.
+
+**Der Katalog ist als `It`-Orakel ausgeschieden:** der Wandgraph eines IPE 300
+kommt auf `15,70 cm⁴` gegen tabellierte `20,12` — die Ausrundung.
+`profileProperties` reicht deshalb `profile.It` aus der Tabelle DURCH, statt es
+zu rechnen. Die Orakel fuer den gerechneten Weg sind die geschlossenen
+Ausdruecke der parametrischen Formen und zwei Handformeln (`tests/wall-path.test.ts`).
+
+### Die Schranke des Wandwegs
+
+```text
+offener   Lauf:  t / L        L = Laenge der Mittellinie
+geschlossener:   t / √A_m     A_m = von der Mittellinie umschlossen
+```
+
+Zwei Formeln, **eine** Schranke (`SectionPolicy.thickWallRatio`, Default `1/3`):
+der geschlossene Lauf hat keine Laenge, an der zu messen waere, und sein Umfang
+waechst bei gleicher Flaeche mit jeder Einbuchtung. Gemeldet wird an der
+**Geometrie-Tuer** als `ThickWallWarning`, weil nur sie Marke und Gestalt
+zugleich sieht. Belegt an beiden Enden: QRO 60×6,3 kommt auf `0,117` und
+schweigt, ein Kasten `100×100` mit `t = 30` auf `0,43` und meldet sich.
 
 ## Das Gate: es warnt, es verweigert nicht
 
@@ -333,9 +461,24 @@ Querschnitt ist kein Tor vor der Rechenkette; wer ihn nicht rechnen kann, bekomm
 | # | Ausloeser | Aussage |
 | --- | --- | --- |
 | 1 | `\|Iyz\| > tol · max(\|Iy\|, \|Iz\|)` | keine Hauptachsenlage — gilt nur, solange der Stab aus der Ebene gehalten wird |
-| 2 | `yM ≠ ys` | Querkraft durch den Schwerpunkt tordiert (`T = Vz·e`) |
+| 2 | `\|yM − ys\| > tol · max(√(Iy/A), √(Iz/A))` | Querkraft durch den Schwerpunkt tordiert (`T = Vz·e`) |
 | 3 | Knick am Bogen | Tangentialitaet gebrochen |
 | 4 | `yM === undefined` | Schubmittelpunkt **nicht ermittelt** — Satz 2 ist ungeprueft |
+
+Dazu kommen mit P5 **drei Befunde am Wandweg**, alle an der **Geometrie**-Tuer,
+weil nur sie die Topologie sieht (ADR 0040) — und alle nur bei
+`kind: 'midline'` mit `idealisation: 'thin-walled'`, denn `idealisation`
+schaltet den Wandweg und nicht die Topologie (ADR 0029):
+
+| Ausloeser | Befund |
+| --- | --- |
+| `≥ 2` Zellen | `MultipleCellsWarning` — ab zwei Zellen begaenne ein Gleichungssystem (P6) |
+| mehrere unverbundene Teile | `DisconnectedWallGraphWarning` — es gibt keinen Weg, auf dem der Schubfluss sich ausgliche |
+| ein Lauf ueber `thickWallRatio` | `ThickWallWarning`, mit Lauf-Index, `wallIds`, Verhaeltnis und Schranke |
+
+**`zM` bekommt keinen eigenen Satz**, und die Asymmetrie ist gewollt: im ebenen
+Rahmen gibt es nur `N`, `Vz` und `My`, die Torsion kommt aus `yM − ys` allein.
+Der Grund steht im JSDoc, sonst liest sie sich als Versehen.
 
 Dazu kommen mit P2 drei Befunde am **Umlaufsinn** des mitgefuehrten Umrisses
 ([ADR 0034](../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)):
@@ -441,8 +584,13 @@ kommt dieselbe Zahl heraus wie vorher.
 ([ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
 ADR 0011 zieht seine Trennlinie an *„steuert die Rechnung, **ohne das Modell zu
 aendern**"* — `arcTolerance` aendert es: der abgeleitete Umriss reist nach ADR
-0030 im Satz mit, und seine Punktzahl haengt an der Toleranz. Der Loeser truege
-eine Zahl mit, die er nie liest.
+0030 im Satz mit, und seine Punktzahl haengt an der Toleranz.
+
+Der zweite Satz von ADR 0033 — *„der Loeser truege eine Zahl mit, die er nie
+liest"* — **gilt seit P5 nicht mehr**: der Wandweg liest `arcTolerance`, um
+seine Bogenwaende zu zerlegen, und zwar unter derselben Toleranz wie der
+mitgefuehrte Umriss (ADR 0040). Deshalb ist die Policy in `SectionModel`
+(`@baustatik/fem-section-resolve`) ein Pflichtfeld.
 
 Die volle Scheibenform nach dem Vorbild von `fem-loads/src/policy.ts`:
 `SectionPolicy` · `SectionPolicyOverrides` · `DEFAULT_SECTION_POLICY` ·
@@ -454,14 +602,27 @@ eine Version je Datensatz, und der Datensatz ist der Snapshot (`v7`, wo
 `@baustatik/section-geometry`. Es neu zu setzen brachte den Zustand zurueck, den
 ADR 0032 beseitigt hat — zwei Zahlen fuer eine Modellannahme.
 
-**Drei Felder heute, ein datierter Kandidat:**
+**Fuenf Felder, und die Liste der datierten Kandidaten ist abgearbeitet:**
 
-| Feld / Kandidat | Stand |
-| --- | --- |
-| `arcTolerance` — die Sehnenabweichung [mm] | seit P1 |
-| `principalAxisTolerance` — dimensionslos, `\|Iyz\| <= tol · max(\|Iy\|, \|Iz\|)`, Default `1e-9` | seit P2 |
-| `miterLimit` — dimensionslos, gekappt ab `1/sin(α/2) > miterLimit`, Default `2` | seit P3 |
-| Schwelle „dicke Wand" (`t/h`) | P5 |
+| Feld | Stand | aendert den Umriss | beurteilt ihn |
+| --- | --- | --- | --- |
+| `arcTolerance` — die Sehnenabweichung [mm] | seit P1 | **ja** | — |
+| `principalAxisTolerance` — dimensionslos, `\|Iyz\| <= tol · max(\|Iy\|, \|Iz\|)`, Default `1e-9` | seit P2 | — | **ja** |
+| `miterLimit` — dimensionslos, gekappt ab `1/sin(α/2) > miterLimit`, Default `2` | seit P3 | **ja** | — |
+| `thickWallRatio` — dimensionslos, `t/L` offen bzw. `t/√A_m` geschlossen, Default `1/3` | seit P5 | — | **ja** |
+| `shearCentreTolerance` — dimensionslos, relativ zum groesseren Traegheitsradius, Default `1e-6` | seit P5 | — | **ja** |
+
+Die Spaltentrennung ist die Leitplanke, die die Policy davor bewahrt, zur
+Sammelstelle zu werden: **Beurteilungsfelder werden allein vom Gate gelesen**
+und stehen trotzdem hier, weil sie ueber den QUERSCHNITT urteilen und nicht
+ueber die Rechnung — ADR 0033 zieht die Linie am Gegenstand. Sie stehen
+ausserdem aus demselben Grund im Snapshot wie `arcTolerance`: derselbe Bericht
+soll nach einer Aenderung der Software-Defaults nicht still andere Warnungen
+zeigen.
+
+`shearCentreTolerance` ist **weiter** als `principalAxisTolerance` (`1e-6` gegen
+`1e-9`), weil `yM` beim gezeichneten Querschnitt aus ZWEI numerischen
+Integrationen ueber zwei verschiedene Figuren faellt und `Iyz` aus einer.
 
 `JoinType` stand in derselben Zeile wie das Miter-Limit und ist **kein Feld
 geworden**: er ist auf Miter festgenagelt, weil `Round` jede Ecke des I-Profils
@@ -505,12 +666,31 @@ bereits der Vertrag fuer „Querschnitt unbekannt" — daraus wird ein Modellfeh
 **im Bericht** statt einer Ausnahme mitten in `solve()`. Was daran im Einzelnen
 falsch ist, sagt das Gate mit Namen.
 
-**Beim Editor-Querschnitt heisst `undefined` an `kappaY`/`kappaZ` und
-`yM`/`zM` dagegen „nicht ermittelt"** und nicht „nicht rechenbar": die Werte
-stehen, die Schubgroessen fehlen. Der Loeser rechnet dann `GAs: 'rigid'`, also
+**Beim Editor-Querschnitt heisst `undefined` an `kappaY`/`kappaZ`, `yM`/`zM`
+und `It` dagegen „nicht ermittelt"** und nicht „nicht rechenbar": die Werte
+stehen, die Schub- und Torsionsgroessen fehlen. Seit P5 ist das nur noch bei
+`kind: 'outline'`, bei `midline` + `solid`, ab zwei Zellen und beim
+unverbundenen Wandgraphen der Fall. Der Loeser rechnet dann `GAs: 'rigid'`, also
 ohne Schubverformung — die steifere und damit unauffaelligere Richtung —, und
 `check()` in `@baustatik/fem-solver` meldet es, wenn `shearDeformation: true`
 eingestellt war (ADR 0035).
+
+**`sectionProperties(cs, policy?)` nimmt seit P5 eine optionale Policy** — die
+einzige Stelle im Package, an der sie optional ist. Gelesen wird daraus GENAU
+EIN Feld, `arcTolerance`, und auch das nur beim gezeichneten Wandgraphen: der
+Wandweg zerlegt seine Bogenwaende unter derselben Toleranz, unter der der
+mitgefuehrte Umriss entstanden ist. Ein Querschnitt **ohne Bogenwand** ist von
+der Zahl unberuehrt. Das ist eine bewusste Abweichung von ADR 0011 und in
+`section.ts` als solche vermerkt.
+
+**Optional heisst nicht „darf auf der Rechenstrecke fehlen".** `SectionModel`
+in `@baustatik/fem-section-resolve` fuehrt `sectionPolicy` als **Pflichtfeld**
+und reicht es herein; der Snapshot traegt es seit `v7` ohnehin mit. Die
+Voreinstellung ist fuer den gelegentlichen Aufrufer da, der ein Katalogprofil
+oder eine parametrische Form fragt — beide sehen die Zahl nie. Setzte der
+Resolver sie selbst ein, zerlegte er den **Weg** feiner oder groeber als den
+mitgefuehrten **Umriss**, aus dem `I` faellt: zwei Diskretisierungen derselben
+Figur, und der Unterschied stuende still in κ.
 
 ## Spannungspunkte: Regel statt Liste
 
@@ -668,6 +848,18 @@ ein Beispiel nicht unbemerkt veraltet. Details in
   Groesse — die Schubenergie ist das Prinzip hinter der Formel, keine Einheit,
   die der Typ traegt. Die Literatur hat fuer dieses Stueck kein eigenes Wort;
   sie integriert abschnittsweise und beschriftet „Bereich I, II, III".
+- **`Segment`** (`segment.ts`) ist das **positionierte** Gegenstueck dazu:
+  Startpunkt, Richtung, Laenge, `t`, `wallId`. Seit P5 vergeben, und ohne `S` —
+  `Sy` und `Sz` sind zwei Laeufe ueber dieselbe Geometrie (ADR 0040). Ein
+  `SegmentRun` ist ein `Branch` samt seinen Stuecken.
+- **Wandmodell** heisst im Zusammenhang mit `wallMoments` die Figur der
+  **Mittellinien** (Linienelemente mal `t`, ohne `t³/12`) — dieselbe
+  Gegenueberstellung wie bei den Spannungspunkten, nur mit Zahlen statt mit
+  Punkten. Ihr Schwerpunkt ist **intern**: `ys`/`zs` in `SectionProperties`
+  bleiben die der Umrissfigur.
+- **`It`** ist das Torsionstraegheitsmoment und wird nicht uebersetzt.
+  **`A_m`** ist die von der Mittellinie umschlossene Flaeche der Zelle — der
+  Name ist der der Bredtschen Formel.
 - **Umrissmodell** und **Wandmodell** sind die beiden Antworten auf „wie fliesst
   der Schub", und `idealisation` waehlt zwischen ihnen. Das **Umrissmodell**
   (`stress-points/outline.ts`) schneidet quer durch die volle Umrissfigur —

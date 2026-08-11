@@ -93,6 +93,87 @@ export function branches(
   return traverse(graph, junctionsEndTheRun(graph));
 }
 
+/**
+ * Die Endknoten eines Laufs — beim geschlossenen Umlauf zweimal derselbe.
+ *
+ * `nodeIds` ist nie leer (siehe `Branch`), also gibt es beide immer.
+ */
+export function branchEnds(branch: Branch): readonly [string, string] {
+  return [
+    atOrThrow(branch.nodeIds, 0),
+    atOrThrow(branch.nodeIds, branch.nodeIds.length - 1),
+  ];
+}
+
+/**
+ * Die Zahl der UNVERBUNDENEN Teile des Wandgraphen.
+ *
+ * GEZÄHLT WIRD ÜBER DIE LÄUFE und nicht über die Wände: ein Lauf ist eine
+ * Kante zwischen Verzweigungsknoten, und Unterteilen einer Kante ändert weder
+ * die Zahl der Teile noch die der Zellen. Damit lesen der Wandweg und das Gate
+ * DIESELBE Zerlegung, statt zwei Zählungen nebeneinanderzustellen.
+ *
+ * `0` bei leerer Eingabe: kein Graph, kein Teil.
+ */
+export function componentCount(branches: readonly Branch[]): number {
+  const adjacent = new Map<string, string[]>();
+  const neighboursOf = (id: string): string[] => {
+    const at = adjacent.get(id) ?? [];
+    adjacent.set(id, at);
+    return at;
+  };
+
+  for (const branch of branches) {
+    const [a, b] = branchEnds(branch);
+    neighboursOf(a).push(b);
+    neighboursOf(b).push(a);
+  }
+
+  const seen = new Set<string>();
+  let components = 0;
+
+  for (const start of adjacent.keys()) {
+    if (seen.has(start)) continue;
+    components++;
+
+    const stack = [start];
+    seen.add(start);
+    while (stack.length > 0) {
+      const id = stack.pop();
+      if (id === undefined) break;
+      for (const next of adjacent.get(id) ?? []) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        stack.push(next);
+      }
+    }
+  }
+
+  return components;
+}
+
+/**
+ * Die Zahl der ZELLEN — der zyklomatischen Zahl `E − V + C` des Graphen.
+ *
+ * `0` heisst OFFENES PROFIL: der Wandweg läuft dann als Baum von den freien
+ * Enden. `1` heisst eine geschlossene Zelle, und dafür kommt EINE skalare
+ * Verträglichkeitsgleichung dazu (`src/wall-path.ts`). Ab `2` bleibt der
+ * Wandweg unbestimmt, und das Gate sagt es — dort begänne ein Gleichungssystem
+ * und damit ein anderes Vorhaben.
+ *
+ * ÜBER DIE LÄUFE GEZÄHLT, aus demselben Grund wie `componentCount`: die
+ * zyklomatische Zahl ist gegen das Unterteilen einer Kante unempfindlich, und
+ * ein geschlossener Umlauf ist hier eine Kante von einem Knoten auf sich
+ * selbst — er zählt als genau eine Zelle.
+ */
+export function cellCount(branches: readonly Branch[]): number {
+  const nodeIds = new Set<string>();
+  for (const branch of branches) {
+    for (const id of branchEnds(branch)) nodeIds.add(id);
+  }
+  return branches.length - nodeIds.size + componentCount(branches);
+}
+
 export function buildGraph(
   nodes: readonly SectionNode[],
   walls: readonly Wall[],

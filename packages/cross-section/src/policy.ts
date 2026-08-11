@@ -10,8 +10,15 @@
  * `arcTolerance` ändert es. Der abgeleitete Umriss reist nach
  * [ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)
  * IM SATZ mit, und seine Punktzahl hängt an dieser Zahl — aus ihr fallen `A`,
- * `Iy` und `Iz`. Der Löser trüge eine Zahl mit, die er nie liest: die
- * Rechenstrecke liest den MITGEFUEHRTEN Umriss, nie das Rezept.
+ * `Iy` und `Iz`.
+ *
+ * SEIT P5 LIEST DIE RECHENSTRECKE SIE DOCH, und zwar genau ein Feld:
+ * `arcTolerance`, damit der Wandweg seine Bogenwände unter DERSELBEN Toleranz
+ * zerlegt wie der mitgeführte Umriss (ADR 0040). Zwei Diskretisierungen
+ * derselben Figur stünden sonst in κ, ohne dass irgendwo etwas fehlte. Der
+ * Satz von ADR 0033 — „der Löser trüge eine Zahl mit, die er nie liest" —
+ * gilt damit nicht mehr; `SectionModel` in `@baustatik/fem-section-resolve`
+ * führt die Policy deshalb als Pflichtfeld.
  *
  * ZWEI EINGAENGE, wie bei `LoadValidationPolicy` in `@baustatik/fem-loads`, und
  * die Arbeitsteilung ist dieselbe:
@@ -40,14 +47,26 @@ import { InvalidSectionPolicyError } from './errors';
 /**
  * Die Stellschrauben der Querschnitts-ERZEUGUNG.
  *
- * HEUTE DREI FELDER, und die Scheibenform steht trotzdem vollständig da: der
- * verbleibende Kandidat ist bereits datiert und soll später EINRASTEN statt die
- * Fabrik samt Merge-Semantik neu zu erfinden. `principalAxisTolerance` ist mit
- * P2 eingerastet, `miterLimit` mit P3 — genau wie vorgesehen.
+ * HEUTE FÜNF FELDER, und jedes ist EINGERASTET statt hinzugewachsen:
+ * `principalAxisTolerance` mit P2, `miterLimit` mit P3, `thickWallRatio` und
+ * `shearCentreTolerance` mit P5 — der letzte datierte Kandidat ist damit
+ * abgearbeitet, und die Fabrik samt Merge-Semantik musste kein einziges Mal
+ * neu erfunden werden.
  *
- * | Kandidat                                   | fällig |
- * | ------------------------------------------ | ------- |
- * | Schwelle „dicke Wand" (`t/h`)               | P5      |
+ * ZWEI SORTEN FELD, und die Trennung soll die Policy davor bewahren, zur
+ * Sammelstelle zu werden:
+ *
+ * | Feld                     | ändert den Umriss | beurteilt ihn |
+ * | ------------------------ | ----------------- | ------------- |
+ * | `arcTolerance`           | ja                | —             |
+ * | `miterLimit`             | ja                | —             |
+ * | `principalAxisTolerance` | —                 | ja            |
+ * | `thickWallRatio`         | —                 | ja            |
+ * | `shearCentreTolerance`   | —                 | ja            |
+ *
+ * Die Beurteilungsfelder werden ALLEIN VOM GATE gelesen. Sie stehen trotzdem
+ * hier und nicht in der `AnalysisPolicy`: sie urteilen über den Querschnitt,
+ * nicht über die Rechnung, und ADR 0033 zieht die Linie am Gegenstand.
  *
  * `JoinType` IST KEIN FELD GEWORDEN, obwohl er in derselben Zeile stand: er ist
  * auf Miter festgenagelt, weil `Round` jede Ecke des I-Profils abrundete und
@@ -137,6 +156,54 @@ export type SectionPolicy = {
    * wirkt, ist schlimmer als keine.
    */
   readonly miterLimit: number;
+
+  /**
+   * Ab wann eine Wand für die dünnwandige Theorie zu DICK ist. DIMENSIONSLOS.
+   *
+   * ZWEI FORMELN, EINE SCHRANKE, und die Formel folgt der Gestalt des Laufs:
+   *
+   * ```text
+   * offener   Branch:  t / L        L = Länge der Mittellinie des Laufs
+   * geschlossener:     t / √A_m     A_m = von der Mittellinie umschlossen
+   * ```
+   *
+   * Der offene Lauf hat eine Länge, an der die Wandstärke zu messen ist; der
+   * geschlossene hat keine — sein Weg schliesst sich, und die einzige Länge,
+   * die seine Grösse benennt, ist die Wurzel aus der eingeschlossenen Fläche.
+   * Eine Formel für beide gäbe es nur um den Preis, die Zelle über ihren
+   * Umfang zu messen, und der wächst bei gleicher Fläche mit jeder Einbuchtung.
+   *
+   * Belegt an den beiden Enden: QRO 60×6,3 kommt auf `0,117` und schweigt,
+   * ein Kasten `100×100` mit `t = 30` auf `0,43` und meldet sich.
+   *
+   * EIN BEURTEILUNGSFELD, kein Erzeugungsfeld — es steht auf der Seite von
+   * `principalAxisTolerance` und nicht auf der von `arcTolerance`/`miterLimit`:
+   * es ändert den gespeicherten Umriss nicht, es urteilt über ihn. Gelesen
+   * wird es allein vom Gate.
+   */
+  readonly thickWallRatio: number;
+
+  /**
+   * Ab wann `yM` und `ys` als zusammenfallend gelten. DIMENSIONSLOS.
+   *
+   * Bezogen auf `max(√(Iy/A), √(Iz/A))`, den GRÖSSEREN Trägheitsradius: die
+   * Eigenschaften-Tür sieht nur den Wertesatz, keine Figur — eine Abmessung,
+   * gegen die eine Länge zu messen wäre, gibt es dort nicht, und der
+   * Trägheitsradius ist die einzige Länge, die aus dem Satz selbst fällt. Auf
+   * den grösseren, aus demselben Grund wie bei `principalAxisTolerance`: sonst
+   * schwiege die Frage ausgerechnet dort, wo eine der beiden Achsen schwach
+   * ist.
+   *
+   * WARUM ES SIE ÜBERHAUPT GIBT: bis P5 stand dort `yM !== ys`, ein exakter
+   * Vergleich, und der war richtig, solange jede Quelle beide Zahlen als
+   * literale `0` hinschrieb. Der GEZEICHNETE Querschnitt integriert beide
+   * numerisch und über zwei verschiedene Figuren — ein symmetrisch
+   * gezeichnetes I liefert dabei Rauschen, und der exakte Vergleich meldete
+   * Torsion, wo keine ist. Dieselbe Bewegung wie bei Satz 1 in P2.
+   *
+   * EIN BEURTEILUNGSFELD, wie `thickWallRatio`.
+   */
+  readonly shearCentreTolerance: number;
 };
 
 /** Was ein Aufrufer abweichend setzen darf; der Rest kommt aus dem Default. */
@@ -162,17 +229,33 @@ export type SectionPolicyOverrides = Partial<SectionPolicy>;
  * besonders großzügig — der rechtwinklige Stoß, aus dem jedes gewalzte Profil
  * besteht, bleibt mit `1/sin(45°) = 1,41` weit darunter, und wo sie greift,
  * sagt das Gate es (ADR 0037).
+ *
+ * `1/3` FÜR DIE DICKE WAND ist grosszügig und soll es sein: die Literatur nennt
+ * `t/L` zwischen `1/10` und `1/5` als „dünnwandig", und alles darunter schwiege
+ * bei jedem geschweissten Blech, das jemand bewusst gedrungen zeichnet. Die
+ * Warnung soll den Fall treffen, in dem die dünnwandige Theorie nicht mehr
+ * *daneben*, sondern *falsch* liegt. Belegt an beiden Enden: QRO 60×6,3 kommt
+ * auf `0,117`, ein Kasten `100×100` mit `t = 30` auf `0,43`.
+ *
+ * `1e-6` FÜR DEN SCHUBMITTELPUNKT ist relativ zum Trägheitsradius, also eine
+ * Länge von rund einem Tausendstel Millimeter an einem Meter Querschnitt.
+ * Weiter als `principalAxisTolerance` (`1e-9`), weil `yM` aus ZWEI numerischen
+ * Integrationen über zwei verschiedene Figuren fällt und nicht aus einer.
  */
 export const DEFAULT_SECTION_POLICY: SectionPolicy = Object.freeze({
   arcTolerance: DEFAULT_ARC_TOLERANCE,
   principalAxisTolerance: 1e-9,
   miterLimit: 2,
+  thickWallRatio: 1 / 3,
+  shearCentreTolerance: 1e-6,
 });
 
 const FIELDS = [
   'arcTolerance',
   'principalAxisTolerance',
   'miterLimit',
+  'thickWallRatio',
+  'shearCentreTolerance',
 ] as const;
 
 /**
@@ -193,6 +276,11 @@ export function createSectionPolicy(
       overrides.principalAxisTolerance ??
       DEFAULT_SECTION_POLICY.principalAxisTolerance,
     miterLimit: overrides.miterLimit ?? DEFAULT_SECTION_POLICY.miterLimit,
+    thickWallRatio:
+      overrides.thickWallRatio ?? DEFAULT_SECTION_POLICY.thickWallRatio,
+    shearCentreTolerance:
+      overrides.shearCentreTolerance ??
+      DEFAULT_SECTION_POLICY.shearCentreTolerance,
   };
 
   assertValidValues(policy);
@@ -223,6 +311,8 @@ export function parseSectionPolicy(input: unknown): SectionPolicy {
     arcTolerance: numberField(record, 'arcTolerance'),
     principalAxisTolerance: numberField(record, 'principalAxisTolerance'),
     miterLimit: numberField(record, 'miterLimit'),
+    thickWallRatio: numberField(record, 'thickWallRatio'),
+    shearCentreTolerance: numberField(record, 'shearCentreTolerance'),
   };
   assertValidValues(policy);
   return Object.freeze(policy);
@@ -272,9 +362,25 @@ function numberField(record: Record<string, unknown>, field: string): number {
  * schweigt, ist die eine Sorte Wert, die dieser Eingang nicht durchlassen darf.
  * Nach oben unbegrenzt: ein sehr großes Limit lässt jeden Spitz stehen, und
  * das ist eine Entscheidung des Projekts.
+ *
+ * `thickWallRatio` ECHT POSITIV: `0` liesse `t/L > 0` bei JEDER Wand wahr
+ * werden und meldete jeden dünnwandigen Querschnitt als dick — eine
+ * Einstellung, die nur noch rauscht. Nach oben unbegrenzt, wie bei den
+ * anderen: eine absurd große Schranke schweigt überall, und das ist eine
+ * Entscheidung des Projekts.
+ *
+ * `shearCentreTolerance` DARF `0` SEIN und nicht negativ — wörtlich dieselbe
+ * Begründung wie bei `principalAxisTolerance`: die `0` ist der exakte
+ * Vergleich, also die Schärfe, mit der das Gate bis P5 gearbeitet hat.
  */
 function assertValidValues(policy: SectionPolicy): void {
-  const { arcTolerance, principalAxisTolerance, miterLimit } = policy;
+  const {
+    arcTolerance,
+    principalAxisTolerance,
+    miterLimit,
+    thickWallRatio,
+    shearCentreTolerance,
+  } = policy;
   if (!Number.isFinite(arcTolerance) || arcTolerance <= 0) {
     throw new InvalidSectionPolicyError(
       `"arcTolerance" muss endlich und größer als 0 sein (war: ${arcTolerance}).`,
@@ -293,6 +399,19 @@ function assertValidValues(policy: SectionPolicy): void {
       `"miterLimit" muss endlich und größer als 1 sein (war: ${miterLimit}) — ` +
         'Clipper2 ersetzt jeden Wert bis 1 still durch 2.',
       'miterLimit',
+    );
+  }
+  if (!Number.isFinite(thickWallRatio) || thickWallRatio <= 0) {
+    throw new InvalidSectionPolicyError(
+      `"thickWallRatio" muss endlich und größer als 0 sein (war: ${thickWallRatio}).`,
+      'thickWallRatio',
+    );
+  }
+  if (!Number.isFinite(shearCentreTolerance) || shearCentreTolerance < 0) {
+    throw new InvalidSectionPolicyError(
+      '"shearCentreTolerance" muss endlich und mindestens 0 sein (war: ' +
+        `${shearCentreTolerance}).`,
+      'shearCentreTolerance',
     );
   }
 }

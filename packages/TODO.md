@@ -12,7 +12,7 @@ Entscheidungen, die dafür wichtig bleiben. Erledigte Stufen sind in ADRs,
 | FEM-Viewer | Schnittgrößen grafisch darstellen | Die Rechenwerte und exakten Auswertungsstellen existieren bereits. |
 | FEM-Rechnung | Lastkombinationen und Hüllkurven | Baut auf Lastfällen und den vorhandenen Schnittgrößen-Auswertungen auf. |
 | Querschnitte | Werte → Profilkatalog → Solver-Anschluss | Liefert echte Steifigkeiten, bevor ein Editor gebaut wird. |
-| Policy | `analysisPolicy` modellgebunden: Snapshot v10, eigenes `schemaVersion` fällt | `sectionPolicy` ist das Muster; Plan: [`plan-refactor-policy.md`](plan-refactor-policy.md). **v9 ist mit P3 vergeben** (`miterLimit`), also nimmt der Refactor die nächste freie. |
+| Policy | `analysisPolicy` modellgebunden: Snapshot v11, eigenes `schemaVersion` fällt | `sectionPolicy` ist das Muster; Plan: [`plan-refactor-policy.md`](plan-refactor-policy.md). **v10 ist mit P5 vergeben** (`thickWallRatio`, `shearCentreTolerance`), also nimmt der Refactor die nächste freie. |
 | Projekt | Behälter und Persistenz entwerfen (ADR) | Der Behälter ist die App; die Tool-Dokumente sind die Datensatz-Einheiten. |
 
 Der Viewer- und der Querschnittsstrang können unabhängig weiterlaufen; der
@@ -118,28 +118,39 @@ Zwischenstand. Ein Editor ohne Rechenkern nicht.
 Offen geblieben ist außerdem: der geschlossene Kasten hat noch keine
 Spannungspunkt-Vorlage — ihm fehlen die **Referenzdaten**, nicht die Theorie
 (`closedBoxPath` hat den umlaufenden Weg, κ fällt daraus); er wartet auf die
-QRO-Daten mit ihren Bogentangenten. Und `It` fehlt — dort wirkt die
-`idealisation` wieder, und zwischen `⅓Σl·t³` und Bredt liegen drei
-Zehnerpotenzen.
+QRO-Daten mit ihren Bogentangenten.
+
+~~Und `It` fehlt.~~ **Erledigt mit P5**
+([ADR 0040](../docs/adr/0040-the-wall-path-is-positioned.md),
+[0041](../docs/adr/0041-two-figures-for-the-wall-path.md)): `It` steht als
+geschlossener Ausdruck an jeder dünnwandigen Form, als Tabellenwert am
+Walzprofil und als `4A_m²/∮(ds/t) + ⅓Σ_offen l·t³` am gezeichneten Wandgraphen.
+Kompakt bleibt es `undefined` — dort ist es ein Randwertproblem. **Offen bleibt
+eine externe Referenz**: der Katalog taugt nicht dafür (IPE 300: Wandgraph
+`15,70` gegen tabellierte `20,12 cm⁴`, die Ausrundung), und ein U-Profil, an dem
+sich die Handformel prüfen ließe, gibt es im Repo nicht.
 
 Die Idealisierung steuert seit
 [ADR 0029](../docs/adr/0029-stress-points-follow-the-idealisation.md) κ **und**
-die Spannungspunkte. Bewusst noch nicht angefasst:
+die Spannungspunkte, seit P5 außerdem `It`. Bewusst noch nicht angefasst:
 
-- **Das positionierte Wandmodell — teilweise beantwortet.**
+- **Das positionierte Wandmodell — mit P5 zur Hälfte gebaut.**
   [ADR 0030](../docs/adr/0030-the-section-editor-stores-a-wall-graph.md) hat die
-  **Speicherform** entschieden: `SectionGeometry` ist ein Graph mit Identität je
-  Abschnitt (`SectionNode`, `Wall` mit String-Ids), und genau deshalb kann ein
-  Weg darauf eine Durchlaufordnung tragen. Offen bleibt der **Rechenweg**:
-  `ShearFlowInterval` ist weiterhin ein lageloser Energieakkumulator — `pathZ`
-  benutzt dasselbe Gurtobjekt viermal —, also können κ und die Spannungspunkte
-  nicht denselben Weg lesen. Ein Weg, der beides speist, bräuchte Startpunkt und
-  Richtung je Abschnitt — für ihn ist der Name **`Segment`** reserviert, seit
-  der lagelose Typ `Interval` heißt —, und `Sy`/`Sz` kämen aus zwei verschieden
-  parametrisierten Wegen, deren Stationen korreliert werden müssten. Danach
-  blieben zwei Maschinen — aber jede nur noch für ihren Fall zuständig. Wer die
-  Auflösung Graph → lagerichtige Geometrie besitzt (der Viewer hat sie schon),
-  ist ebenfalls noch offen.
+  **Speicherform** entschieden, ADR 0040 den **Rechenweg**: `Segment` ist
+  vergeben und trägt Startpunkt, Richtung, Länge, `t` und `wallId` — und
+  ausdrücklich **kein `S`**, weil `Sy` und `Sz` zwei verschieden
+  parametrisierte Läufe über dieselbe Geometrie sind. Aus ihm fallen κ, der
+  Schubmittelpunkt und `It`. **Was offen bleibt: die Spannungspunkte lesen ihn
+  noch nicht** — sie verzweigen weiter über ihre Vorlagen, und für den
+  gezeichneten Querschnitt gibt es gar keine. Damit ist die ursprüngliche
+  Absicht, „κ und die Spannungspunkte fallen einmal gemeinsam", erst zur Hälfte
+  eingelöst. Wer die Auflösung Graph → lagerichtige Geometrie besitzt (der
+  Viewer hat sie schon), ist ebenfalls noch offen.
+- **Mehrzeller (P6).** Bei genau einer Zelle kommt eine skalare
+  Verträglichkeit dazu, deren Ergebnis ein konstanter Zuschlag auf `c0` ist; ab
+  zwei Zellen sind es `n` gekoppelte Unbekannte, also ein Gleichungssystem. Bis
+  dahin bleiben κ, `yM`/`zM` und `It` dort `undefined`, und das Gate meldet es
+  mit `MultipleCellsWarning`. Dasselbe gilt für den unverbundenen Wandgraphen.
 - **`i-shape` mit unabhängigen Gurten**, das I und T subsumiert (T = Grenzfall
   `tf,unten = 0`). Das ist eine Formänderung im Modellsatz, kein Aufräumen.
 
@@ -233,9 +244,12 @@ urteilt.
   bleibt: er ist strukturell nötig, weil `arcTolerance` die Zeichnung steuert —
   den FEM-Viewer erreicht eine Policy dagegen nie, er zeichnet das Modell, nicht
   die Einstellung.
-- **`analysisPolicy`: wird modellgebunden.** Pflichtfeld im FEM-Tool-Dokument
-  (Snapshot v9), eigenes `schemaVersion` fällt im selben Schritt — erst
-  adoptieren, dann Version entfernen. Form, Composition-Root und Striktheit
+- **`analysisPolicy`: wird modellgebunden.** Pflichtfeld im FEM-Tool-Dokument,
+  und das ist dann **Snapshot v11**: v10 ist mit P5 vergeben
+  (`thickWallRatio` und `shearCentreTolerance` in der `SectionPolicy`,
+  [ADR 0040](../docs/adr/0040-the-wall-path-is-positioned.md)). Eigenes
+  `schemaVersion` fällt im selben Schritt — erst adoptieren, dann Version
+  entfernen. Form, Composition-Root und Striktheit
   bleiben, wie sie sind. Plan: [`plan-refactor-policy.md`](plan-refactor-policy.md).
 - **Eigenes Package für den Projekt-Behälter: nein.** Die Tool-Dokumente sind
   Packages (das FEM-Dokument ist es schon, in `@baustatik/script`); der

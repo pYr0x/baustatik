@@ -32,7 +32,26 @@ export function iSymmetric(
       : thinPaths(h, b, tw, tf);
 
   // Doppeltsymmetrisch: Schubmittelpunkt = Schwerpunkt.
-  return { A, Iy, Iz, Iyz: 0, ys: 0, zs: h / 2, yM: 0, zM: h / 2, ...paths };
+  return {
+    A,
+    Iy,
+    Iz,
+    Iyz: 0,
+    ys: 0,
+    zs: h / 2,
+    yM: 0,
+    zM: h / 2,
+    // Offenes Profil: `⅓ Σ l·t³` ueber die drei Wandmittellinien — zwei Gurte
+    // der Laenge `b`, ein Steg von Gurtmitte zu Gurtmitte (`h − tf`, nicht
+    // `h − 2tf`). Dieselbe Wandfigur, aus der `thinPaths` sein kappa zieht.
+    // KOMPAKT GIBT ES IHN NICHT: `It` des Vollquerschnitts ist ein
+    // Randwertproblem und keine Summe.
+    It:
+      idealisation === 'thin-walled'
+        ? (2 * b * tf ** 3 + (h - tf) * tw ** 3) / 3
+        : undefined,
+    ...paths,
+  };
 }
 
 /** Kompakt: Schnitte quer zur Schubrichtung durch die volle Umrissfigur. */

@@ -79,19 +79,22 @@ into a snapshot.
 - **An older `schemaVersion` is rejected, never extended.** A v1 snapshot has a
   `crossSectionId` pointing nowhere; a v2 snapshot's `materialId` *is* the grade
   rather than a reference; a v3 snapshot lacks the copied numbers; a v6 lacks
-  the `sectionPolicy` under which its carried outlines were produced; a v7
-  carries that policy with only one of its two fields. **v6 and v7 are the most
-  tempting of all** — `DEFAULT_SECTION_POLICY` is sitting right there — and they
-  are also the worst: substituting it would *assert* that the outline was
-  discretised at 0.05 mm and judged at `1e-9`, and the drift check the field
-  exists for would then judge against an invented number. A migration is a tool
-  someone runs and can refuse.
-- **`sectionPolicy` is a mandatory project-level field since v7**, and since v9
-  it carries **three**: `arcTolerance` (creation), `principalAxisTolerance`
-  (judgement) and `miterLimit` (creation — it changes the stored outline)
+  the `sectionPolicy` under which its carried outlines were produced; a v7, v8
+  or v9 carries that policy with only some of its five fields. **Every snapshot
+  that carries a partial policy is the most tempting of all** —
+  `DEFAULT_SECTION_POLICY` is sitting right there — and also the worst:
+  substituting it would *assert* that the outline was discretised at 0.05 mm
+  and judged at `1e-9`, and the drift check the field exists for would then
+  judge against an invented number. A migration is a tool someone runs and can
+  refuse.
+- **`sectionPolicy` is a mandatory project-level field since v7**, and since
+  v10 it carries **five**: `arcTolerance` (creation), `miterLimit` (creation —
+  it changes the stored outline), `principalAxisTolerance`, `thickWallRatio`
+  and `shearCentreTolerance` (judgement)
   ([ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md),
   [ADR 0035](../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md),
-  [ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+  [ADR 0037](../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md),
+  [ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md)).
   It carries **effective** values, not deviations — otherwise the same project
   would silently compute differently after a change to the software defaults.
   It sits beside `crossSections` rather than inside each one because the fields
