@@ -29,13 +29,23 @@
 
 import { atOrThrow } from '@baustatik/core';
 import { Bulge, Polygon } from '@baustatik/section-geometry';
+import {
+  buildGraph,
+  cellCount,
+  componentCount,
+  nodeIdOf,
+  normalizeAngle,
+  outgoingTangent,
+} from './branch';
 import { chainedJoints, deriveOutline } from './derive-outline';
 import {
   type BulgeSite,
   DegenerateOutlineRingError,
+  DisconnectedWallGraphWarning,
   DuplicateSectionIdError,
   EmptyOutlineError,
   MiterLimitExceededWarning,
+  MultipleCellsWarning,
   NegativeOutlineAreaError,
   NonFiniteBulgeError,
   NonPositiveWallThicknessError,
@@ -47,6 +57,7 @@ import {
   ShearCentreOffsetWarning,
   ShearCentreUnknownWarning,
   TangentKinkWarning,
+  ThickWallWarning,
   UndiscretisableBulgeError,
   UnknownSectionNodeError,
   UnnestedHoleWarning,
@@ -54,6 +65,7 @@ import {
 } from './errors';
 import type { SectionPolicy } from './policy';
 import type { SectionProperties } from './properties';
+import { type SegmentRun, segments } from './segment';
 import type {
   Polygon as OutlinePolygon,
   Ring,
@@ -92,9 +104,100 @@ export function validateSectionGeometry(
   // dass jemand dafür etwas zusätzlich baut.
   if (errors.length === 0) {
     warnings.push(...drift(geometry, policy));
+
+    // G8 — der WANDWEG, und er steht aus demselben Grund hier: κ, der
+    // Schubmittelpunkt und `It` fallen nur aus einer Figur, deren Topologie
+    // stimmt, und über eine kaputte zu urteilen wäre ein Folgefehler.
+    if (
+      geometry.kind === 'midline' &&
+      geometry.idealisation === 'thin-walled'
+    ) {
+      warnings.push(
+        ...wallPathFindings(
+          segments(geometry.nodes, geometry.walls, policy),
+          policy,
+        ),
+      );
+    }
   }
 
   return { errors, warnings };
+}
+
+/**
+ * Die drei Befunde am WANDWEG (ADR 0040).
+ *
+ * SIE STEHEN AN DER GEOMETRIE-TÜR, weil nur sie Marke UND Gestalt zugleich
+ * sieht: die Eigenschaften-Tür bekommt einen Zahlensatz und keine Topologie,
+ * und an ihm wäre ein fehlendes κ von jedem anderen fehlenden κ nicht mehr zu
+ * unterscheiden.
+ *
+ * NUR BEI `thin-walled`, und das ist die Aussage aus ADR 0029: `idealisation`
+ * schaltet den WANDWEG, nicht die Topologie. Ein `solid` gezeichneter
+ * Wandgraph bekommt seine Schubgrössen aus Grashof (P4) und nicht von hier —
+ * über seine Zellen zu urteilen hiesse, ihn nach einer Theorie zu messen, die
+ * für ihn nicht gilt.
+ */
+function wallPathFindings(
+  runs: readonly SegmentRun[],
+  policy: SectionPolicy,
+): SectionValidationWarning[] {
+  const warnings: SectionValidationWarning[] = [];
+  if (runs.length === 0) return warnings;
+
+  const branches = runs.map((run) => run.branch);
+
+  const cells = cellCount(branches);
+  if (cells > 1) warnings.push(new MultipleCellsWarning(cells));
+
+  const components = componentCount(branches);
+  if (components > 1) {
+    warnings.push(new DisconnectedWallGraphWarning(components));
+  }
+
+  runs.forEach((run, index) => {
+    const ratio = thicknessRatio(run);
+    if (ratio === undefined || ratio <= policy.thickWallRatio) return;
+    warnings.push(
+      new ThickWallWarning(
+        index,
+        run.branch.wallIds,
+        run.branch.closed,
+        ratio,
+        policy.thickWallRatio,
+      ),
+    );
+  });
+
+  return warnings;
+}
+
+/**
+ * Wie dick der Lauf gemessen an seiner eigenen Grösse ist — `t/L` offen,
+ * `t/√A_m` geschlossen.
+ *
+ * DIE DICKSTE WAND ENTSCHEIDET, wie bei der Knickwarnung: gewarnt wird,
+ * sobald IRGENDEIN Stück des Laufs die Annahme verlässt.
+ */
+function thicknessRatio(run: SegmentRun): number | undefined {
+  if (run.segments.length === 0) return undefined;
+
+  let t = 0;
+  let length = 0;
+  for (const segment of run.segments) {
+    t = Math.max(t, segment.t);
+    length += segment.length;
+  }
+
+  const reference = run.branch.closed
+    ? Math.sqrt(
+        Math.abs(
+          Polygon.signedArea(run.segments.map(({ y, z }) => ({ y, z }))),
+        ),
+      )
+    : length;
+
+  return reference > 0 ? t / reference : undefined;
 }
 
 function shapeFindings(
@@ -170,7 +273,7 @@ function shapeFindings(
   }
 
   // G6 — Satz 3, der Knick am Bogen.
-  warnings.push(...kinks(geometry.walls, byId, policy.arcTolerance));
+  warnings.push(...kinks(geometry.nodes, geometry.walls, policy.arcTolerance));
 
   // G6b — die Wölbung selbst. DIE LÜCKE AUS P1: bis P2 sah das Gate `t`, den
   // Umriss, die Ids und den Knick, nie aber `bulge`. Ein `NaN` lief still
@@ -374,13 +477,48 @@ export function validateSectionProperties(
   // entweder ist `yM` bekannt und wird verglichen, oder er fehlt und der
   // Vergleich ist ungeprüft. Beides zugleich zu melden hieße, denselben
   // Umstand zweimal zu beklagen.
+  //
+  // SEIT P5 EIN TOLERANZVERGLEICH, dieselbe Bewegung wie bei Satz 1 in P2:
+  // `yM` fällt beim gezeichneten Querschnitt aus zwei numerischen
+  // Integrationen über zwei verschiedene Figuren, `ys` aus Green über den
+  // Umriss — der exakte Vergleich meldete damit bei jedem symmetrisch
+  // gezeichneten I eine Torsion, die es nicht gibt.
+  //
+  // `zM` BEKOMMT KEINEN EIGENEN SATZ, und die Asymmetrie ist gewollt: das
+  // ebene Stabwerk kennt nur `N`, `Vz` und `My`, die Torsion kommt aus
+  // `yM − ys` allein. Ein Satz über `zM` feuerte bei jedem Plattenbalken und
+  // meinte dabei ein räumliches Modell, das es nicht gibt.
   if (properties.yM === undefined) {
     warnings.push(new ShearCentreUnknownWarning());
-  } else if (properties.yM !== properties.ys) {
-    warnings.push(new ShearCentreOffsetWarning(properties.yM, properties.ys));
+  } else {
+    const shearLimit = policy.shearCentreTolerance * gyrationRadius(properties);
+    if (Math.abs(properties.yM - properties.ys) > shearLimit) {
+      warnings.push(
+        new ShearCentreOffsetWarning(properties.yM, properties.ys, shearLimit),
+      );
+    }
   }
 
   return { errors: [], warnings };
+}
+
+/**
+ * Der GRÖSSERE Trägheitsradius `max(√(Iy/A), √(Iz/A))` [m] — die einzige
+ * Länge, die aus dem Wertesatz allein fällt.
+ *
+ * Die Eigenschaften-Tür sieht keine Figur, also auch keine Abmessung, gegen
+ * die ein Versatz zu messen wäre. Der grössere, aus demselben Grund wie bei
+ * Satz 1: sonst schwiege die Frage ausgerechnet dort, wo eine der beiden
+ * Achsen schwach ist.
+ *
+ * `0` bei einem unbrauchbaren Satz — dann ist der Vergleich wieder exakt, und
+ * das ist die schärfere und damit die sichere Antwort.
+ */
+function gyrationRadius(properties: SectionProperties): number {
+  const { A, Iy, Iz } = properties;
+  if (!(Number.isFinite(A) && A > 0)) return 0;
+  const radius = Math.sqrt(Math.max(Math.abs(Iy), Math.abs(Iz)) / A);
+  return Number.isFinite(radius) ? radius : 0;
 }
 
 /**
@@ -477,45 +615,42 @@ function duplicateIds(
  * NUR MIT MINDESTENS EINEM BOGEN. Zwei gerade Wände, die im Winkel
  * aufeinandertreffen, sind eine ECKE und keine gebrochene Tangentialität — der
  * Regelfall an jedem geschweißten Profil.
+ *
+ * DIE ZWEITE FASSUNG VON `outgoingTangent` IST MIT P5 ENTFALLEN. Sie stand
+ * hier, weil das Gate vor `branch.ts` keinen Graphen hatte; seither gibt es
+ * `buildGraph` samt Gradzählung und die Tangente an EINER Stelle. Der
+ * Nebengewinn ist ein Gleichlauf, den die zweite Fassung nur zufällig hatte:
+ * entartete Wände fallen jetzt in derselben Funktion heraus, aus der auch die
+ * Ableitung und der Wandweg sie herausfallen lassen.
  */
 function kinks(
+  nodes: readonly SectionNode[],
   walls: readonly Wall[],
-  byId: ReadonlyMap<string, SectionNode>,
   arcTolerance: number,
 ): TangentKinkWarning[] {
-  const incident = new Map<string, Wall[]>();
-  for (const wall of walls) {
-    for (const nodeId of new Set([wall.startNodeId, wall.endNodeId])) {
-      const at = incident.get(nodeId) ?? [];
-      at.push(wall);
-      incident.set(nodeId, at);
-    }
-  }
-
   const warnings: TangentKinkWarning[] = [];
-  for (const [nodeId, at] of incident) {
+
+  for (const at of buildGraph(nodes, walls).incident.values()) {
     if (at.length !== 2) continue;
     const a = atOrThrow(at, 0);
     const b = atOrThrow(at, 1);
-    if ((a.bulge ?? 0) === 0 && (b.bulge ?? 0) === 0) continue;
-
-    const ta = outgoingTangent(a, nodeId, byId);
-    const tb = outgoingTangent(b, nodeId, byId);
-    if (ta === undefined || tb === undefined) continue;
+    if ((a.of.wall.bulge ?? 0) === 0 && (b.of.wall.bulge ?? 0) === 0) continue;
 
     // Glatt heißt: die beiden ABGEHENDEN Tangenten zeigen genau
     // entgegengesetzt. Was davon übrig bleibt, ist der Knick.
-    const theta = Math.abs(normalize(ta - tb - Math.PI));
+    const theta = Math.abs(
+      normalizeAngle(outgoingTangent(a) - outgoingTangent(b) - Math.PI),
+    );
 
     // Die DICKERE der beiden Wände entscheidet: ihre Kerbe wird tiefer, und
     // gewarnt wird, sobald IRGENDEINE Umrissecke die Toleranz verlässt.
-    const t = Math.max(a.t, b.t);
+    const t = Math.max(a.of.wall.t, b.of.wall.t);
     const notch = (t / 2) * Math.tan(theta / 2);
     if (notch > arcTolerance) {
       warnings.push(
         new TangentKinkWarning(
-          nodeId,
-          [a.id, b.id],
+          nodeIdOf(a),
+          [a.of.wall.id, b.of.wall.id],
           theta,
           notch,
           arcTolerance,
@@ -523,49 +658,6 @@ function kinks(
       );
     }
   }
+
   return warnings;
-}
-
-/**
- * Die Tangente der Wand AM Knoten `nodeId`, gerichtet VON ihm WEG [rad].
- *
- * Der Bogen steckt vollständig in `bulge = tan(Δ/4)`: seine Endtangente liegt
- * um `Δ/2` neben der Sehne, am Anfang auf der einen, am Ende auf der anderen
- * Seite. Mehr braucht Satz 3 nicht — kein Mittelpunkt, kein Radius, kein `Arc`,
- * und deshalb ruft diese Stelle `Bulge.sweep` und nicht `Bulge.toArc`: der
- * Oeffnungswinkel ist koordinatenfrei, ein `Arc` wäre die teurere Antwort auf
- * eine kleinere Frage. `Δ` kommt aber aus EINER Quelle statt aus einer zweiten
- * Handrechnung.
- *
- * Hängt die Wand am anderen Ende, wird die Endtangente umgedreht: „von diesem
- * Knoten weg" heißt dann entgegen der Durchlaufrichtung.
- */
-function outgoingTangent(
-  wall: Wall,
-  nodeId: string,
-  byId: ReadonlyMap<string, SectionNode>,
-): number | undefined {
-  const start = byId.get(wall.startNodeId);
-  const end = byId.get(wall.endNodeId);
-  if (start === undefined || end === undefined) return undefined;
-  if (start.y === end.y && start.z === end.z) return undefined;
-
-  // Positiv von `+y` nach `+z`, wie `Arc.sweep` (ADR 0031).
-  const chord = Math.atan2(end.z - start.z, end.y - start.y);
-  const half = Bulge.sweep(wall.bulge ?? 0) / 2;
-
-  if (wall.startNodeId === nodeId) return chord - half;
-  return chord + half + Math.PI;
-}
-
-/**
- * Auf `[−π, +π)` gebracht, damit `|angle|` der KLEINERE der beiden Winkel ist.
- *
- * Zweimal `%` und ein `+ 2π` dazwischen, weil JavaScripts `%` das Vorzeichen
- * des Dividenden behält: `-1 % 6` ist `-1` und nicht `5`. Ohne den Umweg fiele
- * jeder Knick mit negativem Rohwinkel aus dem Bereich.
- */
-function normalize(angle: number): number {
-  const turn = 2 * Math.PI;
-  return ((((angle + Math.PI) % turn) + turn) % turn) - Math.PI;
 }

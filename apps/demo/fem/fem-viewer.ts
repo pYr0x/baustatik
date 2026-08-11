@@ -1,5 +1,5 @@
 import { type Node, type Beam, type NodeSupport, BeamEndReleases } from '@baustatik/fem';
-import { sectionProperties, type CrossSection, type ShapeSpec } from '@baustatik/cross-section';
+import { createSectionPolicy, sectionProperties, type CrossSection, type SectionPolicy, type ShapeSpec } from '@baustatik/cross-section';
 import { resolveSectionStiffness } from '@baustatik/fem-section-resolve';
 import { lookupMaterial, type Material, type MaterialKind } from '@baustatik/material';
 import { lookupProfile, profileData } from '@baustatik/steel-profiles';
@@ -41,6 +41,11 @@ const useStore = defineStore('sections', {
         beams: [] as Beam[],
         crossSections: [] as CrossSection[],
         materials: [] as Material[],
+        // Die Erzeugungs-Policy gehoert zum Datensatz und nicht zum Code
+        // (ADR 0033): unter ihr entsteht der Umriss eines gezeichneten
+        // Querschnitts, und unter ihr zerlegt der Wandweg seine Bogenwaende
+        // (ADR 0040). Sie reist deshalb mit dem Modell zum Resolver.
+        sectionPolicy: createSectionPolicy() as SectionPolicy,
         supports: [] as NodeSupport[],
         loadCases: [] as LoadCase[],
         activeLoadCaseId: '',

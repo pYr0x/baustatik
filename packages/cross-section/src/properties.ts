@@ -64,6 +64,23 @@ export type SectionProperties = {
    * Bereich `(−π/2, +π/2]`, zusammen mit `Iu >= Iv` eindeutig.
    */
   alpha: number;
+  /**
+   * Torsionstraegheitsmoment It [m4].
+   *
+   * `undefined` heisst NICHT ERMITTELT, nach dem Muster von `kappaY?` — nicht
+   * „torsionsweich" und nicht „null". Es steht bei jeder duennwandigen Form
+   * (geschlossener Ausdruck), beim Walzprofil (Tabellenzeile) und beim
+   * gezeichneten Wandquerschnitt mit hoechstens einer Zelle. Es fehlt bei
+   * jedem VOLLQUERSCHNITT: dort ist `It` weder `⅓Σl·t³` noch Bredt, sondern
+   * die Loesung eines Randwertproblems, und zwischen den beiden zulaessigen
+   * Formeln liegen drei Zehnerpotenzen.
+   *
+   * `readonly`, ANDERS ALS DIE FELDER DARUEBER: dass `SectionProperties`
+   * veraenderlich ist, steht in `CODING_STANDARDS.md` §11 als ABWEICHUNG vom
+   * Ziel — sie wird dort abgeraeumt, wo sie steht, und nicht in ein neues Feld
+   * fortgeschrieben.
+   */
+  readonly It?: number;
   /** Groesseres Hauptträgheitsmoment [m4] — PFLICHT, immer `>= Iv`. */
   Iu: number;
   /** Kleineres Hauptträgheitsmoment [m4] — PFLICHT. */

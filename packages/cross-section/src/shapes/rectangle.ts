@@ -29,6 +29,12 @@ export function rectangle(b: cm, h: cm): ShapeResult | undefined {
     // von ihnen muss M liegen.
     yM: 0,
     zM: h / 2,
+    // `It` BLEIBT UNERMITTELT. Das Vollrechteck ist die eine Form ohne
+    // `idealisation`, also immer kompakt, und sein `It` ist keine Summe
+    // ueber Wandmittellinien: es ist `k(b/h)·h·b³` mit einer Reihe, die aus
+    // der Loesung eines Randwertproblems faellt. Sie hier hinzuschreiben
+    // hiesse, eine Naeherung als Wert auszugeben.
+    It: undefined,
     // Eine einzige Teilflaeche ueber die volle Hoehe bzw. Breite.
     pathZ: partIntervals(-h / 2, [{ extent: h, width: b }]).intervals,
     pathY: partIntervals(-b / 2, [{ extent: b, width: h }]).intervals,

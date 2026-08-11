@@ -1,5 +1,20 @@
 # The editor cross-section yields values — without κ
 
+> **Amended by [ADR 0040](0040-the-wall-path-is-positioned.md) and
+> [ADR 0041](0041-two-figures-for-the-wall-path.md) (P5).** The title stopped
+> being true for one of the three cases; everything else below stands.
+>
+> A `kind: 'midline'` cross-section drawn `thin-walled`, with at most **one**
+> closed cell and in one piece, now **does** yield κ, `yM`/`zM` and `It` — from
+> the positioned wall path. `GAs: 'rigid'` and `ShearCentreUnknownWarning` are
+> no longer its fate.
+>
+> What this ADR describes is unchanged for the other two cases and remains the
+> ground everything stands on: `kind: 'outline'`, and `midline` drawn `solid`,
+> still get values from Green on the carried outline and nothing more — those
+> need Grashof (P4). Two or more cells, or an unconnected wall graph, also stay
+> here, and the gate names both.
+
 The second P2 decision. You look this one up when a beam with a drawn
 cross-section computes stiffer than you expected, when `check()` reports a
 warning you have not seen before, or when you wonder why `sectionProperties`

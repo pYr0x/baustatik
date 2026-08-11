@@ -29,6 +29,14 @@ export type CatalogueValues = {
    */
   readonly yM?: cm;
   readonly zM?: cm;
+  /**
+   * Torsionsträgheitsmoment [cm⁴] — `undefined` heisst NICHT ERMITTELT.
+   *
+   * An der EINEN bestehenden Stelle umgerechnet, wie `Iy` und `Iz`: die
+   * Katalogzeile führt `It` bereits in cm⁴, die parametrische Form rechnet in
+   * cm, und der Wandweg bekommt seine Segmente in cm gereicht.
+   */
+  readonly It?: cm4;
 };
 
 /** Die Hauptachsenlage. Ergebnis in derselben Einheit wie die Eingabe. */
@@ -128,5 +136,6 @@ export function toSI(values: CatalogueValues): SectionProperties {
     ...principalAxes(Iy, Iz, Iyz),
     yM: values.yM === undefined ? undefined : values.yM * CM_TO_M,
     zM: values.zM === undefined ? undefined : values.zM * CM_TO_M,
+    It: values.It === undefined ? undefined : values.It * CM4_TO_M4,
   };
 }

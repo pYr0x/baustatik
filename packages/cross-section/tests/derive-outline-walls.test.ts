@@ -15,17 +15,10 @@ import {
   deriveOutline,
   deriveOutlineFromWalls,
 } from '../src/derive-outline';
-import type { Polygon, SectionNode, Wall } from '../src/types';
+import type { Polygon } from '../src/types';
+import { node, wall } from './helpers';
 
 const POLICY = createSectionPolicy();
-
-const node = (id: string, y: number, z: number): SectionNode => ({ id, y, z });
-const wall = (
-  id: string,
-  startNodeId: string,
-  endNodeId: string,
-  t: number,
-): Wall => ({ id, startNodeId, endNodeId, t });
 
 /** Grad in Bogenmaß — die Winkel der Figuren stehen lesbar in Grad da. */
 const deg = (degrees: number) => (degrees * Math.PI) / 180;

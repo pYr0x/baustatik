@@ -1,7 +1,9 @@
 import type { SteelProfileData } from '@baustatik/steel-profiles';
 import type { mm } from '@baustatik/units';
 import { greenValues } from './green';
+import { DEFAULT_SECTION_POLICY, type SectionPolicy } from './policy';
 import type { SectionProperties } from './properties';
+import { scaleSegments, segments } from './segment';
 import { hollowRectangle } from './shapes/hollow-rectangle';
 import { iSymmetric } from './shapes/i-symmetric';
 import { toProperties } from './shapes/kernel';
@@ -10,6 +12,7 @@ import { tSection } from './shapes/t-section';
 import { type CatalogueValues, toSI } from './to-si';
 import type { SectionGeometry } from './types';
 import { MM_TO_CM } from './units';
+import { wallPath } from './wall-path';
 
 /**
  * Wie der Querschnitt fuer den SCHUB idealisiert wird.
@@ -142,14 +145,34 @@ export type CrossSection =
  * Kein Wurf, weil der Wert im FEM-Strang durch den Port `getSectionStiffness`
  * laeuft, und dort ist `undefined` bereits der Vertrag — daraus wird ein
  * Modellfehler IM BERICHT statt einer Ausnahme mitten in `solve()`.
+ *
+ * DIE POLICY IST OPTIONAL, und das ist die einzige Stelle im Package, an der
+ * sie es ist. Gelesen wird daraus GENAU EIN FELD, `arcTolerance`, und auch das
+ * nur beim gezeichneten Wandgraphen: der Wandweg von P5 zerlegt seine
+ * Bogenwaende unter derselben Toleranz, unter der auch der mitgefuehrte Umriss
+ * entstanden ist.
+ *
+ * OPTIONAL HEISST NICHT „darf fehlen, wo gerechnet wird". Die Rechenstrecke
+ * REICHT SIE HEREIN: `SectionModel` in `@baustatik/fem-section-resolve` fuehrt
+ * `sectionPolicy` als PFLICHTFELD, und der Snapshot traegt sie seit
+ * `schemaVersion: 7` ohnehin mit. Die Voreinstellung bleibt fuer den
+ * gelegentlichen Aufrufer, der einen Katalogquerschnitt oder eine
+ * parametrische Form fragt — beide sehen die Zahl nie.
+ *
+ * DAS IST EINE ABWEICHUNG VON ADR 0011, und sie steht bewusst hier statt in
+ * einem stillen Import: die Rechenstrecke las bis P5 den MITGEFUEHRTEN Umriss
+ * und nie das Rezept. Ein Querschnitt OHNE Bogenwand ist von der Zahl
+ * unberuehrt — `Bulge.toPolyline` liefert fuer eine gerade Kante `[p1, p2]`,
+ * ganz gleich, welche Toleranz danebensteht.
  */
 export function sectionProperties(
   cs: CrossSection,
+  policy: SectionPolicy = DEFAULT_SECTION_POLICY,
 ): SectionProperties | undefined {
   if (cs.kind === 'profile') return profileProperties(cs.data);
 
   if (cs.kind === 'section-geometry') {
-    const geometry = geometryResult(cs.geometry);
+    const geometry = geometryResult(cs.geometry, policy);
     return geometry === undefined ? undefined : toSI(geometry);
   }
 
@@ -214,15 +237,20 @@ function shapeResult(spec: ShapeSpec) {
  * gedruckte Tabelle, um derentwillen die ganze cm-Zwischenwelt existiert
  * ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md)).
  *
- * kappa UND SCHUBMITTELPUNKT BLEIBEN `undefined` — „nicht ermittelt", nicht
- * „null". Beide brauchen den Wandweg beziehungsweise Grashof und kommen mit
- * P4/P5. Für den Löser heißt das `GAs: 'rigid'`, also die steifere Richtung;
- * dass jemand Schubverformung VERLANGT und sie nicht bekommt, meldet `check()`
- * in `@baustatik/fem-solver`
+ * kappa, SCHUBMITTELPUNKT UND `It` KOMMEN SEIT P5 AUS DEM WANDWEG — aber nur
+ * beim MITTELLINIENMODELL, das duennwandig gerechnet werden soll. Fuer den
+ * `outline`-Zweig und fuer `solid` bleiben sie `undefined` („nicht ermittelt",
+ * nicht „null"): dort braeuchte es Grashof (P4), und `idealisation` schaltet
+ * den WANDWEG, nicht die Topologie
+ * ([ADR 0029](../../../docs/adr/0029-stress-points-follow-the-idealisation.md)).
+ * Wo sie fehlen, heisst das fuer den Loeser `GAs: 'rigid'`, also die steifere
+ * Richtung; dass jemand Schubverformung VERLANGT und sie nicht bekommt, meldet
+ * `check()` in `@baustatik/fem-solver`
  * ([ADR 0035](../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
  */
 function geometryResult(
   geometry: SectionGeometry,
+  policy: SectionPolicy,
 ): CatalogueValues | undefined {
   const c = MM_TO_CM;
   const green = greenValues(
@@ -235,13 +263,34 @@ function geometryResult(
   );
   if (green === undefined) return undefined;
 
-  return {
+  const outline = {
     A: green.A,
     Iy: green.Iy,
     Iz: green.Iz,
     Iyz: green.Iyz,
     ys: green.ys,
     zs: green.zs,
+  };
+
+  if (geometry.kind !== 'midline' || geometry.idealisation !== 'thin-walled') {
+    return outline;
+  }
+
+  // Der Wandweg bekommt seine Stuecke in ZENTIMETERN — derselbe Faktor auf
+  // dieselbe Figur, nur positioniert statt als Umriss.
+  const path = wallPath(
+    scaleSegments(segments(geometry.nodes, geometry.walls, policy), c),
+    outline,
+  );
+  if (path === undefined) return outline;
+
+  return {
+    ...outline,
+    kappaY: path.kappaY,
+    kappaZ: path.kappaZ,
+    yM: path.yM,
+    zM: path.zM,
+    It: path.It,
   };
 }
 
@@ -258,6 +307,12 @@ function geometryResult(
  * und das Eingabesystem der Tabelle IST das Schwerpunktsystem. Aus derselben
  * doppelten Symmetrie folgt `yM = ys` und `zM = zs`, also ebenfalls `0`: IPE
  * und HEA tordieren unter einer Querkraft durch den Schwerpunkt nicht.
+ *
+ * `It` KOMMT AUS DER TABELLE und wird nicht gerechnet, wie `A`, `Iy` und `Iz`
+ * daneben: das Walzprofil hat eine Ausrundung, und die traegt bei `It` mehr
+ * als anderswo. Der Wandgraph eines IPE 300 kommt auf `15,70 cm⁴` gegen
+ * tabellierte `20,12` — deshalb ist der Katalog fuer den GERECHNETEN Weg
+ * ausdruecklich KEIN Orakel (ADR 0040).
  */
 export function profileProperties(
   profile: SteelProfileData,
@@ -271,6 +326,7 @@ export function profileProperties(
     zs: 0,
     yM: 0,
     zM: 0,
+    It: profile.It,
     kappaY: profile.Ay === undefined ? undefined : profile.Ay / profile.A,
     kappaZ: profile.Az === undefined ? undefined : profile.Az / profile.A,
   });

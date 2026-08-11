@@ -738,8 +738,13 @@ function edgePoints(
  *
  * DAS GATE MELDET BEIDE mit `NonFiniteBulgeError` beziehungsweise
  * `UndiscretisableBulgeError`; still bleibt hier nichts.
+ *
+ * EXPORTIERT, ABER NICHT IM BARREL: der Wandweg (`src/segment.ts`) liest
+ * dieselbe Frage, weil er dieselben Bogenwände zerlegt. Zwei Schreibweisen
+ * derselben Regel wären zwei Gelegenheiten, sie auseinanderlaufen zu lassen —
+ * und die Zerlegung des Wandwegs muss aus demselben Grund total bleiben.
  */
-function usableBulge(
+export function usableBulge(
   p1: PointYZ,
   p2: PointYZ,
   bulge: number,
