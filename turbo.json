@@ -47,6 +47,44 @@
       ],
       "outputs": ["coverage/**"]
     },
+    "@baustatik/sparse-solver-wasm#test": {
+      "dependsOn": ["build"],
+      "inputs": [
+        "rust/**/*.rs",
+        "rust/Cargo.toml",
+        "rust/Cargo.lock",
+        "scripts/run-with-toolchain.mjs",
+        "package.json"
+      ]
+    },
+    "@baustatik/sparse-solver-wasm#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "rust/**",
+        "scripts/run-with-toolchain.mjs",
+        "package.json"
+      ],
+      "outputs": ["pkg/**"]
+    },
+    "@baustatik/linear-solver-wasm#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "rust/**",
+        "scripts/run-with-toolchain.mjs",
+        "package.json"
+      ],
+      "outputs": ["pkg/**"]
+    },
+    "@baustatik/linear-solver-wasm#test": {
+      "dependsOn": ["build"],
+      "inputs": [
+        "rust/**/*.rs",
+        "rust/Cargo.toml",
+        "rust/Cargo.lock",
+        "scripts/run-with-toolchain.mjs",
+        "package.json"
+      ]
+    },
     "test:watch": {
       "cache": false,
       "persistent": true

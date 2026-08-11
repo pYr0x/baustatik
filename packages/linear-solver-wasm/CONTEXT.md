@@ -48,13 +48,13 @@ per Port herein (ADR 0009). `apps/demo` ist der einzige Ort, der beide kennt.
 ## Build ohne Rust-Toolchain
 
 `build` und `test` laufen nicht direkt gegen `wasm-pack`/`cargo`, sondern ueber
-`scripts/run-with-toolchain.mjs`. Fehlt das jeweilige Werkzeug auf der Maschine,
-wird der Task uebersprungen statt fehlzuschlagen — damit der Monorepo-Build auch
-auf einem Rechner ohne Rust durchlaeuft, auf den ein fertiges `pkg/` kopiert
-wurde. Uebersprungen wird nur, wenn `pkg/linear_solver_wasm.js` und
-`pkg/linear_solver_wasm_bg.wasm` da sind; sonst bricht der Task mit einer Meldung
-ab. In CI (`CI` gesetzt) und mit `FORCE_WASM_BUILD=1` wird nie uebersprungen — eine
-fehlende Toolchain ist dort ein Fehler.
+`scripts/run-with-toolchain.mjs`. Lokal nutzt es zuerst die vorhandene Toolchain
+und sonst Docker mit `rust-wasm:latest`. Erst wenn beides fehlt, darf ein
+vorhandenes `pkg/` den Build ueberspringen; dazu müssen
+`pkg/linear_solver_wasm.js` und `pkg/linear_solver_wasm_bg.wasm` vorhanden sein.
+In CI (`CI` gesetzt) und mit `FORCE_WASM_BUILD=1` wird nie auf Docker oder ein
+vorgebautes Artefakt ausgewichen — eine fehlende native Toolchain ist dort ein
+Fehler.
 
 ## Domain language
 

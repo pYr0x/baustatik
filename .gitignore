@@ -38,3 +38,4 @@ packages/steel-profiles/data-source/*
 packages/plan*.md
 
 .idea
+docker

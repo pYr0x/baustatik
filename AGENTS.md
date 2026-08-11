@@ -37,6 +37,7 @@ table. Confirm a package's `package.json` before adding a dependency.
 | `@baustatik/fem-load-resolve` | Resolves abstract loads onto beams: frame rotation, reference length, positions, merge per beam. | `fem-element`, `fem-geometry`, `fem-loads` |
 | `@baustatik/fem-solver` | Entry point of the calculation (`createFEMSolver`): `check`, `solve`, `solveAll`, and the composition root for the versioned `AnalysisPolicy`. `check` also warns when shear deformation is asked for but the cross-section is shear-rigid (`ShearDeformationUnavailableWarning`). | `errors`, `fem`, `fem-element`, `fem-geometry`, `fem-load-resolve`, `fem-loads` |
 | `@baustatik/linear-solver-wasm` | Rust/faer WASM binding for `K d = F` via Cholesky, including kinematics detection. | — |
+| `@baustatik/sparse-solver-wasm` | Rust/faer WASM binding for sparse SPD `K d = F` with lower-triangle triplets, multiple right-hand sides, AMD ordering, and an unfixed/disconnected-mesh finding. | — |
 | `@baustatik/mesh-2d-wasm` | Generic Triangle 1.6 WASM mesher for `Tri3`/`Tri6`; no cross-section, unit, FEM, Worker, or rendering dependency. Commercial Triangle use requires a direct arrangement with its author. | `core`, `errors` |
 | `@baustatik/fem-viewer` | Viewer-facing FEM frame composition and visualization, including loads and support reactions. `N`/`V`/`M` diagrams are still missing. | `errors`, `fem`, `fem-geometry`, `fem-load-resolve`, `fem-loads`, `fem-solver`, `grid-2d`, `render-core`, `round`, `viewport-2d` |
 
@@ -69,10 +70,10 @@ What the scripts do not tell you:
   Root `pnpm check` runs Biome over `packages/**` regardless.
 - CI runs `build → lint → test` on Node 24; `engines` says `>=18`. The pinned
   package manager is `pnpm@11.16.0`.
-- `@baustatik/linear-solver-wasm` skips its `build`/`test` when `wasm-pack` or
-  `cargo` is missing locally, so the repo builds on machines without Rust as
-  long as a prebuilt `pkg/` was copied in. Never skipped in CI or with
-  `FORCE_WASM_BUILD=1`. See that package's `CONTEXT.md`.
+- `@baustatik/linear-solver-wasm` and `@baustatik/sparse-solver-wasm` prefer a
+  local Rust toolchain, then build/test in Docker (`rust-wasm:latest`). Without
+  either, a build accepts a prebuilt `pkg/`; never skipped in CI or with
+  `FORCE_WASM_BUILD=1`. See each package's `CONTEXT.md`.
 - `@baustatik/mesh-2d-wasm` builds its generated `pkg/` with Emscripten 6.0.6:
   Docker locally, native `emcc` in CI and releases. Its `toolchain.json` and
   `scripts/build.mjs` are the single source of that toolchain contract.

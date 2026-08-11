@@ -1,5 +1,5 @@
 {
-  "name": "@baustatik/linear-solver-wasm",
+  "name": "@baustatik/sparse-solver-wasm",
   "version": "0.0.0",
   "private": false,
   "files": [
@@ -8,12 +8,12 @@
     "CONTEXT.md"
   ],
   "type": "module",
-  "main": "./pkg/linear_solver_wasm.js",
-  "types": "./pkg/linear_solver_wasm.d.ts",
+  "main": "./pkg/sparse_solver_wasm.js",
+  "types": "./pkg/sparse_solver_wasm.d.ts",
   "exports": {
     ".": {
-      "types": "./pkg/linear_solver_wasm.d.ts",
-      "import": "./pkg/linear_solver_wasm.js"
+      "types": "./pkg/sparse_solver_wasm.d.ts",
+      "import": "./pkg/sparse_solver_wasm.js"
     }
   },
   "publishConfig": {

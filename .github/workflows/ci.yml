@@ -5,7 +5,7 @@ on:
     branches: ["main"]
   pull_request:
     branches-ignore:
-      - 'changeset-release/**'
+      - "changeset-release/**"
     types: [opened, synchronize]
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
           rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        run: curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Read Emscripten pin
         id: emscripten

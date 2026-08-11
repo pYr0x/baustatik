@@ -72,8 +72,11 @@ jobs:
       - name: Build publishable artifacts
         run: pnpm build
 
-      - name: Verify mesh package contents
-        run: pnpm --filter @baustatik/mesh-2d-wasm exec npm pack --dry-run
+      - name: Verify WASM package contents
+        run: |
+          pnpm --filter @baustatik/linear-solver-wasm exec npm pack --dry-run
+          pnpm --filter @baustatik/mesh-2d-wasm exec npm pack --dry-run
+          pnpm --filter @baustatik/sparse-solver-wasm exec npm pack --dry-run
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets

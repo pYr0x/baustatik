@@ -23,10 +23,9 @@ const TASKS = {
       '--out-dir',
       '../pkg',
     ],
-    // Ohne diese Dateien wäre ein Skip stillschweigend kaputt.
     requiredArtifacts: [
-      'pkg/linear_solver_wasm.js',
-      'pkg/linear_solver_wasm_bg.wasm',
+      'pkg/sparse_solver_wasm.js',
+      'pkg/sparse_solver_wasm_bg.wasm',
     ],
   },
   test: {
@@ -41,7 +40,7 @@ const task = TASKS[taskName];
 
 if (task === undefined) {
   console.error(
-    `[linear-solver-wasm] Unbekannter Task "${taskName}". Erlaubt: build, test.`,
+    `[sparse-solver-wasm] Unbekannter Task "${taskName}". Erlaubt: build, test.`,
   );
   process.exit(1);
 }
@@ -67,7 +66,7 @@ function run(command, args) {
     shell: process.platform === 'win32',
   });
   if (result.error !== undefined) {
-    console.error(`[linear-solver-wasm] ${result.error.message}`);
+    console.error(`[sparse-solver-wasm] ${result.error.message}`);
     process.exit(1);
   }
   if (result.status !== 0) process.exit(result.status ?? 1);
@@ -100,7 +99,7 @@ function hasDocker() {
 function runDocker() {
   const [bin, ...args] = task.command;
   console.log(
-    `[linear-solver-wasm] lokale Toolchain fehlt; verwende ${RUST_WASM_IMAGE}.`,
+    `[sparse-solver-wasm] lokale Toolchain fehlt; verwende ${RUST_WASM_IMAGE}.`,
   );
   run('docker', [
     'run',
@@ -137,7 +136,7 @@ const missingArtifacts = task.requiredArtifacts.filter(
 
 if (missingArtifacts.length > 0) {
   console.error(
-    `[linear-solver-wasm] "${task.tool}" und Docker fehlen, und es liegt kein vorgebautes pkg/ vor ` +
+    `[sparse-solver-wasm] "${task.tool}" und Docker fehlen, und es liegt kein vorgebautes pkg/ vor ` +
       `(fehlend: ${missingArtifacts.join(', ')}).\n` +
       '    Entweder Rust + wasm-pack installieren, Docker mit rust-wasm:latest bereitstellen ' +
       'oder das pkg/-Verzeichnis von einem Rechner mit Toolchain kopieren.',
@@ -146,9 +145,8 @@ if (missingArtifacts.length > 0) {
 }
 
 console.log(
-  `[linear-solver-wasm] "${task.tool}" und Docker nicht gefunden — Task "${taskName}" übersprungen` +
+  `[sparse-solver-wasm] "${task.tool}" und Docker nicht gefunden — Task "${taskName}" übersprungen` +
     (task.requiredArtifacts.length > 0
       ? ', vorgebautes pkg/ wird verwendet.'
       : '.'),
 );
-process.exit(0);
