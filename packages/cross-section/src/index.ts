@@ -1,9 +1,10 @@
-export {
-  type Branch,
-  branches,
-  cellCount,
-  componentCount,
-} from './branch';
+// DER WANDWEG BLEIBT INNEN. `cellCount`/`componentCount` (`branch.ts`),
+// `Segment`/`segments`/`wallMoments` (`segment.ts`) und `wallPath`
+// (`wall-path.ts`) sind der Rechenweg von P5 und keine Tür: nach aussen tragen
+// ihn `SectionProperties` (κ, `yM`/`zM`, `It`) und die Befunde des Gates. Das
+// Wandmodell ist ausdrücklich intern (CONTEXT.md, ADR 0041) — es zu
+// veröffentlichen stellte ein zweites Bezugssystem neben `ys`/`zs`.
+export { type Branch, branches } from './branch';
 export {
   createSectionGeometry,
   type SectionGeometryInput,
@@ -55,13 +56,6 @@ export {
   type ShapeSpec,
   sectionProperties,
 } from './section';
-export {
-  type Segment,
-  type SegmentRun,
-  segments,
-  type WallMoments,
-  wallMoments,
-} from './segment';
 export { type StressPoint, stressPoints } from './stress-points/index';
 export type {
   Polygon,
@@ -76,4 +70,3 @@ export {
   validateSectionGeometry,
   validateSectionProperties,
 } from './validate';
-export { type OutlineFigure, type WallPath, wallPath } from './wall-path';

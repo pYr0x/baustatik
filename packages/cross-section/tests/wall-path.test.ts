@@ -15,6 +15,17 @@ import {
 import { scaleSegments, segments } from '../src/segment';
 import { MM_TO_CM } from '../src/units';
 import { wallPath } from '../src/wall-path';
+import {
+  boxGraph,
+  disconnectedGraph,
+  iGraph,
+  node,
+  tGraph,
+  twoCellGraph,
+  twoRunCellGraph,
+  uGraph,
+  wall,
+} from './helpers';
 
 /**
  * Der positionierte Wandweg: κ, Schubmittelpunkt und `It` aus einem
@@ -32,15 +43,6 @@ import { wallPath } from '../src/wall-path';
  */
 
 const POLICY = DEFAULT_SECTION_POLICY;
-
-const node = (id: string, y: number, z: number): SectionNode => ({ id, y, z });
-
-const wall = (
-  id: string,
-  startNodeId: string,
-  endNodeId: string,
-  t: number,
-): Wall => ({ id, startNodeId, endNodeId, t });
 
 /** Die Werte eines gezeichneten Wandgraphen, dünnwandig gerechnet. */
 function drawn(
@@ -85,65 +87,6 @@ function findings(nodes: readonly SectionNode[], walls: readonly Wall[]) {
     POLICY,
   );
   return validateSectionGeometry(geometry, POLICY);
-}
-
-/** Ein doppeltsymmetrisches I als Wandgraph — `z = 0` an der Oberkante. */
-function iGraph(h: number, b: number, tw: number, tf: number) {
-  const zTop = tf / 2;
-  const zBottom = h - tf / 2;
-  return {
-    nodes: [
-      node('lt', -b / 2, zTop),
-      node('mt', 0, zTop),
-      node('rt', b / 2, zTop),
-      node('lb', -b / 2, zBottom),
-      node('mb', 0, zBottom),
-      node('rb', b / 2, zBottom),
-    ],
-    walls: [
-      wall('gurt-oben-links', 'lt', 'mt', tf),
-      wall('gurt-oben-rechts', 'mt', 'rt', tf),
-      wall('steg', 'mt', 'mb', tw),
-      wall('gurt-unten-links', 'lb', 'mb', tf),
-      wall('gurt-unten-rechts', 'mb', 'rb', tf),
-    ],
-  };
-}
-
-/** Ein T als Wandgraph — Gurtmittellinie bei `z = hf/2`. */
-function tGraph(bf: number, hf: number, bw: number, h: number) {
-  return {
-    nodes: [
-      node('fl', -bf / 2, hf / 2),
-      node('fm', 0, hf / 2),
-      node('fr', bf / 2, hf / 2),
-      node('wb', 0, h),
-    ],
-    walls: [
-      wall('gurt-links', 'fl', 'fm', hf),
-      wall('gurt-rechts', 'fm', 'fr', hf),
-      wall('steg', 'fm', 'wb', bw),
-    ],
-  };
-}
-
-/** Der geschlossene Kasten als Wandgraph — Mittellinie `(b−t)×(h−t)`. */
-function boxGraph(b: number, h: number, t: number) {
-  const y = (b - t) / 2;
-  return {
-    nodes: [
-      node('a', -y, t / 2),
-      node('b', y, t / 2),
-      node('c', y, h - t / 2),
-      node('d', -y, h - t / 2),
-    ],
-    walls: [
-      wall('oben', 'a', 'b', t),
-      wall('rechts', 'b', 'c', t),
-      wall('unten', 'c', 'd', t),
-      wall('links', 'd', 'a', t),
-    ],
-  };
 }
 
 describe('κ des Wandgraphen trifft den geschlossenen Ausdruck der Form', () => {
@@ -212,17 +155,7 @@ describe('Der Schubmittelpunkt fällt aus dem Wandmodell', () => {
 
   it('U: `yM` trifft die Handformel `e = b²h²tf/(4·Iy)`', () => {
     const [b, h, tf, tw] = [80, 200, 12, 8];
-    const nodes = [
-      node('ot', 0, 0),
-      node('og', b, 0),
-      node('ut', 0, h),
-      node('ug', b, h),
-    ];
-    const walls = [
-      wall('gurt-oben', 'ot', 'og', tf),
-      wall('steg', 'ot', 'ut', tw),
-      wall('gurt-unten', 'ut', 'ug', tf),
-    ];
+    const { nodes, walls } = uGraph(b, h, tf, tw);
 
     // Beide Figuren aus dem WANDMODELL (ADR 0041), also auch dieses `Iy`.
     const Iy = (tw * h ** 3) / 12 + (b * tf * h ** 2) / 2;
@@ -244,17 +177,7 @@ describe('Der Schubmittelpunkt fällt aus dem Wandmodell', () => {
     // Der Umlaufsinn der EINGABE trägt keine Bedeutung: `r` und `S` drehen
     // beide ihr Vorzeichen, ihr Produkt nicht.
     const [b, h, tf, tw] = [80, 200, 12, 8];
-    const nodes = [
-      node('ot', 0, 0),
-      node('og', b, 0),
-      node('ut', 0, h),
-      node('ug', b, h),
-    ];
-    const forwards = [
-      wall('gurt-oben', 'ot', 'og', tf),
-      wall('steg', 'ot', 'ut', tw),
-      wall('gurt-unten', 'ut', 'ug', tf),
-    ];
+    const { nodes, walls: forwards } = uGraph(b, h, tf, tw);
     const backwards = forwards.map((it) => ({
       ...it,
       startNodeId: it.endNodeId,
@@ -365,7 +288,7 @@ describe('`It` — Bredt für die Zelle, ⅓·l·t³ für die offenen Zweige', (
   });
 });
 
-describe('Die Zelle ist von ihrem Schnittort unabhängig', () => {
+describe('Der Schnitt der Zelle ist festgelegt und folgenlos', () => {
   it('dieselben Zahlen, egal an welcher Wand die Zerlegung beginnt', () => {
     const [b, h, t] = [100, 200, 8];
     const { nodes, walls } = boxGraph(b, h, t);
@@ -380,6 +303,44 @@ describe('Die Zelle ist von ihrem Schnittort unabhängig', () => {
       expect(other.yM).toBeCloseTo(first.yM ?? 0, 12);
       expect(other.zM).toBeCloseTo(first.zM ?? 0, 12);
     }
+  });
+
+  it('geschnitten wird an der KLEINSTEN Wand-Id, nicht an der ersten Zeile', () => {
+    // Zwei Läufe tragen die Zelle, also gibt es beim Aufschneiden etwas zu
+    // wählen: `links` (mit `oben`) gegen `rechts` (mit `unten`). Die
+    // Reihenfolge, in der jemand seine Wände gezeichnet hat, ist keine Aussage
+    // über die Figur — gedreht kommt dieselbe Wahl heraus.
+    const { nodes, walls } = twoRunCellGraph(100, 200, 8, 60);
+
+    for (let shift = 0; shift < walls.length; shift++) {
+      const rotated = [...walls.slice(shift), ...walls.slice(0, shift)];
+      expect(path(nodes, rotated)?.cutWallId).toBe('links');
+    }
+  });
+
+  it('umbenennen verschiebt den Schnitt — den Zahlen sieht man es nicht an', () => {
+    // Die Gegenprobe: hier wandert der Schnitt WIRKLICH auf den anderen Lauf,
+    // und genau das darf am Ergebnis nichts ändern.
+    const { nodes, walls } = twoRunCellGraph(100, 200, 8, 60);
+    const first = drawn(nodes, walls);
+    expect(path(nodes, walls)?.cutWallId).toBe('links');
+
+    const renamed = walls.map((it) =>
+      it.id === 'rechts' ? { ...it, id: 'a-rechts' } : it,
+    );
+    expect(path(nodes, renamed)?.cutWallId).toBe('a-rechts');
+
+    const other = drawn(nodes, renamed);
+    expect(other.kappaZ).toBeCloseTo(first.kappaZ ?? 0, 12);
+    expect(other.kappaY).toBeCloseTo(first.kappaY ?? 0, 12);
+    expect(other.It).toBeCloseTo(first.It ?? 0, 15);
+    expect(other.yM).toBeCloseTo(first.yM ?? 0, 12);
+    expect(other.zM).toBeCloseTo(first.zM ?? 0, 12);
+  });
+
+  it('ohne Zelle gibt es keinen Schnitt', () => {
+    const { nodes, walls } = iGraph(300, 150, 7.1, 10.7);
+    expect(path(nodes, walls)?.cutWallId).toBeUndefined();
   });
 });
 
@@ -418,23 +379,7 @@ describe('Was der Wandweg NICHT beantwortet, bleibt `undefined`', () => {
 
   it('ab zwei Zellen: keine Zahlen, dafür ein Befund', () => {
     // Ein Kasten mit einem Mittelsteg — zwei Zellen.
-    const nodes = [
-      node('a', -50, 0),
-      node('b', 0, 0),
-      node('c', 50, 0),
-      node('d', 50, 100),
-      node('e', 0, 100),
-      node('f', -50, 100),
-    ];
-    const walls = [
-      wall('o1', 'a', 'b', 8),
-      wall('o2', 'b', 'c', 8),
-      wall('rechts', 'c', 'd', 8),
-      wall('u1', 'd', 'e', 8),
-      wall('u2', 'e', 'f', 8),
-      wall('links', 'f', 'a', 8),
-      wall('mitte', 'b', 'e', 8),
-    ];
+    const { nodes, walls } = twoCellGraph(100, 100, 8);
 
     const values = drawn(nodes, walls);
     expect(values.kappaY).toBeUndefined();
@@ -451,13 +396,7 @@ describe('Was der Wandweg NICHT beantwortet, bleibt `undefined`', () => {
   });
 
   it('unverbundene Teile: keine Zahlen, dafür ein Befund', () => {
-    const nodes = [
-      node('a', 0, 0),
-      node('b', 100, 0),
-      node('c', 0, 200),
-      node('d', 100, 200),
-    ];
-    const walls = [wall('links', 'a', 'b', 8), wall('rechts', 'c', 'd', 8)];
+    const { nodes, walls } = disconnectedGraph(100, 200);
 
     const values = drawn(nodes, walls);
     expect(values.kappaY).toBeUndefined();

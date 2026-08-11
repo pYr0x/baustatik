@@ -48,13 +48,22 @@ import type { SectionNode, Wall } from './types';
  * eine Bogenwand liefert mehrere Segmente mit derselben Id. Der Verweis steht
  * hier, damit ein Befund die Wand benennen kann, aus der er stammt; gerechnet
  * wird mit ihm nicht.
+ *
+ * `[L]` STATT EINER EINHEIT: der Typ ist massstabsfrei (siehe Dateikopf), und
+ * `L` ist die Längeneinheit, in der die Punkte hereingegeben wurden — mm aus
+ * `segments`, cm nach `scaleSegments`. ALLE Längen EINES Laufsatzes stehen
+ * zwangsläufig im selben `L`; wer zwei Sätze mischt, mischt zwei Figuren.
  */
 export type Segment = {
+  /** Startpunkt [L]. */
   readonly y: number;
   readonly z: number;
+  /** Richtung, auf Länge 1 gebracht [-]. */
   readonly dy: number;
   readonly dz: number;
+  /** Länge des Stücks [L]. */
   readonly length: number;
+  /** Wandstärke [L]. */
   readonly t: number;
   readonly wallId: string;
 };
@@ -89,11 +98,15 @@ export function segments(
   const graph = buildGraph(nodes, walls);
   const byWallId = new Map(graph.walls.map((it) => [it.wall.id, it]));
 
+  // EINGEFROREN AUF JEDER EBENE: Liste, Lauf und Stück. Der `Branch` darin
+  // kommt bereits eingefroren aus `traverse`.
   return Object.freeze(
-    branches(nodes, walls).map((branch) => ({
-      branch,
-      segments: Object.freeze(runSegments(branch, byWallId, policy)),
-    })),
+    branches(nodes, walls).map((branch) =>
+      Object.freeze({
+        branch,
+        segments: Object.freeze(runSegments(branch, byWallId, policy)),
+      }),
+    ),
   );
 }
 
@@ -173,20 +186,22 @@ export function scaleSegments(
   factor: number,
 ): readonly SegmentRun[] {
   return Object.freeze(
-    runs.map((run) => ({
-      branch: run.branch,
-      segments: Object.freeze(
-        run.segments.map((segment) =>
-          Object.freeze({
-            ...segment,
-            y: segment.y * factor,
-            z: segment.z * factor,
-            length: segment.length * factor,
-            t: segment.t * factor,
-          }),
+    runs.map((run) =>
+      Object.freeze({
+        branch: run.branch,
+        segments: Object.freeze(
+          run.segments.map((segment) =>
+            Object.freeze({
+              ...segment,
+              y: segment.y * factor,
+              z: segment.z * factor,
+              length: segment.length * factor,
+              t: segment.t * factor,
+            }),
+          ),
         ),
-      ),
-    })),
+      }),
+    ),
   );
 }
 

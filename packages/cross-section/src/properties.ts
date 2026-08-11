@@ -74,8 +74,13 @@ export type SectionProperties = {
    * jedem VOLLQUERSCHNITT: dort ist `It` weder `⅓Σl·t³` noch Bredt, sondern
    * die Loesung eines Randwertproblems, und zwischen den beiden zulaessigen
    * Formeln liegen drei Zehnerpotenzen.
+   *
+   * `readonly`, ANDERS ALS DIE FELDER DARUEBER: dass `SectionProperties`
+   * veraenderlich ist, steht in `CODING_STANDARDS.md` §11 als ABWEICHUNG vom
+   * Ziel — sie wird dort abgeraeumt, wo sie steht, und nicht in ein neues Feld
+   * fortgeschrieben.
    */
-  It?: number;
+  readonly It?: number;
   /** Groesseres Hauptträgheitsmoment [m4] — PFLICHT, immer `>= Iv`. */
   Iu: number;
   /** Kleineres Hauptträgheitsmoment [m4] — PFLICHT. */

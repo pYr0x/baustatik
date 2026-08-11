@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SECTION_POLICY } from '../src/index';
 import { scaleSegments, segments, wallMoments } from '../src/segment';
-import type { SectionNode, Wall } from '../src/types';
+import { iGraph, node, wall } from './helpers';
 
 /**
  * Das POSITIONIERTE Wegstück (ADR 0040) — Startpunkt, Richtung, Länge, `t`.
@@ -13,16 +13,6 @@ import type { SectionNode, Wall } from '../src/types';
  */
 
 const POLICY = DEFAULT_SECTION_POLICY;
-
-const node = (id: string, y: number, z: number): SectionNode => ({ id, y, z });
-
-const wall = (
-  id: string,
-  startNodeId: string,
-  endNodeId: string,
-  t = 8,
-  bulge?: number,
-): Wall => ({ id, startNodeId, endNodeId, t, ...(bulge === undefined ? {} : { bulge }) });
 
 describe('segments legt die Läufe lagerichtig hin', () => {
   it('eine gerade Wand ergibt EIN Stück, vom ersten zum letzten Knoten', () => {
@@ -112,6 +102,24 @@ describe('segments legt die Läufe lagerichtig hin', () => {
   });
 });
 
+describe('Was das Package verlässt, ist eingefroren', () => {
+  it('Liste, Lauf und Stück — nach `segments` wie nach `scaleSegments`', () => {
+    const runs = segments(
+      [node('a', 0, 0), node('b', 100, 0)],
+      [wall('w', 'a', 'b', 8)],
+      POLICY,
+    );
+
+    for (const set of [runs, scaleSegments(runs, 0.1)]) {
+      expect(Object.isFrozen(set)).toBe(true);
+      expect(Object.isFrozen(set[0])).toBe(true);
+      expect(Object.isFrozen(set[0]?.branch)).toBe(true);
+      expect(Object.isFrozen(set[0]?.segments)).toBe(true);
+      expect(Object.isFrozen(set[0]?.segments[0])).toBe(true);
+    }
+  });
+});
+
 describe('scaleSegments wechselt den Massstab an EINER Stelle', () => {
   it('skaliert Punkt, Länge und Dicke — die Richtung bleibt', () => {
     const runs = segments(
@@ -154,29 +162,15 @@ describe('wallMoments ist die Figur, die der Schubfluss sieht', () => {
 
   it('das I-Wandmodell trifft die Handrechnung', () => {
     const [h, b, tw, tf] = [300, 150, 7.1, 10.7];
+    // Der halbe Gurtabstand — im Wandmodell ist der Steg genau so lang.
     const zf = (h - tf) / 2;
-    const runs = segments(
-      [
-        node('lt', -b / 2, -zf),
-        node('mt', 0, -zf),
-        node('rt', b / 2, -zf),
-        node('lb', -b / 2, zf),
-        node('mb', 0, zf),
-        node('rb', b / 2, zf),
-      ],
-      [
-        wall('ol', 'lt', 'mt', tf),
-        wall('or', 'mt', 'rt', tf),
-        wall('steg', 'mt', 'mb', tw),
-        wall('ul', 'lb', 'mb', tf),
-        wall('ur', 'mb', 'rb', tf),
-      ],
-      POLICY,
-    );
+    const { nodes, walls } = iGraph(h, b, tw, tf);
+    const runs = segments(nodes, walls, POLICY);
     const moments = wallMoments(runs.flatMap((run) => [...run.segments]));
 
     expect(moments?.A).toBeCloseTo(2 * b * tf + 2 * zf * tw, 9);
-    expect(moments?.zs).toBeCloseTo(0, 9);
+    // `z = 0` liegt an der Oberkante, der Schwerpunkt also auf halber Höhe.
+    expect(moments?.zs).toBeCloseTo(h / 2, 9);
     expect(moments?.Iy).toBeCloseTo(
       2 * b * tf * zf * zf + (tw * (2 * zf) ** 3) / 12,
       6,

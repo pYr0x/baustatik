@@ -10,8 +10,15 @@
  * `arcTolerance` ändert es. Der abgeleitete Umriss reist nach
  * [ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)
  * IM SATZ mit, und seine Punktzahl hängt an dieser Zahl — aus ihr fallen `A`,
- * `Iy` und `Iz`. Der Löser trüge eine Zahl mit, die er nie liest: die
- * Rechenstrecke liest den MITGEFUEHRTEN Umriss, nie das Rezept.
+ * `Iy` und `Iz`.
+ *
+ * SEIT P5 LIEST DIE RECHENSTRECKE SIE DOCH, und zwar genau ein Feld:
+ * `arcTolerance`, damit der Wandweg seine Bogenwände unter DERSELBEN Toleranz
+ * zerlegt wie der mitgeführte Umriss (ADR 0040). Zwei Diskretisierungen
+ * derselben Figur stünden sonst in κ, ohne dass irgendwo etwas fehlte. Der
+ * Satz von ADR 0033 — „der Löser trüge eine Zahl mit, die er nie liest" —
+ * gilt damit nicht mehr; `SectionModel` in `@baustatik/fem-section-resolve`
+ * führt die Policy deshalb als Pflichtfeld.
  *
  * ZWEI EINGAENGE, wie bei `LoadValidationPolicy` in `@baustatik/fem-loads`, und
  * die Arbeitsteilung ist dieselbe:

@@ -75,6 +75,15 @@ because `Bulge.toPolyline` returns `[p1, p2]` for a straight edge whatever
 tolerance stands next to it. A caller that holds the record's policy passes it
 in and gets the same decomposition the outline was built under.
 
+**Optional does not mean absent on the calculation path.** `SectionModel` in
+`@baustatik/fem-section-resolve` carries `sectionPolicy` as a **mandatory**
+field and hands it in; the snapshot has carried it since `schemaVersion: 7`, so
+it is there where that adapter stands. Substituting the default there would
+discretise the *path* finer or coarser than the *carried outline* `I` falls
+out of — two discretisations of one figure, and the difference would sit
+silently in κ. The default is for the occasional caller asking about a
+catalogue profile or a parametric shape; neither ever sees the number.
+
 ## 3 · One cell yes, two cells no
 
 `cells = E − V + C` over the **run** decomposition (`branches`), which already
@@ -115,9 +124,12 @@ Not left to whichever traversal the code happens to produce:
 - The lever arm `r = y·dz − z·dy` turns positive from `+y` to `+z`
   (ADR 0031). On a straight segment it is constant — `(p + s·u) × u = p × u` —
   so `∫S·r ds` is `r · ∫S ds` and not a second quadrature.
-- The cut edge is the first cell run in input order, the same promise `branches`
-  already makes. Where the cell is cut does not change the result; a test pins
-  that.
+- The cut edge is the cell run carrying the **smallest wall id**. Before the
+  first step the traversal has reached nothing, so every cell run is tied — and
+  a tie is decided by the id, not by the position in the input array. Array
+  order would make the same figure with a rotated wall list cut somewhere else.
+  Where the cell is cut does not change the result; `WallPath.cutWallId` names
+  the place, and two tests pin both — the choice and its irrelevance.
 
 ## 5 · The bound: `thickWallRatio`, two formulas, one number
 

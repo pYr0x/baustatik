@@ -79,9 +79,11 @@ ends, and `S` would be ambiguous depending on which side you cut from.
 every drawn cross-section.
 
 `ys`/`zs` in `SectionProperties` remain the centroid of the **outline**.
-`wallMoments` is not exported as a value of the section — it is a computational
-figure, and publishing it would create a third coordinate system nobody asked
-for.
+`wallMoments` is not exported at all — not as a value of the section and not
+from `src/index.ts`. It is a computational figure, and publishing it would
+create a third coordinate system nobody asked for. The same holds for the rest
+of the path (`Segment`/`segments`, `wallPath`, `cellCount`/`componentCount`):
+what leaves the package is `SectionProperties` and the gate's findings.
 
 ## What is knowingly inconsistent, and why that is fine
 

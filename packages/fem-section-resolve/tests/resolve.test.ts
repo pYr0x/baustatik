@@ -1,6 +1,10 @@
-import type {
-  CrossSection,
-  SectionProperties,
+import {
+  type CrossSection,
+  createSectionGeometry,
+  createSectionPolicy,
+  type SectionPolicy,
+  type SectionProperties,
+  sectionProperties,
 } from '@baustatik/cross-section';
 import type { Beam } from '@baustatik/fem';
 import {
@@ -47,11 +51,22 @@ const beam = (crossSectionId: string, materialId = S235.id): Beam => ({
 
 const IPE80 = profile('IPE 80', 'cs-ipe80');
 
-/** Ein Modell aus Querschnitten; die drei Materialien sind immer dabei. */
+/**
+ * Ein Modell aus Querschnitten; die drei Materialien sind immer dabei.
+ *
+ * Die Policy gehoert seit P5 dazu: `sectionProperties` liest daraus
+ * `arcTolerance`, wenn ein gezeichneter Wandquerschnitt Bogenwaende hat. Die
+ * Saetze hier sind Profile und parametrische Formen — sie ruehrt sie nicht an,
+ * steht aber im Typ, damit niemand sie unterwegs verliert.
+ */
 const model = (
   crossSections: readonly CrossSection[],
   materials: readonly Material[] = [S235, C30, C24],
-): SectionModel => ({ crossSections, materials });
+): SectionModel => ({
+  crossSections,
+  materials,
+  sectionPolicy: createSectionPolicy(),
+});
 
 describe('Die Einheitenkette, ausgeschrieben', () => {
   // material liefert E in MPa (N/mm2), SectionStiffness erwartet kN und kNm2.
@@ -95,6 +110,65 @@ describe('Parametrische Form durch dieselbe Kette', () => {
     expect(s?.EA).toBeCloseTo(2.1e7, 0);
     expect(s?.EI).toBeCloseTo(437500, 3);
     expect(s?.GAs as number).toBeCloseTo((5 / 6) * 8.0769e7 * 0.1, 3);
+  });
+});
+
+/**
+ * Der gezeichnete Querschnitt bringt seit P5 eine zweite Eingabe mit: die
+ * Policy, unter der er entstanden ist. Sie MUSS dieselbe sein, mit der hier
+ * gerechnet wird — sonst zerlegt der Wandweg die Bogenwand feiner oder groeber
+ * als der mitgefuehrte Umriss, aus dem `I` faellt
+ * ([ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md)).
+ */
+describe('Die Policy des Modells erreicht die Rechnung', () => {
+  // Eine halbkreisfoermige Wand: die einzige Figur, an der `arcTolerance`
+  // ueberhaupt etwas bewegt — eine gerade Wand liefert unter jeder Toleranz
+  // dieselben zwei Punkte.
+  const bogen = (policy: SectionPolicy): CrossSection => ({
+    kind: 'section-geometry',
+    id: 'cs-bogen',
+    geometry: createSectionGeometry(
+      {
+        kind: 'midline',
+        nodes: [
+          { id: 'a', y: -100, z: 0 },
+          { id: 'b', y: 100, z: 0 },
+        ],
+        walls: [{ id: 'w', startNodeId: 'a', endNodeId: 'b', t: 8, bulge: 1 }],
+        idealisation: 'thin-walled',
+      },
+      policy,
+    ),
+  });
+
+  // `mm` ist gebrandet und `@baustatik/units` keine Abhaengigkeit dieses
+  // Packages — die Marke kommt deshalb aus dem Policy-Typ selbst.
+  const tolerance = (value: number) => value as SectionPolicy['arcTolerance'];
+  const grob = createSectionPolicy({ arcTolerance: tolerance(5) });
+  const fein = createSectionPolicy({ arcTolerance: tolerance(0.01) });
+
+  it('rechnet mit der mitgereisten Toleranz und nicht mit der Voreinstellung', () => {
+    const section = bogen(grob);
+    const stiffness = resolveSectionStiffness(beam('cs-bogen'), {
+      crossSections: [section],
+      materials: [S235],
+      sectionPolicy: grob,
+    });
+
+    const expected = sectionStiffness(
+      sectionProperties(section, grob) as SectionProperties,
+      S235.moduli,
+    );
+    expect(stiffness?.GAs).toBe(expected.GAs);
+
+    // Die Gegenprobe: unter der feinen Toleranz kaeme eine ANDERE Zahl heraus.
+    // Genau diese Differenz stuende still im Ergebnis, wenn der Resolver die
+    // Policy nicht mitbekaeme.
+    const other = sectionStiffness(
+      sectionProperties(section, fein) as SectionProperties,
+      S235.moduli,
+    );
+    expect(other.GAs).not.toBe(expected.GAs);
   });
 });
 

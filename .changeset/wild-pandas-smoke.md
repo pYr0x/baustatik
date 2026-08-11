@@ -1,5 +1,6 @@
 ---
 '@baustatik/cross-section': patch
+'@baustatik/fem-section-resolve': patch
 '@baustatik/script': patch
 ---
 
@@ -34,8 +35,17 @@ text rather than in the version arithmetic.
 - Three new geometry-gate findings for `thin-walled` wall graphs:
   `MultipleCellsWarning`, `DisconnectedWallGraphWarning`, `ThickWallWarning`.
 
+**Breaking — `SectionModel` gains `sectionPolicy`
+(`@baustatik/fem-section-resolve`).** The field is mandatory and has no
+default: since the wall path reads `arcTolerance`, a resolver substituting the
+default would discretise the path finer or coarser than the carried outline `I`
+falls out of — two discretisations of one figure, and the difference would sit
+silently in κ. A `FEMModelSnapshot` satisfies the shape unchanged; it has
+carried `sectionPolicy` since `schemaVersion: 7`.
+
 **Additive.** `sectionProperties(cs, policy?)` takes an optional policy; only
 `arcTolerance` is read from it, and only to discretise arc walls of the wall
-path. A cross-section without an arc wall is unaffected. New exports:
-`Segment`, `SegmentRun`, `segments`, `WallMoments`, `wallMoments`, `wallPath`,
-`OutlineFigure`, `WallPath`, `cellCount`, `componentCount`.
+path. A cross-section without an arc wall is unaffected. The wall path itself
+(`Segment`, `segments`, `wallMoments`, `wallPath`, `cellCount`,
+`componentCount`) stays **internal** — no new exports from
+`@baustatik/cross-section` beyond the three warning classes above.

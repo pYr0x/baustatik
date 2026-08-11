@@ -365,6 +365,16 @@ freien Ende nicht auf null, und `S` waere zweideutig. `ys`/`zs` in
 `SectionProperties` bleiben die der **Umrissfigur**; das Wandmodell ist eine
 Rechenfigur und kein drittes Bezugssystem.
 
+**„Nie veroeffentlicht" heisst: nicht im Barrel.** `src/index.ts` traegt weder
+`wallMoments`/`WallMoments` noch `Segment`/`segments`, `wallPath`/`WallPath`
+oder `cellCount`/`componentCount` — der ganze Rechenweg von P5 bleibt innen.
+Nach aussen tragen ihn `SectionProperties` (κ, `yM`/`zM`, `It`) und die Befunde
+des Gates (`MultipleCellsWarning`, `DisconnectedWallGraphWarning`,
+`ThickWallWarning`). `Branch`/`branches` stehen weiterhin im Barrel: sie sind
+seit ADR 0030/0037 die Zerlegung selbst und aelter als P5. Die Tests des
+Wandwegs importieren aus `../src/…` und nicht aus dem Barrel — genau dafuer ist
+die Trennung da.
+
 ### Zwei Figuren, mit je einem Grund
 
 > ([ADR 0041](../../docs/adr/0041-two-figures-for-the-wall-path.md))
@@ -394,8 +404,13 @@ Zerlegung.
 
 **Vorzeichen und Reproduzierbarkeit stehen fest:** Zellumlauf im Sinn
 `signedArea > 0` (ADR 0034), `r = y·dz − z·dy` im Drehsinn `+y → +z`
-(ADR 0031), Schnittkante die erste Zellkante in Eingabereihenfolge. Wo
-geschnitten wird, aendert das Ergebnis nicht — ein Test haelt das fest.
+(ADR 0031), **aufgeschnitten wird am Lauf mit der kleinsten Wand-Id**. Vor dem
+ersten Schritt hat die Zellentraversierung nichts erreicht, alle Zellkanten
+stehen also gleich — und Gleichstand entscheidet die Id, nicht die Stelle im
+Eingabe-Array: sonst haette dieselbe Figur mit gedrehter Wandliste einen
+anderen Schnitt. Wo geschnitten wird, aendert das Ergebnis nicht; `cutWallId`
+in `WallPath` nennt den Ort, und zwei Tests halten beides fest — die Wahl und
+ihre Folgenlosigkeit.
 
 ### `It`
 
@@ -569,8 +584,13 @@ kommt dieselbe Zahl heraus wie vorher.
 ([ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
 ADR 0011 zieht seine Trennlinie an *„steuert die Rechnung, **ohne das Modell zu
 aendern**"* — `arcTolerance` aendert es: der abgeleitete Umriss reist nach ADR
-0030 im Satz mit, und seine Punktzahl haengt an der Toleranz. Der Loeser truege
-eine Zahl mit, die er nie liest.
+0030 im Satz mit, und seine Punktzahl haengt an der Toleranz.
+
+Der zweite Satz von ADR 0033 — *„der Loeser truege eine Zahl mit, die er nie
+liest"* — **gilt seit P5 nicht mehr**: der Wandweg liest `arcTolerance`, um
+seine Bogenwaende zu zerlegen, und zwar unter derselben Toleranz wie der
+mitgefuehrte Umriss (ADR 0040). Deshalb ist die Policy in `SectionModel`
+(`@baustatik/fem-section-resolve`) ein Pflichtfeld.
 
 Die volle Scheibenform nach dem Vorbild von `fem-loads/src/policy.ts`:
 `SectionPolicy` · `SectionPolicyOverrides` · `DEFAULT_SECTION_POLICY` ·
@@ -659,11 +679,18 @@ eingestellt war (ADR 0035).
 einzige Stelle im Package, an der sie optional ist. Gelesen wird daraus GENAU
 EIN Feld, `arcTolerance`, und auch das nur beim gezeichneten Wandgraphen: der
 Wandweg zerlegt seine Bogenwaende unter derselben Toleranz, unter der der
-mitgefuehrte Umriss entstanden ist. Wer die Policy des Satzes hat, reicht sie
-herein; wer sie nicht hat — `getSectionStiffness` in
-`@baustatik/fem-section-resolve` hat sie nicht —, bekommt die Voreinstellung.
-Ein Querschnitt **ohne Bogenwand** ist von der Zahl unberuehrt. Das ist eine
-bewusste Abweichung von ADR 0011 und in `section.ts` als solche vermerkt.
+mitgefuehrte Umriss entstanden ist. Ein Querschnitt **ohne Bogenwand** ist von
+der Zahl unberuehrt. Das ist eine bewusste Abweichung von ADR 0011 und in
+`section.ts` als solche vermerkt.
+
+**Optional heisst nicht „darf auf der Rechenstrecke fehlen".** `SectionModel`
+in `@baustatik/fem-section-resolve` fuehrt `sectionPolicy` als **Pflichtfeld**
+und reicht es herein; der Snapshot traegt es seit `v7` ohnehin mit. Die
+Voreinstellung ist fuer den gelegentlichen Aufrufer da, der ein Katalogprofil
+oder eine parametrische Form fragt — beide sehen die Zahl nie. Setzte der
+Resolver sie selbst ein, zerlegte er den **Weg** feiner oder groeber als den
+mitgefuehrten **Umriss**, aus dem `I` faellt: zwei Diskretisierungen derselben
+Figur, und der Unterschied stuende still in κ.
 
 ## Spannungspunkte: Regel statt Liste
 

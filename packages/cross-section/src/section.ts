@@ -150,12 +150,17 @@ export type CrossSection =
  * sie es ist. Gelesen wird daraus GENAU EIN FELD, `arcTolerance`, und auch das
  * nur beim gezeichneten Wandgraphen: der Wandweg von P5 zerlegt seine
  * Bogenwaende unter derselben Toleranz, unter der auch der mitgefuehrte Umriss
- * entstanden ist. Wer die Policy des Satzes hat, reicht sie herein und bekommt
- * dieselbe Zerlegung; wer sie nicht hat — `getSectionStiffness` in
- * `@baustatik/fem-section-resolve` hat sie nicht —, bekommt die Voreinstellung.
+ * entstanden ist.
+ *
+ * OPTIONAL HEISST NICHT „darf fehlen, wo gerechnet wird". Die Rechenstrecke
+ * REICHT SIE HEREIN: `SectionModel` in `@baustatik/fem-section-resolve` fuehrt
+ * `sectionPolicy` als PFLICHTFELD, und der Snapshot traegt sie seit
+ * `schemaVersion: 7` ohnehin mit. Die Voreinstellung bleibt fuer den
+ * gelegentlichen Aufrufer, der einen Katalogquerschnitt oder eine
+ * parametrische Form fragt — beide sehen die Zahl nie.
  *
  * DAS IST EINE ABWEICHUNG VON ADR 0011, und sie steht bewusst hier statt in
- * einem stillen Import: die Rechenstrecke liest sonst den MITGEFUEHRTEN Umriss
+ * einem stillen Import: die Rechenstrecke las bis P5 den MITGEFUEHRTEN Umriss
  * und nie das Rezept. Ein Querschnitt OHNE Bogenwand ist von der Zahl
  * unberuehrt — `Bulge.toPolyline` liefert fuer eine gerade Kante `[p1, p2]`,
  * ganz gleich, welche Toleranz danebensteht.

@@ -56,9 +56,21 @@ den die erste Rechnung allein nicht sieht.
 **Eine Herkunft.** Bis ADR 0027 kam ein dritter Parameter `catalog` herein, und
 die Naht zwischen „was gespeichert wird" und „was am Nationalen Anhang haengt"
 lag genau hier. Seit die Moduln als Kopie im Modellsatz stehen, gibt es diese
-Naht nicht mehr: `model` (`crossSections` und `materials`) ist alles. Ein Store,
-der beide Listen fuehrt, erfuellt `SectionModel` strukturell und reist als ein
-Stueck hinein.
+Naht nicht mehr: `model` ist alles. Ein `FEMModelSnapshot` erfuellt
+`SectionModel` strukturell und reist als ein Stueck hinein.
+
+**Drei Felder, und das dritte ist seit P5 dabei.** Neben `crossSections` und
+`materials` fuehrt `SectionModel` die `sectionPolicy` — **Pflicht, ohne
+Default**. Seit dem positionierten Wandweg
+([ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md)) liest
+`sectionProperties` beim gezeichneten Mittellinienquerschnitt `arcTolerance`,
+um seine Bogenwaende zu zerlegen. Setzte dieser Adapter die Voreinstellung ein,
+zerlegte er den **Weg** feiner oder groeber als den mitgefuehrten **Umriss**,
+aus dem `I` faellt — zwei Diskretisierungen derselben Figur, und der
+Unterschied stuende still in κ und damit in `GAs`. Die Policy reist im Snapshot
+mit (seit `schemaVersion: 7`), ist also da, wo dieser Adapter steht; ein
+`?? DEFAULT_SECTION_POLICY` waere eine **erfundene** Zahl an der Rechenstrecke.
+Ein Katalogprofil und eine parametrische Form sehen sie nie.
 
 Die Naht liegt zwischen Nachschlagen und Multiplizieren. Wer schon
 `SectionProperties` in der Hand hat — Bemessung, Vorbemessung, ein Diagramm

@@ -1,4 +1,8 @@
-import type { CrossSection } from '@baustatik/cross-section';
+import {
+  type CrossSection,
+  createSectionPolicy,
+  type SectionPolicy,
+} from '@baustatik/cross-section';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import { resolveSectionStiffness } from '@baustatik/fem-section-resolve';
 import { effectiveLoads, type LoadCase } from '@baustatik/fem-loads';
@@ -91,6 +95,11 @@ const useFEMScriptStore = defineStore('fem-scripting', {
     beams: [] as Beam[],
     crossSections: [] as CrossSection[],
     materials: [] as Material[],
+    // Die Policy des Snapshots reist MIT: unter ihr sind die Umrisse der
+    // gezeichneten Querschnitte entstanden, und unter ihr muss der Wandweg
+    // seine Bogenwaende zerlegen (ADR 0033, ADR 0040). Bis das erste Modell
+    // geladen ist, steht die Voreinstellung da.
+    sectionPolicy: createSectionPolicy() as SectionPolicy,
     supports: [] as NodeSupport[],
     loadCases: [] as LoadCase[],
     activeLoadCaseId: '',
@@ -110,6 +119,7 @@ const useFEMScriptStore = defineStore('fem-scripting', {
         beams: [...snapshot.beams],
         crossSections: [...snapshot.crossSections],
         materials: [...snapshot.materials],
+        sectionPolicy: snapshot.sectionPolicy,
         supports: [...snapshot.supports],
         loadCases: snapshot.loadCases.map((loadCase) =>
           structuredClone(loadCase),

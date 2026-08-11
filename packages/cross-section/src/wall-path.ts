@@ -58,15 +58,28 @@ import {
 /**
  * Die Werte der UMRISSFIGUR, gegen die κ gerechnet wird — die Spalte
  * „Umrissfigur" aus ADR 0041.
+ *
+ * IM MASSSTAB DER SEGMENTE, und das ist eine VORBEDINGUNG und keine
+ * Empfehlung: κ ist `A_s/A` und damit dimensionslos, aber nur, wenn `∫S²/t ds`
+ * aus dem Wandweg und `I²`/`A` aus dem Umriss in DERSELBEN Längeneinheit `L`
+ * stehen. Gemischt (Segmente in mm, Umriss in cm) käme eine Zehnerpotenz
+ * heraus, die niemandem auffällt. `geometryResult` (`src/section.ts`) skaliert
+ * deshalb BEIDE Figuren mit demselben Faktor, bevor es hier hereinreicht.
  */
 export type OutlineFigure = {
+  /** Querschnittsfläche der Umrissfigur [L²]. */
   readonly A: number;
+  /** `∫z² dA` um den Umriss-Schwerpunkt [L⁴]. */
   readonly Iy: number;
+  /** `∫y² dA` um den Umriss-Schwerpunkt [L⁴]. */
   readonly Iz: number;
 };
 
 /**
- * Was aus dem Wandweg fällt, in der Einheit der Segmente.
+ * Was aus dem Wandweg fällt, IN DER EINHEIT DER SEGMENTE — dieselbe
+ * Längeneinheit `L`, in der `Segment` und `OutlineFigure` hereinkamen. Der
+ * Wandweg rechnet massstabsfrei; umgerechnet wird an den beiden bekannten
+ * Stellen (`geometryResult` nach cm, `toSI` nach SI).
  *
  * `undefined` heisst NICHT ERMITTELT, nach dem Muster von `kappaY?` in
  * `SectionProperties` — nicht „null". Bei zwei Zellen, mehreren unverbundenen
@@ -74,8 +87,10 @@ export type OutlineFigure = {
  * kein `S`) stehen die Zahlen deshalb nicht da, statt falsch dazustehen.
  */
 export type WallPath = {
+  /** Schubkorrekturbeiwert κ = A_s/A [-]. */
   readonly kappaY?: number;
   readonly kappaZ?: number;
+  /** Schubmittelpunkt im EINGABESYSTEM der Segmente [L]. */
   readonly yM?: number;
   readonly zM?: number;
   /** Torsionsträgheitsmoment [L⁴]. */
@@ -94,6 +109,20 @@ export type WallPath = {
    */
   readonly closingSy: number;
   readonly closingSz: number;
+  /**
+   * Der LAUF, an dem die Zelle aufgeschnitten wurde, benannt durch seine
+   * kleinste Wand-Id — `undefined` ohne Zelle.
+   *
+   * TEST-ORAKEL, wie `closingSy`: der Schnitt darf das Ergebnis nicht bewegen,
+   * aber er muss REPRODUZIERBAR sein, sonst hinge `S₀` am Zufall der
+   * Eingabereihenfolge. Die Wahlregel steht in `circulation`; ein Test hält
+   * beides fest — die Wahl selbst und ihre Folgenlosigkeit.
+   *
+   * DER LAUF UND NICHT DIE WAND: aufgeschnitten wird an einem KNOTEN, nämlich
+   * am Anfangsknoten dieses Laufs. Die kleinste Wand-Id ist der Name, unter
+   * dem der Lauf in der Wahl antritt — sie benennt ihn richtungsunabhängig.
+   */
+  readonly cutWallId?: string;
 };
 
 /**
@@ -151,6 +180,9 @@ export function wallPath(
     components,
     closingSy: forVz.closing,
     closingSz: forVy.closing,
+    ...(cycle.length === 0
+      ? {}
+      : { cutWallId: smallestWallId(atOrThrow(cycle, 0).edge) }),
     // `kappaY` gehört zu `Iz`: die Querkraft in y biegt um z.
     kappaY: kappa(outline.Iz, outline.A, forVy.entries),
     kappaZ: kappa(outline.Iy, outline.A, forVz.entries),
@@ -168,6 +200,19 @@ type Edge = {
   readonly b: string;
 };
 
+/**
+ * Die Lage eines Wegstücks zum Zellumlauf: `0` abseits der Zelle, `+1` mit dem
+ * festgelegten Umlaufsinn, `−1` gegen ihn.
+ *
+ * DREI WERTE UND KEINE ZAHL: `sigma` wird multipliziert und aufsummiert, aber
+ * ein `2` daraus wäre keine schwächere Aussage, sondern gar keine. Der Typ
+ * sagt, was der Wertebereich ist, statt es dem Leser zu überlassen.
+ */
+type Sigma = -1 | 0 | 1;
+
+/** Das Vorzeichen, mit dem ein Moment auf eine Achse geht. */
+type Sign = -1 | 1;
+
 /** Eine Kante mit einer Durchlaufrichtung. */
 type Step = {
   readonly edge: Edge;
@@ -176,14 +221,44 @@ type Step = {
   readonly to: string;
   /** In Laufrichtung orientiert. */
   readonly segments: readonly Segment[];
-  /** `0` abseits der Zelle, sonst `+1`/`−1` gegen den Umlaufsinn. */
-  readonly sigma: number;
+  readonly sigma: Sigma;
 };
 
 function orientedSegments(edge: Edge, forward: boolean): readonly Segment[] {
   return forward
     ? edge.run.segments
     : [...edge.run.segments].reverse().map(reverseSegment);
+}
+
+/**
+ * Die kleinste Wand-Id eines Laufs — der Name, unter dem er in einer Auswahl
+ * antritt.
+ *
+ * DIE ID UND NICHT DIE STELLE IM ARRAY: die Reihenfolge, in der jemand seine
+ * Wände gezeichnet hat, ist keine Aussage über die Figur. Ein Lauf ohne Wand
+ * kann es nach `branches` nicht geben; `''` sortiert dann vor jeder Id, statt
+ * einen Sonderfall zu eröffnen.
+ */
+function smallestWallId(edge: Edge): string {
+  return [...edge.run.branch.wallIds].sort().at(0) ?? '';
+}
+
+/**
+ * Die Auswahl unter mehreren Kanten — IMMER über die Wand-Id.
+ *
+ * Die eine Stelle, an der der Schnittort und die Fortsetzung entschieden
+ * werden. Sie steht hier zusammen, weil beide dieselbe Zusage tragen müssen:
+ * gleiche Gestalt, gleiche Wahl, unabhängig davon, in welcher Reihenfolge die
+ * Wände hereingekommen sind.
+ */
+function byWallId(candidates: readonly Edge[]): Edge | undefined {
+  let best: Edge | undefined;
+  for (const edge of candidates) {
+    if (best === undefined || smallestWallId(edge) < smallestWallId(best)) {
+      best = edge;
+    }
+  }
+  return best;
 }
 
 /**
@@ -194,16 +269,20 @@ function orientedSegments(edge: Edge, forward: boolean): readonly Segment[] {
  * einer Zufälligkeit. Gezählt wird über die Fläche, die die Mittellinie
  * einschliesst.
  *
- * DER ANFANG IST DIE ERSTE ZELLKANTE IN EINGABEREIHENFOLGE — dieselbe Zusage
- * wie bei `branches`: zwei Wandgraphen gleicher Gestalt liefern dieselbe
- * Zerlegung. Wo die Zelle aufgeschnitten wird, ändert das Ergebnis nicht; ein
- * Test hält das fest.
+ * DER ANFANG IST DIE KLEINSTE WAND-ID DER ZELLE, und das ist mehr als
+ * „deterministisch": vor dem ersten Schritt hat die Traversierung noch nichts
+ * erreicht, alle Zellkanten stehen also gleich — und Gleichstand entscheidet
+ * die Wand-Id. Die Stelle im Eingabe-Array täte es NICHT: dieselbe Figur mit
+ * gedrehter Wandliste bekäme einen anderen Schnitt, und die Zusage „gleiche
+ * Gestalt, gleiche Rechnung" hinge an der Tippreihenfolge. Wo geschnitten
+ * wird, ändert das Ergebnis ohnehin nicht; `cutWallId` und ein Test halten
+ * beides fest.
  */
 function circulation(edges: readonly Edge[]): readonly Step[] {
   const onCycle = cycleEdges(edges);
-  if (onCycle.length === 0) return [];
+  const first = byWallId(onCycle);
+  if (first === undefined) return [];
 
-  const first = atOrThrow(onCycle, 0);
   const used = new Set<Edge>([first]);
   const order: { edge: Edge; forward: boolean }[] = [
     { edge: first, forward: true },
@@ -211,8 +290,10 @@ function circulation(edges: readonly Edge[]): readonly Step[] {
   let at = first.b;
 
   while (order.length < onCycle.length) {
-    const next = onCycle.find(
-      (edge) => !used.has(edge) && (edge.a === at || edge.b === at),
+    const next = byWallId(
+      onCycle.filter(
+        (edge) => !used.has(edge) && (edge.a === at || edge.b === at),
+      ),
     );
     // Die Zelle ist ein geschlossener Umlauf; eine Kante ohne Fortsetzung wäre
     // ein Bruch der Zellzählung und keine Eingabe, über die zu urteilen wäre.
@@ -237,7 +318,7 @@ function circulation(edges: readonly Edge[]): readonly Step[] {
   );
 }
 
-function asStep(edge: Edge, forward: boolean, sigma: number): Step {
+function asStep(edge: Edge, forward: boolean, sigma: Sigma): Step {
   return {
     edge,
     forward,
@@ -383,7 +464,7 @@ type Entry = {
    * Positiv dreht von `+y` nach `+z` (ADR 0031).
    */
   readonly r: number;
-  readonly sigma: number;
+  readonly sigma: Sigma;
 };
 
 /**
@@ -509,7 +590,7 @@ function kappa(
  * `ys`/`zs`.
  */
 function shearCentre(
-  sign: number,
+  sign: Sign,
   I: number,
   entries: readonly Entry[],
 ): number | undefined {

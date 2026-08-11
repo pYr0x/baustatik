@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { branches, cellCount, componentCount } from '../src/branch';
-import type { SectionNode, Wall } from '../src/types';
-
-const node = (id: string, y: number, z: number): SectionNode => ({ id, y, z });
-
-const wall = (
-  id: string,
-  startNodeId: string,
-  endNodeId: string,
-  t = 8,
-): Wall => ({ id, startNodeId, endNodeId, t });
+import {
+  boxGraph,
+  disconnectedGraph,
+  node,
+  tGraph,
+  twoCellGraph,
+  wall,
+} from './helpers';
 
 describe('branches zerlegt den Wandgraphen in Läufe zwischen Verzweigungsknoten', () => {
   it('legt eine Kette aus lauter Grad-2-Knoten in EINEN Branch', () => {
@@ -26,17 +24,7 @@ describe('branches zerlegt den Wandgraphen in Läufe zwischen Verzweigungsknoten
 
   it('beendet den Lauf am Grad-3-Knoten — drei Wände, drei Branches', () => {
     // Das T: der Steg trifft die durchlaufende Gurtplatte in ihrer Mitte.
-    const nodes = [
-      node('links', -50, 0),
-      node('mitte', 0, 0),
-      node('rechts', 50, 0),
-      node('unten', 0, 100),
-    ];
-    const walls = [
-      wall('gurt-links', 'links', 'mitte'),
-      wall('gurt-rechts', 'mitte', 'rechts'),
-      wall('steg', 'mitte', 'unten'),
-    ];
+    const { nodes, walls } = tGraph(100, 10, 8, 100);
 
     const result = branches(nodes, walls);
 
@@ -49,18 +37,7 @@ describe('branches zerlegt den Wandgraphen in Läufe zwischen Verzweigungsknoten
   });
 
   it('erkennt den geschlossenen Umlauf TOPOLOGISCH — ein Branch ohne Enden', () => {
-    const nodes = [
-      node('a', 0, 0),
-      node('b', 100, 0),
-      node('c', 100, 200),
-      node('d', 0, 200),
-    ];
-    const walls = [
-      wall('w1', 'a', 'b'),
-      wall('w2', 'b', 'c'),
-      wall('w3', 'c', 'd'),
-      wall('w4', 'd', 'a'),
-    ];
+    const { nodes, walls } = boxGraph(100, 200, 8);
 
     const result = branches(nodes, walls);
 
@@ -123,33 +100,8 @@ describe('branches zerlegt den Wandgraphen in Läufe zwischen Verzweigungsknoten
  * das Gate und der Wandweg DIESELBE Zerlegung.
  */
 describe('cellCount und componentCount zählen über die Läufe', () => {
-  const box = {
-    nodes: [
-      node('a', 0, 0),
-      node('b', 100, 0),
-      node('c', 100, 200),
-      node('d', 0, 200),
-    ],
-    walls: [
-      wall('w1', 'a', 'b'),
-      wall('w2', 'b', 'c'),
-      wall('w3', 'c', 'd'),
-      wall('w4', 'd', 'a'),
-    ],
-  };
-
   it('das offene T hat keine Zelle und einen Teil', () => {
-    const nodes = [
-      node('links', -50, 0),
-      node('mitte', 0, 0),
-      node('rechts', 50, 0),
-      node('unten', 0, 100),
-    ];
-    const walls = [
-      wall('gurt-links', 'links', 'mitte'),
-      wall('gurt-rechts', 'mitte', 'rechts'),
-      wall('steg', 'mitte', 'unten'),
-    ];
+    const { nodes, walls } = tGraph(100, 10, 8, 100);
 
     expect(cellCount(branches(nodes, walls))).toBe(0);
     expect(componentCount(branches(nodes, walls))).toBe(1);
@@ -158,6 +110,7 @@ describe('cellCount und componentCount zählen über die Läufe', () => {
   it('der geschlossene Kasten ist EIN Lauf und trotzdem EINE Zelle', () => {
     // Er ist eine Kante von einem Knoten auf sich selbst; `E − V + C` gibt
     // `1 − 1 + 1`.
+    const box = boxGraph(100, 200, 8);
     const decomposition = branches(box.nodes, box.walls);
     expect(decomposition).toHaveLength(1);
     expect(cellCount(decomposition)).toBe(1);
@@ -165,32 +118,13 @@ describe('cellCount und componentCount zählen über die Läufe', () => {
   });
 
   it('ein Mittelsteg macht aus einer Zelle zwei', () => {
-    const nodes = [
-      ...box.nodes,
-      node('m1', 50, 0),
-      node('m2', 50, 200),
-    ];
-    const walls = [
-      wall('o1', 'a', 'm1'),
-      wall('o2', 'm1', 'b'),
-      wall('rechts', 'b', 'c'),
-      wall('u1', 'c', 'm2'),
-      wall('u2', 'm2', 'd'),
-      wall('links', 'd', 'a'),
-      wall('mitte', 'm1', 'm2'),
-    ];
+    const { nodes, walls } = twoCellGraph(100, 200, 8);
 
     expect(cellCount(branches(nodes, walls))).toBe(2);
   });
 
   it('zwei getrennte Wände sind zwei Teile und keine Zelle', () => {
-    const nodes = [
-      node('a', 0, 0),
-      node('b', 100, 0),
-      node('c', 0, 200),
-      node('d', 100, 200),
-    ];
-    const walls = [wall('links', 'a', 'b'), wall('rechts', 'c', 'd')];
+    const { nodes, walls } = disconnectedGraph(100, 200);
 
     expect(componentCount(branches(nodes, walls))).toBe(2);
     expect(cellCount(branches(nodes, walls))).toBe(0);

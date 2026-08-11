@@ -12,7 +12,7 @@ Entscheidungen, die dafür wichtig bleiben. Erledigte Stufen sind in ADRs,
 | FEM-Viewer | Schnittgrößen grafisch darstellen | Die Rechenwerte und exakten Auswertungsstellen existieren bereits. |
 | FEM-Rechnung | Lastkombinationen und Hüllkurven | Baut auf Lastfällen und den vorhandenen Schnittgrößen-Auswertungen auf. |
 | Querschnitte | Werte → Profilkatalog → Solver-Anschluss | Liefert echte Steifigkeiten, bevor ein Editor gebaut wird. |
-| Policy | `analysisPolicy` modellgebunden: Snapshot v10, eigenes `schemaVersion` fällt | `sectionPolicy` ist das Muster; Plan: [`plan-refactor-policy.md`](plan-refactor-policy.md). **v9 ist mit P3 vergeben** (`miterLimit`), also nimmt der Refactor die nächste freie. |
+| Policy | `analysisPolicy` modellgebunden: Snapshot v11, eigenes `schemaVersion` fällt | `sectionPolicy` ist das Muster; Plan: [`plan-refactor-policy.md`](plan-refactor-policy.md). **v10 ist mit P5 vergeben** (`thickWallRatio`, `shearCentreTolerance`), also nimmt der Refactor die nächste freie. |
 | Projekt | Behälter und Persistenz entwerfen (ADR) | Der Behälter ist die App; die Tool-Dokumente sind die Datensatz-Einheiten. |
 
 Der Viewer- und der Querschnittsstrang können unabhängig weiterlaufen; der
