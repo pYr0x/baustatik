@@ -1,5 +1,12 @@
 # @baustatik/script
 
+## 0.0.4
+
+### Patch Changes
+
+- @baustatik/cross-section@0.0.4
+- @baustatik/fem-loads@0.0.3
+
 ## 0.0.3
 
 ### Patch Changes

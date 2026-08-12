@@ -1,5 +1,11 @@
 # @baustatik/grid-2d
 
+## 0.0.2
+
+### Patch Changes
+
+- @baustatik/render-core@0.0.2
+
 ## 0.0.1
 
 ### Patch Changes

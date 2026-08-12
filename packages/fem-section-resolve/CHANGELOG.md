@@ -1,5 +1,11 @@
 # @baustatik/fem-section-resolve
 
+## 0.0.4
+
+### Patch Changes
+
+- @baustatik/cross-section@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes

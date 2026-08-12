@@ -1,5 +1,12 @@
 # @baustatik/render-core
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies [d9a742d]
+  - @baustatik/core@0.0.2
+
 ## 0.0.1
 
 ### Patch Changes

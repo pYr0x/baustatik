@@ -1,5 +1,13 @@
 # @baustatik/cross-section
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [d9a742d]
+  - @baustatik/core@0.0.2
+  - @baustatik/section-geometry@0.0.3
+
 ## 0.0.3
 
 ### Patch Changes
