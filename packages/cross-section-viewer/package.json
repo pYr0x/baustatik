@@ -40,6 +40,8 @@
     "@baustatik/render-core": "workspace:*",
     "@baustatik/viewport-2d": "workspace:*",
     "@baustatik/cross-section": "workspace:*",
-    "@baustatik/section-geometry": "workspace:*"
+    "@baustatik/errors": "workspace:*",
+    "@baustatik/section-geometry": "workspace:*",
+    "@baustatik/units": "workspace:*"
   }
 }

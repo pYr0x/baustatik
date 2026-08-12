@@ -48,16 +48,19 @@ und Default im Composition Root), **nicht** deren Persistenz- und
 Versionsstrenge: Anzeigeeinstellungen dürfen bei fehlenden Feldern auf
 Defaults fallen.
 
-**Erster benannter Anwärter: ein `crossSectionStyle`.** `cross-section-viewer`
-hat heute gar keine Stil-Ebene — `'#000'` steht dreimal wörtlich in
-`src/viewer.ts`, und mit P3 kommt eine zweite Farbe dazu: der abgeleitete
-Umriss wird orange gezeichnet, damit **Eingabe und Ergebnis** unterscheidbar
-sind (Wandmittellinien gegen den Umriss, ADR 0030). Solange es zwei Farben
-sind, bleiben sie Modulkonstanten mit einer Begründung im JSDoc — eine Option
-am Aufruf verschöbe eine Aussage über die Bedeutung der Lagen an den Aufrufer.
-Sobald Auswahl, Fangpunkte und Spannungspunkte dazukommen (P7), wird daraus
-eine Scheibe dieser View-Policy, und die beiden Konstanten sind ihre ersten
-Felder.
+**Der erste benannte Anwärter `crossSectionStyle` steht.** Solange es zwei
+Farben waren — schwarze Wandmittellinien gegen den orangen abgeleiteten Umriss
+(ADR 0030/0037) —, blieben sie Modulkonstanten mit einer Begründung im JSDoc:
+eine Option am Aufruf hätte eine Aussage über die Bedeutung der Lagen an den
+Aufrufer verschoben. Mit dem FE-Netz und den drei Ergebnissymbolen sind Farbe,
+Strichstärke und Punktgröße zu einer zusammenhängenden Anzeigefrage geworden,
+und `CrossSectionStyle` in `cross-section-viewer/src/style.ts` ist die erste
+Scheibe. Die Wandstärke gehört ausdrücklich **nicht** dazu: `Wall.t` ist Physik
+in Millimetern, alles mit dem Suffix `Px` ist schematisch.
+
+Offen bleibt die Bündelung selbst: eine gemeinsame Skalierungsregel über
+Streckenlasten und Schnittgrößendiagramme (§1, §3), und erst mit ihr ein
+zusammengesetzter View-Policy-Typ über beide Viewer.
 
 ## 3. Schnittgrößen grafisch darstellen
 

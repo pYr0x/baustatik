@@ -169,6 +169,15 @@ const viewer = createCrossSectionViewer({
     getGeometry: () => store.geometry,
     getSectionPolicy: () => store.sectionPolicy,
     getScreenSize: () => stageSize,
+    // PULL DES ERGEBNISSES, nicht des Stores: `result` steht weiter unten und
+    // wird bei jedem Lauf neu gesetzt. Der Schwerpunkt erscheint damit
+    // zusammen mit der Werteliste daneben.
+    //
+    // Spannungspunkte und Netz bleiben hier aus: fuer eine freie
+    // `SectionGeometry` liefert `stressPoints` heute `undefined`, und vernetzt
+    // wird auf dieser Seite nicht. Der Schubmittelpunkt erscheint nur, wenn
+    // die Rechnung ihn bestimmt — beim Vollquerschnitt tut sie das nicht.
+    getProperties: () => result?.properties,
     grid: { spacing: 10 }, // Weltkoordinaten in mm
 });
 

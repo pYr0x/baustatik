@@ -20,7 +20,8 @@ type ShapeSpec =
   | RectangleSpec
   | TriangleSpec
   | ArrowSpec
-  | ArcPathSpec;
+  | ArcPathSpec
+  | IndexedLineListSpec;
 
 type PrimitiveSpec = ShapeSpec | LabelSpec;
 
@@ -240,6 +241,65 @@ const arc: ArcPathSpec = {
   sweepAngle: (-270 * Math.PI) / 180,
   strokeColor: '#1d4ed8',
   strokeWidth: 2,
+};
+```
+
+---
+
+### IndexedLineListSpec
+
+**Signature:**
+
+```typescript
+interface IndexedLineListSpec {
+  readonly id: string;
+  readonly kind: 'indexedLineList';
+  readonly points: ArrayLike<number>; // [u0, v0, u1, v1, …]
+  readonly indices: ArrayLike<number>; // [a0, b0, a1, b1, …] indices into points
+  readonly strokeColor?: string;
+  readonly strokeWidth?: number;
+  readonly strokeStyle?: 'solid' | 'dashed' | 'dotted';
+}
+```
+
+**Description:** An indexed list of independent lines in a **single** spec — the
+primitive for a wireframe.
+
+One `LineSpec` per edge would create as many adapter nodes as there are edges and
+would draw every shared edge twice; a mesh with a few thousand elements makes
+both costs obvious. The indexed line list holds one spec, one drawn shape, and every
+edge exactly once.
+
+The buffers are **flat**: `points` is `[u0, v0, u1, v1, …]` and `indices` holds
+flat index pairs into it. `ArrayLike<number>` rather than `readonly number[]` so
+that a `Float64Array`/`Uint32Array` from a mesher passes through without a copy,
+while a plain array still works.
+
+The spec knows nothing about triangles, meshes or element types: whoever has
+elements turns them into edges themselves. Like `arcPath` it carries **no fill** —
+a line list is a stroke, not an area — and two separate lines stay separate;
+the adapter never connects them.
+
+Validation checks that the buffers can be read: an even number of coordinates
+with at least two points, all finite; an even number of indices with at least one
+segment; and every index a whole number in `[0, points.length / 2)`. Duplicate,
+reversed and degenerate lines are **allowed** — they are harmless and, as with
+`LineSpec`, their producer's business. An empty set is not emitted as a spec at
+all.
+
+**Example:**
+
+```typescript
+import type { IndexedLineListSpec } from '@baustatik/render-core';
+
+// The two diagonals of a square, as one spec.
+const wireframe: IndexedLineListSpec = {
+  id: 'mesh:wireframe',
+  kind: 'indexedLineList',
+  points: new Float64Array([0, 0, 10, 0, 10, 10, 0, 10]),
+  indices: new Uint32Array([0, 2, 1, 3]),
+  strokeColor: '#d9b48a',
+  strokeWidth: 1,
 };
 ```
 

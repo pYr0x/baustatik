@@ -77,6 +77,16 @@ Important consumers:
   points down, so a growing angle _is_ `sweep-flag: 1` — no sign flip. Should a
   ring segment ever be needed, it arrives as its own spec and _that_ one maps to
   `Konva.Arc`.
+- **`indexedLineList` is the one primitive with its own `sceneFunc`**: no ready-made
+  Konva form draws independent lines without joining them — `Konva.Line` pulls
+  its points into a single polyline. It therefore maps to a bare `Konva.Shape`
+  whose scene function calls `beginPath()` once, starts a **separate subpath with
+  `moveTo()` for every segment**, and ends in one `strokeShape(shape)`. Without the
+  per-line `moveTo` the canvas would connect the end of one edge to the start of
+  the next. `strokeShape` supplies colour, dash, hit canvas and the screen-constant
+  stroke rule, so the primitive sets none of them itself. The ordinary patch path
+  carries it: `setAttrs` puts a **new** scene function, closed over the current
+  buffers, onto the same shape.
 - **`radius` is the only local-coordinate field**: it applies to `circle`, `arcPath`
   and `triangle` and scales with the stage. Screen-constant symbols emit a new
   radius each zoom frame; the unified `setAttrs` patch picks that up automatically.
@@ -110,7 +120,9 @@ Test projects:
 
 - **Unit** (node): pure `*Config` functions, `DASH_PATTERNS`, triangle geometry, the
   arc's path data (endpoints and both flags) and `labelTopLeft` against given box
-  sizes. No Konva needed.
+  sizes. No Konva needed. The indexed line list is the exception whose promise is not in
+  its config: a **recording canvas context** replays its scene function and pins the
+  call sequence.
 - **Browser** (chromium): reconciler, bands and interaction against real Konva,
   plus the label box _measured_ by Konva and its position for an axis-parallel and
   a skewed direction. Asserts behaviour, never pixels, so it is
