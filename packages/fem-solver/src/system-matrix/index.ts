@@ -1,13 +1,14 @@
 /**
- * Die eine Tuer zu den beiden Fassungen — und die eine Stelle, an der die
- * Loeserwahl aus der Policy auf einen Port trifft.
+ * Die eine Tür zu den beiden Fassungen — und die eine Stelle, an der die
+ * Löserwahl aus der Policy auf einen Port trifft.
  *
- * GEPRUEFT WIRD BEIM ERZEUGEN, nicht beim Rechnen: eine Config, die den
+ * GEPRÜFT WIRD BEIM ERZEUGEN, nicht beim Rechnen: eine Config, die den
  * eingestellten Weg nicht bedienen kann, ist falsch verdrahtet, und das ist ein
- * Fehler des Aufrufers. Ihn erst beim dritten Lastfall zu melden hiesse, dass
- * `createFEMSolver` etwas zurueckgibt, das nie rechnen konnte.
+ * Fehler des Aufrufers. Ihn erst beim dritten Lastfall zu melden hieße, dass
+ * `createFEMSolver` etwas zurückgibt, das nie rechnen konnte.
  */
 
+import { assertNever } from '@baustatik/core';
 import type { LinearSolve, SparseSolve } from '../config';
 import { InvalidSolverConfigError } from '../errors';
 import type { LinearSystemKind } from '../policy';
@@ -17,17 +18,17 @@ import type { SystemMatrix } from './types';
 
 export type { SystemMatrix } from './types';
 
-/** Die beiden Loeser-Ports aus `SolverConfig`, ohne den Rest. */
+/** Die beiden Löser-Ports aus `SolverConfig`, ohne den Rest. */
 export type SystemMatrixPorts = {
   readonly solveLinearSystem?: LinearSolve;
   readonly solveSparseSystem?: SparseSolve;
 };
 
 /**
- * Bindet Betriebsart und Port zu einer Fabrik ueber `n`.
+ * Bindet Betriebsart und Port zu einer Fabrik über `n`.
  *
  * Eine FABRIK und keine Matrix, weil `n` erst feststeht, wenn die Knoten
- * gezaehlt sind — der aufgeloeste Analysekontext entsteht aber schon beim
+ * gezählt sind — der aufgelöste Analysekontext entsteht aber schon beim
  * `createFEMSolver`. Der Port steckt danach in der Closure; `solve.ts` sieht
  * weder ihn noch ein Matrixformat.
  */
@@ -50,9 +51,9 @@ export function resolveSystemMatrixFactory(
       }
       return (n) => createSparseSystemMatrix(n, port);
     }
-    default: {
-      const exhaustive: never = kind;
-      throw new InvalidSolverConfigError(exhaustive, 'solveSparseSystem');
-    }
+    default:
+      // Eine dritte Betriebsart wird HIER zum Übersetzungsfehler und nicht erst
+      // zu einer stillen Fabrik, die niemand gebaut hat.
+      return assertNever(kind);
   }
 }

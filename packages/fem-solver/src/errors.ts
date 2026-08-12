@@ -25,6 +25,12 @@
 import { BaustatikError } from '@baustatik/errors';
 import { ModelValidationError, ModelValidationWarning } from '@baustatik/fem';
 import { LoadValidationWarning } from '@baustatik/fem-loads';
+// NUR ALS TYP, und deshalb unbedenklich: `config.ts` und `policy.ts` importieren
+// ihrerseits aus dieser Datei. Ein `import type` verschwindet beim Übersetzen,
+// der Kreis entsteht also nie zur Laufzeit — anders als bei der unterstützten
+// Schema-Version weiter unten, die genau deshalb als Argument hereinkommt.
+import type { SolverPortName } from './config';
+import type { LinearSystemKind } from './policy';
 
 /** Die drei Freiheitsgrade eines Knotens, in Nummerierungsreihenfolge. */
 export type DegreeOfFreedom = 'ux' | 'uz' | 'phiY';
@@ -406,11 +412,11 @@ export class InvalidAnalysisPolicyError extends BaustatikError {
 /**
  * Die Policy verlangt einen Rechenweg, den die Config nicht bedienen kann.
  *
- * GEWORFEN BEIM ERZEUGEN, nicht beim Rechnen: `createFEMSolver` loest die
- * Konfiguration einmal auf, und eine Config ohne den passenden Loeser-Port ist
- * ab da falsch — nicht erst, wenn jemand auf „rechnen" drueckt. Ein
- * Rechenkopf, der zurueckgegeben wird und nie rechnen konnte, ist die
- * Zweideutigkeit, die dieses Package ueberall vermeidet.
+ * GEWORFEN BEIM ERZEUGEN, nicht beim Rechnen: `createFEMSolver` löst die
+ * Konfiguration einmal auf, und eine Config ohne den passenden Löser-Port ist
+ * ab da falsch — nicht erst, wenn jemand auf „rechnen" drückt. Ein
+ * Rechenkopf, der zurückgegeben wird und nie rechnen konnte, ist die
+ * Zweideutigkeit, die dieses Package überall vermeidet.
  *
  * KEIN BERICHTSBEFUND: der Bericht sagt, wie weit das MODELL ist. Ein fehlender
  * Port ist ein Verdrahtungsfehler der Anwendung und hat mit dem Modell nichts
@@ -418,11 +424,11 @@ export class InvalidAnalysisPolicyError extends BaustatikError {
  */
 export class InvalidSolverConfigError extends BaustatikError {
   /** Die eingestellte Betriebsart, die den Port verlangt. */
-  readonly linearSystem: string;
+  readonly linearSystem: LinearSystemKind;
   /** Das Feld auf `SolverConfig`, das fehlt. */
-  readonly port: string;
+  readonly port: SolverPortName;
 
-  constructor(linearSystem: string, port: string) {
+  constructor(linearSystem: LinearSystemKind, port: SolverPortName) {
     super(
       `Die Analyse-Einstellung "linearSystem: ${linearSystem}" verlangt den ` +
         `Port "${port}", den die Config nicht liefert.`,

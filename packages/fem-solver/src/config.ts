@@ -19,10 +19,10 @@
  *   iterativ loesen" waere eine persistierbare Einstellung, „diese
  *   Solver-Implementierung" ist ein Port (ADR 0011).
  *
- * DIE LOESERWAHL LIEGT AUF BEIDEN SEITEN DIESER GRENZE, und das ist kein
+ * DIE LÖSERWAHL LIEGT AUF BEIDEN SEITEN DIESER GRENZE, und das ist kein
  * Widerspruch: WELCHER Weg gerechnet wird, sagt `AnalysisPolicy.linearSystem`
- * — eine Zeichenkette, die sich schreiben laesst. OB er zur Verfuegung steht,
- * sagt der Port. Fehlt der Port zur gewaehlten Betriebsart, wirft
+ * — eine Zeichenkette, die sich schreiben lässt. OB er zur Verfügung steht,
+ * sagt der Port. Fehlt der Port zur gewählten Betriebsart, wirft
  * `createFEMSolver` (ADR 0043).
  */
 
@@ -48,7 +48,7 @@ export type LinearSolveOutcome =
   | {
       readonly kind: 'solved';
       /**
-       * Die Loesungen, SPALTENWEISE flach als `n x k`: zuerst die `n` Werte
+       * Die Lösungen, SPALTENWEISE flach als `n x k`: zuerst die `n` Werte
        * der ersten rechten Seite, dann die der zweiten.
        */
       readonly d: Float64Array;
@@ -75,19 +75,23 @@ export type LinearSolveOutcome =
 
 /**
  * EIN ERGEBNISTYP, ZWEI EINGABETYPEN — und beide Ports melden dieselben zwei
- * Ausgaenge. Was sich unterscheidet, ist ausschliesslich die Form, in der `K`
- * hineingeht; was herauskommt, ist in beiden Faellen dieselbe Aussage ueber
- * dasselbe Gleichungssystem. Zwei Ergebnistypen haetten `solve.ts` gezwungen,
+ * Ausgänge. Was sich unterscheidet, ist ausschließlich die Form, in der `K`
+ * hineingeht; was herauskommt, ist in beiden Fällen dieselbe Aussage über
+ * dasselbe Gleichungssystem. Zwei Ergebnistypen hätten `solve.ts` gezwungen,
  * das Matrixformat zu kennen, das es gerade nicht kennen soll (ADR 0043).
  *
  * `pivotRatio` und `singularIndex` sind dabei EINWERTIG, obwohl `k` rechte
- * Seiten hineingehen: sie gehoeren der Zerlegung und damit der Matrix, nicht
+ * Seiten hineingehen: sie gehören der Zerlegung und damit der Matrix, nicht
  * einer einzelnen Lastseite.
  */
 
 /**
- * Loest `K d = F` DICHT. `K` liegt ZEILENWEISE flach (n*n Werte), `F`
+ * Löst `K d = F` DICHT. `K` liegt ZEILENWEISE flach (n*n Werte), `F`
  * spaltenweise flach mit `n * rhsColumns` Werten.
+ *
+ * DAS CRATE LIEST NUR DAS UNTERE DREIECK (`Llt(Side::Lower)`) — genau wie der
+ * dünnbesetzte Port, der es als Triplets bekommt. Die obere Hälfte darf
+ * mitgeliefert werden, sie wird aber nicht gelesen.
  *
  * Die Argumentfolge ist die der Rust-Signatur
  * (`solve(n, k, rhs_columns, f)`), damit zwischen Port und Crate nichts
@@ -106,7 +110,7 @@ export type LinearSolve = (
 ) => LinearSolveOutcome | Promise<LinearSolveOutcome>;
 
 /**
- * Loest `K d = F` DUENNBESETZT. `K` kommt als Triplets des UNTEREN Dreiecks
+ * Löst `K d = F` DÜNNBESETZT. `K` kommt als Triplets des UNTEREN Dreiecks
  * (`rows`, `cols`, `values` gleich lang, `row >= col`), `F` spaltenweise flach
  * mit `n * rhsColumns` Werten.
  *
@@ -122,6 +126,17 @@ export type SparseSolve = (
   rhsColumns: number,
   F: Float64Array,
 ) => LinearSolveOutcome | Promise<LinearSolveOutcome>;
+
+/**
+ * Die Namen der beiden Löser-Ports, als geschlossene Menge.
+ *
+ * Sie steht HIER, weil `SolverConfig` die Felder deklariert — ein zweiter Ort
+ * wäre eine zweite Wahrheit darüber, wie sie heißen. `InvalidSolverConfigError`
+ * nennt den fehlenden Port damit nicht als beliebige Zeichenkette: kommt ein
+ * dritter Rechenweg dazu, meldet der Übersetzer jede Stelle, die ihn noch nicht
+ * kennt (ADR 0043).
+ */
+export type SolverPortName = 'solveLinearSystem' | 'solveSparseSystem';
 
 export interface SolverConfig {
   /** PULL der Rohdaten aus dem Store — wie bei `createFEMViewer`. */
@@ -158,7 +173,7 @@ export interface SolverConfig {
    * Aufruf.
    *
    * OPTIONAL, weil es zwei Rechenwege gibt und niemand beide braucht: wer
-   * `linearSystem: 'sparse'` eingestellt hat, laedt sonst ein WASM-Artefakt,
+   * `linearSystem: 'sparse'` eingestellt hat, lädt sonst ein WASM-Artefakt,
    * das er nie aufruft. Verlangt die Policy diesen Weg und fehlt der Port,
    * wirft `createFEMSolver` einen `InvalidSolverConfigError` — beim Erzeugen,
    * nicht beim Rechnen.
@@ -166,13 +181,13 @@ export interface SolverConfig {
   solveLinearSystem?: LinearSolve;
 
   /**
-   * Der DUENNBESETZTE Linearsolver, die Voreinstellung von
+   * Der DÜNNBESETZTE Linearsolver, die Voreinstellung von
    * `AnalysisPolicy.linearSystem`.
    *
    * Warum er der Regelfall ist, ist eine Speicherfrage und keine
    * Geschwindigkeitsfrage: 2 000 Knoten sind 6 000 Freiheitsgrade und damit
-   * `36e6` Zahlen — 288 MB allein fuer `K` im Hauptthread, bei rund zwoelf
-   * besetzten Eintraegen je Zeile (ADR 0043).
+   * `36e6` Zahlen — 288 MB allein für `K` im Hauptthread, bei rund zwölf
+   * besetzten Einträgen je Zeile (ADR 0043).
    */
   solveSparseSystem?: SparseSolve;
 

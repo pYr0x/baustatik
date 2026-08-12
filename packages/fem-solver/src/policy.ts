@@ -47,8 +47,8 @@ import {
  * neuere Datei", statt an einem unbekannten Feld zu scheitern.
  *
  * `3` seit `linearSystem` dazugekommen ist, OHNE Migrationspfad — dieselbe
- * Begruendung wie bei 1 -> 2: es liegt nichts Persistiertes herum, das zu
- * migrieren waere. Eine Version 2 wird abgelehnt, nicht ergaenzt.
+ * Begründung wie bei 1 -> 2: es liegt nichts Persistiertes herum, das zu
+ * migrieren wäre. Eine Version 2 wird abgelehnt, nicht ergänzt.
  */
 export const ANALYSIS_POLICY_SCHEMA_VERSION = 3;
 
@@ -56,11 +56,19 @@ export const ANALYSIS_POLICY_SCHEMA_VERSION = 3;
  * Die beiden Rechenwege durch `K d = F`.
  *
  * KEIN `enum`, sondern eine string-literal union: sie ist das, was im
- * Datensatz steht (`AGENTS.md`, Coding principles). Das Array traegt die
- * Laufzeitseite fuer den Parser, der Typ die Compilerseite — eine Wahrheit,
+ * Datensatz steht (`AGENTS.md`, Coding principles). Das Array trägt die
+ * Laufzeitseite für den Parser, der Typ die Compilerseite — eine Wahrheit,
  * zwei Blickrichtungen.
+ *
+ * EINGEFROREN, weil es das Package verlässt: `assertValidLinearSystem` liest es
+ * bei jedem `createAnalysisPolicy` und bei jedem `parseAnalysisPolicy`. Ein
+ * Aufrufer aus reinem JavaScript könnte sonst `push('iterativ')` schreiben und
+ * damit die Werteprüfung des Parsers verändern — der Typ hält ihn nicht auf.
  */
-export const LINEAR_SYSTEM_KINDS = ['dense', 'sparse'] as const;
+export const LINEAR_SYSTEM_KINDS = Object.freeze([
+  'dense',
+  'sparse',
+] as const);
 
 export type LinearSystemKind = (typeof LINEAR_SYSTEM_KINDS)[number];
 
@@ -168,15 +176,15 @@ export type AnalysisPolicy = {
    * Welcher der beiden Rechenwege durch `K d = F` geht. Voreinstellung
    * `'sparse'`.
    *
-   * DIE WAHL IST EINE EINSTELLUNG, DIE FAEHIGKEIT IST EIN PORT — die Trennlinie
-   * dieser Datei, angewandt auf den Loeser. „Direkt oder iterativ loesen" nennt
+   * DIE WAHL IST EINE EINSTELLUNG, DIE FÄHIGKEIT IST EIN PORT — die Trennlinie
+   * dieser Datei, angewandt auf den Löser. „Direkt oder iterativ lösen" nennt
    * die Doku oben als Beispiel einer persistierbaren Einstellung; „dicht oder
-   * duennbesetzt" ist derselbe Fall. Welcher Code das dann tut, sagt
+   * dünnbesetzt" ist derselbe Fall. Welcher Code das dann tut, sagt
    * `SolverConfig.solveLinearSystem` beziehungsweise `solveSparseSystem`.
    *
-   * WARUM DUENNBESETZT DIE VOREINSTELLUNG IST: 2 000 Knoten sind 6 000
-   * Freiheitsgrade und damit `36e6` Zahlen — 288 MB allein fuer `K` im
-   * Hauptthread, bei rund zwoelf besetzten Eintraegen je Zeile. Das ist eine
+   * WARUM DÜNNBESETZT DIE VOREINSTELLUNG IST: 2 000 Knoten sind 6 000
+   * Freiheitsgrade und damit `36e6` Zahlen — 288 MB allein für `K` im
+   * Hauptthread, bei rund zwölf besetzten Einträgen je Zeile. Das ist eine
    * Speicherfrage und keine Geschwindigkeitsfrage
    * ([ADR 0043](../../../docs/adr/0043-the-solver-is-an-analysis-setting.md)).
    */
@@ -248,10 +256,10 @@ export function createAnalysisPolicy(
 }
 
 /**
- * Die Werteregel fuer `linearSystem` — dieselbe fuer Factory und Parser.
+ * Die Werteregel für `linearSystem` — dieselbe für Factory und Parser.
  *
  * Die Factory braucht sie trotz des Typs: ein Aufrufer aus reinem JavaScript
- * hat ihn nicht, und die Voreinstellung `'sparse'` waere dann still eine
+ * hat ihn nicht, und die Voreinstellung `'sparse'` wäre dann still eine
  * unbekannte Zeichenkette.
  */
 function assertValidLinearSystem(value: unknown): LinearSystemKind {

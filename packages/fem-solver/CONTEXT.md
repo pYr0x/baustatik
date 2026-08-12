@@ -441,6 +441,14 @@ Walzprofilen durch und schreibt `docs/messungen/kinematik-abstand.md` — das
 Beleg-Artefakt zu ADR 0016. Es laeuft mit ABGESCHALTETER Verformungspruefung;
 mit den Grenzen, die aus ihm hervorgegangen sind, bewiese es nur sich selbst.
 
+Es ist die EINZIGE Datei dieses Packages, die die produktiven Loeser benutzt:
+beide WASM-Crates stecken ueber `tests/wasm-solvers.ts` als Ports darin, weil
+gemessen werden soll, was die Anwendung wirklich rechnet — eine nachgebaute
+Elimination auf beiden Wegen belegte nur, dass die Assemblierung dieselben
+Zahlen liefert. `src/` bleibt davon unberuehrt (ADR 0009), und fehlt das nicht
+eingecheckte `pkg/`, ueberspringt sich das Messgeraet: die Regressionstests
+laufen weiter ohne WASM-Toolchain, mit den Testfassungen aus `tests/support.ts`.
+
 ## Known constraints
 
 - **Keine Biegelinie.** `solve()` liefert Schnittgroessen an jeder Stelle, aber
@@ -466,16 +474,22 @@ mit den Grenzen, die aus ihm hervorgegangen sind, bewiese es nur sich selbst.
   spaltenweise statt zeilenweise liest, liefert still falsche Verformungen —
   und weil `K` symmetrisch ist, faellt gerade dieser Fehler nicht auf.
 - **Die beiden Rechenwege sind nicht bitgleich, und das faellt nur an einem
-  Mechanismus auf.** `rotateStiffness` rechnet `T^T K T` eintragsweise: `K[r][c]`
-  und `K[c][r]` sind zwei getrennte Skalarprodukte und stimmen nur bis auf die
-  letzte Stelle ueberein. Der dichte Weg reicht diese Matrix weiter, wie sie ist
-  — nicht exakt symmetrisch. Der duennbesetzte reicht das untere Dreieck
-  weiter, der Loeser spiegelt es, und seine Matrix IST exakt symmetrisch. Bei
-  einem tragfaehigen System ist das folgenlos; bei einem Mechanismus ist das
-  gemessene Pivot reines Rauschen, und dann entscheidet die letzte Stelle
-  darueber, ob Netz 2 oder erst Netz 4 zuschlaegt. Gemessen in
+  Mechanismus auf.** BEIDE Crates bekommen dieselben Zahlen und lesen davon nur
+  das untere Dreieck — das dichte ueber `Llt(Side::Lower)`, das duennbesetzte
+  ueber die Triplets. Die Nicht-Symmetrie in der letzten Stelle, die
+  `rotateStiffness` eintragsweise erzeugt, erreicht die Zerlegung also auf
+  keinem der beiden Wege. Verschieden ist die REIHENFOLGE der Elimination: die
+  duennbesetzte Fassung ordnet mit AMD um, mit anderem fill-in. Bei einem
+  tragfaehigen System ist das folgenlos; bei einem Mechanismus ist das gemessene
+  Pivot reines Rauschen, und dann entscheidet die letzte Stelle darueber, ob
+  Netz 2 oder erst Netz 4 zuschlaegt. Gemessen an den PRODUKTIVEN Zerlegungen in
   `docs/messungen/kinematik-abstand.md`, Abschnitt „Wo die beiden Wege sich
-  uneins sind".
+  uneins sind": zwei Abweichungen im ganzen Korpus, beide im Winkelsweep, also
+  genau bei den Systemen, deren wahres Pivot exakt 0 ist.
+- **Die Pivot-Schwelle `1e-12` gilt fuer beide Zerlegungen.** Das kleinste Pivot
+  der tragfaehigen Menge liegt auf beiden Wegen bei rund `2e-5` — sieben
+  Groessenordnungen darueber. Die AMD-Umordnung verschiebt die Zahl, aber nicht
+  in die Naehe des Abbruchs (dieselbe Messung).
 - **`pivotRatio` und `singularIndex` sind EINWERTIG, auch bei `k` rechten
   Seiten.** Sie gehoeren der Zerlegung und damit der Matrix, nicht einer
   Lastseite. Ein Rangabfall trifft folgerichtig das ganze Buendel: ein

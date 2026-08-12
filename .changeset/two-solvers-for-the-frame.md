@@ -46,7 +46,24 @@ case. With second-order theory or state II reinforced concrete, `EI` hangs on
 the pair (beam, load level) — then bundling is not slow, it is wrong. Whoever
 grows that signature has to unbundle `solveBatch` in the same move.
 
-**Additive.** `LINEAR_SYSTEM_KINDS`, `LinearSystemKind`, `SparseSolve` and
-`InvalidSolverConfigError` are exported. The package-internal `SystemMatrix`
-(`src/system-matrix/`) owns its port, so `solve.ts` never sees a matrix format;
-`tests/solve.test.ts` runs the numeric blocks over both paths.
+**Additive.** `LINEAR_SYSTEM_KINDS` (frozen), `LinearSystemKind`, `SparseSolve`,
+`SolverPortName` and `InvalidSolverConfigError` are exported. The
+package-internal `SystemMatrix` (`src/system-matrix/`) owns its port, so
+`solve.ts` never sees a matrix format; `tests/solve.test.ts` runs the numeric
+blocks over both paths.
+
+**The measurement runs against the productive factorizations.**
+`tests/kinematics-margin.test.ts` drives both WASM crates through
+`tests/wasm-solvers.ts` instead of a rebuilt Gauss elimination — otherwise the
+second pivot column would only compare two routes through the *assembly*, and
+the question the measurement exists for (is `1e-12` the right threshold once AMD
+and fill-in reorder the elimination?) would stay open. `src/` still has no WASM
+dependency (ADR 0009); the measurement skips itself when the ungitted `pkg/`
+artifacts are missing, and the regression tests keep running without a WASM
+toolchain.
+
+**Note on ADR numbering.** The plan asked only to *report* the duplicated ADR
+number `0040`. It is resolved here instead: the existing solver ADR moved
+`0040 → 0042`, and the new decisions are `0043`/`0044`. Leaving a known
+duplicate in place while adding two ADRs next to it would have made every
+forward reference ambiguous.

@@ -8,6 +8,7 @@ export type {
   LinearSolve,
   LinearSolveOutcome,
   SolverConfig,
+  SolverPortName,
   SparseSolve,
 } from './config';
 export {

@@ -10,7 +10,16 @@ import {
     type LoadCase,
     type NodeLoad,
 } from '@baustatik/fem-loads';
-import { type CheckState, createFEMSolver, type SupportReaction } from '@baustatik/fem-solver';
+import {
+    createAnalysisPolicy,
+    type AnalysisPolicy,
+    type AnalysisPolicyOverrides,
+    type CheckState,
+    createFEMSolver,
+    type FEMSolver,
+    type LinearSystemKind,
+    type SupportReaction,
+} from '@baustatik/fem-solver';
 import { createFEMViewer, FEM_LAYERS } from '@baustatik/fem-viewer';
 import { createKonvaAdapter as createKonvaDriver } from '@baustatik/konva-adapter';
 import { Point } from '@baustatik/fem-geometry';
@@ -47,6 +56,10 @@ const useStore = defineStore('sections', {
         // Querschnitts, und unter ihr zerlegt der Wandweg seine Bogenwaende
         // (ADR 0040). Sie reist deshalb mit dem Modell zum Resolver.
         sectionPolicy: createSectionPolicy() as SectionPolicy,
+        // Die Analyse-Einstellung ist DATEN (als JSON schreibbar, ADR 0011) und
+        // liegt deshalb im Store wie die sectionPolicy. Der Rechenkopf liest sie
+        // beim BAUEN einmal; wer sie aendert, baut ihn neu (`buildSolver`).
+        analysisPolicy: createAnalysisPolicy() as AnalysisPolicy,
         supports: [] as NodeSupport[],
         loadCases: [] as LoadCase[],
         activeLoadCaseId: '',
@@ -348,25 +361,34 @@ store.$subscribe(() => {
 //    Die drei Ports (Steifigkeiten, Linearsolver, Formulierung) sind das, was
 //    das Package bewusst nicht selbst weiss. Hier bleiben sie schlicht: das
 //    Rechnen selbst zeigt `fem-cantilever.ts` gegen die Handrechnung.
-const solver = createFEMSolver({
-    getNodes: () => store.nodes,
-    getBeams: () => store.beams,
-    getSupports: () => store.supports,
-    // ALLE Lastfälle. Welcher gerechnet wird, sagt das Argument von `check()`
-    // und `solve()` — der Solver liest keinen Ansichtszustand.
-    getLoadCases: () => store.loadCases,
-    // Ab hier rechnet die FEM ECHT: Querschnitt x Material -> EA, EI, GAs.
-    // `undefined` (unbekannter Querschnitt oder unbekanntes Material) wird vom
-    // Bericht als Modellfehler gemeldet, nicht geworfen.
-    // Der Store fuehrt `crossSections` UND `materials` und erfuellt damit die
-    // Form von `SectionModel` strukturell — er reist als EIN Stueck hinein.
-    // Ein Katalog kommt hier NICHT mehr dazu: die Saetze tragen ihre Zahlen
-    // selbst (ADR 0027), und der Rechenweg sieht keinen Nationalen Anhang.
-    getSectionStiffness: (beam) => resolveSectionStiffness(beam, store),
-    // BEIDE Ports: welcher rechnet, sagt die `AnalysisPolicy` (ADR 0042).
-    solveLinearSystem,
-    solveSparseSystem,
-});
+//
+//    ALS FUNKTION, weil die Policy nur beim BAUEN gelesen wird (ADR 0011):
+//    aendert der Anwender die Analyse-Einstellung, wird der Kopf neu gebaut
+//    statt umgebaut. Er haelt keinen Zustand — das Neubauen ist billig.
+function buildSolver(): FEMSolver {
+    return createFEMSolver({
+        getNodes: () => store.nodes,
+        getBeams: () => store.beams,
+        getSupports: () => store.supports,
+        // ALLE Lastfälle. Welcher gerechnet wird, sagt das Argument von `check()`
+        // und `solve()` — der Solver liest keinen Ansichtszustand.
+        getLoadCases: () => store.loadCases,
+        // Ab hier rechnet die FEM ECHT: Querschnitt x Material -> EA, EI, GAs.
+        // `undefined` (unbekannter Querschnitt oder unbekanntes Material) wird vom
+        // Bericht als Modellfehler gemeldet, nicht geworfen.
+        // Der Store fuehrt `crossSections` UND `materials` und erfuellt damit die
+        // Form von `SectionModel` strukturell — er reist als EIN Stueck hinein.
+        // Ein Katalog kommt hier NICHT mehr dazu: die Saetze tragen ihre Zahlen
+        // selbst (ADR 0027), und der Rechenweg sieht keinen Nationalen Anhang.
+        getSectionStiffness: (beam) => resolveSectionStiffness(beam, store),
+        // BEIDE Ports: welcher rechnet, sagt die `AnalysisPolicy` (ADR 0042).
+        solveLinearSystem,
+        solveSparseSystem,
+        analysisPolicy: store.analysisPolicy,
+    });
+}
+
+let solver = buildSolver();
 
 // ---------------------------------------------------------------------------
 // DER ABLAUF, wie er jetzt gebaut ist. Hier stand bis v5 ein langer
@@ -595,6 +617,91 @@ async function solveActive(): Promise<void> {
         renderPanel();
     }
 }
+
+// ---------------------------------------------------------------------------
+// 6. Die Analyse-Einstellung: ansehen und aendern.
+//
+// Die Policy ist DATEN (als JSON schreibbar, ADR 0011) und liegt deshalb im
+// Store wie die sectionPolicy. Aendern heisst: die Controls lesen den
+// aktuellen Stand und schicken ihn ALS GANZES Paket durch
+// `createAnalysisPolicy` — die Factory mischt gegen die DEFAULTs, nicht gegen
+// den bisherigen Stand, sonst ueberschriebe eine Aenderung an Feld A still
+// die fruehere an Feld B. Gesetzt wird immer die VOLLSTAENDIGE effektive
+// Policy; `loads` und `schemaVersion` setzt die Factory selbst.
+//
+// Ein ungueltiger Wert (etwa `warn >= fail`) wirft aus der Factory: der
+// Fehlertext steht dann in der Spalte, der Store behaelt den alten Stand.
+//
+// Der Rechenkopf wird NEU gebaut statt umgebaut: `createFEMSolver` loest die
+// Konfiguration einmal auf. Ein Ergebnis von vorhin gehoert nicht zu einer
+// neuen Einstellung — weil die Policy im Store liegt, raeumen die bestehenden
+// Store-Abonnements es von selbst weg.
+// ---------------------------------------------------------------------------
+const linearSystemSelect = element<HTMLSelectElement>('linear-system');
+const shearDeformationCheckbox = element<HTMLInputElement>('shear-deformation');
+const warnRotationInput = element<HTMLInputElement>('warn-rotation');
+const warnRelativeInput = element<HTMLInputElement>('warn-relative');
+const failRotationInput = element<HTMLInputElement>('fail-rotation');
+const failRelativeInput = element<HTMLInputElement>('fail-relative');
+const policyError = element<HTMLDivElement>('policy-error');
+const policyJson = element<HTMLPreElement>('policy-json');
+
+function policyOverrides(): AnalysisPolicyOverrides {
+    return {
+        linearSystem: linearSystemSelect.value as LinearSystemKind,
+        shearDeformation: shearDeformationCheckbox.checked,
+        deformationLimits: {
+            warn: {
+                rotation: Number(warnRotationInput.value),
+                relativeDisplacement: Number(warnRelativeInput.value),
+            },
+            fail: {
+                rotation: Number(failRotationInput.value),
+                relativeDisplacement: Number(failRelativeInput.value),
+            },
+        },
+    };
+}
+
+function renderPolicyJson(): void {
+    policyJson.textContent = JSON.stringify(store.analysisPolicy, null, 2);
+}
+
+/** Die Controls aus dem Store-Stand fuellen — einmal beim Start. */
+function syncPolicyControls(): void {
+    const policy = store.analysisPolicy;
+    linearSystemSelect.value = policy.linearSystem;
+    shearDeformationCheckbox.checked = policy.shearDeformation;
+    warnRotationInput.value = String(policy.deformationLimits.warn.rotation);
+    warnRelativeInput.value = String(policy.deformationLimits.warn.relativeDisplacement);
+    failRotationInput.value = String(policy.deformationLimits.fail.rotation);
+    failRelativeInput.value = String(policy.deformationLimits.fail.relativeDisplacement);
+    renderPolicyJson();
+}
+
+function applyAnalysisPolicy(): void {
+    try {
+        store.analysisPolicy = createAnalysisPolicy(policyOverrides());
+        solver = buildSolver();
+        policyError.textContent = '';
+        renderPolicyJson();
+    } catch (error) {
+        policyError.textContent = error instanceof Error ? error.message : String(error);
+    }
+}
+
+for (const control of [
+    linearSystemSelect,
+    shearDeformationCheckbox,
+    warnRotationInput,
+    warnRelativeInput,
+    failRotationInput,
+    failRelativeInput,
+]) {
+    control.addEventListener('change', applyAnalysisPolicy);
+}
+
+syncPolicyControls();
 
 renderPanel();
 // Dasselbe Abonnement wie beim Viewer, dieselbe Begruendung: die Spalte zeigt

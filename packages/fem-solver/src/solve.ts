@@ -10,8 +10,8 @@
  *                      Auswertung                        (die Balkentheorie)
  *   HIER               Freiheitsgrade, Transformation, Assemblierung,
  *                      Randbedingungen, Rueckrechnung
- *   system-matrix/     haelt K und laesst sie loesen     (package-intern)
- *   linear/sparse-solver-wasm  loest K d = F             (per Port)
+ *   system-matrix/     hält K und lässt sie lösen        (package-intern)
+ *   linear/sparse-solver-wasm  löst K d = F              (per Port)
  *
  * Die Kondensation der Gelenke stand frueher hier und ist nach `fem-element`
  * gezogen (ADR 0018): dieses Package ORCHESTRIERT sie noch — es sagt, welcher
@@ -21,6 +21,7 @@
  * das Einsortieren von Zahlen in Matrizen — und genau das ist sein Beruf.
  */
 
+import { atOrThrow } from '@baustatik/core';
 import { assertValidModel, type Beam, type Node } from '@baustatik/fem';
 import type {
   ElementEvaluationState,
@@ -139,34 +140,34 @@ export type SolveResult = {
 /**
  * Was an einem Stab LASTFREI ist — einmal je Rechnung, nicht je Lastfall.
  *
- * DIE TRENNUNG IST DER GRUND FUER DIE BUENDELUNG: `K` haengt an Geometrie,
+ * DIE TRENNUNG IST DER GRUND FÜR DIE BÜNDELUNG: `K` hängt an Geometrie,
  * Querschnitt und Freisetzungen, und keines davon kennt einen Lastfall. Erst
- * `f` und die Rueckrechnung tun das (ADR 0044).
+ * `f` und die Rückrechnung tun das (ADR 0044).
  */
 type PreparedBeam = {
-  beam: Beam;
+  readonly beam: Beam;
   /** Kondensiert, LOKAL. */
-  K: Mutable6x6;
-  T: Mutable6x6;
+  readonly K: Mutable6x6;
+  readonly T: Mutable6x6;
   /**
-   * Das an die Freisetzungen gebundene Element, noch ohne Last. Aus ihm faellt
+   * Das an die Freisetzungen gebundene Element, noch ohne Last. Aus ihm fällt
    * je Lastfall ein `LoadedBeam`.
    */
-  element: PreparedElement;
+  readonly element: PreparedElement;
   /** Globale Zeilen-/Spaltenindizes der sechs Elementfreiheitsgrade. */
-  map: number[];
+  readonly map: readonly number[];
 };
 
-/** Was an einem Stab am LASTFALL haengt — einmal je Fall und Stab. */
+/** Was an einem Stab am LASTFALL hängt — einmal je Fall und Stab. */
 type LoadedBeam = {
   /** Kondensiert, LOKAL. */
-  f: number[];
+  readonly f: readonly number[];
   /**
-   * Das an Last UND Freisetzungen gebundene Element. Es haelt den Bauplan der
-   * Rueckrechnung; ohne es waeren die Endverformungen der freigesetzten
+   * Das an Last UND Freisetzungen gebundene Element. Es hält den Bauplan der
+   * Rückrechnung; ohne es wären die Endverformungen der freigesetzten
    * Freiheitsgrade nicht mehr rekonstruierbar.
    */
-  loaded: LoadedElement;
+  readonly loaded: LoadedElement;
 };
 
 /**
@@ -185,13 +186,13 @@ export async function solve(
 }
 
 /**
- * `solve(id)` mit einem bereits aufgeloesten Kontext — das Gegenstueck zu
- * `checkWith`. Package-intern; `createFEMSolver` loest einmal auf und gibt
+ * `solve(id)` mit einem bereits aufgelösten Kontext — das Gegenstück zu
+ * `checkWith`. Package-intern; `createFEMSolver` löst einmal auf und gibt
  * beiden denselben Kontext.
  *
- * EIN Lastfall ist ein Buendel aus einem: die Rechnung ist dieselbe, das
+ * EIN Lastfall ist ein Bündel aus einem: die Rechnung ist dieselbe, das
  * Ergebnis ist dasselbe, und es gibt keine zweite Fassung davon, die
- * auseinanderlaufen koennte.
+ * auseinanderlaufen könnte.
  */
 export async function solveWith(
   config: SolverConfig,
@@ -201,7 +202,7 @@ export async function solveWith(
   const results = await solveBatch(config, analysis, [
     resolveLoadCase(config, loadCaseId),
   ]);
-  return results[0];
+  return atOrThrow(results, 0);
 }
 
 /**
@@ -218,7 +219,7 @@ export async function solveWith(
  * jeden; und eine fehlerhafte Lasteingabe heisst, dass die Eingabe nicht fertig
  * ist. Wer wissen will, WELCHER Fall klemmt, fragt vorher `check(id)` je Fall.
  *
- * EINE ASSEMBLIERUNG, EINE ZERLEGUNG, ALLE FAELLE — nicht ein Durchlauf je
+ * EINE ASSEMBLIERUNG, EINE ZERLEGUNG, ALLE FÄLLE — nicht ein Durchlauf je
  * Fall. Der Grund steht bei `solveBatch` (ADR 0044).
  */
 export async function solveAll(config: SolverConfig): Promise<SolveResult[]> {
@@ -234,25 +235,25 @@ export async function solveAllWith(
 }
 
 /**
- * Die eine Rechnung — ein Modell, beliebig viele Lastfaelle.
+ * Die eine Rechnung — ein Modell, beliebig viele Lastfälle.
  *
- * DIE BUENDELUNG. `K` ist ueber alle Lastfaelle IDENTISCH, weil
+ * DIE BÜNDELUNG. `K` ist über alle Lastfälle IDENTISCH, weil
  * `getSectionStiffness(beam)` bewusst keinen Lastfall bekommt
  * (`config.ts`). Also wird einmal assembliert, einmal zerlegt und die
- * Rueckwaertsrechnung fuer alle rechten Seiten auf dieser einen Zerlegung
- * erledigt. Bei `k` Lastfaellen kostet das die Zerlegung einmal statt `k`-mal;
+ * Rückwärtsrechnung für alle rechten Seiten auf dieser einen Zerlegung
+ * erledigt. Bei `k` Lastfällen kostet das die Zerlegung einmal statt `k`-mal;
  * die Zerlegung ist der teure Teil.
  *
  * DIESE INVARIANTE HAT EIN ABLAUFDATUM, und sie steht deshalb hier und in
  * [ADR 0044](../../../docs/adr/0044-solveall-bundles-the-load-cases.md): mit
- * Theorie II. Ordnung oder Zustand II beim Stahlbeton haengt `EI` am Paar
+ * Theorie II. Ordnung oder Zustand II beim Stahlbeton hängt `EI` am Paar
  * (Stab, Lastniveau). Dann ist `K` nicht mehr lastfrei, und dann ist die
- * Buendelung nicht langsamer, sondern FALSCH.
+ * Bündelung nicht langsamer, sondern FALSCH.
  *
- * GEPRUEFT WIRD ALLES VORHER: Modell einmal, dann jeder Lastfall und seine
- * Lasten — und zwar ALLE, bevor die erste Zahl gerechnet wird. Frueher lief die
- * Pruefung des zweiten Falls erst, wenn der erste fertig gerechnet war; wer
- * zwei fehlerhafte Faelle hat, bekommt jetzt den Lastfehler und nicht das
+ * GEPRÜFT WIRD ALLES VORHER: Modell einmal, dann jeder Lastfall und seine
+ * Lasten — und zwar ALLE, bevor die erste Zahl gerechnet wird. Früher lief die
+ * Prüfung des zweiten Falls erst, wenn der erste fertig gerechnet war; wer
+ * zwei fehlerhafte Fälle hat, bekommt jetzt den Lastfehler und nicht das
  * Rechenergebnis des ersten.
  */
 async function solveBatch(
@@ -260,9 +261,9 @@ async function solveBatch(
   analysis: ResolvedAnalysis,
   loadCases: readonly LoadCase[],
 ): Promise<SolveResult[]> {
-  // Ohne Lastfall gibt es nichts zu rechnen — und der Port bekaeme ein System
-  // mit null rechten Seiten, was nicht jede Fassung vertraegt. Auch das Modell
-  // bleibt ungeprueft: `solveAll` ohne Faelle hat das noch nie getan.
+  // Ohne Lastfall gibt es nichts zu rechnen — und der Port bekäme ein System
+  // mit null rechten Seiten, was nicht jede Fassung verträgt. Auch das Modell
+  // bleibt ungeprüft: `solveAll` ohne Fälle hat das noch nie getan.
   if (loadCases.length === 0) return [];
 
   const nodes = config.getNodes();
@@ -301,8 +302,8 @@ async function solveBatch(
     map: elementDofMap(beam, dofOf),
   }));
 
-  // JE FALL die lastabhaengige Haelfte. `element.withLoad` ist der einzige
-  // Aufruf, der den Lastfall ueberhaupt sieht.
+  // JE FALL die lastabhängige Hälfte. `element.withLoad` ist der einzige
+  // Aufruf, der den Lastfall überhaupt sieht.
   const loaded: LoadedBeam[][] = resolved.map(({ beams: beamLoads }) =>
     prepared.map(({ beam, element }) => {
       const withLoad = element.withLoad(
@@ -313,32 +314,34 @@ async function solveBatch(
   );
 
   const matrix = analysis.createMatrix(n);
-  // SPALTENWEISE flach, `n x cases` — dieselbe Form, in der die Loeser-Ports
+  // SPALTENWEISE flach, `n x cases` — dieselbe Form, in der die Löser-Ports
   // ihre rechten Seiten erwarten.
   const F = new Float64Array(n * cases);
 
   for (const { K: localK, T, map } of prepared) {
     const globalK = rotateStiffness(localK, T);
     for (let r = 0; r < DOF_PER_ELEMENT; r += 1) {
+      const row = atOrThrow(globalK, r);
       for (let c = 0; c < DOF_PER_ELEMENT; c += 1) {
-        matrix.add(map[r], map[c], globalK[r][c]);
+        matrix.add(atOrThrow(map, r), atOrThrow(map, c), atOrThrow(row, c));
       }
     }
   }
 
   for (let index = 0; index < cases; index += 1) {
     const base = index * n;
+    const loadedCase = atOrThrow(loaded, index);
     for (let b = 0; b < prepared.length; b += 1) {
-      const { T, map } = prepared[b];
-      const globalF = rotateVector(loaded[index][b].f, T);
+      const { T, map } = atOrThrow(prepared, b);
+      const globalF = rotateVector(atOrThrow(loadedCase, b).f, T);
       for (let r = 0; r < DOF_PER_ELEMENT; r += 1) {
-        F[base + map[r]] += globalF[r];
+        F[base + atOrThrow(map, r)] += atOrThrow(globalF, r);
       }
     }
 
     // Knotenlasten sind bereits global und laufen nie durch ein Element — KEIN
     // Vorzeichenwechsel, anders als bei der Stab-Momentlast.
-    for (const [nodeId, load] of resolved[index].nodes) {
+    for (const [nodeId, load] of atOrThrow(resolved, index).nodes) {
       const at = base + (dofOf.get(nodeId) as number);
       F[at + 0] += load.fx;
       F[at + 1] += load.fz;
@@ -367,7 +370,7 @@ async function solveBatch(
     );
 
     results.push({
-      loadCaseId: loadCases[index].id,
+      loadCaseId: atOrThrow(loadCases, index).id,
       displacements,
       reactions: reactionsByNode(
         matrix,
@@ -376,7 +379,7 @@ async function solveBatch(
         supports,
         dofOf,
       ),
-      beamStates: beamStatesByBeam(prepared, loaded[index], d),
+      beamStates: beamStatesByBeam(prepared, atOrThrow(loaded, index), d),
       warnings,
     });
   }
@@ -430,7 +433,8 @@ function prepareBeam(
   // Kondensiert kommt die Steifigkeit schon heraus; hier wird nur noch gedreht.
   // Die Reihenfolge „erst kondensieren, dann drehen" bleibt zwingend: das
   // Gelenk ist am LOKALEN Freiheitsgrad definiert, und nach der Drehung gibt es
-  // ihn als eigene Zeile nicht mehr.
+  // ihn als eigene Zeile nicht mehr. Sie ist LASTFREI und läuft deshalb einmal
+  // je Rechnung, nicht einmal je Lastfall (ADR 0044).
   const K = toMutable(element.stiffness());
 
   const direction = Vector.normalize(Vector.fromPoints(axis.p1, axis.p2));
@@ -488,8 +492,8 @@ function freeDegreesOfFreedom(
  * Diagonalwert entweder aus einem Element stammt (dann ist er positiv) oder
  * gar nicht erst gesetzt wurde.
  *
- * ER LIEST DIE MATRIX UEBER `diagonal` und nicht ueber ein Array: die
- * duennbesetzte Fassung hat an einer leeren Stelle gar keinen Eintrag, und
+ * ER LIEST DIE MATRIX ÜBER `diagonal` und nicht über ein Array: die
+ * dünnbesetzte Fassung hat an einer leeren Stelle gar keinen Eintrag, und
  * genau diese Stelle wird hier gesucht.
  */
 function assertHeld(
@@ -499,10 +503,9 @@ function assertHeld(
 ): void {
   for (const index of free) {
     if (matrix.diagonal(index) !== 0) continue;
-    const node = nodes[Math.floor(index / DOF_PER_NODE)];
     throw new UnrestrainedDegreeOfFreedomError(
-      node.id,
-      DOF_ORDER[index % DOF_PER_NODE],
+      atOrThrow(nodes, Math.floor(index / DOF_PER_NODE)).id,
+      atOrThrow(DOF_ORDER, index % DOF_PER_NODE),
     );
   }
 }
@@ -552,11 +555,11 @@ async function solveReduced(
   }
 
   // SPALTENWEISE flach, `size x cases`: dieselbe Anordnung wie `F`, nur ohne
-  // die gesperrten Zeilen.
+  // die gesperrten Zeilen. Eine Kopie je Fall wäre eine Zerlegung je Fall.
   const reducedF = new Float64Array(size * cases);
   for (let index = 0; index < cases; index += 1) {
     for (let r = 0; r < size; r += 1) {
-      reducedF[index * size + r] = F[index * n + free[r]];
+      reducedF[index * size + r] = F[index * n + atOrThrow(free, r)];
     }
   }
 
@@ -564,13 +567,13 @@ async function solveReduced(
 
   if (outcome.kind === 'singular') {
     // Die Zeile des reduzierten Systems zurueck in die globale Nummerierung —
-    // dieselbe Arithmetik wie in `assertHeld`, nur ueber `free` hinweg. Der
-    // Befund gehoert der ZERLEGUNG und damit allen Lastfaellen zugleich; er
-    // trifft deshalb das ganze Buendel und nicht einen Fall daraus.
-    const global = free[outcome.index];
+    // dieselbe Arithmetik wie in `assertHeld`, nur über `free` hinweg. Der
+    // Befund gehört der ZERLEGUNG und damit allen Lastfällen zugleich; er
+    // trifft deshalb das ganze Bündel und nicht einen Fall daraus.
+    const global = atOrThrow(free, outcome.index);
     throw new SingularStiffnessMatrixError(
-      nodes[Math.floor(global / DOF_PER_NODE)].id,
-      DOF_ORDER[global % DOF_PER_NODE],
+      atOrThrow(nodes, Math.floor(global / DOF_PER_NODE)).id,
+      atOrThrow(DOF_ORDER, global % DOF_PER_NODE),
       outcome.pivotRatio,
     );
   }
@@ -581,7 +584,7 @@ async function solveReduced(
       if (!Number.isFinite(value)) {
         throw new SingularStiffnessMatrixError();
       }
-      displacements[index * n + free[r]] = value;
+      displacements[index * n + atOrThrow(free, r)] = value;
     }
   }
   return displacements;
@@ -708,10 +711,10 @@ function displacementsByNode(
 /**
  * `r = K d - F` an den GESPERRTEN Zeilen.
  *
- * Die volle Zeile wird dafuer gebraucht, nicht die reduzierte — deshalb haelt
- * die Matrix sie vollstaendig und streicht erst beim Loesen zusammen. Genau
- * dafuer gibt es `rowDot`: die duennbesetzte Fassung laeuft dabei nur ueber die
- * besetzten Spalten, die dichte ueber alle, und beide antworten dasselbe.
+ * Die volle Zeile wird dafür gebraucht, nicht die reduzierte — deshalb hält
+ * die Matrix sie vollständig und streicht erst beim Lösen zusammen. Genau
+ * dafür gibt es `rowDot`: die dünnbesetzte Fassung läuft dabei nur über die
+ * besetzten Spalten, die dichte über alle, und beide antworten dasselbe.
  */
 function reactionsByNode(
   matrix: SystemMatrix,
@@ -762,11 +765,11 @@ function beamStatesByBeam(
 ): Map<string, ElementEvaluationState> {
   const result = new Map<string, ElementEvaluationState>();
   for (let index = 0; index < prepared.length; index += 1) {
-    const { beam, T, map } = prepared[index];
+    const { beam, T, map } = atOrThrow(prepared, index);
     const global = map.map((dof) => d[dof]);
     result.set(
       beam.id,
-      loaded[index].loaded.evaluate(toLocalVector(global, T)),
+      atOrThrow(loaded, index).loaded.evaluate(toLocalVector(global, T)),
     );
   }
   return result;
