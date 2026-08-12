@@ -12,6 +12,7 @@ export type {
   ArrowSpec,
   CircleSpec,
   GroupSpec,
+  IndexedLineListSpec,
   LabelSpec,
   LineSpec,
   PolygonSpec,

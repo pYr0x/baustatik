@@ -1,11 +1,63 @@
+import {
+  type CrossSection,
+  createSectionGeometry,
+  DEFAULT_SECTION_POLICY,
+  type Ring,
+  type SectionProperties as SectionValues,
+  sectionProperties as sectionValues,
+  type Vertex,
+} from '@baustatik/cross-section';
+import {
+  CROSS_SECTION_LAYERS,
+  type CrossSectionFEMesh,
+  createCrossSectionViewer,
+} from '@baustatik/cross-section-viewer';
+import { createKonvaAdapter as createKonvaDriver } from '@baustatik/konva-adapter';
 import type { Mesh2DInput, Mesh2DResult, Mesh2DSwitches } from '@baustatik/mesh-2d-wasm';
+import { screenPoint, viewport } from '@baustatik/viewport-2d';
 import { generateMesh2D } from './mesh-2d-port';
+
+// ---------------------------------------------------------------------------
+// ZWEI BILDER DERSELBEN FIGUR, und das ist der Inhalt dieser Seite.
+//
+// LINKS der SVG-Prüfstand: er zeichnet, was der Mesher liefert — gefüllte
+// Dreiecke und den Rand aus `boundarySegments`. Er kennt keinen Querschnitt,
+// nur Punkte und Elemente, und genau deshalb ist er der ehrliche Blick auf das
+// Ergebnis von Triangle.
+//
+// RECHTS derselbe Querschnitt im `cross-section-viewer`: der orange Umriss
+// kommt aus dem SATZ (`SectionGeometry.outline`, ADR 0030), das
+// hellockerfarbene Drahtgitter aus dem NETZ, und der rote Punkt ist der
+// Schwerpunkt aus der Green-Rechnung. Das Netz ist dort ein TRANSIENTES
+// Ergebnis (ADR 0039): der Viewer erzeugt es nicht, er bekommt es über
+// `getFEMesh` gereicht und zeigt nichts, solange keines da ist.
+//
+// DER VERGLEICH IST DER ZWECK. Umriss und Netzrand müssen aufeinanderliegen —
+// sie kommen aus derselben Ringeingabe, aber über zwei ganz verschiedene Wege.
+// Und der rote Schwerpunkt (Green über den Umriss) muss dort sitzen, wo die
+// Zahl im Ausdruck steht (Integration über die Dreiecke).
+//
+// BEIDE BILDER LAUFEN IN DIESELBE RICHTUNG, und das musste hergestellt werden:
+// das SVG drehte die y-Achse nach oben, wie es ein generischer Mesh-Betrachter
+// tut. Auf dieser Seite sind die Ringe aber ein Querschnitt, und in seiner
+// Ebene wächst `z` nach unten (ADR 0031).
+//
+// DER UMRISS HÄTTE DIE SPIEGELUNG UNBEMERKT ÜBERSTANDEN — die Figur ist
+// doppelt symmetrisch. Die Triangulierung ist es nicht: gespiegelt zeigten
+// zwei Bilder desselben Netzes zwei verschiedene Muster, und der Vergleich,
+// für den die Seite existiert, wäre nicht zu führen gewesen.
+//
+// Die verbleibenden Unterschiede sind DARSTELLUNG und beabsichtigt: links
+// gefüllte Dreiecke mit einem Strich in Welteinheiten, rechts ein reines
+// Drahtgitter aus Eckkanten mit screen-konstanter Strichbreite.
+// ---------------------------------------------------------------------------
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const generate = element<HTMLButtonElement>('generate');
 const output = element<HTMLPreElement>('output');
 const tri6Svg = element<SVGSVGElement>('mesh-tri6');
+const viewerContainer = element<HTMLDivElement>('viewer');
 const maxElementAreaInput = element<HTMLInputElement>('max-area');
 const qualityInput = element<HTMLInputElement>('quality');
 const qualityValue = element<HTMLOutputElement>('quality-value');
@@ -14,10 +66,51 @@ const ccdtInput = element<HTMLInputElement>('ccdt');
 const jettisonInput = element<HTMLInputElement>('jettison');
 const quietInput = element<HTMLInputElement>('quiet');
 
+/**
+ * Die Figur — EINE Quelle für beide Bilder, als flache Koordinatenpaare.
+ *
+ * Rechteck 200 × 300 mm mit einem mittigen Loch 60 × 120 mm; die Flächensumme
+ * muss 52.800 mm² ergeben.
+ */
+const OUTER = [0, 0, 200, 0, 200, 300, 0, 300];
+const HOLE = [70, 90, 130, 90, 130, 210, 70, 210];
+
 const rings: Mesh2DInput['rings'] = [
-  { kind: 'material', coordinates: new Float64Array([0, 0, 200, 0, 200, 300, 0, 300]) },
-  { kind: 'hole', coordinates: new Float64Array([70, 90, 130, 90, 130, 210, 70, 210]) },
+  { kind: 'material', coordinates: new Float64Array(OUTER) },
+  { kind: 'hole', coordinates: new Float64Array(HOLE) },
 ];
+
+/**
+ * Dieselben Ringe als Querschnittseingabe — und der Umlaufsinn trägt hier
+ * BEDEUTUNG.
+ *
+ * Beim Mesher sagt `kind: 'hole'`, was ein Loch ist; die Wicklung ist ihm egal.
+ * In `SectionGeometry` sagt es das VORZEICHEN der Fläche: `signedArea > 0` ist
+ * Material, `< 0` ein Loch (ADR 0034). Beide Ringe oben laufen gleich herum —
+ * das Loch wird deshalb umgedreht, sonst zählte Green es als zweite Fläche
+ * hinzu statt es abzuziehen.
+ *
+ * `createSectionGeometry` leitet den Umriss unter derselben Policy ab, die
+ * daneben gespeichert würde (ADR 0033). Für `kind: 'outline'` heisst das nur:
+ * die Bögen in Sehnen zerlegen — hier gibt es keine.
+ */
+const geometry = createSectionGeometry(
+  { kind: 'outline', rings: [ring(OUTER, 'material'), ring(HOLE, 'hole')] },
+  DEFAULT_SECTION_POLICY,
+);
+
+const section: CrossSection = { kind: 'section-geometry', id: 'mesh-2d', geometry };
+
+/**
+ * Das Netz und die Querschnittswerte — TRANSIENT, neben dem Satz und nicht in
+ * ihm (ADR 0039).
+ *
+ * Beide werden vor jedem Lauf verworfen: ein Netz, das zu anderen Einstellungen
+ * gehört, wäre eine Behauptung über die gerade gezeigte Figur. Der Viewer zieht
+ * sie und zeigt nichts, solange nichts da ist.
+ */
+let feMesh: CrossSectionFEMesh | undefined;
+let values: SectionValues | undefined;
 
 generate.addEventListener('click', () => void mesh());
 qualityInput.addEventListener('input', () => {
@@ -28,6 +121,9 @@ async function mesh(): Promise<void> {
   generate.disabled = true;
   output.textContent = 'Worker initialisiert Triangle …';
   tri6Svg.replaceChildren();
+  feMesh = undefined;
+  values = undefined;
+  viewer.requestRender();
   try {
     const maxElementArea = readMaxElementArea();
     const switches = readSwitches();
@@ -35,11 +131,35 @@ async function mesh(): Promise<void> {
     const properties = sectionProperties(result);
     output.textContent = summary(result, maxElementArea, switches, properties);
     renderMesh(result, tri6Svg);
+
+    // `Mesh2DResult` passt ohne Umformung in `CrossSectionFEMesh`: der Viewer
+    // will Punkte und Elemente, alles Weitere (Marker, `boundarySegments`)
+    // gehört der Rechnung. Deshalb hat er auch keine Abhaengigkeit auf den
+    // Mesher.
+    feMesh = result;
+    // Der rote Punkt kommt aus GREEN über den Umriss, die Zahl im Ausdruck aus
+    // der Integration über die Dreiecke. Zwei Wege, ein Ort — das ist die
+    // Probe, die diese Seite sichtbar macht.
+    values = sectionValues(section);
+    viewer.requestRender();
   } catch (error) {
     output.textContent = error instanceof Error ? error.message : String(error);
+    viewer.requestRender();
   } finally {
     generate.disabled = false;
   }
+}
+
+/** Ein flacher Koordinatenpuffer als `Ring`, im verlangten Umlaufsinn. */
+function ring(coordinates: readonly number[], sense: 'material' | 'hole'): Ring {
+  const vertices: Vertex[] = [];
+  for (let offset = 0; offset < coordinates.length; offset += 2) {
+    const y = coordinates[offset];
+    const z = coordinates[offset + 1];
+    if (y === undefined || z === undefined) continue;
+    vertices.push({ y, z });
+  }
+  return { vertices: sense === 'hole' ? vertices.reverse() : vertices };
 }
 
 function readMaxElementArea(): number {
@@ -73,14 +193,72 @@ function readSwitches(): Mesh2DSwitches | undefined {
   return Object.keys(switches).length === 0 ? undefined : switches;
 }
 
+// ---------------------------------------------------------------------------
+// Der Viewer der rechten Spalte.
+//
+// Massstab und Bildmitte sind FEST: der Viewer kann heute nicht einpassen
+// (`fit` steht als `todo` in `cross-section-viewer/src/viewer.ts`). Die Figur
+// ist 200 × 300 mm, ihr Mittelpunkt liegt bei (100, 150) — der Weltursprung
+// muss also genau darum nach links oben aus der Bildmitte wandern.
+// ---------------------------------------------------------------------------
+
+const stageBounds = viewerContainer.getBoundingClientRect();
+const stageSize = {
+  width: Math.floor(stageBounds.width),
+  height: Math.floor(stageBounds.height),
+};
+
+const SCALE = 1.15;
+const CENTRE_Y = 100;
+const CENTRE_Z = 150;
+
+const viewer = createCrossSectionViewer({
+  driver: createKonvaDriver({
+    container: viewerContainer,
+    width: stageSize.width,
+    height: stageSize.height,
+    layers: CROSS_SECTION_LAYERS,
+  }),
+  initialViewport: viewport(
+    screenPoint(
+      stageSize.width / 2 - CENTRE_Y * SCALE,
+      stageSize.height / 2 - CENTRE_Z * SCALE,
+    ),
+    SCALE,
+  ),
+  getGeometry: () => geometry,
+  getSectionPolicy: () => DEFAULT_SECTION_POLICY,
+  getScreenSize: () => stageSize,
+  // DIE DREI ERGEBNIS-PULLS. Ein weggelassener Pull und ein Pull mit
+  // `undefined` sind derselbe Aus-Zustand — vor dem ersten „Netz erzeugen"
+  // steht deshalb nur der Umriss im Bild.
+  //
+  // Spannungspunkte bleiben aus: für eine freie `SectionGeometry` liefert
+  // `stressPoints` heute `undefined`, es gibt noch keine Vorlage.
+  getFEMesh: () => feMesh,
+  getProperties: () => values,
+  grid: { spacing: 50 }, // Weltkoordinaten in mm
+});
+
+// Der Umriss steht sofort, das Netz erst nach dem ersten Lauf.
+viewer.requestRender();
+
 function renderMesh(result: Mesh2DResult, svg: SVGSVGElement): void {
   svg.replaceChildren();
   const { minX, minY, maxX, maxY } = bounds(result);
   const padding = 12;
-  // SVG-Koordinaten wachsen nach unten; die y-Achse des Modells wird gespiegelt.
+  // NICHT GESPIEGELT, und das ist der Unterschied zu einem generischen
+  // Mesh-Betrachter: die Ringe dieser Seite sind ein QUERSCHNITT, und in seiner
+  // Ebene laeuft `z` nach unten (ADR 0031) — dieselbe Richtung, in die
+  // SVG-Koordinaten ohnehin wachsen.
+  //
+  // Ein `-y` hier drehte nur das linke Bild um. Der Umriss ueberstuende das
+  // unbemerkt, weil die Figur doppelt symmetrisch ist; die Triangulierung ist
+  // es NICHT, und dann zeigten zwei Bilder desselben Netzes zwei verschiedene
+  // Muster. Genau der Vergleich ist aber der Zweck dieser Seite.
   svg.setAttribute(
     'viewBox',
-    `${minX - padding} ${-maxY - padding} ${maxX - minX + padding * 2} ${maxY - minY + padding * 2}`,
+    `${minX - padding} ${minY - padding} ${maxX - minX + padding * 2} ${maxY - minY + padding * 2}`,
   );
 
   const width = result.kind === 'tri3' ? 3 : 6;
@@ -139,7 +317,7 @@ function point(result: Mesh2DResult, index: number): string {
   if (x === undefined || y === undefined) {
     throw new Error('Das Mesh verweist auf einen fehlenden Knoten.');
   }
-  return `${x},${-y}`;
+  return `${x},${y}`;
 }
 
 type SectionProperties = {

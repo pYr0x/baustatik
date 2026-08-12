@@ -1,6 +1,6 @@
 {
   "name": "@baustatik/cross-section-viewer",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -40,6 +40,8 @@
     "@baustatik/render-core": "workspace:*",
     "@baustatik/viewport-2d": "workspace:*",
     "@baustatik/cross-section": "workspace:*",
-    "@baustatik/section-geometry": "workspace:*"
+    "@baustatik/errors": "workspace:*",
+    "@baustatik/section-geometry": "workspace:*",
+    "@baustatik/units": "workspace:*"
   }
 }

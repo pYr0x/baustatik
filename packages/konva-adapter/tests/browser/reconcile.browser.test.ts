@@ -146,6 +146,40 @@ describe('reconcile — diffing against the live Konva tree', () => {
     h.destroy();
   });
 
+  it('builds an indexed line list as ONE Konva.Shape and patches its buffers', () => {
+    // Der ganze Zweck des Specs: ein Drahtgitter ist EIN Knoten, nicht einer je
+    // Kante. Und weil die Puffer in der `sceneFunc` stecken, muss der
+    // gewoehnliche setAttrs-Patch eine NEUE sceneFunc auf dieselbe Shape setzen
+    // — sonst zeigte das Bild nach einem neuen Netz noch das alte.
+    const h = createAdapterHarness({ layers: ['grid', 'fe'] });
+    const mesh = (points: number[]): Spec => ({
+      id: 'wire',
+      kind: 'indexedLineList',
+      layer: 'fe',
+      points: new Float64Array(points),
+      indices: new Uint32Array([0, 1]),
+      strokeColor: '#d9b48a',
+      strokeWidth: 1,
+    });
+
+    h.driver.reconcile([mesh([0, 0, 10, 0])]);
+    const first = currentStage().findOne('#wire') as Konva.Shape;
+    expect(first).toBeInstanceOf(Konva.Shape);
+    expect(first).not.toBeInstanceOf(Konva.Line);
+    const firstSceneFunc = first.sceneFunc();
+    // Das erklaerte Band, nicht die Einfuegereihenfolge.
+    expect(first.getParent()).toBeInstanceOf(Konva.Group);
+
+    h.driver.reconcile([mesh([0, 0, 20, 20])]);
+    const second = currentStage().findOne('#wire') as Konva.Shape;
+
+    expect(second).toBe(first);
+    expect(second.sceneFunc()).not.toBe(firstSceneFunc);
+    expect(second.strokeScaleEnabled()).toBe(false);
+
+    h.destroy();
+  });
+
   it('patches a rectangle on a second reconcile without throwing', () => {
     const h = createAdapterHarness();
     const rect = (w: number): Spec => ({

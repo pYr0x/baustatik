@@ -7,6 +7,7 @@ import Konva from 'konva';
 import { arcPathConfig, arcPathData } from './arc-path';
 import { arrowConfig } from './arrow';
 import { circleConfig } from './circle';
+import { indexedLineListConfig } from './indexed-line-list';
 import {
   buildLabel,
   labelTagConfig,
@@ -24,6 +25,7 @@ export {
   arcPathData,
   arrowConfig,
   circleConfig,
+  indexedLineListConfig,
   labelTagConfig,
   labelTextConfig,
   labelTopLeft,
@@ -64,6 +66,8 @@ function configFor(spec: ShapeSpec): Konva.ShapeConfig {
       return arrowConfig(spec);
     case 'arcPath':
       return arcPathConfig(spec);
+    case 'indexedLineList':
+      return indexedLineListConfig(spec);
     default:
       return assertNever(spec);
   }
@@ -87,6 +91,11 @@ export function buildPrimitive(spec: PrimitiveSpec): LeafNode {
       return new Konva.Arrow(arrowConfig(spec));
     case 'arcPath':
       return new Konva.Path(arcPathConfig(spec));
+    // Die BASISFORM, kein Sonderfall: `Konva.Shape` zeichnet, was seine
+    // `sceneFunc` zeichnet — und keine der fertigen Formen zieht unabhaengige
+    // Linien, ohne sie zu verbinden (siehe `indexed-line-list.ts`).
+    case 'indexedLineList':
+      return new Konva.Shape(indexedLineListConfig(spec));
     case 'label':
       return buildLabel(spec);
     default:
