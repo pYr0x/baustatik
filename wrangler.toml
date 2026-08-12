@@ -1,0 +1,7 @@
+name = "baustatik"
+compatibility_date = "2024-09-01"
+
+# Hier wird das Output Directory für Assets aus dem Monorepo-Root definiert:
+[assets]
+directory = "./apps/demo/dist" # Bzw. ./apps/demo/.output/public je nach Framework
+binding = "ASSETS"
