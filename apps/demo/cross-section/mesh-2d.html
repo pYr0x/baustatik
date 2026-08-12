@@ -9,7 +9,7 @@
   <script src="./mesh-2d.ts" type="module"></script>
   <style>
     :root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #1c1f24; }
-    body { max-width: 780px; margin: 0 auto; padding: 1.5rem 1rem 3rem; line-height: 1.5; }
+    body { max-width: 1060px; margin: 0 auto; padding: 1.5rem 1rem 3rem; line-height: 1.5; }
     a { color: #28613d; }
     h1 { font-size: 1.4rem; margin: 0 0 0.4rem; }
     p { color: #5c636d; font-size: 0.9rem; }
@@ -23,9 +23,15 @@
     .options input[type="range"] { flex: 1; min-width: 8rem; accent-color: #28613d; }
     .options output { min-width: 3rem; text-align: right; font-variant-numeric: tabular-nums; }
     .options input[type="checkbox"] { accent-color: #28613d; }
-    .mesh-figure { flex: none; width: 100%; margin: 1.2rem 0 0; }
+    .figures { margin-top: 1.2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.2rem; align-items: start; }
+    .mesh-figure { margin: 0; }
     .mesh-figure figcaption { margin-bottom: 0.3rem; color: #5c636d; font-size: 0.82rem; font-weight: 600; }
-    .mesh-figure svg { display: block; width: 100%; max-width: 480px; border: 1px solid #dfe2e7; border-radius: 5px; background: #fff; shape-rendering: geometricPrecision; }
+    .mesh-figure figcaption span { display: block; font-weight: 400; }
+    .mesh-figure svg { display: block; width: 100%; height: 420px; border: 1px solid #dfe2e7; border-radius: 5px; background: #fff; shape-rendering: geometricPrecision; }
+    /* Konva misst den Container beim Aufbau — er braucht deshalb eine Hoehe aus
+       dem Stylesheet, nicht aus seinem Inhalt. Dieselbe Hoehe wie das SVG
+       daneben, damit die beiden Bilder vergleichbar gross sind. */
+    .viewer-stage { width: 100%; height: 420px; border: 1px solid #dfe2e7; border-radius: 5px; background: #fff; overflow: hidden; }
   </style>
 </head>
 
@@ -35,6 +41,13 @@
   <p>
     Rechteckiger Querschnitt mit rechteckigem Loch, im persistenten Worker als
     Tri6 vernetzt. Die Flächensumme muss 52.800 mm² ergeben.
+  </p>
+  <p>
+    Dieselbe Figur steht zweimal da: links roh aus dem Mesher, rechts als
+    Querschnitt. Umriss und Netzrand kommen aus derselben Ringeingabe, aber über
+    zwei ganz verschiedene Wege — sie müssen aufeinanderliegen. Und der rote
+    Schwerpunkt (Green über den Umriss) muss dort sitzen, wo ihn die Integration
+    über die Dreiecke unten ausgibt.
   </p>
   <button id="generate" type="button">Netz erzeugen</button>
   <fieldset class="options">
@@ -47,10 +60,20 @@
     <label for="quiet"><input id="quiet" type="checkbox" checked /> Triangle-Ausgabe unterdrücken (Q)</label>
   </fieldset>
   <pre id="output" aria-live="polite">Noch keine Netze erzeugt.</pre>
-  <figure class="mesh-figure">
-    <figcaption>Tri6</figcaption>
-    <svg id="mesh-tri6" role="img" aria-label="Tri6-Netz" xmlns="http://www.w3.org/2000/svg"></svg>
-  </figure>
+  <div class="figures">
+    <figure class="mesh-figure">
+      <figcaption>Tri6 — der SVG-Prüfstand
+        <span>Gefüllte Dreiecke, Rand aus <code>boundarySegments</code>. Kennt keine Querschnittsbegriffe.</span>
+      </figcaption>
+      <svg id="mesh-tri6" role="img" aria-label="Tri6-Netz" xmlns="http://www.w3.org/2000/svg"></svg>
+    </figure>
+    <figure class="mesh-figure">
+      <figcaption>Derselbe Querschnitt im <code>cross-section-viewer</code>
+        <span>Oranger Umriss aus dem Satz, hellockerfarbenes Drahtgitter aus dem Netz, roter Schwerpunkt. Pan und Zoom laufen.</span>
+      </figcaption>
+      <div id="viewer" class="viewer-stage"></div>
+    </figure>
+  </div>
 </body>
 
 </html>
