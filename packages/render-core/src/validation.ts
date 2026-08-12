@@ -2,7 +2,7 @@ import { atOrThrow } from '@baustatik/core';
 import type { WorldPoint } from '@baustatik/viewport-2d';
 import { InvalidWorldPointError } from '@baustatik/viewport-2d';
 import { DuplicateSpecIdError, InvalidSpecError } from './errors';
-import type { LabelSpec, ShapeSpec, Spec } from './specs';
+import type { LabelSpec, SegmentSetSpec, ShapeSpec, Spec } from './specs';
 
 function checkWorldPoint(
   point: WorldPoint,
@@ -101,6 +101,72 @@ function checkLabel(spec: LabelSpec): void {
     checkNumber(spec.cornerRadius, spec.id, 'cornerRadius', {
       positive: false,
     });
+  }
+}
+
+/**
+ * Ein Puffer, der wie ein Array gelesen werden kann — `number[]` UND
+ * `Float64Array`/`Uint32Array`. `Array.isArray` traegt hier nicht: es meldet
+ * fuer jedes typisierte Array `false`, und genau die sollen durch.
+ */
+function isNumericBuffer(value: unknown): value is ArrayLike<number> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as ArrayLike<number>).length === 'number'
+  );
+}
+
+/**
+ * Der Streckensatz — zwei flache Puffer, die zueinander passen muessen.
+ *
+ * GEPRUEFT WIRD DIE LESBARKEIT, NICHT DIE SCHOENHEIT: eine ungerade Pufferlaenge
+ * oder ein Index ausserhalb von `points` liesse den Adapter aus dem Nichts
+ * lesen. Doppelte, rueckwaerts gerichtete oder zu einem Punkt entartete
+ * Strecken bleiben dagegen ERLAUBT — sie sind geometrisch unschaedlich und wie
+ * bei `LineSpec` Sache ihres Erzeugers. Leere Mengen kommen gar nicht erst als
+ * Spec an: wer nichts zu zeichnen hat, emittiert keine.
+ */
+function checkSegmentSet(spec: SegmentSetSpec): void {
+  if (!isNumericBuffer(spec.points) || !isNumericBuffer(spec.segments)) {
+    throw new InvalidSpecError(
+      spec.id,
+      'points und segments muessen indizierbare Zahlenpuffer sein',
+    );
+  }
+
+  const { length: pointLength } = spec.points;
+  if (pointLength < 4 || pointLength % 2 !== 0) {
+    throw new InvalidSpecError(
+      spec.id,
+      `points muss gerade viele Koordinaten und mindestens zwei Punkte enthalten, erhalten: ${pointLength}`,
+    );
+  }
+  for (let i = 0; i < pointLength; i++) {
+    if (!Number.isFinite(spec.points[i])) {
+      throw new InvalidSpecError(
+        spec.id,
+        `points[${i}] muss endlich sein, erhalten: ${spec.points[i]}`,
+      );
+    }
+  }
+
+  const { length: segmentLength } = spec.segments;
+  if (segmentLength < 2 || segmentLength % 2 !== 0) {
+    throw new InvalidSpecError(
+      spec.id,
+      `segments muss gerade viele Indizes und mindestens eine Strecke enthalten, erhalten: ${segmentLength}`,
+    );
+  }
+  const pointCount = pointLength / 2;
+  for (let i = 0; i < segmentLength; i++) {
+    const index = spec.segments[i];
+    if (!Number.isInteger(index) || index < 0 || index >= pointCount) {
+      throw new InvalidSpecError(
+        spec.id,
+        `segments[${i}] muss ein Punktindex in [0, ${pointCount}) sein, erhalten: ${index}`,
+      );
+    }
   }
 }
 
@@ -222,6 +288,11 @@ export function validateSpec(spec: Spec): void {
           `sweepAngle muss endlich und 0 < |sweepAngle| < 2π sein, erhalten: ${spec.sweepAngle}`,
         );
       }
+      break;
+
+    case 'segmentSet':
+      checkStrokeAndFill(spec);
+      checkSegmentSet(spec);
       break;
 
     case 'label':

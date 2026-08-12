@@ -190,6 +190,9 @@ importers:
       '@baustatik/cross-section':
         specifier: workspace:*
         version: link:../cross-section
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
       '@baustatik/grid-2d':
         specifier: workspace:*
         version: link:../grid-2d
@@ -199,6 +202,9 @@ importers:
       '@baustatik/section-geometry':
         specifier: workspace:*
         version: link:../section-geometry
+      '@baustatik/units':
+        specifier: workspace:*
+        version: link:../units
       '@baustatik/viewport-2d':
         specifier: workspace:*
         version: link:../viewport-2d

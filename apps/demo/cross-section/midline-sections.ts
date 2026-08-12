@@ -178,10 +178,18 @@ const viewer = createCrossSectionViewer({
     getGeometry: () => store.geometry,
     getSectionPolicy: () => store.sectionPolicy,
     getScreenSize: () => stageSize,
+    // PULL DES ERGEBNISSES, nicht des Stores: `result` steht weiter unten und
+    // wird beim Laden eines anderen Querschnitts verworfen. Damit erscheinen
+    // Schwerpunkt und — wo bestimmt — Schubmittelpunkt erst nach „Berechnen"
+    // und verschwinden wieder, sobald das Ergebnis nicht mehr gilt.
+    //
+    // Spannungspunkte und Netz bleiben hier aus: fuer eine freie
+    // `SectionGeometry` liefert `stressPoints` heute `undefined`, und vernetzt
+    // wird auf dieser Seite nicht.
+    getProperties: () => result?.properties,
     grid: { spacing: 10 }, // Weltkoordinaten in mm
 });
 
-viewer.requestRender();
 // Pan und Zoom laufen intern; neu gezeichnet wird ausserdem bei jeder
 // Store-Aenderung — Laden eines Querschnitts und Ableiten des Umrisses.
 store.$subscribe(() => viewer.requestRender());
@@ -554,6 +562,10 @@ function item(message: string, source: Finding['source'] | undefined): HTMLLIEle
 
 renderMiterLimit();
 renderPanel();
+// ERST HIER, nicht direkt nach dem Aufbau des Viewers: `getProperties` liest
+// `result`, und das steht in diesem Modul weiter unten. Ein Frame davor liefe
+// in dessen temporale tote Zone.
+viewer.requestRender();
 
 // Zum Ausprobieren in der Konsole:
 //

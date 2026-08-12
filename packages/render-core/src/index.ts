@@ -17,6 +17,7 @@ export type {
   PolygonSpec,
   PrimitiveSpec,
   RectangleSpec,
+  SegmentSetSpec,
   ShapeSpec,
   Spec,
   TriangleSpec,

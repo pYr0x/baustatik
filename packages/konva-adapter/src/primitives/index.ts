@@ -17,6 +17,7 @@ import {
 import { lineConfig } from './line';
 import { polygonConfig } from './polygon';
 import { rectangleConfig } from './rectangle';
+import { segmentSetConfig } from './segment-set';
 import { triangleConfig } from './triangle';
 
 export {
@@ -30,6 +31,7 @@ export {
   lineConfig,
   polygonConfig,
   rectangleConfig,
+  segmentSetConfig,
   triangleConfig,
 };
 
@@ -64,6 +66,8 @@ function configFor(spec: ShapeSpec): Konva.ShapeConfig {
       return arrowConfig(spec);
     case 'arcPath':
       return arcPathConfig(spec);
+    case 'segmentSet':
+      return segmentSetConfig(spec);
     default:
       return assertNever(spec);
   }
@@ -87,6 +91,11 @@ export function buildPrimitive(spec: PrimitiveSpec): LeafNode {
       return new Konva.Arrow(arrowConfig(spec));
     case 'arcPath':
       return new Konva.Path(arcPathConfig(spec));
+    // Die BASISFORM, kein Sonderfall: `Konva.Shape` zeichnet, was seine
+    // `sceneFunc` zeichnet — und keine der fertigen Formen zieht unabhaengige
+    // Strecken, ohne sie zu verbinden (siehe `segment-set.ts`).
+    case 'segmentSet':
+      return new Konva.Shape(segmentSetConfig(spec));
     case 'label':
       return buildLabel(spec);
     default:
