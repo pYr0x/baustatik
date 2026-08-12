@@ -166,6 +166,69 @@
             color: #5c636d;
         }
 
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .row select {
+            border: 1px solid #b9bec6;
+            border-radius: 4px;
+            padding: 0.25rem 0.4rem;
+            background: #fff;
+            font: inherit;
+        }
+
+        .limits-head,
+        .limits-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.35rem;
+            align-items: center;
+            margin-top: 0.45rem;
+            font-size: 0.72rem;
+        }
+
+        .limits-row input {
+            width: 100%;
+            border: 1px solid #b9bec6;
+            border-radius: 4px;
+            padding: 0.22rem 0.35rem;
+            background: #fff;
+            font: inherit;
+        }
+
+        #policy-error {
+            min-height: 1.2em;
+            margin-top: 0.45rem;
+            color: #b3261e;
+            font-size: 0.72rem;
+        }
+
+        details {
+            margin-top: 0.5rem;
+        }
+
+        details summary {
+            cursor: pointer;
+            font-size: 0.72rem;
+            color: #5c636d;
+        }
+
+        #policy-json {
+            margin: 0.35rem 0 0;
+            padding: 0.45rem;
+            border-radius: 4px;
+            background: #f7f8fa;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            font-size: 0.66rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+
         #solve-status {
             margin-top: 0.55rem;
             font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -192,6 +255,41 @@
                 <div id="state" class="value">–</div>
                 <button id="solve" type="button">Berechnen</button>
                 <div id="solve-status" class="muted"></div>
+            </section>
+
+            <section class="block">
+                <h2>Analyse-Einstellungen</h2>
+                <label class="row">
+                    <span>Lineares System</span>
+                    <select id="linear-system">
+                        <option value="dense">dense</option>
+                        <option value="sparse">sparse</option>
+                    </select>
+                </label>
+                <label class="row">
+                    <span>Schubverformung</span>
+                    <input id="shear-deformation" type="checkbox" />
+                </label>
+                <div class="limits-head muted">
+                    <span>Verformungsgrenzen</span>
+                    <span>Verdrehung</span>
+                    <span>u/L</span>
+                </div>
+                <div class="limits-row">
+                    <span>warn</span>
+                    <input id="warn-rotation" type="number" min="0" step="any" />
+                    <input id="warn-relative" type="number" min="0" step="any" />
+                </div>
+                <div class="limits-row">
+                    <span>fail</span>
+                    <input id="fail-rotation" type="number" min="0" step="any" />
+                    <input id="fail-relative" type="number" min="0" step="any" />
+                </div>
+                <div id="policy-error"></div>
+                <details>
+                    <summary>Policy als JSON</summary>
+                    <pre id="policy-json"></pre>
+                </details>
             </section>
 
             <section class="block">

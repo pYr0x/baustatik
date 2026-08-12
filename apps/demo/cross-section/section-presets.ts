@@ -3,9 +3,11 @@ import type { SectionNode, Wall } from '@baustatik/cross-section';
 /**
  * Die vorgegebenen Querschnitte der Demo — WANDGRAPHEN, keine `ShapeSpec`.
  *
- * Jeder Satz ist ein Mittellinienmodell (`kind: 'midline'`,
- * `idealisation: 'thin-walled'`): Knoten, Waende mit Dicke, mehr nicht. Der
- * Umriss steht hier NICHT dabei — er wird auf Knopfdruck abgeleitet
+ * Jeder Satz ist ein Mittellinienmodell (`kind: 'midline'`): Knoten, Waende
+ * mit Dicke, mehr nicht — die Idealisierung (duennwandig/Vollquerschnitt) ist
+ * eine Deutung und wird auf der Seite gewaehlt, nicht im Satz mitgegeben
+ * (ADR 0029). Der Umriss steht hier NICHT dabei — er wird auf Knopfdruck
+ * abgeleitet
  * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)),
  * und genau das soll die Seite zeigen: die Eingabe ist der Graph, die
  * Umrisslinie ist ein Ergebnis.

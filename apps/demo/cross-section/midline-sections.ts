@@ -3,6 +3,7 @@ import {
     createSectionPolicy,
     type CrossSection,
     DEFAULT_SECTION_POLICY,
+    type Idealisation,
     InvalidSectionPolicyError,
     type SectionGeometry,
     type SectionNode,
@@ -34,8 +35,11 @@ import { SECTION_PRESETS, type SectionPreset } from './section-presets';
 // aber ABGELEITET. Wer ihn erst auf Knopfdruck entstehen sieht, verwechselt ihn
 // nicht mit der Eingabe.
 //
-// Alle Querschnitte sind `kind: 'midline'` mit `idealisation: 'thin-walled'`.
-// Ihre Abmessungen stehen in `section-presets.ts` und stammen aus
+// Jeder Querschnitt ist `kind: 'midline'`; die Idealisierung ist WAEHLBAR.
+// `thin-walled` laesst den Wandweg laufen, `solid` behandelt dieselbe Figur
+// als Vollquerschnitt — der Umriss faellt daraus, aber κ, der Schubmittelpunkt
+// und `It` bleiben „nicht ermittelt" (Grashof ist erst P4; ADR 0029).
+// Die Abmessungen stehen in `section-presets.ts` und stammen aus
 // `packages/cross-section/examples` — die Zahlen dieser Seite lassen sich damit
 // gegen die Seite „Parametrische Querschnitte" halten.
 // ---------------------------------------------------------------------------
@@ -54,6 +58,10 @@ const useStore = defineStore('midline-sections', {
         nodes: [] as SectionNode[],
         walls: [] as Wall[],
         outline: [] as SectionGeometry['outline'],
+        // Je Querschnitt, nicht projektweit: die Idealisierung ist Teil des
+        // Modellsatzes (ADR 0029) und hier umschaltbar, damit dieselbe Figur
+        // als duennwandig und als Vollquerschnitt berechenbar steht.
+        idealisation: 'thin-walled' as Idealisation,
         // Projektebene, nicht je Querschnitt: dieselbe Zahl beurteilt alle.
         sectionPolicy: DEFAULT_SECTION_POLICY,
     }),
@@ -61,7 +69,7 @@ const useStore = defineStore('midline-sections', {
         geometry(state): SectionGeometry {
             return {
                 kind: 'midline',
-                idealisation: 'thin-walled',
+                idealisation: state.idealisation,
                 nodes: state.nodes,
                 walls: state.walls,
                 outline: state.outline,
@@ -111,12 +119,20 @@ const useStore = defineStore('midline-sections', {
             this.outline = createSectionGeometry(
                 {
                     kind: 'midline',
-                    idealisation: 'thin-walled',
+                    idealisation: this.idealisation,
                     nodes: this.nodes,
                     walls: this.walls,
                 },
                 this.sectionPolicy,
             ).outline;
+        },
+        /**
+         * Die Deutung der Figur umschalten — als Feldschreibung, denn beide
+         * Werte von `Idealisation` sind zulaessig und es gibt keine eigene
+         * Werteregel wie beim `miterLimit`.
+         */
+        setIdealisation(idealisation: Idealisation) {
+            this.idealisation = idealisation;
         },
     },
 });
@@ -230,6 +246,8 @@ const errorCount = element<HTMLSpanElement>('error-count');
 const miterLimitField = element<HTMLInputElement>('miter-limit');
 const miterLimitSlider = element<HTMLInputElement>('miter-limit-slider');
 const miterLimitNote = element<HTMLDivElement>('miter-limit-note');
+const idealisationThin = element<HTMLInputElement>('idealisation-thin');
+const idealisationSolid = element<HTMLInputElement>('idealisation-solid');
 
 function element<T extends HTMLElement>(id: string): T {
     const found = document.getElementById(id);
@@ -332,6 +350,18 @@ for (const input of [miterLimitField, miterLimitSlider]) {
     input.addEventListener('input', () => applyMiterLimit(input.value));
 }
 
+for (const input of [idealisationThin, idealisationSolid]) {
+    input.addEventListener('change', () => {
+        // Dieselbe Nachzieh-Regel wie beim miterLimit: steht schon ein
+        // Ergebnis, gehoert es zur bisherigen Deutung — umschalten rechnet neu
+        // (`calculate` leitet den Umriss ohnehin neu ab; er bleibt derselbe,
+        // denn `idealisation` aendert die Deutung, nicht die Figur).
+        store.setIdealisation(input.value as Idealisation);
+        renderIdealisation();
+        if (result !== undefined) calculate();
+    });
+}
+
 /**
  * Die neue Schranke in den Store — und den Umriss NACHZIEHEN, falls schon einer
  * da ist.
@@ -399,6 +429,7 @@ function renderPanel(): void {
         button.setAttribute('aria-pressed', String(button.dataset.preset === store.presetId));
     }
 
+    renderIdealisation();
     presetName.textContent = preset?.name ?? '–';
     presetDimensions.textContent = preset === undefined ? '' : `${preset.dimensions} [mm]`;
     presetNote.textContent = preset?.note ?? '';
@@ -416,7 +447,8 @@ function renderPanel(): void {
             ? 'Kein Umriss abgeleitet.'
             : `Umriss: ${result.rings.length} Ring(e) mit ${result.rings.join(' / ')} Punkten ` +
               `(arcTolerance ${store.sectionPolicy.arcTolerance} mm, ` +
-              `miterLimit ${store.sectionPolicy.miterLimit}).`;
+              `miterLimit ${store.sectionPolicy.miterLimit}, ` +
+              `idealisation ${store.idealisation}).`;
     propertiesField.innerHTML =
         result.properties === undefined
             ? '<p class="muted">sectionProperties &rarr; undefined — aus diesem Umriss faellt keine Flaeche.</p>'
@@ -425,12 +457,27 @@ function renderPanel(): void {
 }
 
 /**
+ * Die beiden Umschalter aus dem STORE vorladen.
+ *
+ * Am Ereignis ist das ein No-op (die geklickte Option stimmt schon), es haelt
+ * aber die Radiogruppe mit programmatischen Aenderungen zusammen — dieselbe
+ * Figur wie renderMiterLimit.
+ */
+function renderIdealisation(): void {
+    for (const input of [idealisationThin, idealisationSolid]) {
+        input.checked = input.value === store.idealisation;
+    }
+}
+
+/**
  * Die Werte in Katalogeinheiten — dieselbe Tabelle wie auf der Seite
  * „Parametrische Querschnitte", damit sich die beiden Wege vergleichen lassen.
  *
- * `kappa` und der Schubmittelpunkt stehen mit als „nicht ermittelt": der
- * gezeichnete Querschnitt traegt sie heute nicht (ADR 0035), und das gehoert
- * ins Bild — eine weggelassene Zeile saehe aus wie eine Null.
+ * κ, der Schubmittelpunkt und `It` kommen seit P5 aus dem WANDWEG — aber nur
+ * bei `idealisation: 'thin-walled'`. Als Vollquerschnitt (`solid`) bleiben sie
+ * „nicht ermittelt" (Grashof ist erst P4, ADR 0029), und das gehoert ins Bild
+ * — eine weggelassene Zeile saehe aus wie eine Null. `kappa` zeigt diesen
+ * Zustand als „schubstarr", weil der Loeser dann `GAs: 'rigid'` rechnet.
  */
 function propertyTable(p: SectionProperties): string {
     return `

@@ -12,10 +12,20 @@
  *     HEB 200, HEB 600). Gemessen wird gerade die Ausloeschung zwischen `EA` und
  *     `EI`, die ein schraeger Stab ueber die Transformation in dieselbe Zeile
  *     mischt; `fakeFormulation` und `STIFF` haetten sie gar nicht.
- *   - Der Port ist eine MESSFASSUNG von `gaussSolve`: sie reicht das kleinste
- *     skalierte Pivot auch im GELUNGENEN Fall heraus. `LinearSolveOutcome`
- *     bleibt dabei unangetastet — die Messung nimmt einen Nebenkanal, statt den
- *     Port-Vertrag zu verbiegen.
+ *   - ECHTE Loeser. Beide Ports sind die produktiven `faer`-Fassungen aus
+ *     `@baustatik/linear-solver-wasm` und `@baustatik/sparse-solver-wasm`, und
+ *     das ist der Kern: gemessen werden die beiden ZERLEGUNGEN, die die
+ *     Anwendung rechnet. Eine nachgebaute Gauss-Elimination auf beiden Wegen
+ *     laufen zu lassen belegte nur, dass die Assemblierung dieselben Zahlen
+ *     liefert — die Frage nach der Schwelle `1e-12` beantwortete sie nicht.
+ *     Das kleinste skalierte Pivot melden beide Crates auch im GELUNGENEN Fall;
+ *     es kommt ueber einen Nebenkanal (`PivotProbe`) heraus, damit
+ *     `LinearSolveOutcome` unangetastet bleibt.
+ *
+ * DIE MESSUNG BRAUCHT DAMIT DIE GEBAUTEN `pkg/`-ARTEFAKTE. Sie sind nicht
+ * eingecheckt; fehlen sie, ueberspringt sich diese Datei — die
+ * Regressionstests des Packages laufen weiter ohne WASM (ADR 0009,
+ * `tests/wasm-solvers.ts`).
  *
  * ZUGESICHERT WIRD NUR DIE KONSTRUKTIVE WAHRHEIT: jedes stabile System loest,
  * die beiden Mengen sind nicht leer, das Beleg-Artefakt entsteht. KEINE
@@ -34,18 +44,20 @@ import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import { type SectionStiffness, Timoshenko2D } from '@baustatik/fem-element';
 import type { FEMLoad, LoadCase } from '@baustatik/fem-loads';
 import { describe, expect, it } from 'vitest';
-import type { LinearSolveOutcome, SolverConfig } from '../src/config';
-import { createAnalysisPolicy } from '../src/policy';
+import type { SolverConfig } from '../src/config';
+import { createAnalysisPolicy, type LinearSystemKind } from '../src/policy';
 import { solve } from '../src/solve';
 import { beam, node, support } from './support';
+import {
+  loadWasmSolvers,
+  type PivotProbe,
+  type WasmSolvers,
+} from './wasm-solvers';
 
 const REPORT_URL = new URL(
   '../../../docs/messungen/kinematik-abstand.md',
   import.meta.url,
 );
-
-/** Dieselbe Schwelle wie `SINGULAR_PIVOT_TOLERANCE` in der Rust-Fassung. */
-const SINGULAR_PIVOT_TOLERANCE = 1e-12;
 
 const LOAD_CASE_ID = 'lf-messung';
 
@@ -78,82 +90,6 @@ const SECTIONS: readonly { name: string; props: SectionStiffness }[] = [
 
 /** Stablaengen in m. */
 const LENGTHS = [1, 3, 10, 20] as const;
-
-// ---------------------------------------------------------------------------
-// Der Port als Messfassung
-// ---------------------------------------------------------------------------
-
-/** Der Nebenkanal: was der Port im gelungenen Fall NICHT zurueckgeben darf. */
-type PivotProbe = { minPivot: number };
-
-/**
- * `gaussSolve` aus `support.ts`, um eine Sonde erweitert.
- *
- * BEWUSST EINE KOPIE und kein Umbau des Originals: `support.ts` bedient die
- * Regressionstests und muss dem Port-Vertrag genau entsprechen. Ein zweiter
- * Rueckgabewert nur fuer die Messung waere ein Vertrag, den die produktive
- * Rust-Fassung nicht erfuellt.
- *
- * Der einzige inhaltliche Unterschied: `probe.minPivot` traegt am Ende das
- * kleinste skalierte Pivot der gesamten Elimination — auch dann, wenn die
- * Zerlegung gelingt. Genau dieser Fall ist der interessante.
- */
-function probingGaussSolve(probe: PivotProbe) {
-  return (n: number, K: Float64Array, F: Float64Array): LinearSolveOutcome => {
-    probe.minPivot = Number.NaN;
-    if (n === 0) return { kind: 'solved', d: new Float64Array(0) };
-
-    const s = new Float64Array(n);
-    for (let i = 0; i < n; i += 1) {
-      const diagonal = K[i * n + i];
-      if (!(diagonal > 0) || !Number.isFinite(diagonal)) {
-        probe.minPivot = 0;
-        return { kind: 'singular', index: i, pivotRatio: 0 };
-      }
-      s[i] = 1 / Math.sqrt(diagonal);
-    }
-
-    const a = Array.from({ length: n }, (_, r) =>
-      Array.from({ length: n + 1 }, (_, c) =>
-        c === n ? F[r] * s[r] : K[r * n + c] * s[r] * s[c],
-      ),
-    );
-
-    let minPivot = Number.POSITIVE_INFINITY;
-    for (let col = 0; col < n; col += 1) {
-      const pivot = a[col][col];
-      if (pivot < minPivot) minPivot = pivot;
-      if (pivot <= SINGULAR_PIVOT_TOLERANCE) {
-        probe.minPivot = minPivot;
-        return { kind: 'singular', index: col, pivotRatio: Math.max(pivot, 0) };
-      }
-
-      for (let row = col + 1; row < n; row += 1) {
-        const factor = a[row][col] / pivot;
-        if (factor === 0) continue;
-        for (let c = col; c <= n; c += 1) {
-          a[row][c] -= factor * a[col][c];
-        }
-      }
-    }
-    probe.minPivot = minPivot;
-
-    const y = new Float64Array(n);
-    for (let row = n - 1; row >= 0; row -= 1) {
-      let sum = a[row][n];
-      for (let c = row + 1; c < n; c += 1) {
-        sum -= a[row][c] * y[c];
-      }
-      y[row] = sum / a[row][row];
-    }
-
-    const d = new Float64Array(n);
-    for (let i = 0; i < n; i += 1) {
-      d[i] = s[i] * y[i];
-    }
-    return { kind: 'solved', d };
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Der Modellkorpus
@@ -625,17 +561,25 @@ type Measurement = {
   dof: number;
   /** `A*L^2/I` mit dem laengsten Stab: der Verstaerkungsfaktor der Ausloeschung. */
   amplification: number;
-  /** Kleinstes skaliertes Pivot, auch im gelungenen Fall. */
+  /** Kleinstes skaliertes Pivot auf dem DICHTEN Weg, auch im gelungenen Fall. */
   minPivot: number;
+  /** Dasselbe auf dem DUENNBESETZTEN Weg. */
+  minPivotSparse: number;
   /** `max |phi|` ueber alle Knoten, in rad. `NaN`, wenn nicht geloest wurde. */
   maxRotation: number;
   /** `max |u|/L` ueber alle Stabenden. `NaN`, wenn nicht geloest wurde. */
   maxRelativeDisplacement: number;
   /** Was die drei Netze aus ADR 0012 sagen: `geloest` oder der Fehlername. */
   finding: string;
+  /** Derselbe Befund auf dem duennbesetzten Weg. */
+  findingSparse: string;
 };
 
-function configFor(system: System, probe: PivotProbe): SolverConfig {
+function configFor(
+  system: System,
+  solvers: WasmSolvers,
+  linearSystem: LinearSystemKind,
+): SolverConfig {
   const loadCase: LoadCase = {
     id: LOAD_CASE_ID,
     name: 'Messung',
@@ -647,7 +591,8 @@ function configFor(system: System, probe: PivotProbe): SolverConfig {
     getSupports: () => system.supports,
     getLoadCases: () => [loadCase],
     getSectionStiffness: () => system.props,
-    solveLinearSystem: probingGaussSolve(probe),
+    solveLinearSystem: solvers.solveLinearSystem,
+    solveSparseSystem: solvers.solveSparseSystem,
     // ECHTE Formulierung MIT Schub — die Betriebsart der Anwendung. Ohne sie
     // faehrte die Messung an dem Effekt vorbei, den sie messen soll.
     formulation: Timoshenko2D,
@@ -658,6 +603,7 @@ function configFor(system: System, probe: PivotProbe): SolverConfig {
     // gefangen, die Spalte „durchgerutscht" bliebe leer, und die Zahlen, die die
     // Grenzen rechtfertigen, gaebe es nicht mehr.
     analysisPolicy: createAnalysisPolicy({
+      linearSystem,
       deformationLimits: {
         warn: { rotation: 1e300, relativeDisplacement: 1e300 },
         fail: {
@@ -686,24 +632,28 @@ function freeDofCount(system: System): number {
   return system.nodes.length * 3 - held;
 }
 
-async function measure(system: System): Promise<Measurement> {
-  const probe: PivotProbe = { minPivot: Number.NaN };
-  const lengths = system.beams.map((b) => beamLength(system, b));
-  const longest = Math.max(...lengths);
-  const base = {
-    name: system.name,
-    dof: freeDofCount(system),
-    amplification:
-      (system.props.EA / system.props.EI) * longest * longest,
-  };
+/** Was ein Durchlauf auf einem der beiden Wege hergibt. */
+type PathMeasurement = {
+  minPivot: number;
+  maxRotation: number;
+  maxRelativeDisplacement: number;
+  finding: string;
+};
 
-  const result = await solve(configFor(system, probe), LOAD_CASE_ID).catch(
-    (error: unknown) => error,
-  );
+async function measurePath(
+  system: System,
+  lengths: readonly number[],
+  linearSystem: LinearSystemKind,
+  solvers: WasmSolvers,
+  probe: PivotProbe,
+): Promise<PathMeasurement> {
+  const result = await solve(
+    configFor(system, solvers, linearSystem),
+    LOAD_CASE_ID,
+  ).catch((error: unknown) => error);
 
   if (result instanceof Error) {
     return {
-      ...base,
       minPivot: probe.minPivot,
       maxRotation: Number.NaN,
       maxRelativeDisplacement: Number.NaN,
@@ -734,11 +684,41 @@ async function measure(system: System): Promise<Measurement> {
   }
 
   return {
-    ...base,
     minPivot: probe.minPivot,
     maxRotation,
     maxRelativeDisplacement: maxRelative,
     finding: 'geloest',
+  };
+}
+
+/**
+ * Jedes System auf BEIDEN Rechenwegen.
+ *
+ * Die Verformungsspalten stammen aus dem dichten Durchlauf; dass der
+ * duennbesetzte dieselben liefert, ist die Zusicherung unten und nicht eine
+ * zweite Spalte, die dasselbe noch einmal sagt.
+ */
+async function measure(
+  system: System,
+  solvers: WasmSolvers,
+  probe: PivotProbe,
+): Promise<Measurement> {
+  const lengths = system.beams.map((b) => beamLength(system, b));
+  const longest = Math.max(...lengths);
+
+  const dense = await measurePath(system, lengths, 'dense', solvers, probe);
+  const sparse = await measurePath(system, lengths, 'sparse', solvers, probe);
+
+  return {
+    name: system.name,
+    dof: freeDofCount(system),
+    amplification: (system.props.EA / system.props.EI) * longest * longest,
+    minPivot: dense.minPivot,
+    minPivotSparse: sparse.minPivot,
+    maxRotation: dense.maxRotation,
+    maxRelativeDisplacement: dense.maxRelativeDisplacement,
+    finding: dense.finding,
+    findingSparse: sparse.finding,
   };
 }
 
@@ -755,13 +735,14 @@ function num(value: number): string {
 
 function table(rows: readonly Measurement[]): string {
   const head =
-    '| System | DOF | A·L²/I | min. Pivot | max \\|φ\\| [rad] | max \\|u\\|/L | Befund (3 Netze) |\n' +
-    '| --- | ---: | ---: | ---: | ---: | ---: | --- |';
+    '| System | DOF | A·L²/I | min. Pivot (dicht) | min. Pivot (dünn) | max \\|φ\\| [rad] | max \\|u\\|/L | Befund (3 Netze) |\n' +
+    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |';
   const body = rows
     .map(
       (m) =>
         `| ${m.name} | ${m.dof} | ${num(m.amplification)} | ${num(m.minPivot)} | ` +
-        `${num(m.maxRotation)} | ${num(m.maxRelativeDisplacement)} | ${m.finding} |`,
+        `${num(m.minPivotSparse)} | ${num(m.maxRotation)} | ` +
+        `${num(m.maxRelativeDisplacement)} | ${m.finding} |`,
     )
     .join('\n');
   return `${head}\n${body}`;
@@ -823,10 +804,28 @@ function largestDeformations(
     .join('\n');
 }
 
+/** Die Systeme, bei denen dicht und duennbesetzt zu verschiedenen Befunden kommen. */
+function disagreements(rows: readonly Measurement[]): string {
+  return rows
+    .filter((m) => m.finding !== m.findingSparse)
+    .map(
+      (m) =>
+        `| ${m.name} | ${num(m.minPivot)} | ${num(m.minPivotSparse)} | ` +
+        `${m.finding} | ${m.findingSparse} |`,
+    )
+    .join('\n');
+}
+
 function report(stable: Measurement[], kinematic: Measurement[]): string {
   const slipped = kinematic.filter((m) => m.finding === 'geloest');
+  const uneinigStable = stable.filter((m) => m.finding !== m.findingSparse);
+  const uneinigKinematic = kinematic.filter(
+    (m) => m.finding !== m.findingSparse,
+  );
   const pivotStable = span(stable, (m) => m.minPivot);
+  const pivotStableSparse = span(stable, (m) => m.minPivotSparse);
   const pivotSlipped = span(slipped, (m) => m.minPivot);
+  const pivotSlippedSparse = span(slipped, (m) => m.minPivotSparse);
   const rotStable = span(stable, (m) => m.maxRotation);
   const rotSlipped = span(slipped, (m) => m.maxRotation);
   const relStable = span(stable, (m) => m.maxRelativeDisplacement);
@@ -841,11 +840,33 @@ Beleg-Artefakt zu
 [ADR 0016](../adr/0016-kinematics-shows-in-the-displacement-not-in-the-pivot.md).
 
 Gemessen mit der echten \`Timoshenko2D\`-Formulierung, echten Walzprofilen
-(IPE 80 / HEB 200 / HEB 600, S235: \`E = 210e6 kN/m²\`, \`G = 81e6 kN/m²\`) und
-einer Gauß-Elimination mit derselben Jacobi-Skalierung und derselben
-Pivot-Schwelle (\`1e-12\`) wie die produktive \`faer\`-Fassung. Der Unterschied zum
-Port-Vertrag ist ein Nebenkanal: das kleinste skalierte Pivot wird **auch im
-gelungenen Fall** herausgereicht.
+(IPE 80 / HEB 200 / HEB 600, S235: \`E = 210e6 kN/m²\`, \`G = 81e6 kN/m²\`) und den
+**produktiven Lösern**: \`@baustatik/linear-solver-wasm\` (dichtes \`Llt\` von
+\`faer\`) und \`@baustatik/sparse-solver-wasm\` (dünnbesetztes Cholesky mit
+AMD-Umordnung), beide mit derselben Jacobi-Skalierung und derselben
+Pivot-Schwelle \`1e-12\`. Der Unterschied zum Port-Vertrag ist ein Nebenkanal:
+das kleinste skalierte Pivot melden beide Crates **auch im gelungenen Fall**,
+und genau dieser Wert steht in den Tabellen.
+
+**Jedes System läuft über beide Rechenwege** (\`linearSystem: 'dense'\` und
+\`'sparse'\`, [ADR 0043](../adr/0043-the-solver-is-an-analysis-setting.md)), und
+die Tabellen führen beide Pivot-Spalten. Verglichen werden damit die beiden
+**Zerlegungen**, die die Anwendung wirklich rechnet — nicht zwei Wege durch
+dieselbe nachgebaute Elimination. Was die beiden trennt, ist die
+Operationsreihenfolge: AMD ordnet um, fill-in ändert, wie viele Beiträge in
+einen Eintrag summiert werden, und beides verschiebt die Rundung.
+
+**Damit ist die Schwelle \`1e-12\` für BEIDE Wege belegt** und nicht nur für den
+dichten: das kleinste Pivot der tragfähigen Menge liegt dicht bei
+${num(pivotStable.min)} und dünnbesetzt bei ${num(pivotStableSparse.min)} — auf
+beiden Wegen sieben Größenordnungen über der Schwelle. Die AMD-Umordnung
+verschiebt die Zahl, sie verschiebt sie aber nicht in die Nähe des Abbruchs.
+
+Beide Crates lesen dabei **nur das untere Dreieck** — das dichte über
+\`Llt(Side::Lower)\`, das dünnbesetzte über die Triplets. Die Nicht-Symmetrie in
+der letzten Stelle, die \`rotateStiffness\` eintragsweise erzeugt, erreicht die
+Zerlegung deshalb auf keinem der beiden Wege; sie ist NICHT der Grund für die
+Abweichungen weiter unten.
 
 **Die Verformungsprüfung ist dabei abgeschaltet.** Gemessen wird der Zustand
 davor — die drei Netze aus [ADR 0012](../adr/0012-kinematics-is-detected-by-the-solver.md)
@@ -860,13 +881,15 @@ rangdefizit, unabhängig von der gemessenen Zahl.
 
 **Durchgerutscht sind ${slipped.length} von ${kinematic.length} kinematischen
 Systemen** — die drei Netze melden dort \`geloest\` und liefern ein
-Verformungsfeld. Die Zeilen unten vergleichen deshalb die stabile Menge mit
-genau diesen ${slipped.length}: die übrigen sind bereits gefangen und sagen über
-die Trennschärfe nichts.
+Verformungsfeld. Gezählt wird auf dem DICHTEN Weg; welche der beiden Zerlegungen
+strenger ist, steht im Abschnitt „Wo die beiden Wege sich uneins sind". Die
+Zeilen unten vergleichen die stabile Menge mit genau diesen ${slipped.length}:
+die übrigen sind bereits gefangen und sagen über die Trennschärfe nichts.
 
 | Größe | stabil (${stable.length}) | durchgerutscht kinematisch (${slipped.length}) | Abstand |
 | --- | --- | --- | --- |
-| min. Pivot | ${num(pivotStable.min)} … ${num(pivotStable.max)} | ${num(pivotSlipped.min)} … ${num(pivotSlipped.max)} | ${gapLabel(decades(pivotSlipped, pivotStable))} |
+| min. Pivot (dicht) | ${num(pivotStable.min)} … ${num(pivotStable.max)} | ${num(pivotSlipped.min)} … ${num(pivotSlipped.max)} | ${gapLabel(decades(pivotSlipped, pivotStable))} |
+| min. Pivot (dünn) | ${num(pivotStableSparse.min)} … ${num(pivotStableSparse.max)} | ${num(pivotSlippedSparse.min)} … ${num(pivotSlippedSparse.max)} | ${gapLabel(decades(pivotSlippedSparse, pivotStableSparse))} |
 | max \\|φ\\| [rad] | ${num(rotStable.min)} … ${num(rotStable.max)} | ${num(rotSlipped.min)} … ${num(rotSlipped.max)} | ${gapLabel(decades(rotStable, rotSlipped))} |
 | max \\|u\\|/L | ${num(relStable.min)} … ${num(relStable.max)} | ${num(relSlipped.min)} … ${num(relSlipped.max)} | ${gapLabel(decades(relStable, relSlipped))} |
 
@@ -909,6 +932,46 @@ Eingabe, \`|φ|\` nicht. Für dieses Programm ist das folgenlos — ein Stab ist
 Element, es wird nicht vernetzt —, aber es ist der Grund, warum die Verdrehung
 und nicht die bezogene Verschiebung die belastbarere der beiden Größen ist.
 
+## Wo die beiden Wege sich uneins sind
+
+Auf den **${stable.length} tragfähigen** Systemen kommen dicht und dünnbesetzt
+ausnahmslos zum selben Befund (${uneinigStable.length} Abweichungen). Bei den
+kinematischen tun sie es nicht: **${uneinigKinematic.length} von
+${kinematic.length}** Systemen werden auf dem einen Weg gemeldet und auf dem
+anderen gelöst.
+
+Das ist kein Fehler in einer der beiden Fassungen, sondern derselbe Befund, den
+[ADR 0016](../adr/0016-kinematics-shows-in-the-displacement-not-in-the-pivot.md)
+schon beschreibt, nur an einer neuen Stelle. Beide Crates bekommen **dieselben
+Zahlen** — die Assemblierung ist dieselbe, und beide lesen nur das untere
+Dreieck. Verschieden ist die **Reihenfolge**, in der die Zerlegung sie
+verrechnet: die dünnbesetzte Fassung ordnet mit AMD um und eliminiert in einer
+anderen Folge, mit anderem fill-in. Bei einem tragfähigen System ist das
+folgenlos — die letzte Stelle interessiert niemanden. Bei einem Mechanismus ist
+das gemessene Pivot **reines Rundungsrauschen**, und über den Abbruch
+entscheidet sein Vorzeichen; also entscheidet dort die letzte Stelle, und die
+hängt an der Reihenfolge.
+
+Von den ${uneinigKinematic.length} Abweichungen fängt der **dünnbesetzte** Weg ${uneinigKinematic.filter((m) => m.finding === 'geloest').length} und der **dichte** ${uneinigKinematic.filter((m) => m.findingSparse === 'geloest').length}.
+Daraus folgt KEINE Rangfolge der beiden Zerlegungen: die Pivots liegen auf
+beiden Seiten im Bereich \`1e-12\`, also dort, wo die Zahl nichts mehr misst. Wer
+daraus „dünnbesetzt ist strenger" liest, hat Rauschen für ein Kriterium
+gehalten — und genau das ist die Aussage von ADR 0016.
+
+${
+    uneinigKinematic.every((m) => m.name.startsWith('Winkelsweep'))
+      ? 'Alle Abweichungen liegen im Winkelsweep, also genau bei den Systemen,\n' +
+        'deren wahres Pivot exakt 0 ist.'
+      : 'Die Abweichungen liegen **nicht** nur im Winkelsweep — die Tabelle\n' +
+        'unten nennt sie einzeln.'
+  } Für die Anwendung ist das folgenlos: gemessen
+wird hier **ohne** die Verformungsprüfung, und das vierte Netz fängt jeden
+dieser Fälle — auf beiden Wegen.
+
+| System | min. Pivot (dicht) | min. Pivot (dünn) | Befund dicht | Befund dünn |
+| --- | ---: | ---: | --- | --- |
+${disagreements(kinematic)}
+
 ## Stabile Systeme
 
 ${table(stable)}
@@ -921,25 +984,45 @@ ${table(kinematic)}
 
 // ---------------------------------------------------------------------------
 
-describe('Kinematik — Messreihe', () => {
+const probe: PivotProbe = { minPivot: Number.NaN };
+const solvers = await loadWasmSolvers(probe);
+
+describe.skipIf(solvers === undefined)('Kinematik — Messreihe', () => {
   it('misst den Abstand zwischen tragfaehig und Mechanismus', async () => {
+    // `skipIf` haelt den Fall schon ab; der Guard ist fuer den Typ.
+    if (solvers === undefined) return;
+
     const corpus = buildCorpus();
     expect(corpus.stable.length).toBeGreaterThan(50);
     expect(corpus.kinematic.length).toBeGreaterThan(50);
 
     const stable: Measurement[] = [];
     for (const system of corpus.stable) {
-      stable.push(await measure(system));
+      stable.push(await measure(system, solvers, probe));
     }
     const kinematic: Measurement[] = [];
     for (const system of corpus.kinematic) {
-      kinematic.push(await measure(system));
+      kinematic.push(await measure(system, solvers, probe));
     }
 
     // Die EINZIGE Zusicherung ueber Zahlen, und sie ist keine Schwelle: ein
     // tragfaehiges System muss rechnen. Was daran gemessen wird, steht offen.
-    const failed = stable.filter((m) => m.finding !== 'geloest');
-    expect(failed.map((m) => `${m.name}: ${m.finding}`)).toEqual([]);
+    const failed = stable.filter(
+      (m) => m.finding !== 'geloest' || m.findingSparse !== 'geloest',
+    );
+    expect(
+      failed.map((m) => `${m.name}: ${m.finding} / ${m.findingSparse}`),
+    ).toEqual([]);
+
+    // Die zweite konstruktive Wahrheit, und die ist neu: auf den TRAGFAEHIGEN
+    // Systemen kommen beide Wege zum selben Befund. Bei den kinematischen tun
+    // sie das nicht durchgaengig — das ist kein Fehler, sondern eine Messung,
+    // und sie steht im Bericht statt in einer Zusicherung. Warum, sagt der
+    // Abschnitt „Wo die beiden Wege sich uneins sind" dort.
+    const uneinig = stable.filter((m) => m.finding !== m.findingSparse);
+    expect(
+      uneinig.map((m) => `${m.name}: ${m.finding} / ${m.findingSparse}`),
+    ).toEqual([]);
 
     const path = fileURLToPath(REPORT_URL);
     mkdirSync(dirname(path), { recursive: true });

@@ -25,6 +25,7 @@
     "format": "oxfmt --write ."
   },
   "dependencies": {
+    "@baustatik/core": "workspace:*",
     "@baustatik/errors": "workspace:*",
     "@baustatik/fem": "workspace:*",
     "@baustatik/fem-element": "workspace:*",
@@ -33,6 +34,8 @@
     "@baustatik/fem-loads": "workspace:*"
   },
   "devDependencies": {
+    "@baustatik/linear-solver-wasm": "workspace:*",
+    "@baustatik/sparse-solver-wasm": "workspace:*",
     "@vitest/coverage-istanbul": "^4.1.5",
     "oxfmt": "^0.58.0",
     "oxlint": "^1.73.0",

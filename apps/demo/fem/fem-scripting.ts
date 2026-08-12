@@ -24,6 +24,7 @@ import type {
   ExecuteScriptResponse,
 } from './fem-script-protocol';
 import { solveLinearSystem } from './linear-solver-port';
+import { solveSparseSystem } from './sparse-solver-port';
 
 const SCRIPT_URI = monaco.Uri.parse('file:///fem-model.ts');
 const SCRIPT_MODULE_URI =
@@ -114,17 +115,22 @@ const useFEMScriptStore = defineStore('fem-scripting', {
   actions: {
     replaceModel(input: unknown): void {
       const snapshot = parseFEMModelSnapshot(input);
-      this.$patch({
-        nodes: [...snapshot.nodes],
-        beams: [...snapshot.beams],
-        crossSections: [...snapshot.crossSections],
-        materials: [...snapshot.materials],
-        sectionPolicy: snapshot.sectionPolicy,
-        supports: [...snapshot.supports],
-        loadCases: snapshot.loadCases.map((loadCase) =>
+      // Die FUNKTIONSFORM statt des Objekt-Patches: `$patch({…})` mergt tief in
+      // bestehende Objekte, und die `sectionPolicy` ist eingefroren
+      // (`Object.freeze` in `@baustatik/cross-section`, initial und nach dem
+      // Parsen). Der Merge wuerde in sie hineinschreiben. Die Funktionsform
+      // ersetzt das Feld per Zuweisung.
+      this.$patch((state) => {
+        state.nodes = [...snapshot.nodes];
+        state.beams = [...snapshot.beams];
+        state.crossSections = [...snapshot.crossSections];
+        state.materials = [...snapshot.materials];
+        state.sectionPolicy = snapshot.sectionPolicy;
+        state.supports = [...snapshot.supports];
+        state.loadCases = snapshot.loadCases.map((loadCase) =>
           structuredClone(loadCase),
-        ),
-        activeLoadCaseId: snapshot.loadCases[0]?.id ?? '',
+        );
+        state.activeLoadCaseId = snapshot.loadCases[0]?.id ?? '';
       });
     },
   },
@@ -171,7 +177,9 @@ const solver = createFEMSolver({
   // Moduln reisen als Kopie mit (ADR 0027). Deshalb steht hier kein Katalog
   // mehr, und ein Modell rechnet in zwei Jahren, was es heute rechnet.
   getSectionStiffness: (beam) => resolveSectionStiffness(beam, store),
+  // BEIDE Ports: welcher rechnet, sagt die `AnalysisPolicy` (ADR 0042).
   solveLinearSystem,
+  solveSparseSystem,
 });
 
 runButton.addEventListener('click', () => void runScript());

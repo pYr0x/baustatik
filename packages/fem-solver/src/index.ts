@@ -4,11 +4,18 @@ export {
   check,
   type LoadAssessment,
 } from './check';
-export type { LinearSolve, LinearSolveOutcome, SolverConfig } from './config';
+export type {
+  LinearSolve,
+  LinearSolveOutcome,
+  SolverConfig,
+  SolverPortName,
+  SparseSolve,
+} from './config';
 export {
   type DegreeOfFreedom,
   ImplausibleDisplacementError,
   InvalidAnalysisPolicyError,
+  InvalidSolverConfigError,
   LoadOnIsolatedNodeWarning,
   ShearDeformationUnavailableWarning,
   SingularStiffnessMatrixError,
@@ -34,6 +41,8 @@ export {
   DEFAULT_DEFORMATION_LIMITS,
   type DeformationLimit,
   type DeformationLimits,
+  LINEAR_SYSTEM_KINDS,
+  type LinearSystemKind,
   parseAnalysisPolicy,
 } from './policy';
 export type { NodeDisplacement, SolveResult, SupportReaction } from './solve';

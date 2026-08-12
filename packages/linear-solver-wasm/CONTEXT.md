@@ -6,13 +6,15 @@ Der lineare Gleichungsloeser `K d = F` in Rust, uebersetzt nach WebAssembly —
 und die Erkennung, dass es keine Loesung gibt.
 
 ```
-fem-solver  --(n, K, F)-->  solve()  --{ d } | { singularIndex, pivotRatio }-->  fem-solver
-                              ^
-                              nur Zahlen; keine Knoten, keine Staebe
+fem-solver  --(n, K, k, F[n x k])-->  solve()  --{ d[n x k] } | { singularIndex, pivotRatio }-->  fem-solver
+                                        ^
+                                        nur Zahlen; keine Knoten, keine Staebe
 ```
 
 **Stand:** laeuft. `Llt` (Cholesky) statt `PartialPivLu`, mit Jacobi-Skalierung
 und Pivot-Schwelle. Dicht besetzt, ein Rechenkern, keine Parallelisierung.
+Mehrere rechte Seiten teilen sich EINE Zerlegung
+([ADR 0044](../../docs/adr/0044-solveall-bundles-the-load-cases.md)).
 
 ## Boundaries
 
@@ -92,41 +94,49 @@ schlechteste aller Ergebnisse.
 ## Invariants and conventions
 
 1. **`K` liegt ZEILENWEISE flach**, `n * n` Werte. Die JS-Seite legt es so ab
-   (`fem-solver/src/solve.ts`). Weil `K` symmetrisch ist, waere ein
-   spaltenweiser Leser nicht zu bemerken — der Vertrag steht deshalb an beiden
-   Enden im Kommentar.
-2. **Symmetrie wird vorausgesetzt, nicht geprueft.** `Llt` liest nur das untere
+   (`fem-solver/src/system-matrix/dense.ts`). Weil `K` symmetrisch ist, waere
+   ein spaltenweiser Leser nicht zu bemerken — der Vertrag steht deshalb an
+   beiden Enden im Kommentar.
+2. **`F` und `d` liegen SPALTENWEISE flach**, `n * rhs_columns` Werte: zuerst
+   die `n` Werte der ersten rechten Seite, dann die der zweiten. Dieselbe Form
+   wie beim Schwesterpackage `@baustatik/sparse-solver-wasm` — zwei Loeser mit
+   zwei Anordnungen waeren zwei Gelegenheiten, sie zu verwechseln.
+3. **`pivotRatio` und `singularIndex` bleiben EINWERTIG.** Sie gehoeren der
+   Zerlegung und damit der Matrix, nicht einer einzelnen rechten Seite. `k`
+   rechte Seiten liefern `k` Verschiebungsfelder und genau ein Urteil ueber das
+   Tragwerk.
+4. **Symmetrie wird vorausgesetzt, nicht geprueft.** `Llt` liest nur das untere
    Dreieck (`Side::Lower`); ein unsymmetrisches `K` wuerde stillschweigend als
    sein eigenes unteres Dreieck gedeutet. Das haelt, solange die Formulierung
    linear und erster Ordnung ist. Kaeme je eine unsymmetrische dazu (Folgelasten,
    manche Kontaktformulierungen), bricht diese Annahme, und dieser Punkt ist
    die Stelle, an der es auffallen muss.
-3. **Skalieren, dann Pivots vergleichen.** In `K` stehen Dehnsteifigkeiten
+5. **Skalieren, dann Pivots vergleichen.** In `K` stehen Dehnsteifigkeiten
    (`EA/L`) neben Biegesteifigkeiten (`EI/L^3`) — Groessen, die um
    Zehnerpotenzen auseinanderliegen. Ein Vergleich auf der Rohmatrix wuerde
    davon erschlagen. `Ks = S K S` mit `S = diag(1/sqrt(K_ii))` macht die
    Diagonale ueberall 1; erst dann ist ein Pivot mit einer festen Schwelle
    vergleichbar. Der Test
    `ein_schlecht_skaliertes_aber_stabiles_system_kommt_durch` ist der Beleg.
-4. **Die Schwelle ist `1e-12`** und nicht kritisch. Die Luecke ist gross: ein
+6. **Die Schwelle ist `1e-12`** und nicht kritisch. Die Luecke ist gross: ein
    Kragarm liegt bei `0.25` — und zwar unabhaengig von `EI`, `L` und Material,
    weil die Skalierung die Steifigkeit wegkuerzt und nur die Geometrie
    stehenlaesst (`1 - 36/48 = 1/4`, siehe Test). Ein Mechanismus faellt auf
    `1e-16` und darunter. Zwoelf Zehnerpotenzen dazwischen.
-5. **Ein Mechanismus ist kein `Err`.** `Err` ist den Vertragsbruechen
+7. **Ein Mechanismus ist kein `Err`.** `Err` ist den Vertragsbruechen
    vorbehalten (falsche Laengen) — dem Fehler des AUFRUFERS. Ein Mechanismus ist
    ein Befund ueber sein Modell und steht deshalb in `SolveOutcome`. Wer beides
    in einen Kanal wirft, kann einen kaputten Worker nicht mehr von einem
    verschieblichen Rahmen unterscheiden.
-6. **Keine Panik an der Grenze.** Die frueheren `assert_eq!` wurden im
+8. **Keine Panik an der Grenze.** Die frueheren `assert_eq!` wurden im
    Release-Build zu `unreachable executed`, verloren die Meldung und liessen die
    WASM-Instanz mit abgebrochenem Allokator zurueck. Formpruefungen sind
    deshalb `Err`, kein `assert!`.
-7. **`solve_checked` ist vom WASM-Rand getrennt**, weil `JsError` sich auf einem
+9. **`solve_checked` ist vom WASM-Rand getrennt**, weil `JsError` sich auf einem
    Nicht-WASM-Ziel nicht bauen laesst. Ohne die Trennung liefe `cargo test` beim
    Bau des Fehlers in eine Panik, und ausgerechnet die Fehlerwege blieben
    ungetestet.
-8. **`SolveOutcome` muss in JS freigegeben werden.** Es ist eine
+10. **`SolveOutcome` muss in JS freigegeben werden.** Es ist eine
    wasm-bindgen-Struct, also ein Zeiger in den WASM-Speicher — kein
    `structuredClone`, kein `postMessage`. Der Aufrufer liest die Getter aus und
    ruft `free()` (siehe `apps/demo/fem/linear-solver.worker.ts`).
@@ -134,9 +144,12 @@ schlechteste aller Ergebnisse.
 ## Known constraints
 
 - **Dicht besetzt.** `K` kommt als `n * n` Werte, die Zerlegung ist `O(n^3)` in
-  Zeit und `O(n^2)` im Speicher. Fuer die heutigen Modellgroessen belanglos; ab
-  einigen tausend Freiheitsgraden waere eine duennbesetzte Zerlegung faellig
-  (`faer::sparse` hat sie, samt `LltError`).
+  Zeit und `O(n^2)` im Speicher. Der duennbesetzte Weg ist inzwischen gebaut und
+  die Voreinstellung — er steht in `@baustatik/sparse-solver-wasm` und wird
+  ueber `AnalysisPolicy.linearSystem` gewaehlt
+  ([ADR 0043](../../docs/adr/0043-the-solver-is-an-analysis-setting.md)). Dieses
+  Package bleibt der zweite Weg mit denselben Zahlen: die einzige Probe, die ein
+  Rechenkern gegen sich selbst hat.
 - **Ein Rechenkern.** Kein `rayon`; WASM-Threads waeren ein eigenes Vorhaben
   (Cross-Origin-Isolation, `SharedArrayBuffer`).
 - **Die gemeldete Zeile ist ein Hinweis, kein Beweis.** Cholesky pivotiert

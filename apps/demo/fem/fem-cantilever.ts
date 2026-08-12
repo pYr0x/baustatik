@@ -18,6 +18,7 @@ import {
   internalForcesAt,
 } from '@baustatik/fem-solver';
 import { solveLinearSystem } from './linear-solver-port';
+import { solveSparseSystem } from './sparse-solver-port';
 import { convert } from '@baustatik/units';
 
 const solveButton = requireElement<HTMLButtonElement>('#solve');
@@ -111,7 +112,11 @@ const solver = createFEMSolver({
   getSupports: () => supports,
   getLoadCases: () => [loadCase],
   getSectionStiffness: () => SECTION,
+  // BEIDE Ports: welcher rechnet, sagt `analysisPolicy.linearSystem`
+  // (ADR 0043). Der Worker des nicht gewaehlten Weges startet nie — beide Ports
+  // laden ihr Artefakt erst beim ersten Aufruf.
   solveLinearSystem,
+  solveSparseSystem,
   analysisPolicy,
 });
 

@@ -1,10 +1,12 @@
-import init, { solve } from "@baustatik/linear-solver-wasm";
+import init, { solve } from "@baustatik/sparse-solver-wasm";
 
 type SolveRequest = {
   readonly type: "solve";
   readonly id: number;
   readonly n: number;
-  readonly k: Float64Array;
+  readonly rows: Uint32Array;
+  readonly cols: Uint32Array;
+  readonly values: Float64Array;
   /** Wie viele rechte Seiten in `f` stehen — `solveAll` buendelt sie. */
   readonly rhsColumns: number;
   readonly f: Float64Array;
@@ -25,21 +27,29 @@ workerScope.addEventListener("message", async ({ data }: MessageEvent<SolveReque
   try {
     await wasmReady;
 
-    // `SolveOutcome` ist eine wasm-bindgen-Struct, also ein Zeiger in den
+    // `SparseSolveOutcome` ist eine wasm-bindgen-Struct, also ein Zeiger in den
     // WASM-Speicher: sie ueberlebt kein `postMessage`. Deshalb erst die Getter
     // auslesen, dann ein einfaches Objekt schicken — und in jedem Fall `free()`,
     // sonst waechst der WASM-Heap mit jedem Loesen.
-    const outcome = solve(data.n, data.k, data.rhsColumns, data.f);
+    const outcome = solve(
+      data.n,
+      data.rows,
+      data.cols,
+      data.values,
+      data.rhsColumns,
+      data.f,
+    );
     try {
-      const singularIndex = outcome.singularIndex;
-
-      // Kinematik ist KEIN `failed`: das Modell ist unbrauchbar, der Worker
-      // nicht. Nur so bleibt ein abgestuerzter Worker davon unterscheidbar.
-      if (singularIndex >= 0) {
+      // `unfixed` heisst in der Sprache dieses Crates „die Matrix ist nicht
+      // positiv definit". Was das FUER EIN STABWERK bedeutet — Kinematik —,
+      // steht nicht im Crate; die Uebersetzung macht dieser Adapter, indem er
+      // dieselbe Antwort schickt wie der dichte Worker. Und wie dort ist das
+      // KEIN `failed`: das Modell ist unbrauchbar, der Worker nicht.
+      if (outcome.unfixed) {
         workerScope.postMessage({
           type: "singular",
           id: data.id,
-          index: singularIndex,
+          index: outcome.singularIndex,
           pivotRatio: outcome.pivotRatio,
         });
         return;

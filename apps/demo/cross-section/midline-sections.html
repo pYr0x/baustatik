@@ -180,6 +180,22 @@
             color: #a3312b;
         }
 
+        fieldset.idealisation {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            margin: 0;
+            padding: 0;
+            border: 0;
+        }
+
+        fieldset.idealisation label {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            cursor: pointer;
+        }
+
         table.values {
             width: 100%;
             border-collapse: collapse;
@@ -257,6 +273,28 @@
                 <p id="preset-note" class="note"></p>
                 <button id="calculate" type="button">Berechnen</button>
                 <div id="outline-status" class="note"></div>
+            </section>
+
+            <section class="block">
+                <h2>Idealisierung</h2>
+                <fieldset class="idealisation">
+                    <legend hidden>Idealisierung</legend>
+                    <label>
+                        <input id="idealisation-thin" type="radio" name="idealisation" value="thin-walled"
+                            checked />
+                        <span>dünnwandig</span>
+                    </label>
+                    <label>
+                        <input id="idealisation-solid" type="radio" name="idealisation" value="solid" />
+                        <span>Vollquerschnitt</span>
+                    </label>
+                </fieldset>
+                <p class="note">
+                    Zwei Deutungen desselben Wandgraphen. „dünnwandig" ermittelt κ,
+                    Schubmittelpunkt und It über den Wandweg; „Vollquerschnitt" lässt sie als
+                    „nicht ermittelt" stehen — dort bräuchte es Grashof (P4), und der Löser
+                    rechnet GAs = rigid.
+                </p>
             </section>
 
             <section class="block">

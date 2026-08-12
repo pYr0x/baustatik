@@ -8,9 +8,9 @@
  *   Store gibt, der synchron gehalten werden muesste. Jeder Aufruf sieht den
  *   aktuellen Stand.
  *
- *   PORTS liefern FAEHIGKEITEN, die dieses Package bewusst nicht besitzt. Alle
- *   drei existieren aus EINEM Grund: Isolierbarkeit. `fem-solver` verdrahtet
- *   die gesamte Rechenkette; genau deshalb muss es allein pruefbar sein — ohne
+ *   PORTS liefern FAEHIGKEITEN, die dieses Package bewusst nicht besitzt. Sie
+ *   existieren aus EINEM Grund: Isolierbarkeit. `fem-solver` verdrahtet die
+ *   gesamte Rechenkette; genau deshalb muss es allein pruefbar sein — ohne
  *   WASM-Toolchain, ohne Querschnittskatalog, ohne eine bestimmte
  *   Balkentheorie. Siehe ADR 0009.
  *
@@ -18,6 +18,12 @@
  *   lassen. Genau daran verlaeuft die Grenze zu den Ports: „direkt oder
  *   iterativ loesen" waere eine persistierbare Einstellung, „diese
  *   Solver-Implementierung" ist ein Port (ADR 0011).
+ *
+ * DIE LÖSERWAHL LIEGT AUF BEIDEN SEITEN DIESER GRENZE, und das ist kein
+ * Widerspruch: WELCHER Weg gerechnet wird, sagt `AnalysisPolicy.linearSystem`
+ * — eine Zeichenkette, die sich schreiben lässt. OB er zur Verfügung steht,
+ * sagt der Port. Fehlt der Port zur gewählten Betriebsart, wirft
+ * `createFEMSolver` (ADR 0043).
  */
 
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
@@ -39,7 +45,14 @@ import type { AnalysisPolicy } from './policy';
  * ADR 0012.
  */
 export type LinearSolveOutcome =
-  | { readonly kind: 'solved'; readonly d: Float64Array }
+  | {
+      readonly kind: 'solved';
+      /**
+       * Die Lösungen, SPALTENWEISE flach als `n x k`: zuerst die `n` Werte
+       * der ersten rechten Seite, dann die der zweiten.
+       */
+      readonly d: Float64Array;
+    }
   | {
       readonly kind: 'singular';
       /**
@@ -61,7 +74,28 @@ export type LinearSolveOutcome =
     };
 
 /**
- * Loest `K d = F`. `K` liegt ZEILENWEISE flach (n*n Werte), `F` hat n Werte.
+ * EIN ERGEBNISTYP, ZWEI EINGABETYPEN — und beide Ports melden dieselben zwei
+ * Ausgänge. Was sich unterscheidet, ist ausschließlich die Form, in der `K`
+ * hineingeht; was herauskommt, ist in beiden Fällen dieselbe Aussage über
+ * dasselbe Gleichungssystem. Zwei Ergebnistypen hätten `solve.ts` gezwungen,
+ * das Matrixformat zu kennen, das es gerade nicht kennen soll (ADR 0043).
+ *
+ * `pivotRatio` und `singularIndex` sind dabei EINWERTIG, obwohl `k` rechte
+ * Seiten hineingehen: sie gehören der Zerlegung und damit der Matrix, nicht
+ * einer einzelnen Lastseite.
+ */
+
+/**
+ * Löst `K d = F` DICHT. `K` liegt ZEILENWEISE flach (n*n Werte), `F`
+ * spaltenweise flach mit `n * rhsColumns` Werten.
+ *
+ * DAS CRATE LIEST NUR DAS UNTERE DREIECK (`Llt(Side::Lower)`) — genau wie der
+ * dünnbesetzte Port, der es als Triplets bekommt. Die obere Hälfte darf
+ * mitgeliefert werden, sie wird aber nicht gelesen.
+ *
+ * Die Argumentfolge ist die der Rust-Signatur
+ * (`solve(n, k, rhs_columns, f)`), damit zwischen Port und Crate nichts
+ * umzusortieren ist.
  *
  * Darf ein Promise liefern, weil die produktive Fassung ueber einen Worker
  * laeuft (`@baustatik/linear-solver-wasm` braucht ausserdem ein asynchrones
@@ -71,8 +105,38 @@ export type LinearSolveOutcome =
 export type LinearSolve = (
   n: number,
   K: Float64Array,
+  rhsColumns: number,
   F: Float64Array,
 ) => LinearSolveOutcome | Promise<LinearSolveOutcome>;
+
+/**
+ * Löst `K d = F` DÜNNBESETZT. `K` kommt als Triplets des UNTEREN Dreiecks
+ * (`rows`, `cols`, `values` gleich lang, `row >= col`), `F` spaltenweise flach
+ * mit `n * rhsColumns` Werten.
+ *
+ * Die Argumentfolge ist die der Rust-Signatur
+ * (`solve(n, rows, cols, values, rhs_columns, f)`), aus demselben Grund wie
+ * oben.
+ */
+export type SparseSolve = (
+  n: number,
+  rows: Uint32Array,
+  cols: Uint32Array,
+  values: Float64Array,
+  rhsColumns: number,
+  F: Float64Array,
+) => LinearSolveOutcome | Promise<LinearSolveOutcome>;
+
+/**
+ * Die Namen der beiden Löser-Ports, als geschlossene Menge.
+ *
+ * Sie steht HIER, weil `SolverConfig` die Felder deklariert — ein zweiter Ort
+ * wäre eine zweite Wahrheit darüber, wie sie heißen. `InvalidSolverConfigError`
+ * nennt den fehlenden Port damit nicht als beliebige Zeichenkette: kommt ein
+ * dritter Rechenweg dazu, meldet der Übersetzer jede Stelle, die ihn noch nicht
+ * kennt (ADR 0043).
+ */
+export type SolverPortName = 'solveLinearSystem' | 'solveSparseSystem';
 
 export interface SolverConfig {
   /** PULL der Rohdaten aus dem Store — wie bei `createFEMViewer`. */
@@ -104,8 +168,28 @@ export interface SolverConfig {
    */
   getSectionStiffness: (beam: Beam) => SectionStiffness | undefined;
 
-  /** Der Linearsolver. Verdrahtet die Anwendung — hier ist er nur ein Aufruf. */
-  solveLinearSystem: LinearSolve;
+  /**
+   * Der DICHTE Linearsolver. Verdrahtet die Anwendung — hier ist er nur ein
+   * Aufruf.
+   *
+   * OPTIONAL, weil es zwei Rechenwege gibt und niemand beide braucht: wer
+   * `linearSystem: 'sparse'` eingestellt hat, lädt sonst ein WASM-Artefakt,
+   * das er nie aufruft. Verlangt die Policy diesen Weg und fehlt der Port,
+   * wirft `createFEMSolver` einen `InvalidSolverConfigError` — beim Erzeugen,
+   * nicht beim Rechnen.
+   */
+  solveLinearSystem?: LinearSolve;
+
+  /**
+   * Der DÜNNBESETZTE Linearsolver, die Voreinstellung von
+   * `AnalysisPolicy.linearSystem`.
+   *
+   * Warum er der Regelfall ist, ist eine Speicherfrage und keine
+   * Geschwindigkeitsfrage: 2 000 Knoten sind 6 000 Freiheitsgrade und damit
+   * `36e6` Zahlen — 288 MB allein für `K` im Hauptthread, bei rund zwölf
+   * besetzten Einträgen je Zeile (ADR 0043).
+   */
+  solveSparseSystem?: SparseSolve;
 
   /**
    * Die Elementformulierung. Voreinstellung `Timoshenko2D` (ADR 0004: „default

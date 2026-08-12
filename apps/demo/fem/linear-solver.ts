@@ -24,7 +24,8 @@ async function solve(button: HTMLButtonElement): Promise<void> {
   button.disabled = true;
 
   try {
-    const outcome = await solveLinearSystem(2, stiffness, load);
+    // Eine rechte Seite — der Port nimmt seit ADR 0044 beliebig viele.
+    const outcome = await solveLinearSystem(2, stiffness, 1, load);
     if (outcome.kind === 'singular') {
       output.textContent =
         `Das System ist kinematisch — aufgefallen in Zeile ${outcome.index}, ` +
