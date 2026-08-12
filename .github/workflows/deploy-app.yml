@@ -1,0 +1,72 @@
+name: Deploy App
+
+on:
+  push:
+    branches: ["main"]
+  # Optional: Erlaubt manuelles Triggern über GitHub UI
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Pages (Production)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.16.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        run: |
+          rustup toolchain install stable
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Read Emscripten pin
+        id: emscripten
+        run: |
+          version=$(node -p "require('./packages/mesh-2d-wasm/toolchain.json').emscriptenVersion")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Emscripten SDK and system libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.emsdk
+            ~/.cache/emscripten
+          key: ${{ runner.os }}-emscripten-${{ hashFiles('packages/mesh-2d-wasm/toolchain.json') }}
+
+      - name: Setup Emscripten
+        uses: emscripten-core/setup-emsdk@667eb33f24e84e7f362c16d8d7fff0629a73e15e
+        with:
+          version: ${{ steps.emscripten.outputs.version }}
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
