@@ -37,10 +37,19 @@ import { generateMesh2D } from './mesh-2d-port';
 // Und der rote Schwerpunkt (Green über den Umriss) muss dort sitzen, wo die
 // Zahl im Ausdruck steht (Integration über die Dreiecke).
 //
-// EINE SPIEGELUNG STECKT DAZWISCHEN, sie fällt hier nur nicht auf: das SVG
-// dreht die y-Achse nach oben, die Querschnittsebene lässt `z` nach unten
-// laufen (ADR 0031). Die Figur ist doppelt symmetrisch, beide Bilder sehen
-// deshalb gleich aus.
+// BEIDE BILDER LAUFEN IN DIESELBE RICHTUNG, und das musste hergestellt werden:
+// das SVG drehte die y-Achse nach oben, wie es ein generischer Mesh-Betrachter
+// tut. Auf dieser Seite sind die Ringe aber ein Querschnitt, und in seiner
+// Ebene wächst `z` nach unten (ADR 0031).
+//
+// DER UMRISS HÄTTE DIE SPIEGELUNG UNBEMERKT ÜBERSTANDEN — die Figur ist
+// doppelt symmetrisch. Die Triangulierung ist es nicht: gespiegelt zeigten
+// zwei Bilder desselben Netzes zwei verschiedene Muster, und der Vergleich,
+// für den die Seite existiert, wäre nicht zu führen gewesen.
+//
+// Die verbleibenden Unterschiede sind DARSTELLUNG und beabsichtigt: links
+// gefüllte Dreiecke mit einem Strich in Welteinheiten, rechts ein reines
+// Drahtgitter aus Eckkanten mit screen-konstanter Strichbreite.
 // ---------------------------------------------------------------------------
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -238,10 +247,18 @@ function renderMesh(result: Mesh2DResult, svg: SVGSVGElement): void {
   svg.replaceChildren();
   const { minX, minY, maxX, maxY } = bounds(result);
   const padding = 12;
-  // SVG-Koordinaten wachsen nach unten; die y-Achse des Modells wird gespiegelt.
+  // NICHT GESPIEGELT, und das ist der Unterschied zu einem generischen
+  // Mesh-Betrachter: die Ringe dieser Seite sind ein QUERSCHNITT, und in seiner
+  // Ebene laeuft `z` nach unten (ADR 0031) — dieselbe Richtung, in die
+  // SVG-Koordinaten ohnehin wachsen.
+  //
+  // Ein `-y` hier drehte nur das linke Bild um. Der Umriss ueberstuende das
+  // unbemerkt, weil die Figur doppelt symmetrisch ist; die Triangulierung ist
+  // es NICHT, und dann zeigten zwei Bilder desselben Netzes zwei verschiedene
+  // Muster. Genau der Vergleich ist aber der Zweck dieser Seite.
   svg.setAttribute(
     'viewBox',
-    `${minX - padding} ${-maxY - padding} ${maxX - minX + padding * 2} ${maxY - minY + padding * 2}`,
+    `${minX - padding} ${minY - padding} ${maxX - minX + padding * 2} ${maxY - minY + padding * 2}`,
   );
 
   const width = result.kind === 'tri3' ? 3 : 6;
@@ -300,7 +317,7 @@ function point(result: Mesh2DResult, index: number): string {
   if (x === undefined || y === undefined) {
     throw new Error('Das Mesh verweist auf einen fehlenden Knoten.');
   }
-  return `${x},${-y}`;
+  return `${x},${y}`;
 }
 
 type SectionProperties = {
