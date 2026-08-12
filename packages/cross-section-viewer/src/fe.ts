@@ -64,19 +64,19 @@ export function feSpecs(
 ): readonly Spec[] {
   if (mesh === undefined) return [];
 
-  const segments = edgesOf(mesh);
+  const indices = edgesOf(mesh);
   // Ein Netz ohne Elemente ist kein Fehler, aber auch keine Zeichnung —
-  // `SegmentSetSpec` verlangt mindestens eine Strecke.
-  if (segments.length === 0) return [];
+  // `IndexedLineListSpec` verlangt mindestens eine Linie.
+  if (indices.length === 0) return [];
 
   return [
     {
-      kind: 'segmentSet',
+      kind: 'indexedLineList',
       id: 'cross-section:fe:wireframe',
       layer: FE_LAYER,
       // OHNE KOPIE: die Punkte liegen schon so, wie der Spec sie liest.
       points: mesh.points,
-      segments,
+      indices,
       strokeColor: style.feColor,
       strokeWidth: style.feWidthPx,
     },
@@ -113,7 +113,7 @@ function edgesOf(mesh: CrossSectionFEMesh): Uint32Array {
   }
 
   const seen = new Set<number>();
-  const segments: number[] = [];
+  const indices: number[] = [];
   const pointCount = mesh.points.length / 2;
 
   for (let offset = 0; offset < elements.length; offset += width) {
@@ -132,11 +132,11 @@ function edgesOf(mesh: CrossSectionFEMesh): Uint32Array {
       const key = low * pointCount + high;
       if (seen.has(key)) continue;
       seen.add(key);
-      segments.push(low, high);
+      indices.push(low, high);
     }
   }
 
-  const edges = Uint32Array.from(segments);
+  const edges = Uint32Array.from(indices);
   EDGE_CACHE.set(mesh, edges);
   return edges;
 }

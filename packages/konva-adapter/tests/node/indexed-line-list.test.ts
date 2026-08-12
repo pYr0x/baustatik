@@ -1,15 +1,17 @@
-import type { SegmentSetSpec } from '@baustatik/render-core';
+import type { IndexedLineListSpec } from '@baustatik/render-core';
 import type Konva from 'konva';
 import { describe, expect, it } from 'vitest';
-import { segmentSetConfig } from '../../src/primitives';
+import { indexedLineListConfig } from '../../src/primitives';
 
 /** Zwei getrennte waagerechte Strecken, übereinander. */
-function segmentSet(overrides: Partial<SegmentSetSpec> = {}): SegmentSetSpec {
+function indexedLineList(
+  overrides: Partial<IndexedLineListSpec> = {},
+): IndexedLineListSpec {
   return {
     id: 'ss1',
-    kind: 'segmentSet',
+    kind: 'indexedLineList',
     points: [0, 0, 10, 0, 0, 10, 10, 10],
-    segments: [0, 1, 2, 3],
+    indices: [0, 1, 2, 3],
     strokeColor: '#d9b48a',
     strokeWidth: 1,
     ...overrides,
@@ -37,9 +39,9 @@ function recordingContext(): {
   return { calls, context: context as unknown as Konva.Context };
 }
 
-function draw(spec: SegmentSetSpec): readonly string[] {
+function draw(spec: IndexedLineListSpec): readonly string[] {
   const { calls, context } = recordingContext();
-  const sceneFunc = segmentSetConfig(spec).sceneFunc as (
+  const sceneFunc = indexedLineListConfig(spec).sceneFunc as (
     context: Konva.Context,
     shape: Konva.Shape,
   ) => void;
@@ -47,9 +49,9 @@ function draw(spec: SegmentSetSpec): readonly string[] {
   return calls;
 }
 
-describe('segmentSetConfig()', () => {
+describe('indexedLineListConfig()', () => {
   it('trägt die vollständige Stroke-Konfiguration', () => {
-    const { sceneFunc, ...rest } = segmentSetConfig(segmentSet());
+    const { sceneFunc, ...rest } = indexedLineListConfig(indexedLineList());
 
     expect(typeof sceneFunc).toBe('function');
     expect(rest).toEqual({
@@ -65,7 +67,9 @@ describe('segmentSetConfig()', () => {
 
   it('reicht strokeStyle als Dash-Muster durch', () => {
     expect(
-      segmentSetConfig(segmentSet({ strokeStyle: 'dashed' })).dash,
+      indexedLineListConfig(
+        indexedLineList({ strokeStyle: 'dashed' }),
+      ).dash,
     ).toEqual([8, 4]);
   });
 });
@@ -75,7 +79,7 @@ describe('Die sceneFunc trennt die Strecken', () => {
     // DER PIN: ohne das `moveTo` je Strecke zöge der Canvas eine Linie vom Ende
     // der einen zum Anfang der nächsten Kante — und ein Drahtgitter wäre voller
     // Kanten, die es im Netz nicht gibt.
-    expect(draw(segmentSet())).toEqual([
+    expect(draw(indexedLineList())).toEqual([
       'beginPath',
       'moveTo(0,0)',
       'lineTo(10,0)',
@@ -89,7 +93,7 @@ describe('Die sceneFunc trennt die Strecken', () => {
     // `beginPath` und `strokeShape` stehen außen: ein Aufruf je Kante wäre
     // genau die Knotenlawine, die der Spec vermeidet.
     const calls = draw(
-      segmentSet({ segments: [0, 1, 1, 3, 3, 2, 2, 0] }),
+      indexedLineList({ indices: [0, 1, 1, 3, 3, 2, 2, 0] }),
     );
 
     expect(calls.filter((call) => call === 'beginPath')).toHaveLength(1);
@@ -98,7 +102,7 @@ describe('Die sceneFunc trennt die Strecken', () => {
   });
 
   it('liest die Puffer über die Indizes, nicht der Reihe nach', () => {
-    expect(draw(segmentSet({ segments: [3, 0] }))).toEqual([
+    expect(draw(indexedLineList({ indices: [3, 0] }))).toEqual([
       'beginPath',
       'moveTo(10,10)',
       'lineTo(0,0)',
@@ -109,9 +113,9 @@ describe('Die sceneFunc trennt die Strecken', () => {
   it('nimmt typisierte Puffer ohne Umweg', () => {
     expect(
       draw(
-        segmentSet({
+        indexedLineList({
           points: new Float64Array([0, 0, 4, 3]),
-          segments: new Uint32Array([0, 1]),
+          indices: new Uint32Array([0, 1]),
         }),
       ),
     ).toEqual(['beginPath', 'moveTo(0,0)', 'lineTo(4,3)', 'strokeShape']);

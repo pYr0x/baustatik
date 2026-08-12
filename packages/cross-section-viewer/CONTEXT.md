@@ -31,7 +31,7 @@ values. Everything it draws was computed by someone else and travelled here.
 - `@baustatik/section-geometry`: `Bulge` and `Point` for the arc walls.
 - `@baustatik/units`: `convert` for the one m → mm conversion.
 - `@baustatik/errors`: base `BaustatikError` for `InvalidFEMeshError`.
-- `@baustatik/render-core`: `Spec`, `SegmentSetSpec`, `RenderDriver`,
+- `@baustatik/render-core`: `Spec`, `IndexedLineListSpec`, `RenderDriver`,
   `assertNever`.
 - `@baustatik/grid-2d`: `gridSpecs`, `GridOptions` for the background grid.
 - `@baustatik/viewport-2d`: `Viewport`, `Size`, `worldPoint`, `pan`,
@@ -139,7 +139,7 @@ bands draw the *same* cross-section.
   look darker along every interior edge. A `WeakMap` keyed on the mesh object
   caches the derived edges — pan and zoom change only the viewport, never the
   topology.
-- **`SegmentSetSpec` instead of one `LineSpec` per edge**: a few thousand elements
+- **`IndexedLineListSpec` instead of one `LineSpec` per edge**: a few thousand elements
   would otherwise become as many adapter nodes. The points buffer passes through
   **uncopied**, because a mesh already holds `y`/`z` millimetres.
 - **Results are pulls, and an omitted pull equals `undefined`**: there is no extra

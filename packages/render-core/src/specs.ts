@@ -97,16 +97,16 @@ export interface ArcPathSpec extends SpecBase, Stroke {
 }
 
 /**
- * EINE MENGE UNABHAENGIGER STRECKEN in einer einzigen Spec — das Primitive fuer
+ * EINE LISTE UNABHAENGIGER LINIEN in einer einzigen Spec — das Primitive fuer
  * ein Drahtgitter.
  *
  * WARUM NICHT `LineSpec` JE KANTE: ein Netz mit einigen tausend Elementen
  * erzeugte ebenso viele Adapter-Knoten, und jede von zwei Elementen geteilte
- * Kante waere doppelt darin. Der Streckensatz haelt beides zusammen: EIN Spec,
+ * Kante waere doppelt darin. Die indexierte Linienliste haelt beides zusammen: EIN Spec,
  * EINE Zeichenform, jede Kante einmal.
  *
  * FLACHE PUFFER, KEINE `WorldPoint[]`: `points` ist `[u0, v0, u1, v1, …]`,
- * `segments` sind flache Punktindexpaare `[a0, b0, a1, b1, …]`. `ArrayLike`
+ * `indices` sind flache Punktindexpaare `[a0, b0, a1, b1, …]`. `ArrayLike`
  * statt `readonly number[]`, damit ein `Float64Array`/`Uint32Array` aus einem
  * Mesher ohne Objekt- oder Kopierlawine durchgereicht werden kann — und
  * trotzdem ein gewoehnliches Array danebensteht.
@@ -117,15 +117,15 @@ export interface ArcPathSpec extends SpecBase, Stroke {
  * nicht bei ihrem Anlass.
  *
  * ES GIBT KEINE FUELLUNG, wie beim `arcPath` und aus demselben Grund: ein
- * Streckensatz ist ein Strich, keine Flaeche. Zwei getrennte Strecken bleiben
+ * Linienliste ist ein Strich, keine Flaeche. Zwei getrennte Linien bleiben
  * getrennt — der Adapter verbindet sie nicht.
  */
-export interface SegmentSetSpec extends SpecBase, Stroke {
-  readonly kind: 'segmentSet';
+export interface IndexedLineListSpec extends SpecBase, Stroke {
+  readonly kind: 'indexedLineList';
   /** Flach `[u0, v0, u1, v1, …]`. */
   readonly points: ArrayLike<number>;
   /** Flache Punktindexpaare `[a0, b0, a1, b1, …]` in `points`. */
-  readonly segments: ArrayLike<number>;
+  readonly indices: ArrayLike<number>;
 }
 
 /**
@@ -171,7 +171,7 @@ export type PrimitiveSpec =
   | TriangleSpec
   | ArrowSpec
   | ArcPathSpec
-  | SegmentSetSpec
+  | IndexedLineListSpec
   | LabelSpec;
 
 /**

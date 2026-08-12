@@ -146,7 +146,7 @@ describe('reconcile — diffing against the live Konva tree', () => {
     h.destroy();
   });
 
-  it('builds a segment set as ONE Konva.Shape and patches its buffers', () => {
+  it('builds an indexed line list as ONE Konva.Shape and patches its buffers', () => {
     // Der ganze Zweck des Specs: ein Drahtgitter ist EIN Knoten, nicht einer je
     // Kante. Und weil die Puffer in der `sceneFunc` stecken, muss der
     // gewoehnliche setAttrs-Patch eine NEUE sceneFunc auf dieselbe Shape setzen
@@ -154,10 +154,10 @@ describe('reconcile — diffing against the live Konva tree', () => {
     const h = createAdapterHarness({ layers: ['grid', 'fe'] });
     const mesh = (points: number[]): Spec => ({
       id: 'wire',
-      kind: 'segmentSet',
+      kind: 'indexedLineList',
       layer: 'fe',
       points: new Float64Array(points),
-      segments: new Uint32Array([0, 1]),
+      indices: new Uint32Array([0, 1]),
       strokeColor: '#d9b48a',
       strokeWidth: 1,
     });

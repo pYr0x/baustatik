@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidSpecError, type SegmentSetSpec, validateSpec } from '../src';
+import {
+  type IndexedLineListSpec,
+  InvalidSpecError,
+  validateSpec,
+} from '../src';
 
 /** Zwei getrennte Strecken auf vier Punkten — der Regelfall eines Drahtgitters. */
-function segmentSet(overrides: Partial<SegmentSetSpec> = {}): SegmentSetSpec {
+function indexedLineList(
+  overrides: Partial<IndexedLineListSpec> = {},
+): IndexedLineListSpec {
   return {
     id: 'ss1',
-    kind: 'segmentSet',
+    kind: 'indexedLineList',
     points: [0, 0, 10, 0, 0, 10, 10, 10],
-    segments: [0, 1, 2, 3],
+    indices: [0, 1, 2, 3],
     strokeColor: '#000',
     strokeWidth: 1,
     ...overrides,
@@ -16,7 +22,7 @@ function segmentSet(overrides: Partial<SegmentSetSpec> = {}): SegmentSetSpec {
 
 describe('Der Streckensatz nimmt beide Pufferarten', () => {
   it('akzeptiert gewöhnliche JavaScript-Arrays', () => {
-    expect(() => validateSpec(segmentSet())).not.toThrow();
+    expect(() => validateSpec(indexedLineList())).not.toThrow();
   });
 
   it('akzeptiert Float64Array und Uint32Array unverändert', () => {
@@ -25,9 +31,9 @@ describe('Der Streckensatz nimmt beide Pufferarten', () => {
     // würde genau diesen Fall zurückweisen.
     expect(() =>
       validateSpec(
-        segmentSet({
+        indexedLineList({
           points: new Float64Array([0, 0, 10, 0, 0, 10, 10, 10]),
-          segments: new Uint32Array([0, 1, 2, 3]),
+          indices: new Uint32Array([0, 1, 2, 3]),
         }),
       ),
     ).not.toThrow();
@@ -36,7 +42,9 @@ describe('Der Streckensatz nimmt beide Pufferarten', () => {
 
 describe('Die Puffer müssen zueinander passen', () => {
   it('weist eine ungerade Koordinatenzahl zurück', () => {
-    expect(() => validateSpec(segmentSet({ points: [0, 0, 10] }))).toThrow(
+    expect(() =>
+      validateSpec(indexedLineList({ points: [0, 0, 10] })),
+    ).toThrow(
       InvalidSpecError,
     );
   });
@@ -44,7 +52,7 @@ describe('Die Puffer müssen zueinander passen', () => {
   it('weist weniger als zwei Punkte zurück', () => {
     // Ein einzelner Punkt trägt keine Strecke, genau wie ein Polygon unter drei
     // Punkten keine Fläche trägt.
-    expect(() => validateSpec(segmentSet({ points: [0, 0] }))).toThrow(
+    expect(() => validateSpec(indexedLineList({ points: [0, 0] }))).toThrow(
       InvalidSpecError,
     );
   });
@@ -52,16 +60,18 @@ describe('Die Puffer müssen zueinander passen', () => {
   it('weist nicht endliche Koordinaten zurück', () => {
     for (const bad of [Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() =>
-        validateSpec(segmentSet({ points: [0, 0, 10, bad] })),
+        validateSpec(indexedLineList({ points: [0, 0, 10, bad] })),
       ).toThrow(InvalidSpecError);
     }
   });
 
   it('weist eine ungerade Indexzahl und eine leere Menge zurück', () => {
-    expect(() => validateSpec(segmentSet({ segments: [0, 1, 2] }))).toThrow(
+    expect(() =>
+      validateSpec(indexedLineList({ indices: [0, 1, 2] })),
+    ).toThrow(
       InvalidSpecError,
     );
-    expect(() => validateSpec(segmentSet({ segments: [] }))).toThrow(
+    expect(() => validateSpec(indexedLineList({ indices: [] }))).toThrow(
       InvalidSpecError,
     );
   });
@@ -70,7 +80,9 @@ describe('Die Puffer müssen zueinander passen', () => {
     // Vier Punkte, gültig ist also [0, 4). Ein Index daneben ließe den Adapter
     // aus dem Nichts lesen.
     for (const bad of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY, 4]) {
-      expect(() => validateSpec(segmentSet({ segments: [0, bad] }))).toThrow(
+      expect(() =>
+        validateSpec(indexedLineList({ indices: [0, bad] })),
+      ).toThrow(
         InvalidSpecError,
       );
     }
@@ -82,12 +94,14 @@ describe('Erlaubt bleibt, was nur der Erzeuger beurteilen kann', () => {
     // Geometrisch unschädlich und wie bei `LineSpec` nicht Sache der
     // Validierung: sie prüft die Lesbarkeit der Puffer, nicht die Zeichnung.
     expect(() =>
-      validateSpec(segmentSet({ segments: [0, 1, 1, 0, 0, 1, 2, 2] })),
+      validateSpec(
+        indexedLineList({ indices: [0, 1, 1, 0, 0, 1, 2, 2] }),
+      ),
     ).not.toThrow();
   });
 });
 
-describe('Der Streckensatz ist ein gewöhnliches Primitive', () => {
+describe('Die indexierte Linienliste ist ein gewöhnliches Primitive', () => {
   it('darf Kind einer Gruppe sein', () => {
     // Er steht in `ShapeSpec` und bekommt damit kein Sonderrecht — anders als
     // `label`, das im Renderer selbst eine Gruppe ist.
@@ -97,7 +111,7 @@ describe('Der Streckensatz ist ein gewöhnliches Primitive', () => {
         kind: 'group',
         position: { u: 0, v: 0 },
         translation: { u: 0, v: 0 },
-        children: [segmentSet({ layer: undefined })],
+        children: [indexedLineList({ layer: undefined })],
       }),
     ).not.toThrow();
   });

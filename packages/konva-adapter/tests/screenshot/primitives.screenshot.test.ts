@@ -145,17 +145,17 @@ describe('primitive shapes — screenshot baselines', () => {
     ]);
   });
 
-  it('renders a segment set as two SEPARATE lines', async () => {
+  it('renders an indexed line list as two SEPARATE lines', async () => {
     // Die eine Zusage, die nur ein Bild belegen kann: zwischen den beiden
     // Strecken steht keine Verbindungslinie. Ein vergessenes `moveTo` je
     // Teilpfad zoege eine Diagonale quer durchs Bild — im Zahlenvergleich
     // unsichtbar, hier sofort zu sehen.
-    await snapshot('primitive-segment-set', [
+    await snapshot('primitive-indexed-line-list', [
       {
-        id: 'segment-set',
-        kind: 'segmentSet',
+        id: 'indexed-line-list',
+        kind: 'indexedLineList',
         points: new Float64Array([-4, -2, 4, -2, -4, 2, 4, 2]),
-        segments: new Uint32Array([0, 1, 2, 3]),
+        indices: new Uint32Array([0, 1, 2, 3]),
         strokeColor: '#1d4ed8',
         strokeWidth: 3,
       },

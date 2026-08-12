@@ -77,12 +77,12 @@ Important consumers:
   points down, so a growing angle _is_ `sweep-flag: 1` — no sign flip. Should a
   ring segment ever be needed, it arrives as its own spec and _that_ one maps to
   `Konva.Arc`.
-- **`segmentSet` is the one primitive with its own `sceneFunc`**: no ready-made
-  Konva form draws independent segments without joining them — `Konva.Line` pulls
+- **`indexedLineList` is the one primitive with its own `sceneFunc`**: no ready-made
+  Konva form draws independent lines without joining them — `Konva.Line` pulls
   its points into a single polyline. It therefore maps to a bare `Konva.Shape`
   whose scene function calls `beginPath()` once, starts a **separate subpath with
   `moveTo()` for every segment**, and ends in one `strokeShape(shape)`. Without the
-  per-segment `moveTo` the canvas would connect the end of one edge to the start of
+  per-line `moveTo` the canvas would connect the end of one edge to the start of
   the next. `strokeShape` supplies colour, dash, hit canvas and the screen-constant
   stroke rule, so the primitive sets none of them itself. The ordinary patch path
   carries it: `setAttrs` puts a **new** scene function, closed over the current
@@ -120,7 +120,7 @@ Test projects:
 
 - **Unit** (node): pure `*Config` functions, `DASH_PATTERNS`, triangle geometry, the
   arc's path data (endpoints and both flags) and `labelTopLeft` against given box
-  sizes. No Konva needed. The segment set is the exception whose promise is not in
+  sizes. No Konva needed. The indexed line list is the exception whose promise is not in
   its config: a **recording canvas context** replays its scene function and pins the
   call sequence.
 - **Browser** (chromium): reconciler, bands and interaction against real Konva,

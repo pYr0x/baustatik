@@ -1,4 +1,4 @@
-import type { SegmentSetSpec } from '@baustatik/render-core';
+import type { IndexedLineListSpec } from '@baustatik/render-core';
 import type Konva from 'konva';
 import { strokeConfig } from '../stroke';
 
@@ -18,16 +18,16 @@ import { strokeConfig } from '../stroke';
  * `strokeShape` uebernimmt Farbe, Dash, Hit-Canvas und die Regel fuer
  * screen-konstante Striche; der Adapter setzt sie also nicht selbst.
  */
-function segmentSetSceneFunc(
-  spec: SegmentSetSpec,
+function indexedLineListSceneFunc(
+  spec: IndexedLineListSpec,
 ): (context: Konva.Context, shape: Konva.Shape) => void {
   return (context, shape) => {
-    const { points, segments } = spec;
+    const { indices, points } = spec;
     context.beginPath();
-    // Schrittweite zwei: `segments` traegt Indexpaare, `points` Koordinatenpaare.
-    for (let i = 0; i + 1 < segments.length; i += 2) {
-      const from = segments[i] * 2;
-      const to = segments[i + 1] * 2;
+    // Schrittweite zwei: `indices` traegt Indexpaare, `points` Koordinatenpaare.
+    for (let i = 0; i + 1 < indices.length; i += 2) {
+      const from = indices[i] * 2;
+      const to = indices[i + 1] * 2;
       context.moveTo(points[from], points[from + 1]);
       context.lineTo(points[to], points[to + 1]);
     }
@@ -36,14 +36,16 @@ function segmentSetSceneFunc(
 }
 
 /**
- * Neutrale `SegmentSetSpec` -> `Konva.ShapeConfig`. Rein wie jede andere
+ * Neutrale `IndexedLineListSpec` -> `Konva.ShapeConfig`. Rein wie jede andere
  * `*Config`: die `sceneFunc` schliesst die Puffer der aktuellen Spec ein, und
  * ein Patch setzt ueber `setAttrs` eine neue auf dieselbe `Konva.Shape`.
  */
-export function segmentSetConfig(spec: SegmentSetSpec): Konva.ShapeConfig {
+export function indexedLineListConfig(
+  spec: IndexedLineListSpec,
+): Konva.ShapeConfig {
   return {
     id: spec.id,
-    sceneFunc: segmentSetSceneFunc(spec),
+    sceneFunc: indexedLineListSceneFunc(spec),
     ...strokeConfig(spec),
   };
 }

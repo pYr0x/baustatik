@@ -206,7 +206,7 @@ not the generic mesher's.
 
 The wireframe draws the three **corner** edges per element, each exactly once —
 for Tri6 as well, because its edges stay straight and the mid-nodes sit at their
-midpoints. All of it becomes a single `SegmentSetSpec`, so a mesh with a few
+midpoints. All of it becomes a single `IndexedLineListSpec`, so a mesh with a few
 thousand elements is one adapter node rather than several thousand.
 
 A mesh whose element list does not add up to its own `kind` **throws**

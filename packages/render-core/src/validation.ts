@@ -2,7 +2,7 @@ import { atOrThrow } from '@baustatik/core';
 import type { WorldPoint } from '@baustatik/viewport-2d';
 import { InvalidWorldPointError } from '@baustatik/viewport-2d';
 import { DuplicateSpecIdError, InvalidSpecError } from './errors';
-import type { LabelSpec, SegmentSetSpec, ShapeSpec, Spec } from './specs';
+import type { IndexedLineListSpec, LabelSpec, ShapeSpec, Spec } from './specs';
 
 function checkWorldPoint(
   point: WorldPoint,
@@ -118,20 +118,20 @@ function isNumericBuffer(value: unknown): value is ArrayLike<number> {
 }
 
 /**
- * Der Streckensatz — zwei flache Puffer, die zueinander passen muessen.
+ * Die indexierte Linienliste — zwei flache Puffer, die zueinander passen muessen.
  *
  * GEPRUEFT WIRD DIE LESBARKEIT, NICHT DIE SCHOENHEIT: eine ungerade Pufferlaenge
  * oder ein Index ausserhalb von `points` liesse den Adapter aus dem Nichts
  * lesen. Doppelte, rueckwaerts gerichtete oder zu einem Punkt entartete
- * Strecken bleiben dagegen ERLAUBT — sie sind geometrisch unschaedlich und wie
+ * Linien bleiben dagegen ERLAUBT — sie sind geometrisch unschaedlich und wie
  * bei `LineSpec` Sache ihres Erzeugers. Leere Mengen kommen gar nicht erst als
  * Spec an: wer nichts zu zeichnen hat, emittiert keine.
  */
-function checkSegmentSet(spec: SegmentSetSpec): void {
-  if (!isNumericBuffer(spec.points) || !isNumericBuffer(spec.segments)) {
+function checkIndexedLineList(spec: IndexedLineListSpec): void {
+  if (!isNumericBuffer(spec.points) || !isNumericBuffer(spec.indices)) {
     throw new InvalidSpecError(
       spec.id,
-      'points und segments muessen indizierbare Zahlenpuffer sein',
+      'points und indices muessen indizierbare Zahlenpuffer sein',
     );
   }
 
@@ -151,20 +151,20 @@ function checkSegmentSet(spec: SegmentSetSpec): void {
     }
   }
 
-  const { length: segmentLength } = spec.segments;
-  if (segmentLength < 2 || segmentLength % 2 !== 0) {
+  const { length: indexLength } = spec.indices;
+  if (indexLength < 2 || indexLength % 2 !== 0) {
     throw new InvalidSpecError(
       spec.id,
-      `segments muss gerade viele Indizes und mindestens eine Strecke enthalten, erhalten: ${segmentLength}`,
+      `indices muss gerade viele Indizes und mindestens eine Linie enthalten, erhalten: ${indexLength}`,
     );
   }
   const pointCount = pointLength / 2;
-  for (let i = 0; i < segmentLength; i++) {
-    const index = spec.segments[i];
+  for (let i = 0; i < indexLength; i++) {
+    const index = spec.indices[i];
     if (!Number.isInteger(index) || index < 0 || index >= pointCount) {
       throw new InvalidSpecError(
         spec.id,
-        `segments[${i}] muss ein Punktindex in [0, ${pointCount}) sein, erhalten: ${index}`,
+        `indices[${i}] muss ein Punktindex in [0, ${pointCount}) sein, erhalten: ${index}`,
       );
     }
   }
@@ -290,9 +290,9 @@ export function validateSpec(spec: Spec): void {
       }
       break;
 
-    case 'segmentSet':
+    case 'indexedLineList':
       checkStrokeAndFill(spec);
-      checkSegmentSet(spec);
+      checkIndexedLineList(spec);
       break;
 
     case 'label':

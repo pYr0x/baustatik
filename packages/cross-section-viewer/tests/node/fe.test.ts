@@ -1,4 +1,4 @@
-import type { SegmentSetSpec } from '@baustatik/render-core';
+import type { IndexedLineListSpec } from '@baustatik/render-core';
 import { describe, expect, it } from 'vitest';
 
 import { InvalidFEMeshError } from '../../src/errors';
@@ -42,26 +42,26 @@ function tri6(): CrossSectionFEMesh {
   };
 }
 
-function wireframe(mesh: CrossSectionFEMesh): SegmentSetSpec {
+function wireframe(mesh: CrossSectionFEMesh): IndexedLineListSpec {
   const specs = feSpecs(mesh, DEFAULT_STYLE);
   expect(specs).toHaveLength(1);
-  return specs[0] as SegmentSetSpec;
+  return specs[0] as IndexedLineListSpec;
 }
 
 /** Die Kanten als vergleichbare, sortierte Paare. */
-function edges(spec: SegmentSetSpec): string[] {
+function edges(spec: IndexedLineListSpec): string[] {
   const pairs: string[] = [];
-  for (let i = 0; i < spec.segments.length; i += 2) {
-    pairs.push(`${spec.segments[i]}-${spec.segments[i + 1]}`);
+  for (let i = 0; i < spec.indices.length; i += 2) {
+    pairs.push(`${spec.indices[i]}-${spec.indices[i + 1]}`);
   }
   return pairs.sort();
 }
 
-describe('Das Netz wird zu genau einem Streckensatz', () => {
+describe('Das Netz wird zu genau einer indexierten Linienliste', () => {
   it('liegt auf dem fe-Band und traegt die Netzpunkte ohne Kopie', () => {
     const spec = wireframe(tri3());
 
-    expect(spec.kind).toBe('segmentSet');
+    expect(spec.kind).toBe('indexedLineList');
     expect(spec.id).toBe('cross-section:fe:wireframe');
     expect(spec.layer).toBe('fe');
     // Die Punkte liegen bereits in y/z-Millimetern — es gibt nichts
@@ -76,7 +76,7 @@ describe('Das Netz wird zu genau einem Streckensatz', () => {
     // und ein Strich mit Alpha saehe an jeder Innenkante dunkler aus.
     const spec = wireframe(tri3());
 
-    expect(spec.segments).toHaveLength(10);
+    expect(spec.indices).toHaveLength(10);
     expect(edges(spec)).toEqual(['0-1', '0-2', '1-2', '1-3', '2-3']);
   });
 
@@ -93,7 +93,7 @@ describe('Ein neues Netz ersetzt den Wireframe', () => {
     // Pan und Zoom aendern nur den Viewport, nicht die Topologie: derselbe
     // Puffer, kein zweiter Durchlauf.
     const mesh = tri3();
-    expect(wireframe(mesh).segments).toBe(wireframe(mesh).segments);
+    expect(wireframe(mesh).indices).toBe(wireframe(mesh).indices);
   });
 
   it('ein anderes Netzobjekt liefert andere Puffer bei gleicher ID', () => {
@@ -106,7 +106,7 @@ describe('Ein neues Netz ersetzt den Wireframe', () => {
     });
 
     expect(after.id).toBe(before.id);
-    expect(after.segments).not.toBe(before.segments);
+    expect(after.indices).not.toBe(before.indices);
     expect(edges(after)).toEqual(['0-1', '0-2', '1-2']);
   });
 });
@@ -117,7 +117,7 @@ describe('Kein Netz heisst kein Band', () => {
   });
 
   it('emittiert auch fuer ein leeres Netz keine Spec', () => {
-    // `SegmentSetSpec` verlangt mindestens eine Strecke; eine leere Menge waere
+    // `IndexedLineListSpec` verlangt mindestens eine Linie; eine leere Menge waere
     // eine Spec, die nichts zeigt.
     expect(
       feSpecs(

@@ -6,8 +6,8 @@
 
 Cross-section viewer restructured, plus a wireframe primitive for it.
 
-`@baustatik/render-core` gains `SegmentSetSpec`, a mesh-agnostic primitive for a
-set of independent line segments: flat `points` (`[u0, v0, …]`) and `segments`
+`@baustatik/render-core` gains `IndexedLineListSpec`, a mesh-agnostic primitive
+for a list of independent lines: flat `points` (`[u0, v0, …]`) and `indices`
 (flat index pairs) as `ArrayLike<number>`, so a `Float64Array`/`Uint32Array`
 passes through without a copy. One spec per wireframe instead of one `LineSpec`
 per edge. Validation checks that both buffers can be read; duplicate, reversed
