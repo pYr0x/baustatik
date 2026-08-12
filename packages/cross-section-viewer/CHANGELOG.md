@@ -1,5 +1,14 @@
 # @baustatik/cross-section-viewer
 
+## 0.0.4
+
+### Patch Changes
+
+- @baustatik/cross-section@0.0.4
+- @baustatik/render-core@0.0.2
+- @baustatik/section-geometry@0.0.3
+- @baustatik/grid-2d@0.0.2
+
 ## 0.0.3
 
 ### Patch Changes
