@@ -38,7 +38,7 @@ import {
  * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  */
 const ARC_TOLERANCE = 0.05; // mm, wie `DEFAULT_ARC_TOLERANCE`
-const POLICY = createSectionPolicy({ arcTolerance: ARC_TOLERANCE });
+const POLICY = createSectionPolicy({ discretisationTolerance: ARC_TOLERANCE });
 
 /** Ein tragender Umriss, damit `EmptyOutlineError` nicht dazwischenfunkt. */
 const SOME_OUTLINE = [
@@ -247,7 +247,7 @@ describe('Satz 3: der Knick am Bogen, an der Toleranz aufgehängt', () => {
     expect(first).toBeInstanceOf(TangentKinkWarning);
     const kink = first as TangentKinkWarning;
     expect(kink.notch).toBeGreaterThan(ARC_TOLERANCE);
-    expect(kink.arcTolerance).toBe(ARC_TOLERANCE);
+    expect(kink.discretisationTolerance).toBe(ARC_TOLERANCE);
     // ~2,7 Grad — über der Schranke, die 6 mm Wandstärke bei 0,05 mm
     // Toleranz zulassen (rund 1,9 Grad).
     expect(kink.theta).toBeCloseTo(0.0476, 4);
@@ -266,7 +266,7 @@ describe('Satz 3: der Knick am Bogen, an der Toleranz aufgehängt', () => {
     // Die Policy hat den Wert nicht neu gesetzt, sondern liest ihn aus
     // `@baustatik/section-geometry` (ADR 0033). Bewegt sich die Zahl dort,
     // fällt es hier auf und nicht erst im Umriss.
-    expect(DEFAULT_SECTION_POLICY.arcTolerance).toBe(ARC_TOLERANCE);
+    expect(DEFAULT_SECTION_POLICY.discretisationTolerance).toBe(ARC_TOLERANCE);
     expect(
       validateSectionGeometry(corner(2.2, 6), DEFAULT_SECTION_POLICY).warnings,
     ).toHaveLength(2);
@@ -669,10 +669,10 @@ describe('Die Drift: der mitgeführte Umriss gegen seine Neuableitung', () => {
     expect(drift.derived).toBeCloseTo(1000, 6);
   });
 
-  it('schweigt bei einem Umriss aus ANDERER arcTolerance, solange er unter der Schranke bleibt', () => {
+  it('schweigt bei einem Umriss aus ANDERER discretisationTolerance, solange er unter der Schranke bleibt', () => {
     // Die Toleranz reist seit ADR 0033 im Satz mit und ist damit erklärbar:
     // eine feinere Zerlegung ändert die Punktzahl, nicht die Fläche.
-    const grob = createSectionPolicy({ arcTolerance: 0.4 });
+    const grob = createSectionPolicy({ discretisationTolerance: 0.4 });
     const bogen: Wall[] = [
       { id: 'w1', startNodeId: 'n1', endNodeId: 'n2', t: 10, bulge: 0.5 },
     ];
@@ -776,7 +776,7 @@ describe('Der gekappte Miter-Spitz und die nicht endliche Wölbung', () => {
 
   it('meldet `bulge = NaN` statt es still durchlaufen zu lassen', () => {
     // Bis P2 lief der Wert durch: die Knickprüfung rechnet `notch = NaN`, und
-    // `NaN > arcTolerance` ist `false`. Für `t` prüft G4 längst
+    // `NaN > discretisationTolerance` ist `false`. Für `t` prüft G4 längst
     // `Number.isFinite`.
     const { errors } = check(
       midline(
@@ -825,8 +825,8 @@ describe('Der gekappte Miter-Spitz und die nicht endliche Wölbung', () => {
       kind: 'wall',
       wallId: 'w1',
     });
-    expect((errors[0] as UndiscretisableBulgeError).arcTolerance).toBe(
-      POLICY.arcTolerance,
+    expect((errors[0] as UndiscretisableBulgeError).discretisationTolerance).toBe(
+      POLICY.discretisationTolerance,
     );
   });
 

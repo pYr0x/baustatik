@@ -7,13 +7,13 @@
  * schon in
  * [ADR 0011](../../../docs/adr/0011-analysis-settings-split-into-versioned-policy-and-ports.md):
  * eine Analyse-Einstellung *„steuert die Rechnung, OHNE DAS MODELL ZU AENDERN"*.
- * `arcTolerance` ändert es. Der abgeleitete Umriss reist nach
+ * `discretisationTolerance` ändert es. Der abgeleitete Umriss reist nach
  * [ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)
  * IM SATZ mit, und seine Punktzahl hängt an dieser Zahl — aus ihr fallen `A`,
  * `Iy` und `Iz`.
  *
  * SEIT P5 LIEST DIE RECHENSTRECKE SIE DOCH, und zwar genau ein Feld:
- * `arcTolerance`, damit der Wandweg seine Bogenwände unter DERSELBEN Toleranz
+ * `discretisationTolerance`, damit der Wandweg seine Bogenwände unter DERSELBEN Toleranz
  * zerlegt wie der mitgeführte Umriss (ADR 0040). Zwei Diskretisierungen
  * derselben Figur stünden sonst in κ, ohne dass irgendwo etwas fehlte. Der
  * Satz von ADR 0033 — „der Löser trüge eine Zahl mit, die er nie liest" —
@@ -58,7 +58,7 @@ import { InvalidSectionPolicyError } from './errors';
  *
  * | Feld                     | ändert den Umriss | beurteilt ihn |
  * | ------------------------ | ----------------- | ------------- |
- * | `arcTolerance`           | ja                | —             |
+ * | `discretisationTolerance`           | ja                | —             |
  * | `miterLimit`             | ja                | —             |
  * | `principalAxisTolerance` | —                 | ja            |
  * | `thickWallRatio`         | —                 | ja            |
@@ -86,11 +86,16 @@ import { InvalidSectionPolicyError } from './errors';
  * Ergebnis zu verschlechtern.
  *
  * DIE KNICKSCHRANKE IST EBENFALLS KEIN FELD: sie wird nach ADR 0032 aus
- * `arcTolerance` ABGELEITET (`notch > arcTolerance`), nicht gesetzt.
+ * `discretisationTolerance` ABGELEITET (`notch > discretisationTolerance`), nicht gesetzt.
  */
 export type SectionPolicy = {
   /**
    * Zulässige Sehnenabweichung der Diskretisierung [mm].
+   *
+   * DER NAME NENNT DIE WIRKUNG, NICHT DIE GRÖSSE: sie heißt
+   * `discretisationTolerance`, nicht `arcTolerance`, weil sie nicht nur Bögen
+   * steuert, sondern die gesamte Diskretisierung (ADR 0037, 0038) — die
+   * Sehnenabweichung ist ihre Einheit, nicht ihr Gegenstand.
    *
    * GEBRANDET, weil das Feld künftig im Modellsatz neben `Wall.t` und
    * `SectionNode.y` steht, die alle `mm` tragen. ADR 0032 hat die Einheit so
@@ -102,7 +107,7 @@ export type SectionPolicy = {
    * (`Bulge.isStraight`). Aus ihr fällt außerdem die Knickschranke des
    * Gates (ADR 0032).
    */
-  readonly arcTolerance: mm;
+  readonly discretisationTolerance: mm;
 
   /**
    * Ab wann `Iyz` als null gilt: `|Iyz| <= tol · max(|Iy|, |Iz|)` heißt
@@ -114,7 +119,7 @@ export type SectionPolicy = {
    * ausgerechnet dort, wo `Iy` klein und `Iz` groß ist.
    *
    * DER NAME NENNT DIE FRAGE („liegt Hauptachsenlage vor"), NICHT DIE GRÖSSE.
-   * Dieselbe Figur wie bei `arcTolerance`, das auch nicht `sagittaTolerance`
+   * Dieselbe Figur wie bei `discretisationTolerance`, das auch nicht `sagittaTolerance`
    * heißt.
    *
    * SIE WIRD ALLEIN VOM GATE GELESEN. `principalAxes` bleibt total, rein und
@@ -143,7 +148,7 @@ export type SectionPolicy = {
    * EIN ERZEUGUNGS-FELD UND KEIN ANALYSE-FELD, wörtlich nach dem Kriterium von
    * [ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md):
    * es verändert den GESPEICHERTEN Umriss und damit `A`, `Iy`, `Iz` — genauso
-   * wie `arcTolerance`, und anders als eine Zahl, die bloß beurteilt.
+   * wie `discretisationTolerance`, und anders als eine Zahl, die bloß beurteilt.
    *
    * DAS KAPPEN IST ZULÄSSIG, ABER NIE STILLSCHWEIGEND. Reale Bleche werden
    * abgeschnitten, ein Knotenblech unter `30°` verlöre unter der Voreinstellung
@@ -177,7 +182,7 @@ export type SectionPolicy = {
    * ein Kasten `100×100` mit `t = 30` auf `0,43` und meldet sich.
    *
    * EIN BEURTEILUNGSFELD, kein Erzeugungsfeld — es steht auf der Seite von
-   * `principalAxisTolerance` und nicht auf der von `arcTolerance`/`miterLimit`:
+   * `principalAxisTolerance` und nicht auf der von `discretisationTolerance`/`miterLimit`:
    * es ändert den gespeicherten Umriss nicht, es urteilt über ihn. Gelesen
    * wird es allein vom Gate.
    */
@@ -243,7 +248,7 @@ export type SectionPolicyOverrides = Partial<SectionPolicy>;
  * Integrationen über zwei verschiedene Figuren fällt und nicht aus einer.
  */
 export const DEFAULT_SECTION_POLICY: SectionPolicy = Object.freeze({
-  arcTolerance: DEFAULT_ARC_TOLERANCE,
+  discretisationTolerance: DEFAULT_ARC_TOLERANCE,
   principalAxisTolerance: 1e-9,
   miterLimit: 2,
   thickWallRatio: 1 / 3,
@@ -251,7 +256,7 @@ export const DEFAULT_SECTION_POLICY: SectionPolicy = Object.freeze({
 });
 
 const FIELDS = [
-  'arcTolerance',
+  'discretisationTolerance',
   'principalAxisTolerance',
   'miterLimit',
   'thickWallRatio',
@@ -271,7 +276,9 @@ export function createSectionPolicy(
   }
 
   const policy: SectionPolicy = {
-    arcTolerance: overrides.arcTolerance ?? DEFAULT_SECTION_POLICY.arcTolerance,
+    discretisationTolerance:
+      overrides.discretisationTolerance ??
+      DEFAULT_SECTION_POLICY.discretisationTolerance,
     principalAxisTolerance:
       overrides.principalAxisTolerance ??
       DEFAULT_SECTION_POLICY.principalAxisTolerance,
@@ -308,7 +315,7 @@ export function parseSectionPolicy(input: unknown): SectionPolicy {
   }
 
   const policy: SectionPolicy = {
-    arcTolerance: numberField(record, 'arcTolerance'),
+    discretisationTolerance: numberField(record, 'discretisationTolerance'),
     principalAxisTolerance: numberField(record, 'principalAxisTolerance'),
     miterLimit: numberField(record, 'miterLimit'),
     thickWallRatio: numberField(record, 'thickWallRatio'),
@@ -342,7 +349,7 @@ function numberField(record: Record<string, unknown>, field: string): number {
 /**
  * Die Werteregeln — dieselben für beide Eingänge.
  *
- * `arcTolerance` ECHT POSITIV und nicht bloß endlich: `arcTolerance = 0`
+ * `discretisationTolerance` ECHT POSITIV und nicht bloß endlich: `discretisationTolerance = 0`
  * verlangte eine Zerlegung ohne jede Sehnenabweichung, also unendlich viele
  * Punkte, und `Arc.toPolyline` weist die 0 aus genau diesem Grund selbst
  * zurück. Eine negative Toleranz ließe `Bulge.isStraight` nie mehr wahr
@@ -352,7 +359,7 @@ function numberField(record: Record<string, unknown>, field: string): number {
  * exakte Vergleich, also die Schärfe, mit der das Gate bis P2 gearbeitet hat —
  * eine sinnvolle Wahl für wen, der nur Formen und Katalogzeilen führt. Eine
  * negative Schranke ließe `|Iyz| <= tol · …` nie mehr wahr werden und schaffte
- * die Hauptachsenlage ab, wie es die negative `arcTolerance` mit der Geraden
+ * die Hauptachsenlage ab, wie es die negative `discretisationTolerance` mit der Geraden
  * täte. Nach oben nicht begrenzt: eine absurd große Toleranz schweigt
  * überall, und das ist eine Entscheidung des Projekts, kein Formfehler.
  *
@@ -375,16 +382,19 @@ function numberField(record: Record<string, unknown>, field: string): number {
  */
 function assertValidValues(policy: SectionPolicy): void {
   const {
-    arcTolerance,
+    discretisationTolerance,
     principalAxisTolerance,
     miterLimit,
     thickWallRatio,
     shearCentreTolerance,
   } = policy;
-  if (!Number.isFinite(arcTolerance) || arcTolerance <= 0) {
+  if (
+    !Number.isFinite(discretisationTolerance) ||
+    discretisationTolerance <= 0
+  ) {
     throw new InvalidSectionPolicyError(
-      `"arcTolerance" muss endlich und größer als 0 sein (war: ${arcTolerance}).`,
-      'arcTolerance',
+      `"discretisationTolerance" muss endlich und größer als 0 sein (war: ${discretisationTolerance}).`,
+      'discretisationTolerance',
     );
   }
   if (!Number.isFinite(principalAxisTolerance) || principalAxisTolerance < 0) {

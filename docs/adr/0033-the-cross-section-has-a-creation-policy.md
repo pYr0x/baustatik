@@ -37,6 +37,15 @@ export function createSectionPolicy(o?: SectionPolicyOverrides): SectionPolicy;
 export function parseSectionPolicy(value: unknown): SectionPolicy;
 ```
 
+> **Amendment, 2026-08-13 — the field is renamed.** `readonly arcTolerance: mm`
+> is now `readonly discretisationTolerance: mm` — the snapshot JSON key and the
+> `createSectionPolicy`/`parseSectionPolicy` argument follow, and so does every
+> pass-through in the repo. The constant keeps its name
+> (`DEFAULT_ARC_TOLERANCE` stays), and so does the `InflateOptions`/`Bulge`
+> argument in `@baustatik/geometry-2d`. This ADR keeps the old name in the text;
+> the decision it records — a creation policy of its own, branded `mm`, carrying
+> no `schemaVersion` — is unchanged.
+
 **The full slice shape now, after the pattern of `fem-loads/src/policy.ts`**
 (type · `…Overrides` · `DEFAULT_…` · `create…` · `parse…`), so the dated fields
 below later just click in rather than reinventing the factory and its merge

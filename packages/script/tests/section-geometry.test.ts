@@ -169,13 +169,13 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
     // Sonst rechnete dasselbe Projekt nach einer Aenderung der
     // Software-Defaults still anders.
     const model = createFEMModelBuilder({
-      sectionPolicy: createSectionPolicy({ arcTolerance: 0.01 }),
+      sectionPolicy: createSectionPolicy({ discretisationTolerance: 0.01 }),
     });
     const snapshot = model.finish();
 
     const effective = {
       ...DEFAULT_SECTION_POLICY,
-      arcTolerance: 0.01,
+      discretisationTolerance: 0.01,
     };
     expect(snapshot.sectionPolicy).toEqual(effective);
     expect(
@@ -210,7 +210,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
     const v7 = {
       ...buildSnapshot(),
       schemaVersion: 7,
-      sectionPolicy: { arcTolerance: 0.05 },
+      sectionPolicy: { discretisationTolerance: 0.05 },
     };
 
     expect(() => parseFEMModelSnapshot(v7)).toThrow(SnapshotValidationError);
@@ -225,7 +225,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
     expect(() =>
       parseFEMModelSnapshot({
         ...buildSnapshot(),
-        sectionPolicy: { arcTolerance: 0.05 },
+        sectionPolicy: { discretisationTolerance: 0.05 },
       }),
     ).toThrow(InvalidSectionPolicyError);
   });
@@ -246,7 +246,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
     expect(() =>
       parseFEMModelSnapshot({
         ...buildSnapshot(),
-        sectionPolicy: { arcTolerance: 0 },
+        sectionPolicy: { discretisationTolerance: 0 },
       }),
     ).toThrow(InvalidSectionPolicyError);
 
@@ -257,7 +257,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
       parseFEMModelSnapshot({
         ...buildSnapshot(),
         sectionPolicy: {
-          arcTolerance: 0.05,
+          discretisationTolerance: 0.05,
           principalAxisTolerance: 1e-9,
           miterLimit: 2,
           joinType: 'round',
@@ -363,7 +363,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
     const v8: Record<string, unknown> = {
       ...buildSnapshot(),
       schemaVersion: 8,
-      sectionPolicy: { arcTolerance: 0.05, principalAxisTolerance: 1e-9 },
+      sectionPolicy: { discretisationTolerance: 0.05, principalAxisTolerance: 1e-9 },
     };
 
     expect(() => parseFEMModelSnapshot(v8)).toThrow(SnapshotValidationError);
@@ -378,7 +378,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
     expect(() =>
       parseFEMModelSnapshot({
         ...buildSnapshot(),
-        sectionPolicy: { arcTolerance: 0.05, principalAxisTolerance: 1e-9 },
+        sectionPolicy: { discretisationTolerance: 0.05, principalAxisTolerance: 1e-9 },
       }),
     ).toThrow(InvalidSectionPolicyError);
   });
@@ -392,7 +392,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
       ...buildSnapshot(),
       schemaVersion: 9,
       sectionPolicy: {
-        arcTolerance: 0.05,
+        discretisationTolerance: 0.05,
         principalAxisTolerance: 1e-9,
         miterLimit: 2,
       },
@@ -409,7 +409,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
       parseFEMModelSnapshot({
         ...buildSnapshot(),
         sectionPolicy: {
-          arcTolerance: 0.05,
+          discretisationTolerance: 0.05,
           principalAxisTolerance: 1e-9,
           miterLimit: 2,
         },

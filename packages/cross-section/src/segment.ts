@@ -17,7 +17,7 @@
  * `src/wall-path.ts`.
  *
  * BÖGEN SIND HIER SCHON WEG. `Bulge.toPolyline` löst eine Bogenwand unter
- * `policy.arcTolerance` in gerade Stücke auf — dieselbe Modellannahme wie in
+ * `policy.discretisationTolerance` in gerade Stücke auf — dieselbe Modellannahme wie in
  * der Umriss-Ableitung, nicht eine zweite. Damit ist jedes `Segment` gerade,
  * `S(s)` darauf quadratisch und `shearFlowIntegral` Ziffer für Ziffer die
  * bestehende Funktion.
@@ -143,7 +143,7 @@ function runSegments(
       p1,
       p2,
       usableBulge(p1, p2, forward ? raw : -raw, policy),
-      policy.arcTolerance,
+      policy.discretisationTolerance,
     ).points;
 
     for (let i = 0; i + 1 < points.length; i++) {

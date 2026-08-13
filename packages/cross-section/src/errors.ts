@@ -485,7 +485,7 @@ export class ShearCentreUnknownWarning extends SectionValidationWarning {
  * ```text
  * theta = |Endtangente A − Endtangente B|
  * notch = (t / 2) · tan(theta / 2)      Versatz der Umrissecke
- * warnen, wenn notch > arcTolerance
+ * warnen, wenn notch > discretisationTolerance
  * ```
  *
  * Bei `0,05 mm` heißt das `t = 6 -> ~1,9°`, `t = 12 -> ~0,95°`,
@@ -501,27 +501,27 @@ export class TangentKinkWarning extends SectionValidationWarning {
   /** Der daraus folgende Versatz der Umrissecke [mm]. */
   readonly notch: number;
   /** Die Schranke, gegen die verglichen wurde [mm]. */
-  readonly arcTolerance: number;
+  readonly discretisationTolerance: number;
 
   constructor(
     nodeId: string,
     wallIds: readonly string[],
     theta: number,
     notch: number,
-    arcTolerance: number,
+    discretisationTolerance: number,
   ) {
     super(
       `Knoten "${nodeId}": Knick von ${theta} rad zwischen ${wallIds
         .map((id) => `"${id}"`)
         .join(' und ')} — der Umriss versetzt um ${notch} mm und damit mehr ` +
-        `als die Toleranz ${arcTolerance} mm. Die Tangentialität am Bogen ist ` +
+        `als die Toleranz ${discretisationTolerance} mm. Die Tangentialität am Bogen ist ` +
         'gebrochen.',
     );
     this.nodeId = nodeId;
     this.wallIds = wallIds;
     this.theta = theta;
     this.notch = notch;
-    this.arcTolerance = arcTolerance;
+    this.discretisationTolerance = discretisationTolerance;
   }
 }
 
@@ -558,7 +558,7 @@ function siteLabel(at: BulgeSite): string {
  *
  * DIE LÜCKE AUS P1, GESCHLOSSEN VON P3. G1 bis G6 sahen Umriss, Ids, Verweise,
  * `t > 0`, Nulllängenwand und Knick — nie die Wölbung selbst. Ein `NaN` lief
- * still durch: die Knickprüfung rechnete `notch = NaN`, und `NaN > arcTolerance`
+ * still durch: die Knickprüfung rechnete `notch = NaN`, und `NaN > discretisationTolerance`
  * ist `false`. Für `t` prüft G4 ausdrücklich `Number.isFinite`; hier fehlte es.
  *
  * FEHLER UND KEINE WARNUNG, aus demselben Grund wie bei `t`: der Wert geht ab
@@ -593,7 +593,7 @@ export class NonFiniteBulgeError extends SectionValidationError {
  * DIE ZWEITE HÄLFTE DERSELBEN LÜCKE. `Number.isFinite` fängt `NaN` und
  * `±Infinity`; `bulge = 10^14` ist endlich und beschreibt trotzdem einen fast
  * vollen Kreis mit einem Radius von `2,5·10^15 mm` durch zwei Punkte, die
- * `100 mm` auseinanderliegen. Unter `arcTolerance` verlangt seine Zerlegung
+ * `100 mm` auseinanderliegen. Unter `discretisationTolerance` verlangt seine Zerlegung
  * Milliarden Punkte — der Prozess starb daran, statt einen Befund zu liefern.
  *
  * FEHLER UND KEINE WARNUNG, wie beim nicht endlichen Zwilling: die Ableitung
@@ -602,7 +602,7 @@ export class NonFiniteBulgeError extends SectionValidationError {
  * DIE SCHRANKE IST DIE DER GEOMETRIE, NICHT DIE DES QUERSCHNITTS —
  * `Bulge.isDiscretisable` entscheidet, hier steht keine zweite Zahl daneben
  * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)
- * lässt nur `arcTolerance` als Modellannahme zu, und genau die geht hinein).
+ * lässt nur `discretisationTolerance` als Modellannahme zu, und genau die geht hinein).
  *
  * ER GILT FÜR BEIDE EINGABEARTEN, wie sein Zwilling: die Sehne, an der die
  * Zerlegbarkeit hängt, ist an der Wand der Knotenabstand und am Ring der
@@ -612,17 +612,17 @@ export class UndiscretisableBulgeError extends SectionValidationError {
   readonly at: BulgeSite;
   readonly bulge: number;
   /** Die Toleranz, unter der die Zerlegung nicht mehr geht [mm]. */
-  readonly arcTolerance: number;
+  readonly discretisationTolerance: number;
 
-  constructor(at: BulgeSite, bulge: number, arcTolerance: number) {
+  constructor(at: BulgeSite, bulge: number, discretisationTolerance: number) {
     super(
       `${siteLabel(at)}: Wölbung ${bulge} beschreibt einen Bogen, der sich ` +
-        `unter der Toleranz ${arcTolerance} mm nicht mehr zerlegen lässt — ` +
+        `unter der Toleranz ${discretisationTolerance} mm nicht mehr zerlegen lässt — ` +
         'die Ableitung liest die Kante als Gerade.',
     );
     this.at = at;
     this.bulge = bulge;
-    this.arcTolerance = arcTolerance;
+    this.discretisationTolerance = discretisationTolerance;
   }
 }
 
@@ -638,18 +638,18 @@ export class UndiscretisableBulgeError extends SectionValidationError {
  * Knickschranke:
  *
  * ```text
- * tol = policy.arcTolerance · U / A       U, A aus dem mitgeführten Umriss
+ * tol = policy.discretisationTolerance · U / A       U, A aus dem mitgeführten Umriss
  * warnen, wenn |A_neu − A| > tol · A
  * ```
  *
- * `arcTolerance · U` ist genau die Fläche, die entsteht, wenn der Rand überall
+ * `discretisationTolerance · U` ist genau die Fläche, die entsteht, wenn der Rand überall
  * um die Diskretisierungstoleranz wandert; das ist die größte Abweichung, die
  * ein zulässiger Bibliothekswechsel erklären kann. Alles darüber ist etwas
  * anderes. KEIN VIERTES POLICY-FELD: eine gesetzte Schranke wäre eine zweite
  * Zahl für dieselbe Frage.
  *
  * VERGLICHEN WIRD `A`, NICHT PUNKT FÜR PUNKT. Die Punktzahl gegeneinander zu
- * halten machte jede `arcTolerance`-Änderung zum Befund — und genau die reist
+ * halten machte jede `discretisationTolerance`-Änderung zum Befund — und genau die reist
  * seit ADR 0033 im Satz mit und ist damit erklärbar.
  *
  * WARNUNG UND KEIN FEHLER: der Satz ist rechenbar, er ist nur nicht mehr der,
@@ -660,7 +660,7 @@ export class OutlineDriftWarning extends SectionValidationWarning {
   readonly carried: number;
   /** Die Fläche der NEUABLEITUNG unter derselben Policy [mm²]. */
   readonly derived: number;
-  /** Die abgeleitete Schranke [mm²] — `arcTolerance · U`. */
+  /** Die abgeleitete Schranke [mm²] — `discretisationTolerance · U`. */
   readonly limit: number;
 
   constructor(carried: number, derived: number, limit: number) {

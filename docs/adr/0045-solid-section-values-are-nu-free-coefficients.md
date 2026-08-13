@@ -9,9 +9,9 @@ meet anyway.
 [ADR 0020](0020-section-properties-versus-section-stiffness.md) holds unchanged.
 
 Evidence: [`docs/messungen/nu-abhaengigkeit-schubwerte.md`](../messungen/nu-abhaengigkeit-schubwerte.md),
-produced by `tests/nu-koeffizientenform.mjs`, and — for multiply connected
+produced by `verifaction/nu-koeffizientenform.mjs`, and — for multiply connected
 sections — [`docs/messungen/loch-zusatzbedingung.md`](../messungen/loch-zusatzbedingung.md),
-produced by `tests/loch-zusatzbedingung.mjs`.
+produced by `verifaction/loch-zusatzbedingung.mjs`.
 
 ## The problem this closes
 
@@ -263,7 +263,8 @@ formula rather than as a number, and that is the whole trick.
 
 ```ts
 const m = nu / (1 + nu);
-const kappaZ = 1 / (d[0] + d[1] * m + d[2] * m * m);
+const [d0, d2] = properties.inverseKappaZ;
+const kappaZ = 1 / (d0 + d2 * m * m);
 ```
 
 **`nu` is optional, and its absence is an answer.** Timber is orthotropic: its
@@ -361,21 +362,59 @@ closed-form solution confirms Weber's ν-dependence and says nothing against the
 choice of Trefftz made above — the two differ by 0,55 % of the radius of
 gyration, and the beam element is what picks between them.
 
+## The boundary: the parametric solid section stays out
+
+`It`, `yM` and `zM` are not FE inventions. They are fields of
+`SectionProperties`, filled today from three sources: the closed expression of a
+parametric shape (`shapes/kernel.ts`), the catalogue row, and the wall path
+(`wall-path.ts`). Only the **solid** case leaves them empty — and it does so for
+the parametric shape as much as for the drawn one. `i-symmetric`,
+`hollow-rectangle` and `t-section` all branch on `idealisation === 'solid'` and
+return `It: undefined` there (`t-section` also `zM: undefined`).
+
+This ADR covers the drawn section only — `kind: 'section-geometry'`, either
+input mark. **`kind: 'shape'` with `idealisation: 'solid'` is deliberately out
+of scope**, and stays where it is:
+
+- **It has no input.** The FE needs a polygon. `deriveOutline` works on
+  `SectionGeometry`; `ShapeSpec` carries dimensions, not an outline. Including
+  it would mean writing all four shapes out as polygons as well — a separate
+  piece of work with nothing to do with the FE.
+- **There is a way out, and it is the intended one.** Whoever wants FE values
+  for an IPE draws the figure. `ipe-300-modelliert` on the test bench does
+  exactly that.
+- **κ is untouched there.** The parametric solid path keeps its Grashof κ from
+  `shear.ts` — the `0,401` against `0,340` quoted in
+  `packages/cross-section/CONTEXT.md`.
+
+So for a parametric solid section, `It === undefined` and `t-section`'s
+`zM === undefined` are **permanent** answers, not gaps awaiting this work. The
+JSDoc in `shapes/kernel.ts` and `properties.ts` says so at each field.
+
 ## Consequences
 
 - `@baustatik/cross-section` gains no dependency on `@baustatik/material`, and
   `sectionProperties` gains no parameter.
-- A new package owns assembly and evaluation, receiving the mesher and the solver
-  as ports. It never imports WASM ([ADR 0009](0009-fem-solver-ports-and-async-solve.md)).
-- `CrossSection` gains an optional `SolidSectionValues` block, costing a
-  `schemaVersion` tick and a shape check in the snapshot parser — which checks
-  shape, not resolvability, as always.
+- ~~A new package owns assembly and evaluation~~ — **superseded by
+  [ADR 0046](0046-the-solid-section-fe-lives-in-cross-section.md):** assembly and
+  evaluation live in `cross-section/src/warping/`. Unchanged is what the bullet
+  was actually protecting — the mesher and the solver arrive as ports from the
+  caller, and the package never imports WASM
+  ([ADR 0009](0009-fem-solver-ports-and-async-solve.md)). A package boundary was
+  not what enforced that; the mesh type is declared structurally instead.
+- **`SectionGeometry` gains the optional block**, next to `outline` in both
+  variants, costing a `schemaVersion` tick and a shape check in the snapshot
+  parser — which checks shape, not resolvability, as always. Not `CrossSection`:
+  the boundary below means `kind: 'shape'` never receives one, and a field that
+  one branch of a union can never carry belongs in the branch that can. The
+  derived outline is already there, and the provenance travels with it.
 - Breaking change to `@baustatik/material`: `ElasticModuli` gains `nu?`.
 - [ADR 0035](0035-the-editor-section-yields-values-without-kappa.md) becomes
   partly obsolete: the editor section will yield κ. It gets a banner rather than a
   rewrite — it records what was decided when.
-- The same computation delivers `It` for solid sections, which
-  `SectionProperties` has carried as permanently `undefined` until now.
+- The same computation delivers `It` for **drawn** solid sections, which
+  `SectionProperties` has carried as permanently `undefined` until now. For the
+  **parametric** solid shape it stays `undefined` — see the boundary above.
 - A section whose hole does not sit on the bending axis is outside the shear
   formulation until one of the two fixes above is built. The implementation
   checks the per-loop closure of the boundary datum and refuses rather than

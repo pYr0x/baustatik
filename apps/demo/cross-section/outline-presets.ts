@@ -15,7 +15,7 @@ import { IPE } from '@baustatik/steel-profiles';
  * Dort ist der Umriss ein ERGEBNIS: die Waende werden um `t/2` aufgeweitet und
  * vereinigt (ADR 0037). Hier BESCHREIBT der Ring den Umriss bereits, und
  * `deriveOutlineFromRings` tut nur noch eines — die Boegen in Sehnen zerlegen.
- * Deshalb wirkt auf dieser Seite `arcTolerance` und nicht `miterLimit`: es wird
+ * Deshalb wirkt auf dieser Seite `discretisationTolerance` und nicht `miterLimit`: es wird
  * nichts aufgeweitet, also entsteht auch keine Miter-Ecke.
  *
  * > **Material laeuft mit `signedArea > 0`, ein Loch mit `< 0`.**
@@ -79,7 +79,7 @@ const QUARTER_BULGE = Math.tan(Math.PI / 8);
  * Der Satz, an dem sich die Rechenstrecke gegen die Formel pruefen laesst:
  * `A = b·h`, `Iy = b·h³/12`, `Iz = h·b³/12` fallen EXAKT heraus, weil Green
  * ueber ein Polygon aus geraden Kanten exakt integriert — hier wird nichts
- * diskretisiert. `arcTolerance` aendert an diesen Zahlen deshalb nichts, und
+ * diskretisiert. `discretisationTolerance` aendert an diesen Zahlen deshalb nichts, und
  * genau das soll man am Regler sehen.
  *
  * DAS IST DER FALL, DEN DAS MITTELLINIENMODELL NICHT KANN. Einem
@@ -194,7 +194,7 @@ function weldedI(): Pick<OutlinePreset, 'rings' | 'reference'> {
  * WAS DIE ABWEICHUNG BEDEUTET: die Katalogzeile ist ein TABELLENWERT der Norm,
  * gerundet und nicht nachgerechnet (siehe den Kopf von
  * `steel-profiles/src/data/ipe.ts`). Der Umriss hier ist eine ehrliche
- * Integration ueber ein Polygon, dessen Boegen unter `arcTolerance` zerlegt
+ * Integration ueber ein Polygon, dessen Boegen unter `discretisationTolerance` zerlegt
  * sind. Sie treffen sich auf rund 0,02 % — `A` und `Iy` weichen in der VIERTEN
  * signifikanten Stelle ab (53,82 gegen 53,81 cm², 8357 gegen 8356 cm⁴), `Iz`
  * noch weniger. Eine Abweichung in der dritten waere ein Fehler.
@@ -261,7 +261,7 @@ function ipe300(): Pick<OutlinePreset, 'rings' | 'reference'> {
  * sondern die Diskretisierung. Der Umriss dort wird aus AUFGEWEITETEN Boegen
  * gebaut, der hier aus den Ringboegen selbst; beide zerlegen in Sehnen, aber
  * nicht in dieselben. Die Abweichung liegt bei 0,002 % bis 0,004 % und wandert
- * sichtbar, wenn man `arcTolerance` verstellt.
+ * sichtbar, wenn man `discretisationTolerance` verstellt.
  */
 function roundedBox(): Pick<OutlinePreset, 'rings' | 'reference'> {
   const b = 200;
@@ -321,7 +321,7 @@ export const OUTLINE_PRESETS: readonly OutlinePreset[] = Object.freeze([
     dimensions: 'b 200 · h 300',
     note:
       'Ein Ring aus vier Punkten, keine Boegen. Green integriert ueber gerade Kanten ' +
-      'exakt: A, Iy und Iz treffen die Formel auf jede Stelle, und arcTolerance aendert ' +
+      'exakt: A, Iy und Iz treffen die Formel auf jede Stelle, und discretisationTolerance aendert ' +
       'daran nichts. Ein Vollquerschnitt hat keine Wandstaerke — als Mittellinienmodell ' +
       'ist er nicht darstellbar.',
     ...rectangle(),

@@ -39,7 +39,7 @@ export interface CrossSectionSceneOptions {
    * Aus DEMSELBEN Satz wie die Geometrie
    * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
    *
-   * `arcTolerance` entscheidet mit, welche Kante ueberhaupt als Bogen
+   * `discretisationTolerance` entscheidet mit, welche Kante ueberhaupt als Bogen
    * gezeichnet wird, und sie steht seit `schemaVersion: 7` im selben Satz wie
    * der Umriss daneben. Eine Modulkonstante zoege die Toleranz aus einer
    * anderen Quelle als den Satz.
@@ -72,7 +72,12 @@ export function crossSectionSpecs(
   const resolved = { ...DEFAULT_STYLE, ...style };
 
   return [
-    ...thinWallSpecs(geometry, sectionPolicy.arcTolerance, vp, resolved),
+    ...thinWallSpecs(
+      geometry,
+      sectionPolicy.discretisationTolerance,
+      vp,
+      resolved,
+    ),
     ...outlineSpecs(geometry, resolved),
     ...feSpecs(feMesh, resolved),
     ...symbolSpecs(properties, stressPoints, vp, resolved),

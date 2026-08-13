@@ -20,7 +20,7 @@ function walls(
 ): readonly Spec[] {
   return thinWallSpecs(
     wallGeometry(bulge),
-    policy.arcTolerance,
+    policy.discretisationTolerance,
     vp,
     DEFAULT_STYLE,
   );
@@ -88,7 +88,7 @@ describe('Die Bogenwand wird als arcPath gezeichnet, ohne Vorzeichenumrechnung',
       Point.make(0, 0),
       Point.make(100, 0),
       0.4,
-      DEFAULT_SECTION_POLICY.arcTolerance,
+      DEFAULT_SECTION_POLICY.discretisationTolerance,
     );
     const spec = walls(0.4).find((s) => s.id === W1) as ArcPathSpec;
 
@@ -104,7 +104,7 @@ describe('Die Bogenwand wird als arcPath gezeichnet, ohne Vorzeichenumrechnung',
     // einer schaerferen Policy ein Bogen.
     expect(walls(0.001).find((s) => s.id === W1)?.kind).toBe('line');
     expect(
-      walls(0.001, createSectionPolicy({ arcTolerance: 0.01 })).find(
+      walls(0.001, createSectionPolicy({ discretisationTolerance: 0.01 })).find(
         (s) => s.id === W1,
       )?.kind,
     ).toBe('arcPath');
@@ -149,7 +149,7 @@ describe('Ein haengender Verweis laesst genau diese Wand weg', () => {
     };
     const specs = thinWallSpecs(
       geometry,
-      DEFAULT_SECTION_POLICY.arcTolerance,
+      DEFAULT_SECTION_POLICY.discretisationTolerance,
       vp1,
       DEFAULT_STYLE,
     );
@@ -164,7 +164,7 @@ describe('Ein freier Umriss hat keine Mittellinien', () => {
     expect(
       thinWallSpecs(
         { kind: 'outline', rings: [], outline: OUTLINE },
-        DEFAULT_SECTION_POLICY.arcTolerance,
+        DEFAULT_SECTION_POLICY.discretisationTolerance,
         vp1,
         DEFAULT_STYLE,
       ),

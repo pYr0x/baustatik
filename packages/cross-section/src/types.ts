@@ -149,7 +149,7 @@ export type Ring = { vertices: Vertex[] };
  * Ein diskretisiertes Umrisspolygon — das ERGEBNIS, ohne `bulge`.
  *
  * Die Punktzahl hängt an der Diskretisierungstoleranz
- * (`SectionPolicy.arcTolerance`, voreingestellt `DEFAULT_ARC_TOLERANCE` aus
+ * (`SectionPolicy.discretisationTolerance`, voreingestellt `DEFAULT_ARC_TOLERANCE` aus
  * `@baustatik/section-geometry`), und genau deshalb reist das Polygon mit: `A`,
  * `Iy` und `Iz` fallen aus DIESEN Punkten und nicht aus denen, die die nächste
  * Bibliotheksversion erzeugen würde. Seit ADR 0033 reist die Toleranz SELBST

@@ -79,14 +79,14 @@ das Versprechen von ADR 0030, das von P0 bis P2 eine Absicht war. Die Schranke
 wird abgeleitet, nicht gesetzt:
 
 ```text
-warnen, wenn |A_neu − A| > policy.arcTolerance · U      U aus dem Umriss
+warnen, wenn |A_neu − A| > policy.discretisationTolerance · U      U aus dem Umriss
 ```
 
-`arcTolerance · U` ist genau die Flaeche, die entsteht, wenn der Rand ueberall
+`discretisationTolerance · U` ist genau die Flaeche, die entsteht, wenn der Rand ueberall
 um die Diskretisierungstoleranz wandert — die groesste Abweichung, die ein
 zulaessiger Bibliothekswechsel erklaeren kann. **Kein viertes Policy-Feld**: eine
 gesetzte Schranke waere eine zweite Zahl fuer dieselbe Frage. Verglichen wird
-`A` und nicht Punkt fuer Punkt, sonst waere jede `arcTolerance`-Aenderung ein
+`A` und nicht Punkt fuer Punkt, sonst waere jede `discretisationTolerance`-Aenderung ein
 Befund. **Warnung, kein Fehler** — und sie gilt fuer BEIDE Varianten, womit der
 `outline`-Zweig die Pruefung bekommt, die ihm seit P2 fehlte.
 
@@ -214,8 +214,16 @@ ein Naeherungswert erfunden wird.
 
 Im Code steht je Form die geschlossene Formel — `S` ist auf jedem Abschnitt ein
 Polynom zweiten Grades, `S²` also eines vierten, und das Integral ist geschlossen
-angebbar. Es gibt **keine Quadratur in `src/`**. Die numerische Integration lebt
-im Test (`tests/oracle.ts`) als unabhaengiges Orakel fuer die Herleitungen.
+angebbar. **Wo eine geschlossene Form vorliegt, wird nicht quadriert.** Die
+numerische Integration lebt dort im Test (`tests/oracle.ts`) als unabhaengiges
+Orakel fuer die Herleitungen.
+
+> **Praezisiert am 2026-08-13.** Hier stand „es gibt **keine** Quadratur in
+> `src/`". Das war zu weit gefasst: die Regel richtet sich gegen die
+> **ueberfluessige** Naeherung einer Groesse, die man exakt hinschreiben kann,
+> nicht gegen Numerik als solche. Sie verbietet damit nichts, was `src/warping/`
+> tut — dort gibt es keine geschlossene Form, gegen die eine Quadratur antreten
+> koennte ([ADR 0046](../../docs/adr/0046-the-solid-section-fe-lives-in-cross-section.md)).
 
 ## `idealisation` ist eine Angabe, keine Formeigenschaft
 
@@ -350,7 +358,7 @@ sind zwei verschieden parametrisierte Laeufe ueber DIESELBE Geometrie. Steckte
 muessten. `shearArea` bleibt die eine Stelle, an der aus einem Weg eine Zahl
 wird; `src/shear.ts` ist fuer P5 **unveraendert** geblieben.
 
-**Boegen sind vor dem Weg weg**: `Bulge.toPolyline` unter `policy.arcTolerance`,
+**Boegen sind vor dem Weg weg**: `Bulge.toPolyline` unter `policy.discretisationTolerance`,
 dieselbe Modellannahme wie in der Umriss-Ableitung. Jedes `Segment` ist damit
 gerade und `S` darauf quadratisch. Die **geschlossene Form fuer Kreisboegen
 bleibt additiv nachruestbar** — sie ersetzte die Zerlegung innerhalb von
@@ -502,7 +510,7 @@ nur `Vz`, ein z-Versatz erzeugt darin keine Torsion. Andernfalls feuerte jeder
 Plattenbalken.
 
 **Die Knickschranke wird abgeleitet, nicht gesetzt:**
-`notch = (t/2)·tan(theta/2)`, gewarnt wird bei `notch > arcTolerance`. Bei
+`notch = (t/2)·tan(theta/2)`, gewarnt wird bei `notch > discretisationTolerance`. Bei
 `0,05 mm` heisst das `t = 6 → ≈1,9°`, `t = 20 → ≈0,57°`. Dass dicke Waende
 weniger Knick vertragen, ist richtig — ihre Kerbe wird tiefer. Die Toleranz ist
 ein **Parameter** und keine Konstante im Gate (ADR 0011); sie steht in der
@@ -523,7 +531,7 @@ an beiden Tueren tatsaechlich in Gebrauch.
 Bis P2 sahen G1 bis G6 den Umriss, doppelte Ids, haengende Verweise, `t > 0`,
 die Nulllaengenwand und den Knick — **nie die Woelbung selbst**. Ein `bulge` von
 `NaN` lief still durch: die Knickpruefung rechnet `notch = NaN`, und
-`NaN > arcTolerance` ist `false`, also schwieg sie. Fuer `t` prueft G4
+`NaN > discretisationTolerance` ist `false`, also schwieg sie. Fuer `t` prueft G4
 ausdruecklich `Number.isFinite`; fuer `bulge` gab es die Entsprechung nicht.
 
 P3 hat die Entscheidung erzwungen, weil es als erstes darueber stolpert: der
@@ -534,7 +542,7 @@ Ableitung liest ihn als Gerade und filtert ihn weg (ADR 0037).
 **`Number.isFinite` ist dabei nur die halbe Frage**, und die zweite Hälfte hat
 P3 zunächst offen gelassen: `bulge = 10^14` ist endlich und beschreibt trotzdem
 einen fast vollen Kreis mit `2,5·10^15 mm` Radius durch zwei Punkte, die
-`100 mm` auseinanderliegen. Seine Zerlegung unter `arcTolerance` verlangte
+`100 mm` auseinanderliegen. Seine Zerlegung unter `discretisationTolerance` verlangte
 Milliarden Punkte — die Ableitung starb am Speicher, statt einen Umriss zu
 liefern. Was `Bulge.isDiscretisable` verneint, liest sie jetzt ebenfalls als
 Gerade, und das Gate meldet es als `UndiscretisableBulgeError`. Beide Zweige
@@ -583,11 +591,11 @@ kommt dieselbe Zahl heraus wie vorher.
 **Eigene Wurzel, keine Scheibe von `AnalysisPolicy`**
 ([ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
 ADR 0011 zieht seine Trennlinie an *„steuert die Rechnung, **ohne das Modell zu
-aendern**"* — `arcTolerance` aendert es: der abgeleitete Umriss reist nach ADR
+aendern**"* — `discretisationTolerance` aendert es: der abgeleitete Umriss reist nach ADR
 0030 im Satz mit, und seine Punktzahl haengt an der Toleranz.
 
 Der zweite Satz von ADR 0033 — *„der Loeser truege eine Zahl mit, die er nie
-liest"* — **gilt seit P5 nicht mehr**: der Wandweg liest `arcTolerance`, um
+liest"* — **gilt seit P5 nicht mehr**: der Wandweg liest `discretisationTolerance`, um
 seine Bogenwaende zu zerlegen, und zwar unter derselben Toleranz wie der
 mitgefuehrte Umriss (ADR 0040). Deshalb ist die Policy in `SectionModel`
 (`@baustatik/fem-section-resolve`) ein Pflichtfeld.
@@ -602,11 +610,19 @@ eine Version je Datensatz, und der Datensatz ist der Snapshot (`v7`, wo
 `@baustatik/section-geometry`. Es neu zu setzen brachte den Zustand zurueck, den
 ADR 0032 beseitigt hat — zwei Zahlen fuer eine Modellannahme.
 
+**Ein Feld hat den Namen gewechselt (Amendment zu ADR 0033):** `arcTolerance`
+heisst jetzt `discretisationTolerance`. Der Name nennt die **Wirkung**, nicht
+die Groesse — die Zahl steuert nicht nur Boegen, sondern die gesamte
+Diskretisierung der Figur (ADR 0037, 0038); die Sehnenabweichung ist ihre
+Einheit, nicht ihr Gegenstand. Die KONSTANTE behaelt ihren Namen:
+`DEFAULT_ARC_TOLERANCE` zieht weiterhin mit. Im Snapshot-JSON und an allen
+Policies/Uebergaben heisst das Feld unter dem neuen Namen.
+
 **Fuenf Felder, und die Liste der datierten Kandidaten ist abgearbeitet:**
 
 | Feld | Stand | aendert den Umriss | beurteilt ihn |
 | --- | --- | --- | --- |
-| `arcTolerance` — die Sehnenabweichung [mm] | seit P1 | **ja** | — |
+| `discretisationTolerance` — die Sehnenabweichung [mm] | seit P1 | **ja** | — |
 | `principalAxisTolerance` — dimensionslos, `\|Iyz\| <= tol · max(\|Iy\|, \|Iz\|)`, Default `1e-9` | seit P2 | — | **ja** |
 | `miterLimit` — dimensionslos, gekappt ab `1/sin(α/2) > miterLimit`, Default `2` | seit P3 | **ja** | — |
 | `thickWallRatio` — dimensionslos, `t/L` offen bzw. `t/√A_m` geschlossen, Default `1/3` | seit P5 | — | **ja** |
@@ -616,7 +632,7 @@ Die Spaltentrennung ist die Leitplanke, die die Policy davor bewahrt, zur
 Sammelstelle zu werden: **Beurteilungsfelder werden allein vom Gate gelesen**
 und stehen trotzdem hier, weil sie ueber den QUERSCHNITT urteilen und nicht
 ueber die Rechnung — ADR 0033 zieht die Linie am Gegenstand. Sie stehen
-ausserdem aus demselben Grund im Snapshot wie `arcTolerance`: derselbe Bericht
+ausserdem aus demselben Grund im Snapshot wie `discretisationTolerance`: derselbe Bericht
 soll nach einer Aenderung der Software-Defaults nicht still andere Warnungen
 zeigen.
 
@@ -639,7 +655,7 @@ der Eingang nicht durchlassen darf.
 `principalAxisTolerance` ist **relativ und dimensionslos**, weil eine absolute
 Schranke in m⁴ bei cm-grossen und m-grossen Querschnitten zwei verschiedene
 Aussagen waere. Der Name nennt die **Frage** („liegt Hauptachsenlage vor"),
-nicht die Groesse — dieselbe Figur wie `arcTolerance`. **Gelesen wird sie allein
+nicht die Groesse — dieselbe Figur wie `discretisationTolerance`. **Gelesen wird sie allein
 vom Gate:** `principalAxes` bleibt total, rein und ohne Policy und liefert
 `alpha ≈ 1e-17`, was die richtige Antwort auf die gestellte Frage ist; ein
 Schnappen dort waere eine *Analyse*-Einstellung auf der Rechenstrecke (ADR
@@ -651,7 +667,7 @@ Schnappen dort waere eine *Analyse*-Einstellung auf der Rechenstrecke (ADR
 waere nach ADR 0011 eine *Analyse*-Einstellung. Sie werden ausserdem gar keine
 Einstellung, sondern eine Konstante: bei senkrechten Kanten ist der Integrand
 ein Polynom 6. Grades und 4-Punkt-Gauss exakt. Das ist Konvergenz, keine Wahl.
-**Die Knickschranke ist ebenfalls kein Feld** — sie wird aus `arcTolerance`
+**Die Knickschranke ist ebenfalls kein Feld** — sie wird aus `discretisationTolerance`
 abgeleitet.
 
 ## Was `undefined` heisst
@@ -677,7 +693,7 @@ eingestellt war (ADR 0035).
 
 **`sectionProperties(cs, policy?)` nimmt seit P5 eine optionale Policy** — die
 einzige Stelle im Package, an der sie optional ist. Gelesen wird daraus GENAU
-EIN Feld, `arcTolerance`, und auch das nur beim gezeichneten Wandgraphen: der
+EIN Feld, `discretisationTolerance`, und auch das nur beim gezeichneten Wandgraphen: der
 Wandweg zerlegt seine Bogenwaende unter derselben Toleranz, unter der der
 mitgefuehrte Umriss entstanden ist. Ein Querschnitt **ohne Bogenwand** ist von
 der Zahl unberuehrt. Das ist eine bewusste Abweichung von ADR 0011 und in

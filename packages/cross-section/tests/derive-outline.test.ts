@@ -14,7 +14,7 @@ import {
  */
 
 const POLICY = createSectionPolicy({
-  arcTolerance: 0.05,
+  discretisationTolerance: 0.05,
   principalAxisTolerance: 1e-9,
 });
 
@@ -89,14 +89,14 @@ describe('Ein Bogen wird unter der Toleranz zerlegt', () => {
     const fine = deriveOutlineFromRings(
       circle,
       createSectionPolicy({
-        arcTolerance: 0.005,
+        discretisationTolerance: 0.005,
         principalAxisTolerance: 1e-9,
       }),
     );
     const coarse = deriveOutlineFromRings(
       circle,
       createSectionPolicy({
-        arcTolerance: 0.5,
+        discretisationTolerance: 0.5,
         principalAxisTolerance: 1e-9,
       }),
     );

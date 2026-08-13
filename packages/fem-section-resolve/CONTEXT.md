@@ -63,7 +63,7 @@ Naht nicht mehr: `model` ist alles. Ein `FEMModelSnapshot` erfuellt
 `materials` fuehrt `SectionModel` die `sectionPolicy` — **Pflicht, ohne
 Default**. Seit dem positionierten Wandweg
 ([ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md)) liest
-`sectionProperties` beim gezeichneten Mittellinienquerschnitt `arcTolerance`,
+`sectionProperties` beim gezeichneten Mittellinienquerschnitt `discretisationTolerance`,
 um seine Bogenwaende zu zerlegen. Setzte dieser Adapter die Voreinstellung ein,
 zerlegte er den **Weg** feiner oder groeber als den mitgefuehrten **Umriss**,
 aus dem `I` faellt — zwei Diskretisierungen derselben Figur, und der

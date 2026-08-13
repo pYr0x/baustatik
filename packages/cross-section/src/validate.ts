@@ -273,7 +273,9 @@ function shapeFindings(
   }
 
   // G6 — Satz 3, der Knick am Bogen.
-  warnings.push(...kinks(geometry.nodes, geometry.walls, policy.arcTolerance));
+  warnings.push(
+    ...kinks(geometry.nodes, geometry.walls, policy.discretisationTolerance),
+  );
 
   // G6b — die Wölbung selbst. DIE LÜCKE AUS P1: bis P2 sah das Gate `t`, den
   // Umriss, die Ids und den Knick, nie aber `bulge`. Ein `NaN` lief still
@@ -301,7 +303,7 @@ function shapeFindings(
       { kind: 'wall', wallId: wall.id },
       wall.bulge,
       chordLength,
-      policy.arcTolerance,
+      policy.discretisationTolerance,
     );
     if (finding !== undefined) errors.push(finding);
   }
@@ -314,6 +316,16 @@ function shapeFindings(
   // gleicher Wandstärke; seit ADR 0038 misst die Ableitung ihn an der Ecke,
   // die sie tatsächlich baut — sonst schwiege das Gate ausgerechnet dort, wo
   // gekappt wird (fast gestreckter Stoß MIT Dickensprung).
+  //
+  // DICHT UEBER DER SCHRANKE WARNT ES ZU VIEL, und das ist die gewollte
+  // Richtung: liegt `overshoot` nur knapp über `miterLimit`, waere die Fase
+  // schmaler als `discretisationTolerance`, und `fillRing` laesst den vollen Miter stehen
+  // statt einen Splitter zu setzen. Das Gate meldet dann eine Kappung, die
+  // nicht stattfindet — es verspricht aber ohnehin nur „verliert dort Flaeche",
+  // und verloren geht dann eben nichts. Die Bedingung hier deshalb NICHT
+  // nachzuziehen ist Absicht: sie muesste die Fasenbreite nachrechnen, und
+  // damit stuende die Regel wieder zweimal im Repo — genau das, wogegen
+  // `chainedJoints` angelegt wurde.
   for (const joint of chainedJoints(geometry.nodes, geometry.walls)) {
     if (joint.overshoot > policy.miterLimit) {
       warnings.push(
@@ -347,14 +359,14 @@ function bulgeFinding(
   at: BulgeSite,
   bulge: number,
   chordLength: number | undefined,
-  arcTolerance: number,
+  discretisationTolerance: number,
 ): SectionValidationError | undefined {
   if (!Number.isFinite(bulge)) return new NonFiniteBulgeError(at, bulge);
   if (chordLength === undefined) return undefined;
 
-  return Bulge.isDiscretisable(chordLength, bulge, arcTolerance)
+  return Bulge.isDiscretisable(chordLength, bulge, discretisationTolerance)
     ? undefined
-    : new UndiscretisableBulgeError(at, bulge, arcTolerance);
+    : new UndiscretisableBulgeError(at, bulge, discretisationTolerance);
 }
 
 /**
@@ -385,7 +397,7 @@ function ringBulgeFindings(
         { kind: 'vertex', ringIndex, vertexIndex },
         vertex.bulge,
         Math.hypot(to.y - vertex.y, to.z - vertex.z),
-        policy.arcTolerance,
+        policy.discretisationTolerance,
       );
       if (finding !== undefined) errors.push(finding);
     });
@@ -399,13 +411,13 @@ function ringBulgeFindings(
  * eingelöst (ADR 0037).
  *
  * DIE SCHRANKE WIRD ABGELEITET, NICHT GESETZT, dieselbe Figur wie die
- * Knickschranke: `arcTolerance · U` ist genau die Fläche, die entsteht, wenn
+ * Knickschranke: `discretisationTolerance · U` ist genau die Fläche, die entsteht, wenn
  * der Rand überall um die Diskretisierungstoleranz wandert — die größte
  * Abweichung, die ein zulässiger Bibliothekswechsel erklären kann. Ein
  * viertes Policy-Feld wäre eine zweite Zahl für dieselbe Frage.
  *
  * VERGLICHEN WIRD `A` UND NICHT PUNKT FUER PUNKT: die Punktzahl gegeneinander
- * zu halten machte jede `arcTolerance`-Aenderung zum Befund, und genau die
+ * zu halten machte jede `discretisationTolerance`-Aenderung zum Befund, und genau die
  * reist seit ADR 0033 im Satz mit.
  */
 function drift(
@@ -430,7 +442,7 @@ function drift(
     0,
   );
 
-  const limit = policy.arcTolerance * U;
+  const limit = policy.discretisationTolerance * U;
   return Math.abs(derived - carried) > limit
     ? [new OutlineDriftWarning(carried, derived, limit)]
     : [];
@@ -626,7 +638,7 @@ function duplicateIds(
 function kinks(
   nodes: readonly SectionNode[],
   walls: readonly Wall[],
-  arcTolerance: number,
+  discretisationTolerance: number,
 ): TangentKinkWarning[] {
   const warnings: TangentKinkWarning[] = [];
 
@@ -646,14 +658,14 @@ function kinks(
     // gewarnt wird, sobald IRGENDEINE Umrissecke die Toleranz verlässt.
     const t = Math.max(a.of.wall.t, b.of.wall.t);
     const notch = (t / 2) * Math.tan(theta / 2);
-    if (notch > arcTolerance) {
+    if (notch > discretisationTolerance) {
       warnings.push(
         new TangentKinkWarning(
           nodeIdOf(a),
           [a.of.wall.id, b.of.wall.id],
           theta,
           notch,
-          arcTolerance,
+          discretisationTolerance,
         ),
       );
     }

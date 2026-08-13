@@ -15,14 +15,14 @@ import {
  * Parser zusätzlich die FORM. Genau das halten die beiden Blöcke fest.
  */
 describe('Die Voreinstellung liest ihre Zahl, statt sie neu zu setzen', () => {
-  it('arcTolerance ist DEFAULT_ARC_TOLERANCE aus section-geometry', () => {
+  it('discretisationTolerance ist DEFAULT_ARC_TOLERANCE aus section-geometry', () => {
     // Sonst kehrte der Zustand zurück, den P0 beseitigt hat: zwei Zahlen für
     // eine Modellannahme (ADR 0032).
-    expect(DEFAULT_SECTION_POLICY.arcTolerance).toBe(DEFAULT_ARC_TOLERANCE);
+    expect(DEFAULT_SECTION_POLICY.discretisationTolerance).toBe(DEFAULT_ARC_TOLERANCE);
   });
 
   it('principalAxisTolerance ist 1e-9 und wohnt hier', () => {
-    // Anders als `arcTolerance` gibt es für sie keinen zweiten Ort: die Frage
+    // Anders als `discretisationTolerance` gibt es für sie keinen zweiten Ort: die Frage
     // „liegt Hauptachsenlage vor" wird allein vom Gate gestellt.
     expect(DEFAULT_SECTION_POLICY.principalAxisTolerance).toBe(1e-9);
   });
@@ -62,17 +62,17 @@ describe('createSectionPolicy nimmt Abweichungen und prüft nur Werte', () => {
   });
 
   it('mit Override entsteht ein eingefrorener neuer Satz', () => {
-    const policy = createSectionPolicy({ arcTolerance: 0.2 });
-    expect(policy.arcTolerance).toBe(0.2);
+    const policy = createSectionPolicy({ discretisationTolerance: 0.2 });
+    expect(policy.discretisationTolerance).toBe(0.2);
     expect(Object.isFrozen(policy)).toBe(true);
-    expect(DEFAULT_SECTION_POLICY.arcTolerance).toBe(DEFAULT_ARC_TOLERANCE);
+    expect(DEFAULT_SECTION_POLICY.discretisationTolerance).toBe(DEFAULT_ARC_TOLERANCE);
   });
 
   it('eine Toleranz von 0 oder darunter wäre keine Diskretisierung', () => {
     // 0 verlangte unendlich viele Punkte; negativ ließe `Bulge.isStraight` nie
     // mehr wahr werden — die Gerade wäre abgeschafft.
-    for (const arcTolerance of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
-      expect(() => createSectionPolicy({ arcTolerance })).toThrow(
+    for (const discretisationTolerance of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => createSectionPolicy({ discretisationTolerance })).toThrow(
         InvalidSectionPolicyError,
       );
     }
@@ -98,10 +98,10 @@ describe('createSectionPolicy nimmt Abweichungen und prüft nur Werte', () => {
 
   it('der Fehler nennt das Feld, damit ein Dialog es markieren kann', () => {
     try {
-      createSectionPolicy({ arcTolerance: 0 });
+      createSectionPolicy({ discretisationTolerance: 0 });
       expect.unreachable();
     } catch (error) {
-      expect((error as InvalidSectionPolicyError).field).toBe('arcTolerance');
+      expect((error as InvalidSectionPolicyError).field).toBe('discretisationTolerance');
     }
   });
 });
@@ -109,7 +109,7 @@ describe('createSectionPolicy nimmt Abweichungen und prüft nur Werte', () => {
 describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
   it('nimmt einen vollständigen Satz an und friert ihn ein', () => {
     const full = {
-      arcTolerance: 0.1,
+      discretisationTolerance: 0.1,
       principalAxisTolerance: 1e-8,
       miterLimit: 3,
       thickWallRatio: 0.25,
@@ -123,7 +123,7 @@ describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
   // Der Satz aus P1 ist kein gültiger Satz aus P2 — es gibt keine Teil-Policy,
   // und ein eingesetzter Default BEHAUPTETE, unter ihm sei erzeugt worden.
   it('lehnt einen Satz ohne principalAxisTolerance ab', () => {
-    expect(() => parseSectionPolicy({ arcTolerance: 0.1 })).toThrow(
+    expect(() => parseSectionPolicy({ discretisationTolerance: 0.1 })).toThrow(
       InvalidSectionPolicyError,
     );
   });
@@ -131,7 +131,7 @@ describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
   // Und derselbe Satz ist kein gültiger Satz aus P3.
   it('lehnt einen Satz ohne miterLimit ab', () => {
     expect(() =>
-      parseSectionPolicy({ arcTolerance: 0.1, principalAxisTolerance: 1e-9 }),
+      parseSectionPolicy({ discretisationTolerance: 0.1, principalAxisTolerance: 1e-9 }),
     ).toThrow(InvalidSectionPolicyError);
   });
 
@@ -139,14 +139,14 @@ describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
   it('lehnt einen Satz ohne die beiden Beurteilungsfelder ab', () => {
     expect(() =>
       parseSectionPolicy({
-        arcTolerance: 0.1,
+        discretisationTolerance: 0.1,
         principalAxisTolerance: 1e-9,
         miterLimit: 2,
       }),
     ).toThrow(InvalidSectionPolicyError);
     expect(() =>
       parseSectionPolicy({
-        arcTolerance: 0.1,
+        discretisationTolerance: 0.1,
         principalAxisTolerance: 1e-9,
         miterLimit: 2,
         thickWallRatio: 1 / 3,
@@ -160,7 +160,7 @@ describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
     expect(() =>
       parseSectionPolicy({
         ...DEFAULT_SECTION_POLICY,
-        arcTolerence: 0.2,
+        discretisationTolerence: 0.2,
       }),
     ).toThrow(InvalidSectionPolicyError);
   });
@@ -177,10 +177,10 @@ describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
 
   it('prüft die Werte mit derselben Regel wie die Fabrik', () => {
     const full = { ...DEFAULT_SECTION_POLICY };
-    expect(() => parseSectionPolicy({ ...full, arcTolerance: 0 })).toThrow(
+    expect(() => parseSectionPolicy({ ...full, discretisationTolerance: 0 })).toThrow(
       InvalidSectionPolicyError,
     );
-    expect(() => parseSectionPolicy({ ...full, arcTolerance: '0.05' })).toThrow(
+    expect(() => parseSectionPolicy({ ...full, discretisationTolerance: '0.05' })).toThrow(
       InvalidSectionPolicyError,
     );
     expect(() =>

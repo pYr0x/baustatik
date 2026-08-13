@@ -1,6 +1,6 @@
 # ν-Abhängigkeit der Schubwerte am Vollquerschnitt
 
-<!-- ERZEUGT von tests/nu-koeffizientenform.mjs.
+<!-- ERZEUGT von verifaction/nu-koeffizientenform.mjs.
      Nicht von Hand bearbeiten — der nächste Lauf überschreibt die Datei. -->
 
 Beleg-Artefakt zu [ADR 0045](../adr/0045-solid-section-values-are-nu-free-coefficients.md).
@@ -167,4 +167,3 @@ richtige Fassung gemessen:
 Schubmittelpunkts**, und sie bestätigt ihn. Sie bestätigt nebenbei auch, dass
 die klassische Zahl eine **Weber**-Zahl ist: Trefftz ist ν-frei und kann eine
 Steigung ungleich null gar nicht liefern.
-

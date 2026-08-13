@@ -147,7 +147,7 @@ export type CrossSection =
  * Modellfehler IM BERICHT statt einer Ausnahme mitten in `solve()`.
  *
  * DIE POLICY IST OPTIONAL, und das ist die einzige Stelle im Package, an der
- * sie es ist. Gelesen wird daraus GENAU EIN FELD, `arcTolerance`, und auch das
+ * sie es ist. Gelesen wird daraus GENAU EIN FELD, `discretisationTolerance`, und auch das
  * nur beim gezeichneten Wandgraphen: der Wandweg von P5 zerlegt seine
  * Bogenwaende unter derselben Toleranz, unter der auch der mitgefuehrte Umriss
  * entstanden ist.

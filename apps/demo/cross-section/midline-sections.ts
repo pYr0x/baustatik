@@ -454,7 +454,7 @@ function renderPanel(): void {
         result.rings.length === 0
             ? 'Kein Umriss abgeleitet.'
             : `Umriss: ${result.rings.length} Ring(e) mit ${result.rings.join(' / ')} Punkten ` +
-              `(arcTolerance ${store.sectionPolicy.arcTolerance} mm, ` +
+              `(discretisationTolerance ${store.sectionPolicy.discretisationTolerance} mm, ` +
               `miterLimit ${store.sectionPolicy.miterLimit}, ` +
               `idealisation ${store.idealisation}).`;
     propertiesField.innerHTML =

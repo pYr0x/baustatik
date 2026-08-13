@@ -107,7 +107,7 @@ export function sectionStiffness(
  *
  * `sectionPolicy` IST PFLICHT UND HAT KEINEN DEFAULT, und das ist die Lehre aus
  * P5: seit dem Wandweg liest `sectionProperties` beim gezeichneten
- * Mittellinienquerschnitt `arcTolerance`, um seine Bogenwaende zu zerlegen.
+ * Mittellinienquerschnitt `discretisationTolerance`, um seine Bogenwaende zu zerlegen.
  * Setzte der Resolver hier die Voreinstellung ein, zerlegte er den WEG feiner
  * oder groeber als den mitgefuehrten UMRISS, aus dem `I` faellt — zwei
  * Diskretisierungen derselben Figur, und der Unterschied stuende in kappa,

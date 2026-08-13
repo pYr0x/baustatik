@@ -161,7 +161,7 @@ bands draw the *same* cross-section.
   circle: on a doubly symmetric figure the two coincide, and at equal size the
   shear centre would be invisible.
 - **`sectionPolicy` is a pull next to the geometry, not a module constant**
-  (ADR 0033): `arcTolerance` decides which edge counts as curved at all, and since
+  (ADR 0033): `discretisationTolerance` decides which edge counts as curved at all, and since
   `schemaVersion: 7` it lives in the *same* record as the outline drawn beside it.
   It enters the scene **once** and is handed down; the wall mapping does not pull
   it again.

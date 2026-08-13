@@ -63,7 +63,7 @@ describe('segments legt die Läufe lagerichtig hin', () => {
     }
   });
 
-  it('löst eine Bogenwand unter `arcTolerance` in gerade Stücke auf', () => {
+  it('löst eine Bogenwand unter `discretisationTolerance` in gerade Stücke auf', () => {
     // Ein Halbkreis (`bulge = 1`, also `Δ = π`) über einer Sehne von 200 mm:
     // Radius 100, Bogenlänge `π·100`.
     const runs = segments(

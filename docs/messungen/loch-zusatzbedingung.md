@@ -1,6 +1,6 @@
 # Die Zusatzbedingung am Loch
 
-<!-- ERZEUGT von tests/loch-zusatzbedingung.mjs.
+<!-- ERZEUGT von verifaction/loch-zusatzbedingung.mjs.
      Nicht von Hand bearbeiten — der nächste Lauf überschreibt die Datei. -->
 
 Beleg-Artefakt zu [ADR 0045](../adr/0045-solid-section-values-are-nu-free-coefficients.md),
@@ -288,4 +288,3 @@ beim außermittigen. Nur der m-Anteil geht in `d₁` ein.
 
 **„Mit Loch darf `d₁` auftauchen."** Falsch — es bleibt null, und zwar
 beweisbar, siehe oben.
-

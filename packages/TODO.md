@@ -244,7 +244,7 @@ urteilt.
   FEM-Snapshot besteht nur, weil es keinen anderen Behälter gibt; mit dem
   Querschnitts-Dokument zieht sie dorthin (die Drift-Prüfung braucht die
   Toleranz **neben** dem Umriss, und beides zieht gemeinsam). Der Viewer-Port
-  bleibt: er ist strukturell nötig, weil `arcTolerance` die Zeichnung steuert —
+  bleibt: er ist strukturell nötig, weil `discretisationTolerance` die Zeichnung steuert —
   den FEM-Viewer erreicht eine Policy dagegen nie, er zeichnet das Modell, nicht
   die Einstellung.
 - **`analysisPolicy`: wird modellgebunden.** Pflichtfeld im FEM-Tool-Dokument,

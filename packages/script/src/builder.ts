@@ -51,7 +51,7 @@ export function defineModel(definition: ModelDefinition): ModelDefinition {
  *
  * DIE POLICY WIRD GEPRUEFT UND NICHT NUR ENTGEGENGENOMMEN. `SectionPolicy` ist
  * rein strukturell über `mm = number & { __unit?: 'mm' }`, also geht
- * `{ arcTolerance: 0 }` durch den Compiler — und `parseFEMModelSnapshot` wiese
+ * `{ discretisationTolerance: 0 }` durch den Compiler — und `parseFEMModelSnapshot` wiese
  * den fertigen Satz danach zurück. Der Bauer dürfte nie einen Satz ausgeben,
  * den sein eigener Parser ablehnt; `createSectionPolicy` ist die prüfende Tür,
  * und hier wird sie erzwungen statt erhofft. Ohne Argument liefert sie

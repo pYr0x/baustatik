@@ -17,11 +17,11 @@ export const SCHEMA_VERSION = 10;
 
 /**
  * Die `SectionPolicy` des Rumpfs — die EFFEKTIVEN Werte, wie sie seit ADR 0033
- * im Satz stehen (`arcTolerance` seit v7, `principalAxisTolerance` seit v8,
+ * im Satz stehen (`discretisationTolerance` seit v7, `principalAxisTolerance` seit v8,
  * `miterLimit` seit v9, `thickWallRatio` und `shearCentreTolerance` seit v10).
  */
 export const SNAPSHOT_SECTION_POLICY = {
-  arcTolerance: 0.05,
+  discretisationTolerance: 0.05,
   principalAxisTolerance: 1e-9,
   miterLimit: 2,
   thickWallRatio: 1 / 3,

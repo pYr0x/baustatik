@@ -109,6 +109,38 @@ that runs along the wall. The bound is Clipper2's, the cut is ours (a bevel wher
 Clipper2 squares). The difference is a sliver, and it only ever appears where the
 gate already reports `MiterLimitExceededWarning`.
 
+> **Amendment, 2026-08-13 — the sliver is not harmless, and the bevel has a
+> floor.** The sentence above underrated the difference. Clipper2's square has a
+> *fixed* width; our bevel shrinks as `miterLimit` approaches the joint's
+> overshoot and goes to zero at the threshold. It does not disappear there:
+> Clipper2 rounds to a `10^-6 mm` grid, so what remains is an edge of exactly one
+> grid step. `mesh-2d-wasm` accepts that outline — it tests a zero-length edge on
+> exact equality — and Triangle then meets a length ratio of `10^8` next to a
+> `200 mm` edge, where the quality criterion cannot be met. Since a joint's
+> overshoot moves continuously with the figure, dragging a node is enough to hit
+> any fixed `miterLimit`.
+>
+> `fillRing` therefore **measures the bevel and keeps the full miter when it
+> would be narrower than `arcTolerance`** — the chord tolerance the same outline
+> is discretised with anyway, so a bevel below it is beneath the resolution in
+> which the figure is described at all. Snapping goes *upward*, which is the
+> continuous choice: the capped corner already tends to the full miter as
+> `miterLimit` grows, and only the last, unrepresentable part of that path is
+> skipped. The spike then stands less than `arcTolerance` further out than
+> `miterLimit` allowed. `tests/outline-meshability.test.ts` holds the bound.
+>
+> **The gate is deliberately not adjusted.** Just above the bound it warns about a
+> cap that no longer happens. It only ever promised "loses area there", and
+> nothing is lost; making the condition agree would mean recomputing the bevel
+> width in `validate.ts`, which is the duplication `chainedJoints` exists to
+> prevent.
+>
+> **The policy field it compares against is renamed.** `arcTolerance` is now
+> called `discretisationTolerance` (ADR 0033) — the chamfer keeps the full miter
+> below that same chord tolerance. The constant keeps its name
+> (`DEFAULT_ARC_TOLERANCE` stays). This ADR keeps the old name in the text; the
+> decision it records is unchanged.
+
 Two more details, both deliberate:
 
 - **The fill starts inside the material**, `min(t)/2` behind the node, so it

@@ -59,7 +59,7 @@ type PointYZ = { y: mm; z: mm };
  * `validateSectionGeometry` mit Namen. Beide Wege dahinter halten sich daran.
  *
  * Die Einheit ist MILLIMETER — die der `Vertex`, die von `Wall.t` und die von
- * `policy.arcTolerance`.
+ * `policy.discretisationTolerance`.
  */
 export function deriveOutline(
   geometry: SectionGeometry,
@@ -190,7 +190,7 @@ export function deriveOutlineFromWalls(
 
   return Object.freeze(
     GeometryPolygon.inflate(paths, {
-      arcTolerance: policy.arcTolerance,
+      arcTolerance: policy.discretisationTolerance,
       miterLimit: policy.miterLimit,
     }).map((polygon) =>
       Object.freeze({ points: Object.freeze(polygon.points) }),
@@ -486,7 +486,11 @@ function jointFills(
     if (pair.a.of.wall.t === pair.b.of.wall.t) continue;
     const corner = miterCorner(pair);
     if (corner === undefined) continue;
-    const ring = fillRing(corner, policy.miterLimit);
+    const ring = fillRing(
+      corner,
+      policy.miterLimit,
+      policy.discretisationTolerance,
+    );
     if (ring === undefined) continue;
     fills.push({
       polyline: { points: ring },
@@ -503,7 +507,7 @@ function jointFills(
  *
  * DER FUSSPUNKT LIEGT INNEN, um `min(t)/2` hinter dem Knoten: der Ring soll die
  * beiden Bänder ÜBERLAPPEN und nicht an sie anstoßen. Bei einer Bogenwand
- * liegt die gezeichnete Kante um bis zu `arcTolerance` neben der Tangente, und
+ * liegt die gezeichnete Kante um bis zu `discretisationTolerance` neben der Tangente, und
  * eine Fuge von dieser Größe wäre im Ergebnis eine Kerbe. Der Punkt liegt in
  * beiden Bändern, weil sein Abstand von jeder Achse höchstens `min(t)/2` ist.
  *
@@ -516,10 +520,30 @@ function jointFills(
  * UNSERER: Clipper2 setzt intern ein Quadrat, hier steht eine Fase. Der
  * Unterschied ist ein Splitter, und er tritt nur auf, wo das Gate ohnehin
  * `MiterLimitExceededWarning` meldet (ADR 0038).
+ *
+ * UND GENAU DESHALB WIRD EINE ZU SCHMALE FASE NICHT GESETZT. Clipper2s Quadrat
+ * hat eine feste Breite; unsere Fase SCHRUMPFT, je naeher `limit` an `reach`
+ * liegt, und geht an der Kappungsschwelle gegen null. Sie verschwindet dabei
+ * nicht — Clipper2 rastert auf `10^-6 mm`, also bleibt eine Kante von einem
+ * Rasterschritt stehen. Fuer die Flaeche ist das nichts, fuer einen Vernetzer
+ * ist es eine Kante im Verhaeltnis `10^8` zur Nachbarkante, an der das
+ * Winkelkriterium scheitert (`tests/outline-meshability.test.ts`).
+ *
+ * `discretisationTolerance` IST DAS RICHTIGE MASS DAFUER und keine neue Einstellung: sie
+ * ist die Sehnenabweichung, mit der dieselbe Figur ohnehin diskretisiert wird
+ * (ADR 0033). Eine Fase, die schmaler ist als sie, liegt unter der Aufloesung,
+ * in der der Umriss ueberhaupt beschrieben ist.
+ *
+ * WEGGELASSEN WIRD SIE NACH OBEN, zum vollen Miter — das ist die STETIGE Wahl:
+ * die gekappte Ecke laeuft mit wachsendem `miterLimit` ohnehin gegen den vollen
+ * Miter, und hier wird nur der letzte, nicht mehr darstellbare Rest des Weges
+ * uebersprungen. Der Spitz steht dann um weniger als `discretisationTolerance` weiter
+ * heraus, als `miterLimit` erlaubte.
  */
 function fillRing(
   corner: MiterCorner,
   miterLimit: number,
+  discretisationTolerance: number,
 ): PointYZ[] | undefined {
   const { node, outward, outerA, outerB, miter, reach, delta, depth } = corner;
   const inner = {
@@ -542,6 +566,13 @@ function fillRing(
   // Kann nach der Ueberlegung oben nicht eintreten. Fällt es doch, bleibt die
   // Kerbe stehen — ein ungekappter Spitz wäre die schlechtere Antwort.
   if (cutA === null || cutB === null) return undefined;
+
+  // GEMESSEN UND NICHT GERECHNET, wie beim `overshoot`: die Breite haengt an
+  // beiden Aussenkanten und damit an zwei Winkeln, die bei ungleicher Dicke
+  // verschieden sind. Der Abstand der beiden Schnittpunkte IST die Fase.
+  if (Math.hypot(cutB.y - cutA.y, cutB.z - cutA.z) < discretisationTolerance) {
+    return [inner, outerA, miter, outerB];
+  }
 
   return [inner, outerA, cutA, cutB, outerB];
 }
@@ -685,7 +716,7 @@ function pointsOf(steps: readonly Step[], policy: SectionPolicy): PointYZ[] {
       { y: p1.y, z: p1.z },
       { y: p2.y, z: p2.z },
       usableBulge(p1, p2, forward ? raw : -raw, policy),
-      policy.arcTolerance,
+      policy.discretisationTolerance,
     ).points;
 
     // Der letzte Punkt jeder Kante IST der erste der nächsten: die Fuge wird
@@ -705,7 +736,7 @@ function pointsOf(steps: readonly Step[], policy: SectionPolicy): PointYZ[] {
  *
  * `Bulge.toPolyline` ist total: eine gerade Kante (`bulge` fehlt, ist `0`, oder
  * seine Stichhöhe bleibt unter der Toleranz) ergibt `[p1, p2]`, ein Bogen die
- * Zerlegung unter `policy.arcTolerance`. Genau diese Toleranz reist im Satz
+ * Zerlegung unter `policy.discretisationTolerance`. Genau diese Toleranz reist im Satz
  * neben dem Ergebnis mit (ADR 0033), damit später prüfbar bleibt, unter
  * welcher Zahl der Umriss entstanden ist.
  */
@@ -718,7 +749,7 @@ function edgePoints(
     { y: from.y, z: from.z },
     { y: to.y, z: to.z },
     usableBulge(from, to, from.bulge ?? 0, policy),
-    policy.arcTolerance,
+    policy.discretisationTolerance,
   ).points;
 }
 
@@ -751,7 +782,11 @@ export function usableBulge(
   policy: SectionPolicy,
 ): number {
   const chordLength = Math.hypot(p2.y - p1.y, p2.z - p1.z);
-  return Bulge.isDiscretisable(chordLength, bulge, policy.arcTolerance)
+  return Bulge.isDiscretisable(
+    chordLength,
+    bulge,
+    policy.discretisationTolerance,
+  )
     ? bulge
     : 0;
 }

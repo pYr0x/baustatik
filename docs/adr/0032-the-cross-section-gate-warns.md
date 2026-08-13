@@ -46,6 +46,12 @@ validateSectionProperties(p: SectionProperties): { errors, warnings }
 export const DEFAULT_ARC_TOLERANCE = 0.05; // mm
 ```
 
+> **Amendment, 2026-08-13 — the option is renamed.** The gate's `arcTolerance`
+> is now called `discretisationTolerance` (it travels inside the `SectionPolicy`
+> as a field, see ADR 0033). The constant keeps its name:
+> `DEFAULT_ARC_TOLERANCE` stays `DEFAULT_ARC_TOLERANCE`. This ADR keeps the old
+> name in the text; the decision it records is unchanged.
+
 The split separates "is this record consistent in itself" from "does it match
 the geometry library currently running". What makes the split possible is that
 the checks in `cross-section` need **no** geometry library: the gate reads the

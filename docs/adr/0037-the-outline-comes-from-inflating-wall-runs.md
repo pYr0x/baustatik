@@ -134,6 +134,12 @@ already discretised.
 The price, said out loud: on the outside of an arc the outline circumscribes the
 true curve instead of cutting it, in the order of `arcTolerance`.
 
+> **Amendment, 2026-08-13 — the policy field is renamed.** `arcTolerance` is
+> now called `discretisationTolerance` (ADR 0033). The drift bound is
+> `discretisationTolerance · U`; the constant keeps its name
+> (`DEFAULT_ARC_TOLERANCE` stays). This ADR keeps the old name in the text; the
+> decision it records is unchanged.
+
 ## What follows from it elsewhere
 
 - **`miterLimit` becomes the third `SectionPolicy` field**, at default `2`. It

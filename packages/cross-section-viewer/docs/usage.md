@@ -61,7 +61,7 @@ manages viewport transformations (pan, zoom, reset), and maps the physical 2D
 coordinates ($y, z$) to world points ($u, v$).
 
 **Two pulls for the input, one source.** `getSectionPolicy` sits next to
-`getGeometry` because `arcTolerance` decides which edge counts as curved at all,
+`getGeometry` because `discretisationTolerance` decides which edge counts as curved at all,
 and since `schemaVersion: 7` it lives in the *same* record as the outline the
 viewer draws beside it
 ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
@@ -307,5 +307,5 @@ const { errors, warnings } = validateSectionGeometry(
 );
 
 // A project that wants a finer discretisation stores this instead:
-const policy = createSectionPolicy({ arcTolerance: 0.01 });
+const policy = createSectionPolicy({ discretisationTolerance: 0.01 });
 ```

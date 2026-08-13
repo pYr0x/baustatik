@@ -242,15 +242,15 @@ describe('Der Builder befragt den Sortenkatalog — und nur er', () => {
     // Der Gegentest zum vorigen: das eine Argument, das es gibt, betrifft die
     // Querschnitts-ERZEUGUNG und nicht den Werkstoff (ADR 0033).
     const model = createFEMModelBuilder({
-      sectionPolicy: createSectionPolicy({ arcTolerance: 0.01 }),
+      sectionPolicy: createSectionPolicy({ discretisationTolerance: 0.01 }),
     });
     model.material({ kind: 'steel', grade: 'S235' });
     const snapshot = model.finish();
 
     expect(snapshot.sectionPolicy).toEqual(
-      createSectionPolicy({ arcTolerance: 0.01 }),
+      createSectionPolicy({ discretisationTolerance: 0.01 }),
     );
-    expect(snapshot.sectionPolicy.arcTolerance).toBe(0.01);
+    expect(snapshot.sectionPolicy.discretisationTolerance).toBe(0.01);
     expect(snapshot.materials[0].moduli).toEqual(
       lookupMaterial('steel', 'S235')?.moduli,
     );

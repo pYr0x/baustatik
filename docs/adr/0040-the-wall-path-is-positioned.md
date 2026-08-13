@@ -61,6 +61,11 @@ P3 already make — not a second one. Every `Segment` is therefore straight,
 `S(s)` on it is quadratic, and `shearFlowIntegral` is digit for digit the
 existing function.
 
+> **Amendment, 2026-08-13 — the policy field is renamed.** `arcTolerance` is
+> now called `discretisationTolerance` (ADR 0033); the wall path reads it under
+> that name. This ADR keeps the old name in the text; the decision it records
+> is unchanged.
+
 The closed-form treatment of a circular arc stays **additively retrofittable**:
 it would replace the decomposition inside `segments`, not the type. Nothing
 above it would move.

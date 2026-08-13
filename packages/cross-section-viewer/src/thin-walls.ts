@@ -33,7 +33,7 @@ function wallId(id: string): string {
 
 export function thinWallSpecs(
   geometry: SectionGeometry,
-  arcTolerance: number,
+  discretisationTolerance: number,
   vp: Viewport,
   style: Required<CrossSectionStyle>,
 ): readonly Spec[] {
@@ -44,7 +44,7 @@ export function thinWallSpecs(
   const byId = new Map(geometry.nodes.map((node) => [node.id, node]));
   const specs: Spec[] = [];
   for (const wall of geometry.walls) {
-    const spec = wallSpec(wall, byId, arcTolerance, vp, style);
+    const spec = wallSpec(wall, byId, discretisationTolerance, vp, style);
     if (spec !== undefined) specs.push(spec);
   }
   return specs;
@@ -61,7 +61,7 @@ export function thinWallSpecs(
 function wallSpec(
   wall: Wall,
   byId: ReadonlyMap<string, { y: number; z: number }>,
-  arcTolerance: number,
+  discretisationTolerance: number,
   vp: Viewport,
   style: Required<CrossSectionStyle>,
 ): Spec | undefined {
@@ -76,8 +76,8 @@ function wallSpec(
   const p1 = Point.make(start.y, start.z);
   const p2 = Point.make(end.y, end.z);
 
-  if (drawsAsArc(p1, p2, bulge, arcTolerance)) {
-    const arc = Bulge.toArc(p1, p2, bulge, arcTolerance);
+  if (drawsAsArc(p1, p2, bulge, discretisationTolerance)) {
+    const arc = Bulge.toArc(p1, p2, bulge, discretisationTolerance);
     return {
       kind: 'arcPath',
       id: wallId(wall.id),
@@ -134,12 +134,16 @@ function drawsAsArc(
   p1: PointType,
   p2: PointType,
   bulge: number,
-  arcTolerance: number,
+  discretisationTolerance: number,
 ): boolean {
   if (bulge === 0 || !Number.isFinite(bulge)) return false;
   if (Math.abs(Bulge.sweep(bulge)) >= 2 * Math.PI) return false;
   // DIESELBE SCHRANKE WIE ANDERSWO: was `Bulge` als Gerade liest, zeichnet der
   // Viewer als Gerade. Ein eigenes Epsilon hier gaebe eine Kante, die gerade
   // gerechnet und krumm gezeichnet wird.
-  return !Bulge.isStraight(Point.distance(p1, p2), bulge, arcTolerance);
+  return !Bulge.isStraight(
+    Point.distance(p1, p2),
+    bulge,
+    discretisationTolerance,
+  );
 }

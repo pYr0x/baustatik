@@ -88,7 +88,7 @@ into a snapshot.
   judge against an invented number. A migration is a tool someone runs and can
   refuse.
 - **`sectionPolicy` is a mandatory project-level field since v7**, and since
-  v10 it carries **five**: `arcTolerance` (creation), `miterLimit` (creation —
+  v10 it carries **five**: `discretisationTolerance` (creation), `miterLimit` (creation —
   it changes the stored outline), `principalAxisTolerance`, `thickWallRatio`
   and `shearCentreTolerance` (judgement)
   ([ADR 0033](../../docs/adr/0033-the-cross-section-has-a-creation-policy.md),

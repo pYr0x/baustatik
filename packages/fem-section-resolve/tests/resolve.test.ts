@@ -55,7 +55,7 @@ const IPE80 = profile('IPE 80', 'cs-ipe80');
  * Ein Modell aus Querschnitten; die drei Materialien sind immer dabei.
  *
  * Die Policy gehoert seit P5 dazu: `sectionProperties` liest daraus
- * `arcTolerance`, wenn ein gezeichneter Wandquerschnitt Bogenwaende hat. Die
+ * `discretisationTolerance`, wenn ein gezeichneter Wandquerschnitt Bogenwaende hat. Die
  * Saetze hier sind Profile und parametrische Formen — sie ruehrt sie nicht an,
  * steht aber im Typ, damit niemand sie unterwegs verliert.
  */
@@ -121,7 +121,7 @@ describe('Parametrische Form durch dieselbe Kette', () => {
  * ([ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md)).
  */
 describe('Die Policy des Modells erreicht die Rechnung', () => {
-  // Eine halbkreisfoermige Wand: die einzige Figur, an der `arcTolerance`
+  // Eine halbkreisfoermige Wand: die einzige Figur, an der `discretisationTolerance`
   // ueberhaupt etwas bewegt — eine gerade Wand liefert unter jeder Toleranz
   // dieselben zwei Punkte.
   const bogen = (policy: SectionPolicy): CrossSection => ({
@@ -143,9 +143,9 @@ describe('Die Policy des Modells erreicht die Rechnung', () => {
 
   // `mm` ist gebrandet und `@baustatik/units` keine Abhaengigkeit dieses
   // Packages — die Marke kommt deshalb aus dem Policy-Typ selbst.
-  const tolerance = (value: number) => value as SectionPolicy['arcTolerance'];
-  const grob = createSectionPolicy({ arcTolerance: tolerance(5) });
-  const fein = createSectionPolicy({ arcTolerance: tolerance(0.01) });
+  const tolerance = (value: number) => value as SectionPolicy['discretisationTolerance'];
+  const grob = createSectionPolicy({ discretisationTolerance: tolerance(5) });
+  const fein = createSectionPolicy({ discretisationTolerance: tolerance(0.01) });
 
   it('rechnet mit der mitgereisten Toleranz und nicht mit der Voreinstellung', () => {
     const section = bogen(grob);

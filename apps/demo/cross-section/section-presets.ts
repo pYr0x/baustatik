@@ -432,7 +432,7 @@ export const SECTION_PRESETS: readonly SectionPreset[] = Object.freeze([
     dimensions: 'd 200 · t 10',
     note:
       'Zwei Halbkreiswaende (bulge = 1). Der geschlossene Umlauf liefert Aussen- UND ' +
-      'Innenring; A ≈ 59,69 cm² folgt der Diskretisierung unter arcTolerance.',
+      'Innenring; A ≈ 59,69 cm² folgt der Diskretisierung unter discretisationTolerance.',
     ...tube(),
   },
   {

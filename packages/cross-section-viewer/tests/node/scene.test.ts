@@ -191,12 +191,12 @@ describe('Der Stil erreicht alle vier Lagen', () => {
 });
 
 describe('Die Toleranz kommt aus der Policy der Szene', () => {
-  it('reicht sectionPolicy.arcTolerance an die Waende durch', () => {
+  it('reicht sectionPolicy.discretisationTolerance an die Waende durch', () => {
     // EIN Scene-Input, kein zweiter Pull tief in der Wandabbildung.
     const straight = specsOf({ geometry: wallGeometry(0.001) });
     const curved = specsOf({
       geometry: wallGeometry(0.001),
-      sectionPolicy: { ...DEFAULT_SECTION_POLICY, arcTolerance: 0.01 },
+      sectionPolicy: { ...DEFAULT_SECTION_POLICY, discretisationTolerance: 0.01 },
     });
 
     expect(specById(straight, 'cross-section:thin-wall:w1').kind).toBe('line');

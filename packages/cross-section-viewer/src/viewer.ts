@@ -35,7 +35,7 @@ interface ViewerConfig {
    * PULL der Erzeugungs-Einstellung, aus demselben Store wie `getGeometry`
    * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
    *
-   * ZWEITER PULL UND KEINE MODULKONSTANTE: `arcTolerance` entscheidet mit,
+   * ZWEITER PULL UND KEINE MODULKONSTANTE: `discretisationTolerance` entscheidet mit,
    * welche Kante ueberhaupt als Bogen gezeichnet wird, und sie steht seit
    * `schemaVersion: 7` im SELBEN Satz wie der Umriss, den der Viewer daneben
    * zeichnet. Ein OPTIONALER Pull liesse die stille Abweichung nur

@@ -63,7 +63,7 @@ export const Bulge: {
    * Ob die Stichhöhe unter der Diskretisierungstoleranz bleibt.
    *
    * RECHNET NICHTS UM: die Toleranz ist eine Länge und teilt die Einheit mit
-   * der Sehne. Sie kommt im Querschnitt aus `SectionPolicy.arcTolerance`.
+   * der Sehne. Sie kommt im Querschnitt aus `SectionPolicy.discretisationTolerance`.
    */
   isStraight: (chordLength, bulge, tolerance) =>
     GeometryBulge.isStraight(chordLength, bulge, tolerance),

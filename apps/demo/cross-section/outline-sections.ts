@@ -37,7 +37,7 @@ import { OUTLINE_PRESETS, type OutlinePreset } from './outline-presets';
 //      Viewer zeichnet in diesem Zweig ausschliesslich den Umriss, und der ist
 //      die Eingabe. Ein Knopf, der eine Figur in sich selbst verwandelt, waere
 //      Zeremonie.
-//   2. `arcTolerance` STATT `miterLimit`. Aufgeweitet wird nichts, also
+//   2. `discretisationTolerance` STATT `miterLimit`. Aufgeweitet wird nichts, also
 //      entsteht keine Miter-Ecke, und die Schranke dafuer wirkt schlicht nicht.
 //      Was wirkt, ist die Sehnenabweichung der Bogenzerlegung — bei den
 //      geraden Saetzen sichtbar dadurch, dass sich NICHTS aendert.
@@ -96,7 +96,7 @@ const useStore = defineStore('outline-sections', {
          * Feldzuweisung.
          *
          * `createSectionPolicy` ist die einzige Tuer, die die Werteregel kennt:
-         * `arcTolerance > 0`, weil `Arc.toPolyline` die 0 zu Recht zurueckweist
+         * `discretisationTolerance > 0`, weil `Arc.toPolyline` die 0 zu Recht zurueckweist
          * (sie verlangte unendlich viele Punkte) und eine negative Toleranz die
          * Gerade abschaffte — `Bulge.isStraight` wuerde nie mehr wahr. Ein
          * direkt gesetztes Feld umginge sie, und die Policy ist ohnehin
@@ -106,8 +106,8 @@ const useStore = defineStore('outline-sections', {
          * Aufrufer faengt und zeigt die Meldung; der Store fuehrt weiter die
          * alte Zahl, denn eine zurueckgewiesene Zahl ist keine Einstellung.
          */
-        setArcTolerance(arcTolerance: number) {
-            this.sectionPolicy = createSectionPolicy({ ...this.sectionPolicy, arcTolerance });
+        setArcTolerance(discretisationTolerance: number) {
+            this.sectionPolicy = createSectionPolicy({ ...this.sectionPolicy, discretisationTolerance });
         },
         /**
          * Der Umriss wird ERZEUGT, unter genau der Policy, die daneben im Store
@@ -236,9 +236,9 @@ const warningList = element<HTMLUListElement>('warnings');
 const errorList = element<HTMLUListElement>('errors');
 const warningCount = element<HTMLSpanElement>('warning-count');
 const errorCount = element<HTMLSpanElement>('error-count');
-const arcToleranceField = element<HTMLInputElement>('arc-tolerance');
-const arcToleranceSlider = element<HTMLInputElement>('arc-tolerance-slider');
-const arcToleranceNote = element<HTMLDivElement>('arc-tolerance-note');
+const discretisationToleranceField = element<HTMLInputElement>('discretisation-tolerance');
+const discretisationToleranceSlider = element<HTMLInputElement>('discretisation-tolerance-slider');
+const discretisationToleranceNote = element<HTMLDivElement>('discretisation-tolerance-note');
 
 function element<T extends HTMLElement>(id: string): T {
     const found = document.getElementById(id);
@@ -329,7 +329,7 @@ function findings(source: Finding['source'], from: SectionValidationResult): Fin
 // Hohlkasten wandern Punktzahl und Abweichung sichtbar mit.
 // ---------------------------------------------------------------------------
 
-for (const input of [arcToleranceField, arcToleranceSlider]) {
+for (const input of [discretisationToleranceField, discretisationToleranceSlider]) {
     input.addEventListener('input', () => applyArcTolerance(input.value));
 }
 
@@ -364,20 +364,20 @@ function applyArcTolerance(raw: string): void {
  * ja gerade zur Ansicht da.
  */
 function renderArcTolerance(problem?: string): void {
-    const { arcTolerance } = store.sectionPolicy;
+    const { discretisationTolerance } = store.sectionPolicy;
 
     if (problem === undefined) {
-        const text = String(arcTolerance);
-        for (const input of [arcToleranceField, arcToleranceSlider]) {
+        const text = String(discretisationTolerance);
+        for (const input of [discretisationToleranceField, discretisationToleranceSlider]) {
             if (input.value !== text) input.value = text;
         }
     }
 
-    arcToleranceNote.className = problem === undefined ? 'note' : 'note problem';
-    arcToleranceNote.textContent =
+    discretisationToleranceNote.className = problem === undefined ? 'note' : 'note problem';
+    discretisationToleranceNote.textContent =
         problem ??
-        `Ein Viertelkreis mit r = 15 mm bekommt darunter ${quarterSegments(15, arcTolerance)} ` +
-            `Sehnen, einer mit r = 30 mm ${quarterSegments(30, arcTolerance)}. ` +
+        `Ein Viertelkreis mit r = 15 mm bekommt darunter ${quarterSegments(15, discretisationTolerance)} ` +
+            `Sehnen, einer mit r = 30 mm ${quarterSegments(30, discretisationTolerance)}. ` +
             'miterLimit wirkt auf dieser Seite nicht — es wird nichts aufgeweitet.';
 }
 
@@ -429,7 +429,7 @@ function renderPanel(): void {
         result.rings.length === 0
             ? 'Kein Umriss erzeugt.'
             : `Eingabe: ${vertexCount.join(' / ')} Vertices — Umriss: ${result.rings.join(' / ')} ` +
-              `Punkte (arcTolerance ${store.sectionPolicy.arcTolerance} mm).`;
+              `Punkte (discretisationTolerance ${store.sectionPolicy.discretisationTolerance} mm).`;
     propertiesField.innerHTML =
         result.properties === undefined
             ? '<p class="muted">sectionProperties &rarr; undefined — aus diesem Umriss faellt keine Flaeche.</p>'

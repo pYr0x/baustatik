@@ -230,7 +230,7 @@ export type FEMModelBuilderConfig = {
  * v9 setzt das DRITTE Feld in die `SectionPolicy`: `miterLimit`, die Schranke,
  * ab der Clipper2 die Umrissecke am spitzen Stoß kappt
  * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
- * Sie steht dort aus WÖRTLICH demselben Grund wie `arcTolerance`: sie verändert
+ * Sie steht dort aus WÖRTLICH demselben Grund wie `discretisationTolerance`: sie verändert
  * den GESPEICHERTEN Umriss und damit `A`, `Iy`, `Iz` — das Kriterium von
  * ADR 0033. Pflicht, wie ihre beiden Vorgängerinnen, und `parseSectionPolicy`
  * ist strikt, also weist jede v8-Datei ab.

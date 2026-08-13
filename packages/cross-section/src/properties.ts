@@ -75,6 +75,14 @@ export type SectionProperties = {
    * die Loesung eines Randwertproblems, und zwischen den beiden zulaessigen
    * Formeln liegen drei Zehnerpotenzen.
    *
+   * ZWEI VOLLQUERSCHNITTE, ZWEI ANTWORTEN, und die Grenze ist gewollt
+   * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)):
+   * beim GEZEICHNETEN (`kind: 'section-geometry'`) faellt `It` aus der
+   * FE-Rechnung und steht kuenftig; beim PARAMETRISCHEN (`kind: 'shape'` mit
+   * `idealisation: 'solid'`) bleibt es dauerhaft `undefined`, weil die FE einen
+   * Polygonzug braucht und `ShapeSpec` keinen traegt. Dasselbe gilt fuer `zM`
+   * beim `t-section`.
+   *
    * `readonly`, ANDERS ALS DIE FELDER DARUEBER: dass `SectionProperties`
    * veraenderlich ist, steht in `CODING_STANDARDS.md` §11 als ABWEICHUNG vom
    * Ziel — sie wird dort abgeraeumt, wo sie steht, und nicht in ein neues Feld
