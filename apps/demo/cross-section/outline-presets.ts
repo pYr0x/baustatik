@@ -116,6 +116,60 @@ function rectangle(): Pick<OutlinePreset, 'rings' | 'reference'> {
 }
 
 /**
+ * Plattenbalken 2000/200/250/500 — EIN RING, ACHT PUNKTE, keine Naeherung.
+ *
+ * Derselbe Querschnitt wie „Plattenbalken 2000/200/250/500 — solid" auf der
+ * Seite „Parametrische Querschnitte": der Fall, der Steiner prueft. `zs =
+ * 139,5 mm` liegt IM GURT (`hf = 200 mm`) — der Schwerpunkt faellt in die
+ * Platte, und genau das ist die Aussage dieses Satzes. Wie beim Rechteck gibt
+ * es hier keinen Bogen und damit keine Diskretisierung: Green integriert ueber
+ * gerade Kanten exakt, und die Zahlen treffen die Handrechnung auf jede Stelle.
+ *
+ * DER UNTERSCHIED ZUM PARAMETRISCHEN VORBILD. Dort ist der Plattenbalken eine
+ * Form mit `idealisation`; hier ist er ein freier Umriss, und der traegt keine
+ * Wandstaerke ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
+ * Die Querschnittswerte sind trotzdem DIESELBEN: das duennwandige Modell
+ * rechnet `A`, `Iy`, `Iz` aus der Umrissfigur, also aus genau diesem Ring
+ * (CONTEXT.md: „die bekannte Luecke"). Die Vergleichsspalte ist damit ein
+ * Exaktheitsbeweis, kein Naeherungsvergleich.
+ *
+ * UMLAUFSINN wie beim Rechteck: von der oberen linken Ecke nach `+y`, an der
+ * Gurtunterkante nach innen, dann an der Stegflanke nach `+z` — im
+ * Bilduhrzeigersinn, `signedArea > 0`, Material.
+ */
+function plattenbalken(): Pick<OutlinePreset, 'rings' | 'reference'> {
+  const bf = 2000;
+  const hf = 200;
+  const bw = 250;
+  const h = 500;
+  const yFlange = bf / 2;
+  const yWeb = bw / 2;
+
+  return {
+    rings: [
+      {
+        vertices: [
+          { y: -yFlange, z: 0 },
+          { y: yFlange, z: 0 },
+          { y: yFlange, z: hf },
+          { y: yWeb, z: hf },
+          { y: yWeb, z: h },
+          { y: -yWeb, z: h },
+          { y: -yWeb, z: hf },
+          { y: -yFlange, z: hf },
+        ],
+      },
+    ],
+    reference: {
+      label: 'Parametrische Form t-section, solid (Seite „Parametrische Querschnitte")',
+      A: 4750,
+      Iy: 584320.1754385965,
+      Iz: 13372395.833333334,
+    },
+  };
+}
+
+/**
  * Geschweisstes, doppeltsymmetrisches I — DERSELBE QUERSCHNITT wie
  * „I-Profil, geschweisst" auf der Seite „Mittellinien-Querschnitte".
  *
@@ -325,6 +379,18 @@ export const OUTLINE_PRESETS: readonly OutlinePreset[] = Object.freeze([
       'daran nichts. Ein Vollquerschnitt hat keine Wandstaerke — als Mittellinienmodell ' +
       'ist er nicht darstellbar.',
     ...rectangle(),
+  },
+  {
+    id: 'plattenbalken-2000x200x250x500',
+    name: 'Plattenbalken, Vollquerschnitt',
+    dimensions: 'bf 2000 · hf 200 · bw 250 · h 500',
+    note:
+      'Der Fall, der Steiner prueft: zs = 139,5 mm liegt IM Gurt (hf = 200 mm). ' +
+      'Acht Punkte, keine Boegen — Green integriert exakt, die Zahlen treffen die ' +
+      'Handrechnung A = bf·hf + bw·(h − hf) = 4750 cm² auf jede Stelle. Dieselbe ' +
+      'Figur wie „Plattenbalken 2000/200/250/500 — solid" auf der Seite ' +
+      '„Parametrische Querschnitte".',
+    ...plattenbalken(),
   },
   {
     id: 'i-200-geschweisst',

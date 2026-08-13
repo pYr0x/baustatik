@@ -145,13 +145,13 @@ const stageSize = { width: Math.floor(bounds.width), height: Math.floor(bounds.h
  * (`fit` steht als `todo` in `cross-section-viewer/src/viewer.ts`).
  *
  * Der Ursprung der Vorgaben liegt auf der OBERKANTE (`z = 0`), der hoechste
- * Querschnitt ist 400 mm hoch. Damit dessen Mitte in der Bildmitte landet, muss
- * der Weltursprung um `200 · scale` DARUEBER sitzen. Dieselben Zahlen wie auf
- * der Schwesterseite, damit derselbe Querschnitt dort und hier gleich gross
- * erscheint.
+ * Querschnitt ist 500 mm hoch (der Plattenbalken). Damit dessen Mitte in der
+ * Bildmitte landet, muss der Weltursprung um `250 · scale` DARUEBER sitzen.
+ * Die Skalierung ist dieselbe wie auf der Schwesterseite, damit derselbe
+ * Querschnitt dort und hier gleich gross erscheint.
  */
 const SCALE = 1.6;
-const VIEW_CENTRE_Z = 200;
+const VIEW_CENTRE_Z = 250;
 
 const driver = createKonvaDriver({
     container,
