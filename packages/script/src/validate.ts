@@ -56,7 +56,10 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // Beurteilungsfelder des Wandwegs, `thickWallRatio` und
   // `shearCentreTolerance` (ADR 0040/0041); bei v10 die Netzdichte der FE,
   // `FEElements` (ADR 0045/0047) — und ohne sie waere nicht zu sagen, unter
-  // welchem Netz ein mitgefuehrter FE-Block entstanden ist.
+  // welchem Netz ein mitgefuehrter FE-Block entstanden ist; bei v11 kann
+  // `feValues.reason` `'hole-off-bending-axis'` tragen, einen Grund, den es
+  // seit ADR 0048 nicht mehr gibt und den dieselbe Figur heute gerechnet
+  // beantwortet.
   //
   // Verführerisch zu ergänzen wären gleich fünf: bei v3 stehen die
   // Bezeichnungen darin, ein Lookup läge nahe; bei v4 wäre es ein ersetztes
@@ -70,8 +73,8 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // einer bewussten Wahl zu unterscheiden. Eine Migration ist ein Werkzeug,
   // das jemand AUFRUFT, sieht und ablehnen kann — und AB HIER IST JEDE
   // v9-DATEI VERLOREN.
-  if (snapshot.schemaVersion !== 11) {
-    fail('Snapshot.schemaVersion muss 11 sein.');
+  if (snapshot.schemaVersion !== 12) {
+    fail('Snapshot.schemaVersion muss 12 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -207,7 +210,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 11,
+    schemaVersion: 12,
     nodes,
     beams,
     crossSections,
@@ -469,13 +472,11 @@ function parseFEValues(input: unknown, path: string): FESectionState {
     exactKeys(value, path, ['status', 'reason', 'It']);
     return {
       status,
-      reason: oneOf(
-        value.reason,
-        ['hole-off-bending-axis', 'disconnected-areas'] as const,
-        `${path}.reason`,
-      ),
-      // `It` bleibt von beiden Gruenden unberuehrt und reist mit, wenn
-      // ueberhaupt vernetzt wurde.
+      // Seit ADR 0048 ist `disconnected-areas` der EINZIGE Grund. Ein
+      // v11-Schnappschuss kann `hole-off-bending-axis` tragen, und genau den
+      // weist diese Zeile ab — dafuer ist die feste Versionszahl da.
+      reason: oneOf(value.reason, ['disconnected-areas'] as const, `${path}.reason`),
+      // `It` reist mit, wenn ueberhaupt vernetzt wurde.
       ...(value.It === undefined
         ? {}
         : { It: positive(value.It, `${path}.It`) }),

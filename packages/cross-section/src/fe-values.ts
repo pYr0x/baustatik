@@ -80,23 +80,27 @@ export type FESectionState =
   | {
       readonly status: 'unsupported';
       /**
-       * `hole-off-bending-axis`: der Schwerpunkt eines Lochs liegt nicht auf
-       * der Biegeachse. Dann ist `Φ` mehrdeutig und als FE-Feld nicht
-       * darstellbar — und der Restfluss zeigt das NICHT an, er steht bei
-       * 10⁻¹⁷. Der Anzeiger ist der Randschluss je Schleife (ADR 0045).
-       *
        * `disconnected-areas`: zwei getrennte Materialflaechen. Der Mesher kann
        * sie, das Stabmodell nicht.
+       *
+       * EIN EINZIGER GRUND, UND DAS IST DER PUNKT. Bis ADR 0048 stand hier
+       * `hole-off-bending-axis` daneben: das Schubproblem lief ueber eine
+       * Spannungsfunktion, die je Randschleife nur bis auf eine Konstante
+       * bestimmt war, und ihr Randdatum schloss nur, wenn der Schwerpunkt jedes
+       * Lochs auf der Biegeachse lag. Ueber eine VERSCHIEBUNG gerechnet
+       * verschwindet die Bedingung — sie war eine Eigenschaft der Formulierung
+       * und keine der Figur. Was bleibt, ist eine Aussage ueber das
+       * Stabmodell.
        */
-      readonly reason: 'hole-off-bending-axis' | 'disconnected-areas';
+      readonly reason: 'disconnected-areas';
       /**
        * Torsionstraegheitsmoment It [m4] — DA, wenn ueberhaupt vernetzt wurde.
        *
-       * `It` ist von beiden Gruenden unberuehrt: `ω` ist eine physische
-       * Verschiebung und auf jedem Gebiet eindeutig. Es waere unehrlich, eine
-       * gerechnete Zahl wegzuwerfen, nur weil κ danebenfaellt (ADR 0045).
-       * Abwesend bei `disconnected-areas`, wo vor dem Vernetzen verweigert
-       * wurde.
+       * HEUTE IMMER ABWESEND, und das Feld bleibt trotzdem: bei
+       * `disconnected-areas` wird VOR dem Vernetzen verweigert, also gibt es
+       * keine Zahl. Es waere unehrlich, eine gerechnete Zahl wegzuwerfen, nur
+       * weil κ danebenfaellt — sollte je wieder ein Grund NACH dem Vernetzen
+       * entstehen, traegt `It` ihn wie zuvor (ADR 0045).
        */
       readonly It?: number;
     };

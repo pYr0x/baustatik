@@ -21,7 +21,13 @@ The returned mesh is **transient**: it exists so the application can draw what
 was computed, without meshing a second time. It does not belong in the model
 record.
 
+Both boundary-value problems — torsion and shear — are solved for a
+**displacement** with a Neumann boundary, so they share one stiffness matrix and
+one factorization. A displacement is single-valued on any domain, which is why a
+hole anywhere costs nothing: no extra unknown, no side condition, no limit.
+
 Boundaries, invariants and the calibrated formulation:
 [`CONTEXT.md`](CONTEXT.md). Decisions:
 [ADR 0045](../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md),
-[ADR 0047](../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md).
+[ADR 0047](../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md),
+[ADR 0048](../../docs/adr/0048-the-shear-problem-uses-the-warping-formulation.md).

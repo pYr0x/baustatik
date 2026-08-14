@@ -1,25 +1,43 @@
 /**
  * Die Auswertung — REIN UND SYNCHRON, ein Durchlauf ueber die Elemente.
  *
- * DIE ZERLEGUNG NACH `m` IST HIER EXAKT UND KEINE ANPASSUNG. `Φ` ist affin in
- * `m = ν/(1+ν)`, also `Φ = Φ_a + m·Φ_b` — und damit ist auch das Spannungsfeld
- * affin:
+ * DIE ZERLEGUNG NACH `m` IST HIER EXAKT UND KEINE ANPASSUNG. `ψ` ist affin in
+ * `m = ν/(1+ν)`, also `ψ = ψ₀ + m·ψ₁` — und mit `τ = ∇ψ + p` und
+ * `p = (0, −z²/(2·Iy) + m·y²/(2·Iy))` ist auch das Spannungsfeld affin
+ * ([ADR 0048](../../../docs/adr/0048-the-shear-problem-uses-the-warping-formulation.md)):
  *
  * ```text
- * τ_a = ( ∂Φ_a/∂z ,  −∂Φ_a/∂y − z²/(2·Iy) )
- * τ_b = ( ∂Φ_b/∂z ,  −∂Φ_b/∂y            )     der Randterm traegt kein m
+ * τ_a = ( ∂ψ₀/∂y ,  ∂ψ₀/∂z − z²/(2·Iy) )
+ * τ_b = ( ∂ψ₁/∂y ,  ∂ψ₁/∂z + y²/(2·Iy) )
  * ```
+ *
+ * DIE BEIDEN ALGEBRAISCHEN TERME STEHEN HIER EXAKT und nicht im Feld. Das ist
+ * der Grund fuer diese Aufteilung von `p` und keine Kosmetik: beim Rechteck ist
+ * `ψ₀` dadurch LINEAR und ein Tri6-Feld traegt es exakt, waehrend die
+ * Aufteilung ohne den `z²`-Term ein kubisches `ψ₀` verlangte und `κ = 5/6` nur
+ * noch auf acht statt zwoelf Stellen traefe (gemessen in
+ * `docs/messungen/verwoelbung-gegen-dirichlet.md`).
  *
  * Die Schubenergie ist eine QUADRATISCHE Form darueber, also
  * `1/κ = A·(E00 + 2m·E01 + m²·E11)`. Die drei Zahlen fallen aus EINEM Integral
  * — es wird nicht fuer mehrere ν gerechnet und hinterher gefittet, wie es das
  * Messgeraet `verifaction/nu-koeffizientenform.mjs` tut.
  *
- * `E01` IST DER FREIE SELBSTTEST: `d₁ = 2·A·E01` ist beweisbar null
- * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)),
- * und die Zahl faellt hier ohnehin an. Sie ist ausdruecklich KEIN Anzeiger fuer
- * eine vergessene Lochbedingung — mit erzwungenem `c₁ = 0` ist sie ebenfalls
- * null, waehrend κ um 85,6 % daneben liegt.
+ * `E01` IST DER FREIE SELBSTTEST, UND SEIT ADR 0048 EIN SCHAERFERER.
+ * `d₁ = 2·A·E01` ist beweisbar null
+ * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)):
+ * `τ_a` ist wirbelfrei, `τ_b` quellenfrei mit verschwindender Normalkomponente,
+ * und damit steht `∫τ_a·τ_b dA = 0` nach partieller Integration.
+ *
+ * DAS GILT IM KONTINUUM UND NICHT MEHR IM DISKRETEN. Solange `Φ` mit
+ * Dirichlet-Rand geloest wurde, war `τ_b = (∂Φ_b/∂z, −∂Φ_b/∂y)` die exakte
+ * Drehung eines Gradienten und `Φ_b` auf dem Rand exakt null — `E01` fiel
+ * maschinengenau aus. Ueber `∇ψ` gilt die Orthogonalitaet nur noch bis auf den
+ * Diskretisierungsfehler: gemessen `1,8·10⁻¹⁰` bei 9300 und `1,5·10⁻¹¹` bei
+ * 37 000 Elementen, also rund `O(h³)`.
+ *
+ * DAS IST EIN GEWINN UND KEIN VERLUST. Eine strukturell null gesetzte Groesse
+ * prueft nichts; eine, die gegen null LAEUFT, prueft das Feld.
  */
 
 import { atOrThrow } from '@baustatik/core';
@@ -58,8 +76,8 @@ export type ShearEvaluation = {
 export function evaluateShear(
   section: FESection,
   frame: Frame,
-  phiA: Float64Array,
-  phiB: Float64Array,
+  psi0: Float64Array,
+  psi1: Float64Array,
   omega: Float64Array,
 ): ShearEvaluation {
   let E00 = 0;
@@ -87,32 +105,32 @@ export function evaluateShear(
     }
 
     for (const point of elementPoints(TRIANGLE_6, elementY, elementZ)) {
-      let dPhiADy = 0;
-      let dPhiADz = 0;
-      let dPhiBDy = 0;
-      let dPhiBDz = 0;
+      let dPsi0Dy = 0;
+      let dPsi0Dz = 0;
+      let dPsi1Dy = 0;
+      let dPsi1Dz = 0;
       let dOmegaDy = 0;
       let dOmegaDz = 0;
       for (let i = 0; i < 6; i += 1) {
         const node = atOrThrow(nodes, i);
         const dy = atOrThrow(point.dNdy, i);
         const dz = atOrThrow(point.dNdz, i);
-        const a = atOrThrow(phiA, node);
-        const b = atOrThrow(phiB, node);
+        const a = atOrThrow(psi0, node);
+        const b = atOrThrow(psi1, node);
         const w = atOrThrow(omega, node);
-        dPhiADy += a * dy;
-        dPhiADz += a * dz;
-        dPhiBDy += b * dy;
-        dPhiBDz += b * dz;
+        dPsi0Dy += a * dy;
+        dPsi0Dz += a * dz;
+        dPsi1Dy += b * dy;
+        dPsi1Dz += b * dz;
         dOmegaDy += w * dy;
         dOmegaDz += w * dz;
       }
 
       const { y, z, weight } = point;
-      const tauYa = dPhiADz;
-      const tauZa = -dPhiADy - (z * z) / (2 * frame.Iy);
-      const tauYb = dPhiBDz;
-      const tauZb = -dPhiBDy;
+      const tauYa = dPsi0Dy;
+      const tauZa = dPsi0Dz - (z * z) / (2 * frame.Iy);
+      const tauYb = dPsi1Dy;
+      const tauZb = dPsi1Dz + (y * y) / (2 * frame.Iy);
 
       E00 += (tauYa * tauYa + tauZa * tauZa) * weight;
       E01 += (tauYa * tauYb + tauZa * tauZb) * weight;

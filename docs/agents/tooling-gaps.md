@@ -1,18 +1,15 @@
 # Known tooling gaps
 
 Facts about the build and quality setup that are *not* what the configuration
-appears to promise. None of these are fixed. They are recorded here so that
-nobody assumes a check is running that is not, and so that the list can be
-worked off deliberately rather than discovered one at a time.
+appears to promise. Most are not fixed; resolved gaps move to the
+[`Resolved`](#resolved) section at the end. The list is recorded so that nobody
+assumes a check is running that is not, and so that it can be worked off
+deliberately rather than discovered one at a time.
 
-Last verified: 2026-08-06.
+Last verified: 2026-08-14.
 
 ## Checks that do not run
 
-- **`typecheck` is never invoked.** 22 packages define `"typecheck": "tsc
-  --noEmit"`. There is no `typecheck` task in `turbo.json`, no root script, and
-  no CI step. `pnpm build` compiles through Vite + `vite-plugin-dts`, which
-  does not fail the build the way `tsc --noEmit` would.
 - **`lint` cannot fail on formatting.** Every package's `lint` script passes
   `--fix` (Biome) or `--write` (oxfmt). CI runs `pnpm lint`, so it mutates the
   checkout and exits 0 unless a rule is genuinely unfixable. There is no
@@ -104,3 +101,13 @@ moving.
   `paths: {}`, so this only affects `apps/demo`, which inherits the base.
 - `AGENTS.md` used to claim pnpm 9; the pinned manager is `pnpm@11.16.0` and CI
   runs Node 24 while `engines` says `>=18`.
+
+## Resolved
+
+- **`typecheck` runs repo-wide since 2026-08-14.** `pnpm typecheck` runs
+  `tsc --noEmit` in every workspace that defines it (25 packages plus
+  `apps/demo`), wired as a Turbo task with `dependsOn: ^build` and as a CI
+  step between Build and Lint. `@baustatik/errors` and the two Rust WASM
+  crates have no script and are skipped. The ability to miss it was: `pnpm
+  build` compiles through Vite + `vite-plugin-dts`, which does not fail the
+  build the way `tsc --noEmit` would.
