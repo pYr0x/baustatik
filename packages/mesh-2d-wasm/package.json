@@ -1,6 +1,6 @@
 {
   "name": "@baustatik/mesh-2d-wasm",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": false,
   "description": "Triangle 1.6 WebAssembly facade for two-dimensional triangular meshes (non-commercial use only).",
   "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
