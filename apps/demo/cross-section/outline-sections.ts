@@ -3,7 +3,9 @@ import {
     createSectionPolicy,
     type CrossSection,
     DEFAULT_SECTION_POLICY,
+    type FESectionState,
     InvalidSectionPolicyError,
+    kappaFromCoefficients,
     type Ring,
     type SectionGeometry,
     type SectionProperties,
@@ -12,11 +14,16 @@ import {
     validateSectionGeometry,
     validateSectionProperties,
 } from '@baustatik/cross-section';
-import { createCrossSectionViewer, CROSS_SECTION_LAYERS } from '@baustatik/cross-section-viewer';
+import {
+    createCrossSectionViewer,
+    type CrossSectionFEMesh,
+    CROSS_SECTION_LAYERS,
+} from '@baustatik/cross-section-viewer';
 import { createKonvaAdapter as createKonvaDriver } from '@baustatik/konva-adapter';
 import { convert } from '@baustatik/units';
 import { viewport, screenPoint } from '@baustatik/viewport-2d';
 import { createPinia, defineStore } from 'pinia';
+import { computeFESection } from './cross-section-fe-port';
 import { OUTLINE_PRESETS, type OutlinePreset } from './outline-presets';
 
 // ---------------------------------------------------------------------------
@@ -32,11 +39,14 @@ import { OUTLINE_PRESETS, type OutlinePreset } from './outline-presets';
 // DARAUS FOLGEN DREI UNTERSCHIEDE, und sie sind der Grund, warum diese Seite
 // neben der anderen steht:
 //
-//   1. KEIN ZWEI-SCHRITT. Dort ist „Berechnen" ein eigener Knopf, weil man den
-//      Umriss ENTSTEHEN sehen soll. Hier gaebe es davor nichts zu sehen: der
-//      Viewer zeichnet in diesem Zweig ausschliesslich den Umriss, und der ist
-//      die Eingabe. Ein Knopf, der eine Figur in sich selbst verwandelt, waere
-//      Zeremonie.
+//   1. DER „BERECHNEN"-KNOPF IST ZURUECK — ABER FUER ETWAS ANDERES. Hier stand
+//      bisher, es gebe keinen: „ein Knopf, der eine Figur in sich selbst
+//      verwandelt, waere Zeremonie". Das Argument war richtig und ist mit dem
+//      NETZ hinfaellig. Der Umriss entsteht weiterhin sofort — daran hat sich
+//      nichts geaendert. Was jetzt einen Klick braucht, ist die FE-Rechnung des
+//      Vollquerschnitts: sie vernetzt und faktorisiert, laeuft im Worker und
+//      liefert κ, `It` und den Schubmittelpunkt (ADR 0045/0047). Der Knopf
+//      heisst deshalb nicht „Berechnen", sondern nennt, was er tut.
 //   2. `discretisationTolerance` STATT `miterLimit`. Aufgeweitet wird nichts, also
 //      entsteht keine Miter-Ecke, und die Schranke dafuer wirkt schlicht nicht.
 //      Was wirkt, ist die Sehnenabweichung der Bogenzerlegung — bei den
@@ -61,12 +71,20 @@ const useStore = defineStore('outline-sections', {
         presetId: '',
         rings: [] as Ring[],
         outline: [] as SectionGeometry['outline'],
+        // Der FE-Block gehoert zum SATZ und nicht zum Ergebnis — anders als das
+        // Netz daneben (ADR 0039/0045). ABWESEND heisst „noch nicht gerechnet".
+        feValues: undefined as FESectionState | undefined,
         // Projektebene, nicht je Querschnitt: dieselbe Zahl beurteilt alle.
         sectionPolicy: DEFAULT_SECTION_POLICY,
     }),
     getters: {
         geometry(state): SectionGeometry {
-            return { kind: 'outline', rings: state.rings, outline: state.outline };
+            return {
+                kind: 'outline',
+                rings: state.rings,
+                outline: state.outline,
+                ...(state.feValues === undefined ? {} : { feValues: state.feValues }),
+            };
         },
     },
     actions: {
@@ -90,6 +108,14 @@ const useStore = defineStore('outline-sections', {
                 vertices: ring.vertices.map((vertex) => ({ ...vertex })),
             }));
             this.outline = [];
+            // Der FE-Block gehoert zu DIESEN Ringen. Ihn stehen zu lassen waere
+            // eine Behauptung ueber die neue Figur — das Gate meldete ihn beim
+            // naechsten Lauf als Drift gegen den Fingerabdruck (ADR 0045).
+            this.feValues = undefined;
+        },
+        /** Der gerechnete Block in den Satz — ERSETZEND, nicht mutierend. */
+        setFEValues(state: FESectionState) {
+            this.feValues = state;
         },
         /**
          * Die Sehnenabweichung setzen — als NEUE Policy, nicht als
@@ -108,6 +134,18 @@ const useStore = defineStore('outline-sections', {
          */
         setArcTolerance(discretisationTolerance: number) {
             this.sectionPolicy = createSectionPolicy({ ...this.sectionPolicy, discretisationTolerance });
+            // Andere Toleranz, anderer Umriss, anderer Fingerabdruck.
+            this.feValues = undefined;
+        },
+        /**
+         * Die Netzdichte setzen. Sie aendert den Umriss NICHT — sie erzeugt
+         * Zahlen, die im Satz gespeichert werden (die dritte Sorte Policy-Feld,
+         * ADR 0045). Der bereits gerechnete Block wird trotzdem verworfen: er
+         * entstand unter einer anderen Dichte.
+         */
+        setFEElements(FEElements: number) {
+            this.sectionPolicy = createSectionPolicy({ ...this.sectionPolicy, FEElements });
+            this.feValues = undefined;
         },
         /**
          * Der Umriss wird ERZEUGT, unter genau der Policy, die daneben im Store
@@ -173,10 +211,16 @@ const viewer = createCrossSectionViewer({
     // wird bei jedem Lauf neu gesetzt. Der Schwerpunkt erscheint damit
     // zusammen mit der Werteliste daneben.
     //
-    // Spannungspunkte und Netz bleiben hier aus: fuer eine freie
-    // `SectionGeometry` liefert `stressPoints` heute `undefined`, und vernetzt
-    // wird auf dieser Seite nicht. Der Schubmittelpunkt erscheint nur, wenn
-    // die Rechnung ihn bestimmt — beim Vollquerschnitt tut sie das nicht.
+    // Spannungspunkte bleiben aus: fuer eine freie `SectionGeometry` liefert
+    // `stressPoints` heute `undefined`.
+    //
+    // DAS NETZ IST DA, SOBALD DIE FE GELAUFEN IST, und es ist GENAU DAS Netz,
+    // auf dem gerechnet wurde — es kommt aus `FEComputation` und wird nicht ein
+    // zweites Mal erzeugt (ADR 0039). `Mesh2DResult` passt ohne Umformung in
+    // `CrossSectionFEMesh`; der Viewer lernt dadurch keine WASM-Abhaengigkeit.
+    // Ob es ZU SEHEN ist, entscheidet die Checkbox darunter — ein `undefined`
+    // hier ist der Aus-Zustand desselben Pulls.
+    getFEMesh: () => (showMesh ? mesh : undefined),
     getProperties: () => result?.properties,
     grid: { spacing: 10 }, // Weltkoordinaten in mm
 });
@@ -218,6 +262,30 @@ type Result = {
 
 let result: Result | undefined;
 
+/**
+ * Das Netz, unter dem gerechnet wurde — TRANSIENT, neben dem Satz und nicht in
+ * ihm (ADR 0039).
+ *
+ * VERWORFEN, sobald sich `discretisationTolerance`, `FEElements` oder die
+ * Vorgabe aendert. Dieselbe Regel wie `reactions = undefined` in
+ * `fem-viewer.ts`: ein Ergebnis ist keine Eingabe, und ein Netz zur alten
+ * Einstellung behauptete etwas ueber die gerade gezeigte Figur.
+ */
+let mesh: CrossSectionFEMesh | undefined;
+
+/** Der Zustand des FE-Knopfs. Gehoert der Oberflaeche, nicht dem Store. */
+let computing = false;
+
+/**
+ * Ob das gerechnete Netz zu sehen ist — der Schalter NEben dem FE-Knopf.
+ *
+ * Gehoert wie `computing` der Oberflaeche, nicht dem Store: das Netz selbst
+ * bleibt ein transientes Ergebnis (ADR 0039), und die Sichtbarkeitsfrage ist
+ * keine Frage an die gespeicherte Figur. Ein `undefined` im `getFEMesh`-Pull
+ * ist genau der Aus-Zustand, den der Viewer kennt.
+ */
+let showMesh = true;
+
 // Druckeinheiten wie im Bericht der Beispiele: das Package liefert SI
 // (ADR 0024), gezeigt werden die Katalogeinheiten, gegen die man eine
 // Profiltabelle haelt. Die Faktoren stehen an EINER Stelle.
@@ -239,6 +307,10 @@ const errorCount = element<HTMLSpanElement>('error-count');
 const discretisationToleranceField = element<HTMLInputElement>('discretisation-tolerance');
 const discretisationToleranceSlider = element<HTMLInputElement>('discretisation-tolerance-slider');
 const discretisationToleranceNote = element<HTMLDivElement>('discretisation-tolerance-note');
+const feElementsField = element<HTMLInputElement>('fe-elements');
+const computeFEButton = element<HTMLButtonElement>('compute-fe');
+const feStatus = element<HTMLDivElement>('fe-status');
+const showMeshToggle = element<HTMLInputElement>('show-mesh');
 
 function element<T extends HTMLElement>(id: string): T {
     const found = document.getElementById(id);
@@ -282,10 +354,121 @@ for (const preset of OUTLINE_PRESETS) {
  */
 function calculate(): void {
     store.deriveOutline();
+    // DAS NETZ WIRD VERWORFEN, sobald die Figur oder die Einstellung sich
+    // bewegt. Der Toleranzregler feuert auf jedem `input`-Ereignis; ein `await`
+    // hier hiesse ein Netz je Tastendruck — deshalb rechnet die FE nur auf
+    // Klick, und dazwischen steht kein Netz im Bild.
+    mesh = undefined;
+    feStatus.textContent = '';
+    recompute();
 
+    // Neu zeichnen, weil jetzt der Umriss im Satz steht. Das Store-Abonnement
+    // hat das bereits getan — der Aufruf hier schadet nicht und macht die
+    // Abhaengigkeit sichtbar, falls das Abonnement einmal wegfaellt.
+    viewer.requestRender();
+    renderPanel();
+}
+
+// ---------------------------------------------------------------------------
+// Der FE-Lauf.
+//
+// EIN KLICK, EIN LAUF, KEINE VERFEINERUNG. Was hier passiert, ist der
+// Aufloesungsschritt aus ADR 0045 in seiner kleinsten Fassung: EIN Querschnitt,
+// kein Modell. Der Port schickt die Geometrie in den Worker, dort laufen Mesher
+// und Loeser, und zurueck kommen zwei Dinge — der Satz-Anteil (`feValues`, geht
+// IN den Store) und das Netz (bleibt daneben).
+// ---------------------------------------------------------------------------
+
+computeFEButton.addEventListener('click', () => void runFE());
+
+/** Der Netz-Schalter: umschalten, neu zeichnen — das Ergebnis bleibt stehen. */
+showMeshToggle.addEventListener('change', () => {
+    showMesh = showMeshToggle.checked;
+    viewer.requestRender();
+});
+
+async function runFE(): Promise<void> {
+    computing = true;
+    computeFEButton.disabled = true;
+    feStatus.textContent = 'Vernetzt und löst …';
+    // Erst weg, dann rechnen: kein Zweig, in dem ein altes Netz eine
+    // fehlgeschlagene Rechnung ueberlebt.
+    mesh = undefined;
+    viewer.requestRender();
+
+    try {
+        const computation = await computeFESection(store.geometry, store.sectionPolicy);
+        store.setFEValues(computation.state);
+        mesh = toSceneMesh(computation.mesh);
+        feStatus.textContent = feSummary(computation.state, computation.mesh);
+    } catch (error) {
+        // Der Fehlerzweig ist sichtbar, und der Satz bleibt LEER statt halb
+        // gefuellt.
+        mesh = undefined;
+        feStatus.textContent = `Fehlgeschlagen: ${
+            error instanceof Error ? error.message : String(error)
+        }`;
+    } finally {
+        computing = false;
+        // Neu rechnen mit dem gefuellten Satz: `sectionProperties` liest den
+        // FE-Block, und erst danach stehen `It`, `yM`/`zM` in der Tabelle.
+        store.deriveOutline();
+        recompute();
+        viewer.requestRender();
+        renderPanel();
+    }
+}
+
+/** Was der Lauf ergeben hat, in einem Satz. */
+function feSummary(state: FESectionState, computed: CrossSectionFEMesh | undefined): string {
+    const elements = computed === undefined ? 0 : computed.elements.length / 6;
+    if (state.status === 'unsupported') {
+        const reason =
+            state.reason === 'hole-off-bending-axis'
+                ? 'Ein Loch liegt nicht auf der Biegeachse — Φ ist dort mehrdeutig, ' +
+                  'κ und der Schubmittelpunkt fallen weg (ADR 0045).'
+                : 'Zwei getrennte Materialflächen — das Stabmodell trägt sie nicht.';
+        const withIt =
+            state.It === undefined
+                ? ''
+                : ` It bleibt unberührt: ${(state.It * M4_TO_CM4).toFixed(2)} cm⁴.`;
+        return `Verweigert. ${reason}${withIt}`;
+    }
+    const nu = 0.3;
+    const kappaZ = kappaFromCoefficients(state.values.inverseKappaZ, nu);
+    const kappaZero = kappaFromCoefficients(state.values.inverseKappaZ, 0);
+    return (
+        `${elements} Tri6-Elemente. ` +
+        `κ_z(ν=0) = ${kappaZero?.toFixed(6)}, κ_z(ν=0,3) = ${kappaZ?.toFixed(6)}.`
+    );
+}
+
+/**
+ * Das Netz in die Bildebene bringen: M eine Umrechnung, und die ist es.
+ *
+ * `computeFESection` rechnet in SI (ADR 0024) — die Koordinaten des Netzes
+ * sind Meter. Der Viewer zeichnet `CrossSectionFEMesh.points` dagegen direkt
+ * als Millimeter (dort heisst es „liegen bereits in y/z-Millimetern"). Ohne
+ * die Umrechnung kollabierte der ganze Drahtgitter zu einem Punkt: eine
+ * 500 mm-Figur schriebe sich als 0,5 Welt-Einheit.
+ *
+ * Die Faktoren stehen an der einen Stelle oben (`M_TO_MM`), NICHT als
+ * Literal hier.
+ */
+function toSceneMesh(mesh: CrossSectionFEMesh | undefined): CrossSectionFEMesh | undefined {
+    if (mesh === undefined) return undefined;
+    const points = new Float64Array(mesh.points.length);
+    for (let index = 0; index < mesh.points.length; index += 1) {
+        points[index] = mesh.points[index]! * M_TO_MM;
+    }
+    return { ...mesh, points };
+}
+
+/** Die Werte und Befunde neu bilden, ohne den Umriss anzufassen. */
+function recompute(): void {
     const geometry = store.geometry;
     const section: CrossSection = { kind: 'section-geometry', id: store.presetId, geometry };
-    const properties = sectionProperties(section);
+    const properties = sectionProperties(section, store.sectionPolicy);
 
     const shape = validateSectionGeometry(geometry, store.sectionPolicy);
     const values: SectionValidationResult =
@@ -298,12 +481,6 @@ function calculate(): void {
         rings: geometry.outline.map((polygon) => polygon.points.length),
         findings: [...findings('Figur', shape), ...findings('Werte', values)],
     };
-
-    // Neu zeichnen, weil jetzt der Umriss im Satz steht. Das Store-Abonnement
-    // hat das bereits getan — der Aufruf hier schadet nicht und macht die
-    // Abhaengigkeit sichtbar, falls das Abonnement einmal wegfaellt.
-    viewer.requestRender();
-    renderPanel();
 }
 
 /** Beide Kanaele einer Gate-Tuer, mit ihrer Herkunft versehen. */
@@ -332,6 +509,21 @@ function findings(source: Finding['source'], from: SectionValidationResult): Fin
 for (const input of [discretisationToleranceField, discretisationToleranceSlider]) {
     input.addEventListener('input', () => applyArcTolerance(input.value));
 }
+
+// `change` statt `input`: die Elementzahl wird getippt, und bei jedem
+// Zwischenstand eine Policy zu bauen hiesse, `1` und `40` abzuweisen, bevor die
+// `4000` fertig ist.
+feElementsField.addEventListener('change', () => {
+    try {
+        store.setFEElements(Number(feElementsField.value));
+        feStatus.textContent = '';
+    } catch (error) {
+        if (!(error instanceof InvalidSectionPolicyError)) throw error;
+        feStatus.textContent = error.message;
+        return;
+    }
+    calculate();
+});
 
 /**
  * Die neue Toleranz in den Store — und den Umriss NACHZIEHEN.
@@ -407,6 +599,11 @@ function renderPanel(): void {
         button.setAttribute('aria-pressed', String(button.dataset.preset === store.presetId));
     }
 
+    computeFEButton.disabled = computing;
+    if (feElementsField.value !== String(store.sectionPolicy.FEElements)) {
+        feElementsField.value = String(store.sectionPolicy.FEElements);
+    }
+
     presetName.textContent = preset?.name ?? '–';
     presetDimensions.textContent = preset === undefined ? '' : `${preset.dimensions} [mm]`;
     presetNote.textContent = preset?.note ?? '';
@@ -445,11 +642,15 @@ function renderPanel(): void {
  * Die Werte in Katalogeinheiten — dieselbe Tabelle wie auf den beiden anderen
  * Seiten, damit sich die Wege vergleichen lassen.
  *
- * `kappa` und der Schubmittelpunkt stehen mit als „nicht ermittelt": der
- * gezeichnete Querschnitt traegt sie heute nicht (ADR 0035), und das gehoert
- * ins Bild — eine weggelassene Zeile saehe aus wie eine Null. Beim
- * `outline`-Zweig ist das ausserdem keine Luecke, die sich schliessen liesse:
- * kappa braucht den Wandweg, und den gibt es hier per Konstruktion nicht.
+ * `It`, der Schubmittelpunkt und kappa stehen als „nicht ermittelt", solange der
+ * FE-Lauf nicht stattgefunden hat — das gehoert ins Bild, eine weggelassene
+ * Zeile saehe aus wie eine Null.
+ *
+ * kappa STEHT ALS FORMEL, nicht als Zahl: der Vollquerschnitt speichert
+ * `1/kappa = d0 + d2·m²` mit `m = ν/(1+ν)`, und ν gehoert dem Stabmaterial und
+ * nicht dem Querschnitt (ADR 0045). Gezeigt wird deshalb ausgewertet fuer zwei
+ * Werte — ν = 0 und ν = 0,3 —, und der Unterschied dazwischen ist genau die
+ * Groesse, die eine einzelne gespeicherte Zahl verschluckt haette.
  */
 function propertyTable(p: SectionProperties): string {
     return `
@@ -466,8 +667,11 @@ function propertyTable(p: SectionProperties): string {
     ${row('zs', number(p.zs * M_TO_MM, 'mm'))}
     ${row('yM', maybe(p.yM === undefined ? undefined : p.yM * M_TO_MM, 'mm'))}
     ${row('zM', maybe(p.zM === undefined ? undefined : p.zM * M_TO_MM, 'mm'))}
-    ${row('kappaY', kappa(p.kappaY))}
-    ${row('kappaZ', kappa(p.kappaZ))}
+    ${row('It', maybe(p.It === undefined ? undefined : p.It * M4_TO_CM4, 'cm⁴'))}
+    ${row('kappaY (ν=0)', kappa(p.kappaY ?? kappaFromCoefficients(p.inverseKappaY, 0)))}
+    ${row('kappaZ (ν=0)', kappa(p.kappaZ ?? kappaFromCoefficients(p.inverseKappaZ, 0)))}
+    ${row('kappaY (ν=0,3)', kappa(p.kappaY ?? kappaFromCoefficients(p.inverseKappaY, 0.3)))}
+    ${row('kappaZ (ν=0,3)', kappa(p.kappaZ ?? kappaFromCoefficients(p.inverseKappaZ, 0.3)))}
   </tbody>
 </table>`;
 }
@@ -588,6 +792,16 @@ calculate();
 //   store.outline                        die Sehnenzuege — das Ergebnis
 //   store.sectionPolicy                  die Einstellung, unter der es entstand
 //   store.setArcTolerance(0.5)           groebere Zerlegung (dann calculate())
+//   store.setFEElements(20000)           feineres Netz (dann runFE())
 //   calculate()                          neu erzeugen, rechnen, zeichnen
+//   await runFE()                        vernetzen, loesen, feValues fuellen
+//   store.feValues                       der FE-Block, wie er gespeichert wuerde
 //   OUTLINE_PRESETS.map((p) => p.id)     die Auswahl
-Object.assign(globalThis, { store, viewer, OUTLINE_PRESETS, calculate, renderArcTolerance });
+Object.assign(globalThis, {
+    store,
+    viewer,
+    OUTLINE_PRESETS,
+    calculate,
+    renderArcTolerance,
+    runFE,
+});

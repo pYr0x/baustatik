@@ -53,20 +53,26 @@ import { InvalidSectionPolicyError } from './errors';
  * abgearbeitet, und die Fabrik samt Merge-Semantik musste kein einziges Mal
  * neu erfunden werden.
  *
- * ZWEI SORTEN FELD, und die Trennung soll die Policy davor bewahren, zur
+ * DREI SORTEN FELD, und die Trennung soll die Policy davor bewahren, zur
  * Sammelstelle zu werden:
  *
- * | Feld                     | ändert den Umriss | beurteilt ihn |
- * | ------------------------ | ----------------- | ------------- |
- * | `discretisationTolerance`           | ja                | —             |
- * | `miterLimit`             | ja                | —             |
- * | `principalAxisTolerance` | —                 | ja            |
- * | `thickWallRatio`         | —                 | ja            |
- * | `shearCentreTolerance`   | —                 | ja            |
+ * | Feld                     | ändert den Umriss | beurteilt ihn | erzeugt Zahlen |
+ * | ------------------------ | ----------------- | ------------- | -------------- |
+ * | `discretisationTolerance`           | ja                | —             | —              |
+ * | `miterLimit`             | ja                | —             | —              |
+ * | `principalAxisTolerance` | —                 | ja            | —              |
+ * | `thickWallRatio`         | —                 | ja            | —              |
+ * | `shearCentreTolerance`   | —                 | ja            | —              |
+ * | `FEElements`             | —                 | —             | ja             |
  *
  * Die Beurteilungsfelder werden ALLEIN VOM GATE gelesen. Sie stehen trotzdem
  * hier und nicht in der `AnalysisPolicy`: sie urteilen über den Querschnitt,
  * nicht über die Rechnung, und ADR 0033 zieht die Linie am Gegenstand.
+ *
+ * DIE DRITTE SORTE KAM MIT DER FE (ADR 0045/0047): `FEElements` ändert den
+ * Umriss nicht und beurteilt ihn nicht — es *erzeugt Zahlen, die im Satz
+ * gespeichert werden*. Gelesen wird es beim ERZEUGEN, nicht auf der
+ * Rechenstrecke; die Linie aus ADR 0011/0033 hält also.
  *
  * `JoinType` IST KEIN FELD GEWORDEN, obwohl er in derselben Zeile stand: er ist
  * auf Miter festgenagelt, weil `Round` jede Ecke des I-Profils abrundete und
@@ -74,16 +80,21 @@ import { InvalidSectionPolicyError } from './errors';
  * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
  * Es gibt keine zweite zulässige Wahl, also auch keine Einstellung.
  *
- * AUSDRÜCKLICH KEIN KANDIDAT: DIE GAUSS-PUNKTE für Grashof (P4). Sie werden
- * von `sectionProperties` gelesen, und das liegt auf der RECHENSTRECKE
- * (`getSectionStiffness` in `@baustatik/fem-section-resolve`, je Stab in
- * `solve()`/`check()`) — eine Einstellung dort wäre nach ADR 0011 eine
- * *Analyse*-Einstellung und gehörte in `AnalysisPolicy`, nicht hierher. Sie
- * werden überhaupt keine Einstellung, sondern eine KONSTANTE: bei senkrechten
- * Kanten ist `t(z)` je Streifen konstant, der Integrand ein Polynom 6. Grades
- * und 4-Punkt-Gauß damit EXAKT; bei schrägen bringen rund 8 Punkte `1e-12`.
- * Das ist Konvergenz und keine Wahl — ein Schalter lüde dazu ein, ein exaktes
- * Ergebnis zu verschlechtern.
+ * AUSDRÜCKLICH KEIN KANDIDAT: EINE QUADRATURORDNUNG. Das PRINZIP steht, sein
+ * ursprüngliches Beispiel — die Gauß-Punkte für Grashof — ist mit `FEElements`
+ * hinfällig geworden und wird hier nicht mehr benutzt, weil es sonst so aussähe,
+ * als sei die eine Zahl gekommen und die andere geblieben. Was gilt: eine
+ * Quadraturordnung wird überhaupt keine Einstellung, sondern eine KONSTANTE.
+ * Bei senkrechten Kanten ist `t(z)` je Streifen konstant, der Integrand ein
+ * Polynom 6. Grades und 4-Punkt-Gauß damit EXAKT; die FE des Vollquerschnitts
+ * wählt ihre 3 und 6 Punkte aus demselben Grund (ADR 0046, ADR 0047). Das ist
+ * Konvergenz und keine Wahl — ein Schalter lüde dazu ein, ein exaktes Ergebnis
+ * zu verschlechtern.
+ *
+ * `FEElements` IST DAVON NICHT BETROFFEN und ist auch keine Gegeninstanz: die
+ * Netzdichte konvergiert nicht in endlich vielen Punkten gegen ein exaktes
+ * Ergebnis. Sie ist die einzige Stellschraube der FE-Rechnung und deshalb eine
+ * Angabe des Anwenders.
  *
  * DIE KNICKSCHRANKE IST EBENFALLS KEIN FELD: sie wird nach ADR 0032 aus
  * `discretisationTolerance` ABGELEITET (`notch > discretisationTolerance`), nicht gesetzt.
@@ -209,6 +220,30 @@ export type SectionPolicy = {
    * EIN BEURTEILUNGSFELD, wie `thickWallRatio`.
    */
   readonly shearCentreTolerance: number;
+
+  /**
+   * Wie fein der Vollquerschnitt für die FE vernetzt wird: die ANGESTREBTE
+   * Elementzahl, `maxElementArea = A / FEElements`. DIMENSIONSLOS.
+   *
+   * RELATIV UND NICHT ABSOLUT, aus demselben Grund wie bei
+   * `principalAxisTolerance`: Querschnitte reichen vom cm²- bis in den
+   * m²-Bereich, und eine absolute Elementfläche ergäbe dort 20 und dort 10⁶
+   * Elemente. Die Zahl, die der Anwender im Kopf hat, ist „wie viele Elemente",
+   * nicht „wie groß eines".
+   *
+   * SIE IST DIE EINZIGE STELLSCHRAUBE DER FE-RECHNUNG, und das ist Absicht: es
+   * gibt keinen Konvergenzlauf, keinen zweiten verfeinerten Durchgang und keine
+   * gespeicherte Konvergenzzahl. Wer wissen will, ob das Netz trägt, dreht diese
+   * Zahl hoch und sieht das Ergebnis stehen bleiben — sichtbar und in seiner
+   * Hand. Ein automatischer zweiter Lauf mit vervierfachter Dichte ist genau bei
+   * großen Figuren der Fall, in dem die Rechnung unbrauchbar lange dauert, und
+   * er fiele ungefragt an (ADR 0045).
+   *
+   * DAS DRITTE SORTE FELD (siehe oben): gelesen wird es beim ERZEUGEN der
+   * FE-Werte in `@baustatik/cross-section-fe`, nie auf der Rechenstrecke.
+   * `sectionProperties` sieht die Zahl nicht.
+   */
+  readonly FEElements: number;
 };
 
 /** Was ein Aufrufer abweichend setzen darf; der Rest kommt aus dem Default. */
@@ -246,6 +281,12 @@ export type SectionPolicyOverrides = Partial<SectionPolicy>;
  * Länge von rund einem Tausendstel Millimeter an einem Meter Querschnitt.
  * Weiter als `principalAxisTolerance` (`1e-9`), weil `yM` aus ZWEI numerischen
  * Integrationen über zwei verschiedene Figuren fällt und nicht aus einer.
+ *
+ * `4000` ELEMENTE für die FE ist die Dichte, bei der das Rechteck seine
+ * scharfe Zahl `κ = 0,833333333333` hält und ein IPE-Umriss binnen einer
+ * Sekunde durchläuft. Sie ist eine Vorgabe und keine Grenze: höher gedreht
+ * bleibt die Zahl stehen, und genau das ist der Beleg, den es statt eines
+ * Konvergenzlaufs gibt.
  */
 export const DEFAULT_SECTION_POLICY: SectionPolicy = Object.freeze({
   discretisationTolerance: DEFAULT_ARC_TOLERANCE,
@@ -253,6 +294,7 @@ export const DEFAULT_SECTION_POLICY: SectionPolicy = Object.freeze({
   miterLimit: 2,
   thickWallRatio: 1 / 3,
   shearCentreTolerance: 1e-6,
+  FEElements: 4000,
 });
 
 const FIELDS = [
@@ -261,6 +303,7 @@ const FIELDS = [
   'miterLimit',
   'thickWallRatio',
   'shearCentreTolerance',
+  'FEElements',
 ] as const;
 
 /**
@@ -288,6 +331,7 @@ export function createSectionPolicy(
     shearCentreTolerance:
       overrides.shearCentreTolerance ??
       DEFAULT_SECTION_POLICY.shearCentreTolerance,
+    FEElements: overrides.FEElements ?? DEFAULT_SECTION_POLICY.FEElements,
   };
 
   assertValidValues(policy);
@@ -320,6 +364,7 @@ export function parseSectionPolicy(input: unknown): SectionPolicy {
     miterLimit: numberField(record, 'miterLimit'),
     thickWallRatio: numberField(record, 'thickWallRatio'),
     shearCentreTolerance: numberField(record, 'shearCentreTolerance'),
+    FEElements: numberField(record, 'FEElements'),
   };
   assertValidValues(policy);
   return Object.freeze(policy);
@@ -379,6 +424,13 @@ function numberField(record: Record<string, unknown>, field: string): number {
  * `shearCentreTolerance` DARF `0` SEIN und nicht negativ — wörtlich dieselbe
  * Begründung wie bei `principalAxisTolerance`: die `0` ist der exakte
  * Vergleich, also die Schärfe, mit der das Gate bis P5 gearbeitet hat.
+ *
+ * `FEElements` GANZZAHLIG UND MINDESTENS `1`, und beides ist abgelesen und
+ * nicht gewählt: `maxElementArea = A / FEElements` verlangt einen echt
+ * positiven Nenner, und eine gebrochene Elementzahl behauptete eine Genauigkeit
+ * der Steuerung, die der Mesher nicht hat — Triangle trifft die Vorgabe ohnehin
+ * nur von oben. Nach oben unbegrenzt: eine sehr feine Vorgabe kostet Zeit, und
+ * das ist eine Entscheidung des Projekts.
  */
 function assertValidValues(policy: SectionPolicy): void {
   const {
@@ -387,6 +439,7 @@ function assertValidValues(policy: SectionPolicy): void {
     miterLimit,
     thickWallRatio,
     shearCentreTolerance,
+    FEElements,
   } = policy;
   if (
     !Number.isFinite(discretisationTolerance) ||
@@ -422,6 +475,12 @@ function assertValidValues(policy: SectionPolicy): void {
       '"shearCentreTolerance" muss endlich und mindestens 0 sein (war: ' +
         `${shearCentreTolerance}).`,
       'shearCentreTolerance',
+    );
+  }
+  if (!Number.isInteger(FEElements) || FEElements < 1) {
+    throw new InvalidSectionPolicyError(
+      `"FEElements" muss eine ganze Zahl ab 1 sein (war: ${FEElements}).`,
+      'FEElements',
     );
   }
 }

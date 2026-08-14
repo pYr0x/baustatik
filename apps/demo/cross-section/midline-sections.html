@@ -180,6 +180,15 @@
             color: #a3312b;
         }
 
+        /* Der Netzanzeige-Schalter unter dem FE-Knopf. */
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 0.45rem;
+            cursor: pointer;
+        }
+
         fieldset.idealisation {
             display: flex;
             flex-direction: column;
@@ -290,10 +299,11 @@
                     </label>
                 </fieldset>
                 <p class="note">
-                    Zwei Deutungen desselben Wandgraphen. „dünnwandig" ermittelt κ,
-                    Schubmittelpunkt und It über den Wandweg; „Vollquerschnitt" lässt sie als
-                    „nicht ermittelt" stehen — dort bräuchte es Grashof (P4), und der Löser
-                    rechnet GAs = rigid.
+                    Zwei Deutungen desselben Wandgraphen — dieselbe Figur, ein Klick,
+                    zwei κ. „dünnwandig" ermittelt κ, Schubmittelpunkt und It über den
+                    Wandweg, sofort und synchron. „Vollquerschnitt" holt sie aus der
+                    FE-Rechnung: dafür ist der Knopf darunter da, und κ steht dort als
+                    ν-freie Formel, also für zwei ν nebeneinander (ADR 0045).
                 </p>
             </section>
 
@@ -306,6 +316,26 @@
                 <input id="miter-limit-slider" type="range" min="1.05" max="8" step="0.05" value="2"
                     aria-label="miterLimit (Schieber)" />
                 <div id="miter-limit-note" class="note"></div>
+                <label class="policy-row" for="fe-elements" style="margin-top:0.7rem">
+                    <span>FEElements [-]</span>
+                    <input id="fe-elements" type="number" min="100" max="60000" step="100" value="4000" />
+                </label>
+                <div class="note">
+                    Die Netzdichte der FE-Rechnung: <code>maxElementArea = A / FEElements</code>.
+                    Die einzige Stellschraube dieser Rechnung — es gibt keinen automatischen
+                    Verfeinerungslauf. Hochdrehen und die Zahl stehen sehen ist der Beleg,
+                    den es stattdessen gibt. Höhere Werte kosten Zeit.
+                </div>
+            </section>
+
+            <section class="block">
+                <h2>Vollquerschnitt rechnen (FE)</h2>
+                <button id="compute-fe" type="button">Querschnittswerte rechnen (FE)</button>
+                <label class="toggle" for="show-mesh">
+                    <input id="show-mesh" type="checkbox" checked />
+                    <span>FE-Netz anzeigen</span>
+                </label>
+                <div id="fe-status" class="note"></div>
             </section>
 
             <section class="block">

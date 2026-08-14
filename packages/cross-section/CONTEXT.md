@@ -20,11 +20,24 @@ mit. Seit P5 kommen **κ, der Schubmittelpunkt und `It`** dazu — aber nur fuer
 das **duennwandig gerechnete Mittellinienmodell mit hoechstens einer Zelle**,
 und zwar aus dem positionierten Wandweg (`src/segment.ts`, `src/wall-path.ts`,
 [ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md)). Fuer
-`kind: 'outline'`, fuer `midline` + `solid` und fuer den Mehrzeller bleiben sie
-`undefined`: dort braucht es Grashof (P4) oder ein Gleichungssystem (P6). Wo sie
-fehlen, heisst das fuer den Loeser `GAs: 'rigid'`, und `check()` in
-`@baustatik/fem-solver` sagt es, wenn jemand Schubverformung verlangt hat.
-`stressPoints` bleibt fuer die gezeichnete Geometrie weiterhin `undefined` (P4).
+**DIE ZWEITE QUELLE IST DIE FE**, und mit ihr ist die Luecke fuer
+`kind: 'outline'` und fuer `midline` + `solid` geschlossen: der VOLLQUERSCHNITT
+bekommt κ, `It` und den Schubmittelpunkt aus einer 2D-FE-Rechnung, die in
+`@baustatik/cross-section-fe` liegt
+([ADR 0045](../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md),
+[ADR 0047](../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)).
+Dieses Package **fuehrt dafuer nur die Typen** (`FESectionValues`,
+`FESectionState`, das Feld `feValues` und `kappaFromCoefficients`) und bleibt
+frei von WASM. κ steht dort als ν-freie FORMEL statt als Zahl —
+`1/κ = d0 + d2·m²` mit `m = ν/(1+ν)` —, und ν setzt allein
+`@baustatik/fem-section-resolve` ein.
+
+Fuer den **Mehrzeller** bleiben sie weiter `undefined`: dort braucht es ein
+Gleichungssystem, und das ist offen (`packages/TODO.md`). Wo sie fehlen, heisst das fuer den Loeser `GAs: 'rigid'`,
+und `check()` in `@baustatik/fem-solver` sagt es, wenn jemand Schubverformung
+verlangt hat. `stressPoints` bleibt fuer die gezeichnete Geometrie `undefined` —
+sie kommen spaeter aus dem FE-Feld und ausdruecklich nicht aus einer zweiten
+Naeherung (`packages/TODO.md`).
 
 **Beide Zweige sind seit P3 ableitbar**, und zwar hinter EINER Tuer:
 `deriveOutline(geometry, policy)` verzweigt ueber `kind`
@@ -408,7 +421,8 @@ Zerlegung.
 - `≥ 2` Zellen oder mehrere Teile — κ, `yM`/`zM` und `It` bleiben `undefined`,
   und das Gate meldet `MultipleCellsWarning` beziehungsweise
   `DisconnectedWallGraphWarning`. Zwei Zellen sind kein „eine mehr", sondern
-  `n` gekoppelte Unbekannte (P6).
+  `n` gekoppelte Unbekannte — ein Gleichungssystem, und das ist offen
+  (`packages/TODO.md`).
 
 **Vorzeichen und Reproduzierbarkeit stehen fest:** Zellumlauf im Sinn
 `signedArea > 0` (ADR 0034), `r = y·dz − z·dy` im Drehsinn `+y → +z`
@@ -480,7 +494,7 @@ schaltet den Wandweg und nicht die Topologie (ADR 0029):
 
 | Ausloeser | Befund |
 | --- | --- |
-| `≥ 2` Zellen | `MultipleCellsWarning` — ab zwei Zellen begaenne ein Gleichungssystem (P6) |
+| `≥ 2` Zellen | `MultipleCellsWarning` — ab zwei Zellen begaenne ein Gleichungssystem, und das ist offen |
 | mehrere unverbundene Teile | `DisconnectedWallGraphWarning` — es gibt keinen Weg, auf dem der Schubfluss sich ausgliche |
 | ein Lauf ueber `thickWallRatio` | `ThickWallWarning`, mit Lauf-Index, `wallIds`, Verhaeltnis und Schranke |
 
@@ -661,12 +675,25 @@ vom Gate:** `principalAxes` bleibt total, rein und ohne Policy und liefert
 Schnappen dort waere eine *Analyse*-Einstellung auf der Rechenstrecke (ADR
 0011). `0` ist ein zulaessiger Wert und stellt den exakten Vergleich wieder her.
 
-**Ausdruecklich kein Kandidat: die Gauss-Punkte fuer Grashof.** Sie werden von
+**Das sechste Feld ist `FEElements`**, und es ist eine DRITTE Sorte: es aendert
+den Umriss nicht und beurteilt ihn nicht, es *erzeugt Zahlen, die im Satz
+gespeichert werden*. `maxElementArea = A / FEElements` steuert die Netzdichte der
+FE-Rechnung; relativ und nicht absolut, weil Querschnitte vom cm²- bis in den
+m²-Bereich reichen. Gelesen wird es beim **Erzeugen** in
+`@baustatik/cross-section-fe`, nie auf der Rechenstrecke — die Linie aus
+ADR 0011/0033 haelt. **Es ist die einzige Stellschraube der FE-Rechnung: es gibt
+keinen Konvergenzlauf** (ADR 0045).
+
+**Ausdruecklich kein Kandidat: eine Quadraturordnung.** Sie waere von
 `sectionProperties` gelesen, und das liegt auf der Rechenstrecke
 (`getSectionStiffness`, je Stab in `solve()`/`check()`) — eine Einstellung dort
-waere nach ADR 0011 eine *Analyse*-Einstellung. Sie werden ausserdem gar keine
+waere nach ADR 0011 eine *Analyse*-Einstellung. Sie wird ausserdem gar keine
 Einstellung, sondern eine Konstante: bei senkrechten Kanten ist der Integrand
-ein Polynom 6. Grades und 4-Punkt-Gauss exakt. Das ist Konvergenz, keine Wahl.
+ein Polynom 6. Grades und 4-Punkt-Gauss exakt, und die FE des Vollquerschnitts
+waehlt ihre 3 und 6 Punkte aus demselben Grund (ADR 0046/0047). Das ist
+Konvergenz, keine Wahl. `FEElements` ist davon nicht betroffen und auch keine
+Gegeninstanz: eine Netzdichte konvergiert nicht in endlich vielen Punkten gegen
+ein exaktes Ergebnis.
 **Die Knickschranke ist ebenfalls kein Feld** — sie wird aus `discretisationTolerance`
 abgeleitet.
 
@@ -730,8 +757,19 @@ entscheidet die Idealisierung — dieselbe Angabe, die auch κ steuert:
 | `t-section` | Umrissmodell | **Wandmodell** |
 | `hollow-rectangle` | `undefined` | `undefined` |
 
-`solid` behaelt das Umrissmodell, und das ist keine Uebergangsloesung: Grashof
-**ist** fuer Vollquerschnitte richtig, die Rechteckparabel faellt genau daraus.
+`solid` behaelt das Umrissmodell, und das ist keine Uebergangsloesung: der
+Schnitt geht quer durch die volle Figur, und die Rechteckparabel faellt genau
+daraus.
+
+**Grashof traegt dabei ZWEI Naeherungen, nicht eine**, und das gehoert an diese
+Stelle, seit es daneben eine exakte Maschine gibt (ADR 0045/0047): er ist
+ν-blind, UND er setzt die Schubspannung ueber die Schnittbreite konstant
+(`τ = Q·S/(I·t)`). Beim Rechteck ist das fast wahr — FE und Grashof liegen 0,08 %
+auseinander. Am Uebergang Gurt/Steg eines T springt `t` um `bf/bw`, und dort ist
+es das Hundertfache: **+11 % bis +134 %**, gemessen in
+[`docs/messungen/t-querschnitt-grashof-gegen-fe.md`](../../docs/messungen/t-querschnitt-grashof-gegen-fe.md),
+und immer auf der steifen Seite. Die zweite Naeherung ist die groessere.
+
 Im Wandmodell wechseln nur `t` und `S` — die Koordinaten und die Nummern bleiben
 Ziffer fuer Ziffer dieselben. Am Gurt heisst das `t = tf` statt `t = b`: der
 Schubfluss laeuft **laengs** der Wand, die senkrechte Komponente durch den ganzen
@@ -877,11 +915,35 @@ ein Beispiel nicht unbemerkt veraltet. Details in
   **`A_m`** ist die von der Mittellinie umschlossene Flaeche der Zelle — der
   Name ist der der Bredtschen Formel.
 - **Umrissmodell** und **Wandmodell** sind die beiden Antworten auf „wie fliesst
-  der Schub", und `idealisation` waehlt zwischen ihnen. Das **Umrissmodell**
-  (`stress-points/outline.ts`) schneidet quer durch die volle Umrissfigur —
-  Grashof, und fuer Vollquerschnitte richtig. Das **Wandmodell**
-  (`stress-points/thin.ts`) laesst den Schubfluss laengs der Wandmittellinien
-  laufen. Beide sind **Modelle**, keine Verfahrensnamen und keine Maschinen.
+  der Schub", und `idealisation` waehlt zwischen ihnen. Sie unterscheiden sich in
+  der **Figur**, die den Schub traegt: das **Umrissmodell**
+  (`stress-points/outline.ts`) schneidet quer durch die volle Umrissfigur, das
+  **Wandmodell** (`stress-points/thin.ts`) laesst den Schubfluss laengs der
+  Wandmittellinien laufen. Beide sind **Modelle**, keine Verfahrensnamen und
+  keine Maschinen.
+
+  **Neu ist, dass das Umrissmodell ZWEI MASCHINEN hat**: Grashof als Naeherung
+  (`shear.ts`, fuer die parametrische Form) und die FE als exakte Rechnung
+  (`@baustatik/cross-section-fe`, fuer die gezeichnete Figur). Dieselbe Frage,
+  zwei Antworten — eine bekannte, offene Luecke, gemessen und in
+  `packages/TODO.md` verzeichnet (ADR 0045/0047).
+- **`FESectionValues`** ist der FE-Anteil des Satzes: `It`, der Schubmittelpunkt
+  und κ als Koeffizientenpaar. **KEINE Materialzahl, KEIN ν** —
+  `1/κ = d0 + d2·m²` mit `m = ν/(1+ν)`, und ν setzt allein
+  `@baustatik/fem-section-resolve` ein.
+  **`FESectionState`** ist die Huelle darum, mit DREI unterscheidbaren
+  Zustaenden: `computed` (mit Fingerabdruck `{ A, Iy }`), `unsupported` (mit
+  Grund, und `It` trotzdem) und **abwesend** — „der Aufloesungsschritt lief noch
+  nicht". Der dritte ist kein Versehen: ohne ihn ruft die Anwendung ewig neu auf.
+- **Trefftz gegen Weber** sind die beiden Bedingungen fuer „keine Verdrillung",
+  aus denen ein Schubmittelpunkt faellt. **Weber** verlangt verschwindende
+  *mittlere* Verdrillung; sein Punkt ist ν-abhaengig (bis 0,55 % des
+  Traegheitsradius) und ist der der klassischen Lehrbuchzahl. **Trefftz**
+  verlangt eine verschwindende Projektion auf die Torsionsmode; sein Punkt ist
+  ν-frei. **Gewaehlt ist Trefftz**, und nicht weil er ν-frei ist — das ist die
+  Folge, nicht der Grund: der Torsionsfreiheitsgrad des Stabelements traegt
+  `G·It` aus dem Woelbproblem, und der Schubmittelpunkt muss der Punkt sein, an
+  dem das Biegeschubfeld genau diese Mode nicht mehr anregt (ADR 0045).
 - **`t-section`** nennt die **Form**, nicht den Baustoff. Dieselben vier Zahlen
   heissen im Betonbau **Plattenbalken** und im Stahlbau **T-Profil**; getrennt
   werden die beiden von `idealisation`, nicht vom Formnamen. Der frueher

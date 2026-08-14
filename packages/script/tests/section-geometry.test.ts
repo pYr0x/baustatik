@@ -123,8 +123,100 @@ describe('Der Snapshot trägt die freie Querschnittsgeometrie mit', () => {
     const v5 = { ...buildSnapshot(), schemaVersion: 5 };
     expect(() => parseFEMModelSnapshot(v5)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v5)).toThrow(
-      'Snapshot.schemaVersion muss 10 sein.',
+      'Snapshot.schemaVersion muss 11 sein.',
     );
+  });
+
+  // v11: der FE-Block reist mit
+  // ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)).
+  it('trägt einen gerechneten FE-Block unverändert durch den Rundlauf', () => {
+    const withFE = {
+      ...buildSnapshot(),
+      crossSections: [
+        {
+          kind: 'section-geometry' as const,
+          id: 'cs-1',
+          geometry: {
+            ...BOX,
+            feValues: {
+              status: 'computed' as const,
+              values: {
+                It: 1.23e-6,
+                yM: -0.001,
+                zM: 0,
+                inverseKappaY: [1.2, 0.31] as const,
+                inverseKappaZ: [2.4, 0.09] as const,
+              },
+              fingerprint: { A: 2.2e-3, Iy: 8.1e-6 },
+            },
+          },
+        },
+      ],
+      beams: [],
+      supports: [],
+      nodes: [],
+    };
+    const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(withFE)));
+    expect(parsed.crossSections[0]).toEqual(withFE.crossSections[0]);
+  });
+
+  it('trägt einen verweigerten Block samt It, aber ohne Werte', () => {
+    // DREI ZUSTÄNDE, NICHT ZWEI: „noch nicht gerechnet" ist die Abwesenheit,
+    // „gerechnet und verweigert" steht hier. `It` bleibt unberührt.
+    const refused = {
+      ...buildSnapshot(),
+      nodes: [],
+      beams: [],
+      supports: [],
+      crossSections: [
+        {
+          kind: 'section-geometry' as const,
+          id: 'cs-1',
+          geometry: {
+            ...BOX,
+            feValues: {
+              status: 'unsupported' as const,
+              reason: 'hole-off-bending-axis' as const,
+              It: 4.5e-7,
+            },
+          },
+        },
+      ],
+    };
+    const parsed = parseFEMModelSnapshot(JSON.parse(JSON.stringify(refused)));
+    expect(parsed.crossSections[0]).toEqual(refused.crossSections[0]);
+  });
+
+  it('weist ein Koeffizientenpaar zurück, das nicht genau zwei Zahlen hat', () => {
+    // `d₁` ist beweisbar null und hat deshalb keinen Platz im Satz — ein
+    // Tripel wäre eine dritte Zahl, die niemand liest (ADR 0045).
+    const broken = {
+      ...buildSnapshot(),
+      nodes: [],
+      beams: [],
+      supports: [],
+      crossSections: [
+        {
+          kind: 'section-geometry',
+          id: 'cs-1',
+          geometry: {
+            ...BOX,
+            feValues: {
+              status: 'computed',
+              values: {
+                It: 1,
+                yM: 0,
+                zM: 0,
+                inverseKappaY: [1.2, 0, 0],
+                inverseKappaZ: [1.2, 0],
+              },
+              fingerprint: { A: 1, Iy: 1 },
+            },
+          },
+        },
+      ],
+    };
+    expect(() => parseFEMModelSnapshot(broken)).toThrow(SnapshotValidationError);
   });
 
   it('weist ein `bulge` am ERGEBNISPUNKT zurück', () => {
@@ -198,7 +290,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v6)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v6)).toThrow(
-      'Snapshot.schemaVersion muss 10 sein.',
+      'Snapshot.schemaVersion muss 11 sein.',
     );
   });
 
@@ -215,7 +307,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v7)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v7)).toThrow(
-      'Snapshot.schemaVersion muss 10 sein.',
+      'Snapshot.schemaVersion muss 11 sein.',
     );
   });
 
@@ -368,7 +460,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
 
     expect(() => parseFEMModelSnapshot(v8)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v8)).toThrow(
-      'Snapshot.schemaVersion muss 10 sein.',
+      'Snapshot.schemaVersion muss 11 sein.',
     );
   });
 
@@ -400,7 +492,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
 
     expect(() => parseFEMModelSnapshot(v9)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v9)).toThrow(
-      'Snapshot.schemaVersion muss 10 sein.',
+      'Snapshot.schemaVersion muss 11 sein.',
     );
   });
 

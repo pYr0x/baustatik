@@ -73,6 +73,7 @@ import type {
   SectionNode,
   Wall,
 } from './types';
+import { M2_TO_MM2 } from './units';
 
 /** Das Ergebnis einer Gate-Prüfung. Zwei Sorten Befund. */
 export type SectionValidationResult = {
@@ -419,6 +420,16 @@ function ringBulgeFindings(
  * VERGLICHEN WIRD `A` UND NICHT PUNKT FUER PUNKT: die Punktzahl gegeneinander
  * zu halten machte jede `discretisationTolerance`-Aenderung zum Befund, und genau die
  * reist seit ADR 0033 im Satz mit.
+ *
+ * SEIT DER FE ZWEI VERGLEICHE AUF DERSELBEN SCHRANKE, und der zweite ist KEINE
+ * neue Warnung, sondern derselbe Anlass an einer zweiten Zahl: der FE-Block
+ * traegt einen Fingerabdruck (`A`, `Iy`) des Umrisses, auf dem gerechnet wurde
+ * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)).
+ * Das Gate kann die FE nicht neu rechnen — sie ist asynchron —, den Umriss
+ * leitet es aber ohnehin neu ab. Weicht der Fingerabdruck ab, ist der Block
+ * VERALTET, und aus stiller Drift wird ein Befund. `Iy` bleibt dabei
+ * ungeprueft: es faellt aus derselben Punktmenge wie `A`, und eine zweite
+ * Schranke dafuer waere eine zweite Zahl fuer dieselbe Frage.
  */
 function drift(
   geometry: SectionGeometry,
@@ -443,9 +454,21 @@ function drift(
   );
 
   const limit = policy.discretisationTolerance * U;
-  return Math.abs(derived - carried) > limit
-    ? [new OutlineDriftWarning(carried, derived, limit)]
-    : [];
+  const warnings: SectionValidationWarning[] = [];
+  if (Math.abs(derived - carried) > limit) {
+    warnings.push(new OutlineDriftWarning(carried, derived, limit));
+  }
+
+  const state = geometry.feValues;
+  if (state?.status === 'computed') {
+    // Der Fingerabdruck steht in SI, die Frage wird in mm² gestellt.
+    const fingerprint = state.fingerprint.A * M2_TO_MM2;
+    if (Math.abs(derived - fingerprint) > limit) {
+      warnings.push(new OutlineDriftWarning(fingerprint, derived, limit));
+    }
+  }
+
+  return warnings;
 }
 
 /**

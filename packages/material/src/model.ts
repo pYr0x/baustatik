@@ -44,6 +44,28 @@ export type ElasticModuli = {
   readonly E: number;
   /** Schubmodul [MPa]. */
   readonly G: number;
+  /**
+   * Querdehnzahl ν [-] — OPTIONAL, und die Abwesenheit ist eine ANTWORT.
+   *
+   * Sie steht hier, seit der Vollquerschnitt seine FE-Werte als ν-freie
+   * Koeffizienten speichert
+   * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)):
+   * `1/kappaZ = d0 + d2·m²` mit `m = ν/(1+ν)`, und `@baustatik/fem-section-resolve`
+   * setzt genau diese Zahl ein. Kopiert beim ANLEGEN, wie `E` und `G` daneben.
+   *
+   * BEIM HOLZ FEHLT SIE. `E0,mean` und `G,mean` sind dort unabhaengig
+   * tabelliert, weil das Material ORTHOTROP ist: es gibt kein isotropes ν, die
+   * isotrope FE-Formulierung haelt nicht, und das ehrliche Ergebnis ist kein κ
+   * — was das bestehende Vokabular als `kappaZ === undefined` bereits
+   * ausdrueckt, also SCHUBSTARR und nicht „null Steifigkeit"
+   * ([ADR 0035](../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
+   *
+   * NICHT AUS `E` UND `G` ZURUECKRECHNEN. `E/(2G) − 1` gibt fuer Stahl
+   * `0,30001`, wo die Norm `0,3` sagt — und beim Holz `6,97`, ohne dass
+   * irgendetwas auffiele. Eine Formel, die still falsch liegt, ist schlimmer
+   * als eine fehlende Zahl.
+   */
+  readonly nu?: number;
 };
 
 export type Material = {

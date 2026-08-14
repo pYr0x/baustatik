@@ -114,10 +114,36 @@ describe('parseSectionPolicy ist der Grenzübertritt aus Fremddaten', () => {
       miterLimit: 3,
       thickWallRatio: 0.25,
       shearCentreTolerance: 1e-7,
+      FEElements: 2000,
     };
     const policy = parseSectionPolicy(full);
     expect(policy).toEqual(full);
     expect(Object.isFrozen(policy)).toBe(true);
+  });
+
+  // Und derselbe Satz ist kein gültiger Satz aus P9: `FEElements` steuert die
+  // Netzdichte, unter der die FE-Werte im Satz entstanden sind (ADR 0045).
+  it('lehnt einen Satz ohne FEElements ab', () => {
+    expect(() =>
+      parseSectionPolicy({
+        discretisationTolerance: 0.1,
+        principalAxisTolerance: 1e-9,
+        miterLimit: 2,
+        thickWallRatio: 1 / 3,
+        shearCentreTolerance: 1e-6,
+      }),
+    ).toThrow(InvalidSectionPolicyError);
+  });
+
+  it('lehnt eine gebrochene oder zu kleine Elementzahl ab', () => {
+    for (const FEElements of [0, -1, 1000.5]) {
+      try {
+        createSectionPolicy({ FEElements });
+        expect.unreachable();
+      } catch (error) {
+        expect((error as InvalidSectionPolicyError).field).toBe('FEElements');
+      }
+    }
   });
 
   // Der Satz aus P1 ist kein gültiger Satz aus P2 — es gibt keine Teil-Policy,

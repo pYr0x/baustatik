@@ -1,6 +1,7 @@
 import {
   type CrossSection,
   createSectionPolicy,
+  type FESectionState,
   type SectionPolicy,
 } from '@baustatik/cross-section';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
@@ -19,6 +20,7 @@ import * as monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import TypeScriptWorker from 'monaco-editor/language/typescript/ts.worker.js?worker';
 import { createPinia, defineStore } from 'pinia';
+import { computeFESection } from '../cross-section/cross-section-fe-port';
 import type {
   ExecuteScriptRequest,
   ExecuteScriptResponse,
@@ -133,6 +135,16 @@ const useFEMScriptStore = defineStore('fem-scripting', {
         state.activeLoadCaseId = snapshot.loadCases[0]?.id ?? '';
       });
     },
+    /**
+     * Die EINE Schreibstelle des FE-Blocks — ERSETZEND, nachgeschlagen ueber
+     * `this.crossSections`, damit die Zuweisung den Pinia-Proxy trifft
+     * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)).
+     */
+    setFEValues(sectionId: string, state: FESectionState): void {
+      const target = this.crossSections.find((section) => section.id === sectionId);
+      if (target === undefined || target.kind !== 'section-geometry') return;
+      target.geometry = { ...target.geometry, feValues: state };
+    },
   },
 });
 const store = useFEMScriptStore(pinia);
@@ -235,13 +247,30 @@ async function runScript(): Promise<void> {
       return;
     }
 
+    // DER AUFLOESUNGSSCHRITT, an genau der Stelle, an der er hingehoert:
+    // zwischen „Modell steht" und „Modell rechnen". `runScript` ist ohnehin
+    // `async` — und `defineModel` konnte ihn nicht aufnehmen, denn der Builder
+    // von `@baustatik/script` ist synchron und laeuft im Worker mit
+    // `EXECUTION_TIMEOUT_MS = 2_000`; ein `await model.crossSection(...)`
+    // infizierte die ganze Benutzer-API, und das Zeitfenster ueberlebte ein
+    // Vernetzen ohnehin nicht (ADR 0045).
+    //
+    // Er ist OPTIONAL, und das ist kein stiller Fehler: ohne ihn bleibt
+    // `kappaZ` undefined, `GAs` wird `'rigid'`, und `check()` meldet
+    // `ShearDeformationUnavailableWarning` (ADR 0035).
+    setStatus('Querschnittswerte werden gerechnet (FE) ...', [], 'working');
+    const feProblems = await resolveFESections();
+
     const report =
       store.activeLoadCaseId === ''
         ? undefined
         : solver.check(store.activeLoadCaseId);
     setStatus(
       `Modell übernommen: ${store.nodes.length} Knoten, ${store.beams.length} Stäbe, ${store.loadCases.length} Lastfälle.`,
-      report === undefined ? [] : [`Solver-Status: ${report.state}`],
+      [
+        ...(report === undefined ? [] : [`Solver-Status: ${report.state}`]),
+        ...feProblems,
+      ],
       'success',
     );
   } catch (error) {
@@ -250,6 +279,34 @@ async function runScript(): Promise<void> {
     isRunning = false;
     runButton.disabled = false;
   }
+}
+
+/**
+ * Der Auflösungsschritt: je DISTINKTEM Querschnitt einmal, nicht je Stab.
+ *
+ * Der Wächter ist das Feld `feValues` im Satz selbst — KEIN Schlüssel und KEIN
+ * Zwischenspeicher. Die Tür von `@baustatik/cross-section-fe` bekommt keine ID,
+ * und damit gibt es nichts, was mit dem Modell auseinanderlaufen könnte.
+ *
+ * WIRFT NICHT: ein Querschnitt, der sich nicht rechnen lässt, ist ein Befund für
+ * die Statuszeile. Das Modell bleibt rechenbar — dann eben schubstarr.
+ */
+async function resolveFESections(): Promise<string[]> {
+  const problems: string[] = [];
+  for (const section of store.crossSections) {
+    if (section.kind !== 'section-geometry') continue; // nur die gezeichneten
+    if (section.geometry.feValues !== undefined) continue; // schon gerechnet
+    try {
+      const { state } = await computeFESection(section.geometry, store.sectionPolicy);
+      store.setFEValues(section.id, state);
+      if (state.status === 'unsupported') {
+        problems.push(`Querschnitt ${section.id}: FE verweigert (${state.reason}).`);
+      }
+    } catch (error) {
+      problems.push(`Querschnitt ${section.id}: ${errorMessage(error)}`);
+    }
+  }
+  return problems;
 }
 
 type DiagnosticMessage =

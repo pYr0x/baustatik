@@ -14,6 +14,7 @@
   "license": "ISC",
   "dependencies": {
     "@baustatik/cross-section": "workspace:*",
+    "@baustatik/cross-section-fe": "workspace:*",
     "@baustatik/cross-section-viewer": "workspace:*",
     "@baustatik/fem": "workspace:*",
     "@baustatik/fem-element": "workspace:*",

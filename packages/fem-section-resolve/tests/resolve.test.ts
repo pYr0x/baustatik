@@ -114,6 +114,109 @@ describe('Parametrische Form durch dieselbe Kette', () => {
 });
 
 /**
+ * Der VOLLQUERSCHNITT liefert kappa als FORMEL, nicht als Zahl — und diese
+ * Datei ist die einzige Stelle im Repo, an der die Formel ausgewertet wird
+ * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)).
+ */
+describe('kappa aus den FE-Koeffizienten', () => {
+  /** Ein Rechteck 200 x 500 mit einem FE-Block, wie ihn die FE liefern wuerde. */
+  const feRectangle = (): CrossSection => {
+    const geometry = createSectionGeometry(
+      {
+        kind: 'outline',
+        rings: [
+          {
+            vertices: [
+              { y: 0, z: 0 },
+              { y: 200, z: 0 },
+              { y: 200, z: 500 },
+              { y: 0, z: 500 },
+            ],
+          },
+        ],
+      },
+      createSectionPolicy(),
+    );
+    return {
+      kind: 'section-geometry',
+      id: 'cs-fe',
+      geometry: {
+        ...geometry,
+        feValues: {
+          status: 'computed',
+          // `1/κ = 6/5 + d2·m²`; `d2` hier so gewaehlt, dass die Zahl von Hand
+          // nachzurechnen ist.
+          values: {
+            It: 1e-4,
+            yM: 0.1,
+            zM: 0.25,
+            inverseKappaY: [1.2, 0.4],
+            inverseKappaZ: [1.2, 0.4],
+          },
+          fingerprint: { A: 0.1, Iy: 0.025 / 12 },
+        },
+      },
+    };
+  };
+
+  it('setzt das ν des STABMATERIALS ein — nicht eines des Querschnitts', () => {
+    const s = resolveSectionStiffness(
+      beam('cs-fe', S235.id),
+      model([feRectangle()]),
+    );
+    const m = 0.3 / 1.3;
+    const kappa = 1 / (1.2 + 0.4 * m * m);
+    expect(s?.GAs as number).toBeCloseTo(kappa * 8.0769e7 * 0.1, 3);
+  });
+
+  it('liefert derselbe Querschnitt an einem BETONSTAB ein anderes GAs', () => {
+    // Derselbe Satz, zwei Staebe, zwei ν — genau der Fall, den ein im
+    // Querschnitt gespeichertes kappa nicht abbilden koennte.
+    const steel = resolveSectionStiffness(
+      beam('cs-fe', S235.id),
+      model([feRectangle()]),
+    );
+    const concrete = resolveSectionStiffness(
+      beam('cs-fe', C30.id),
+      model([feRectangle()]),
+    );
+    expect(steel?.GAs).not.toBe(concrete?.GAs);
+  });
+
+  it('bleibt beim HOLZSTAB schubstarr — orthotrop, also kein isotropes ν', () => {
+    const s = resolveSectionStiffness(
+      beam('cs-fe', C24.id),
+      model([feRectangle()]),
+    );
+    expect(s?.GAs).toBe('rigid');
+  });
+
+  it('ist ohne FE-Block schubstarr — der Aufloesungsschritt lief noch nicht', () => {
+    const geometry = createSectionGeometry(
+      {
+        kind: 'outline',
+        rings: [
+          {
+            vertices: [
+              { y: 0, z: 0 },
+              { y: 200, z: 0 },
+              { y: 200, z: 500 },
+              { y: 0, z: 500 },
+            ],
+          },
+        ],
+      },
+      createSectionPolicy(),
+    );
+    const s = resolveSectionStiffness(
+      beam('cs-offen'),
+      model([{ kind: 'section-geometry', id: 'cs-offen', geometry }]),
+    );
+    expect(s?.GAs).toBe('rigid');
+  });
+});
+
+/**
  * Der gezeichnete Querschnitt bringt seit P5 eine zweite Eingabe mit: die
  * Policy, unter der er entstanden ist. Sie MUSS dieselbe sein, mit der hier
  * gerechnet wird — sonst zerlegt der Wandweg die Bogenwand feiner oder groeber

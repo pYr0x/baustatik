@@ -162,6 +162,15 @@
             color: #a3312b;
         }
 
+        /* Der Netzanzeige-Schalter unter dem FE-Knopf. */
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 0.45rem;
+            cursor: pointer;
+        }
+
         table.values {
             width: 100%;
             border-collapse: collapse;
@@ -283,6 +292,27 @@
                 <input id="discretisation-tolerance-slider" type="range" min="0.005" max="1" step="0.005" value="0.05"
                     aria-label="discretisationTolerance (Schieber)" />
                 <div id="discretisation-tolerance-note" class="note"></div>
+                <label class="policy-row" for="fe-elements" style="margin-top:0.7rem">
+                    <span>FEElements [-]</span>
+                    <input id="fe-elements" type="number" min="100" max="60000" step="100" value="4000" />
+                </label>
+                <div class="note">
+                    Die Netzdichte der FE-Rechnung: <code>maxElementArea = A / FEElements</code>.
+                    Sie ist die EINZIGE Stellschraube dieser Rechnung — es gibt
+                    keinen automatischen Verfeinerungslauf. Wer wissen will, ob das
+                    Netz trägt, dreht die Zahl hoch und sieht κ stehen bleiben.
+                    Höhere Werte kosten Zeit.
+                </div>
+            </section>
+
+            <section class="block">
+                <h2>Vollquerschnitt rechnen (FE)</h2>
+                <button id="compute-fe" type="button">Querschnittswerte rechnen (FE)</button>
+                <label class="toggle" for="show-mesh">
+                    <input id="show-mesh" type="checkbox" checked />
+                    <span>FE-Netz anzeigen</span>
+                </label>
+                <div id="fe-status" class="note"></div>
             </section>
 
             <section class="block">

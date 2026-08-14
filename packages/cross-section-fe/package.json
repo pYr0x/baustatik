@@ -1,0 +1,40 @@
+{
+  "name": "@baustatik/cross-section-fe",
+  "version": "0.0.0",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit && tsc -p tests/tsconfig.json",
+    "lint": "biome check --fix ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.15",
+    "vite": "^7.3.1",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "@baustatik/core": "workspace:*",
+    "@baustatik/cross-section": "workspace:*",
+    "@baustatik/errors": "workspace:*",
+    "@baustatik/mesh-2d-wasm": "workspace:*",
+    "@baustatik/sparse-solver-wasm": "workspace:*",
+    "@baustatik/units": "workspace:*"
+  }
+}

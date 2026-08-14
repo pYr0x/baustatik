@@ -26,3 +26,12 @@ export const CM_TO_M = convert(1).from('cm').toExact('m');
 export const MM_TO_CM = convert(1).from('mm').toExact('cm');
 /** mm³ -> cm³: das statische Moment eines Spannungspunkts in die Druckform. */
 export const MM3_TO_CM3 = convert(1).from('mm^3').toExact('cm^3');
+/**
+ * m² -> mm²: der FE-Fingerabdruck gegen die Neuableitung.
+ *
+ * DIE EINZIGE RUECKRICHTUNG IM PACKAGE, und sie hat einen Grund: der FE-Block
+ * steht in SI (ADR 0045/0047), das Gate misst die Umrissdrift aber in mm² —
+ * dort, wo die Figur gezeichnet wurde. Verglichen wird in der Einheit der
+ * FRAGE, nicht in der der Antwort.
+ */
+export const M2_TO_MM2 = convert(1).from('m^2').toExact('mm^2');

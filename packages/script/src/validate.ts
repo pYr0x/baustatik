@@ -1,5 +1,6 @@
 import {
   type CrossSection,
+  type FESectionState,
   type Idealisation,
   parseSectionPolicy,
   type SectionGeometry,
@@ -53,7 +54,9 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // fehlt darin das zweite Feld, `principalAxisTolerance` (ADR 0035); bei v8
   // das dritte, `miterLimit` (ADR 0037); bei v9 die beiden
   // Beurteilungsfelder des Wandwegs, `thickWallRatio` und
-  // `shearCentreTolerance` (ADR 0040/0041).
+  // `shearCentreTolerance` (ADR 0040/0041); bei v10 die Netzdichte der FE,
+  // `FEElements` (ADR 0045/0047) — und ohne sie waere nicht zu sagen, unter
+  // welchem Netz ein mitgefuehrter FE-Block entstanden ist.
   //
   // Verführerisch zu ergänzen wären gleich fünf: bei v3 stehen die
   // Bezeichnungen darin, ein Lookup läge nahe; bei v4 wäre es ein ersetztes
@@ -67,8 +70,8 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // einer bewussten Wahl zu unterscheiden. Eine Migration ist ein Werkzeug,
   // das jemand AUFRUFT, sieht und ablehnen kann — und AB HIER IST JEDE
   // v9-DATEI VERLOREN.
-  if (snapshot.schemaVersion !== 10) {
-    fail('Snapshot.schemaVersion muss 10 sein.');
+  if (snapshot.schemaVersion !== 11) {
+    fail('Snapshot.schemaVersion muss 11 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -204,7 +207,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 10,
+    schemaVersion: 11,
     nodes,
     beams,
     crossSections,
@@ -261,10 +264,16 @@ function parseMaterial(input: unknown, path: string): Material {
  */
 function parseModuli(input: unknown, path: string): ElasticModuli {
   const value = record(input, path);
-  exactKeys(value, path, ['E', 'G']);
+  exactKeys(value, path, ['E', 'G', 'nu']);
   return {
     E: positive(value.E, `${path}.E`),
     G: positive(value.G, `${path}.G`),
+    // ν ist OPTIONAL, und die Abwesenheit ist eine Aussage: Holz ist orthotrop
+    // und hat keine (ADR 0045). Nur endlich geprueft, nicht auf `(−1, 0,5)`
+    // eingegrenzt — die Formpruefung urteilt nicht ueber Werkstoffe.
+    ...(value.nu === undefined
+      ? {}
+      : { nu: finite(value.nu, `${path}.nu`) }),
   };
 }
 
@@ -367,8 +376,13 @@ function parseSectionGeometry(input: unknown, path: string): SectionGeometry {
     },
   );
 
+  const feValues =
+    value.feValues === undefined
+      ? {}
+      : { feValues: parseFEValues(value.feValues, `${path}.feValues`) };
+
   if (kind === 'outline') {
-    exactKeys(value, path, ['kind', 'rings', 'outline']);
+    exactKeys(value, path, ['kind', 'rings', 'outline', 'feValues']);
     return {
       kind,
       rings: array(value.rings, `${path}.rings`).map((ring, index) => {
@@ -382,10 +396,18 @@ function parseSectionGeometry(input: unknown, path: string): SectionGeometry {
         };
       }),
       outline,
+      ...feValues,
     };
   }
 
-  exactKeys(value, path, ['kind', 'nodes', 'walls', 'idealisation', 'outline']);
+  exactKeys(value, path, [
+    'kind',
+    'nodes',
+    'walls',
+    'idealisation',
+    'outline',
+    'feValues',
+  ]);
   return {
     kind,
     nodes: array(value.nodes, `${path}.nodes`).map((node, index) => {
@@ -419,7 +441,92 @@ function parseSectionGeometry(input: unknown, path: string): SectionGeometry {
     }),
     idealisation: parseIdealisation(value.idealisation, path),
     outline,
+    ...feValues,
   };
+}
+
+/**
+ * Der FE-Block an der Snapshot-Grenze — wieder NUR DIE GESTALT.
+ *
+ * DREI ZUSTAENDE, UND ABWESENHEIT IST DER DRITTE. Hier kommt nur an, was da
+ * ist; dass ein fehlender Block „noch nicht gerechnet" heisst und kein Fehler
+ * ist, entscheidet die Anwendung
+ * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)).
+ *
+ * NICHT NACHGERECHNET, wie der mitgefuehrte Umriss daneben: die FE ist
+ * asynchron und koennte hier gar nicht laufen. Ob der Block noch zur Figur
+ * passt, sagt das Gate ueber den Fingerabdruck — sichtbar.
+ */
+function parseFEValues(input: unknown, path: string): FESectionState {
+  const value = record(input, path);
+  const status = oneOf(
+    value.status,
+    ['computed', 'unsupported'] as const,
+    `${path}.status`,
+  );
+
+  if (status === 'unsupported') {
+    exactKeys(value, path, ['status', 'reason', 'It']);
+    return {
+      status,
+      reason: oneOf(
+        value.reason,
+        ['hole-off-bending-axis', 'disconnected-areas'] as const,
+        `${path}.reason`,
+      ),
+      // `It` bleibt von beiden Gruenden unberuehrt und reist mit, wenn
+      // ueberhaupt vernetzt wurde.
+      ...(value.It === undefined
+        ? {}
+        : { It: positive(value.It, `${path}.It`) }),
+    };
+  }
+
+  exactKeys(value, path, ['status', 'values', 'fingerprint']);
+  const values = record(value.values, `${path}.values`);
+  exactKeys(values, `${path}.values`, [
+    'It',
+    'yM',
+    'zM',
+    'inverseKappaY',
+    'inverseKappaZ',
+  ]);
+  const fingerprint = record(value.fingerprint, `${path}.fingerprint`);
+  exactKeys(fingerprint, `${path}.fingerprint`, ['A', 'Iy']);
+
+  return {
+    status,
+    values: {
+      It: positive(values.It, `${path}.values.It`),
+      // Der Schubmittelpunkt darf negativ und darf 0 sein — er ist eine Lage.
+      yM: finite(values.yM, `${path}.values.yM`),
+      zM: finite(values.zM, `${path}.values.zM`),
+      inverseKappaY: parseCoefficients(
+        values.inverseKappaY,
+        `${path}.values.inverseKappaY`,
+      ),
+      inverseKappaZ: parseCoefficients(
+        values.inverseKappaZ,
+        `${path}.values.inverseKappaZ`,
+      ),
+    },
+    fingerprint: {
+      A: positive(fingerprint.A, `${path}.fingerprint.A`),
+      Iy: positive(fingerprint.Iy, `${path}.fingerprint.Iy`),
+    },
+  };
+}
+
+/** `[d0, d2]` — GENAU ZWEI Zahlen, `d₁` ist beweisbar null (ADR 0045). */
+function parseCoefficients(
+  input: unknown,
+  path: string,
+): readonly [number, number] {
+  const values = array(input, path);
+  if (values.length !== 2) {
+    fail(`${path} muss genau zwei Koeffizienten [d0, d2] tragen.`);
+  }
+  return [finite(values[0], `${path}[0]`), finite(values[1], `${path}[1]`)];
 }
 
 /** Ein Umrisspunkt der EINGABE — mit `bulge`, anders als das Ergebnis. */

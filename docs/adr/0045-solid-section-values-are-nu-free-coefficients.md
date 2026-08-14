@@ -240,7 +240,7 @@ otherwise have.
 
 ```ts
 /** Aus dem FE-Vollquerschnitt. KEINE Materialzahl, KEIN ν. */
-type SolidSectionValues = {
+type FESectionValues = {
   /** Torsionstraegheitsmoment [m4] — aus ∇²ω = 0, ν-frei. */
   readonly It: number;
   /** Schubmittelpunkt nach TREFFTZ [m] — ν-frei. */
@@ -254,6 +254,19 @@ type SolidSectionValues = {
 
 Nothing in it names a material, a grade, or a ν. It is geometry expressed as a
 formula rather than as a number, and that is the whole trick.
+
+> **Addendum, as built.** The type is called `FESectionValues`, not
+> `SolidSectionValues`: what it comes from is the FE, and `solid` is already the
+> name of an `Idealisation` value that this block does *not* track — the drawn
+> `midline` figure gets it under either idealisation. It is wrapped in a
+> three-state `FESectionState` (`computed` · `unsupported` · absent), it carries
+> a fingerprint `{ A, Iy }` of the outline it was computed on, and it lives in
+> `@baustatik/cross-section` while the computation lives in
+> `@baustatik/cross-section-fe`
+> ([ADR 0047](0047-the-solid-section-fe-lives-in-its-own-package.md)).
+> The `unsupported` branch carries `It` when meshing happened at all — the
+> torsion problem is untouched by both refusal reasons, and throwing away a
+> computed number would be dishonest.
 
 ## ν enters at one place, and only there
 
@@ -334,8 +347,25 @@ The one sharp oracle is the rectangle at m = 0, where the exact solution is line
 and a linear triangle is exact: measured `0,833333333333` against 5/6.
 
 A practical consequence: the FE path and the existing Grashof path (`shear.ts`)
-agree for the rectangle to 0,08 %, not to 2 %. The feared disagreement between a
-parametric rectangle and the same rectangle drawn in the editor does not exist.
+agree **for the rectangle** to 0,08 %, not to 2 %.
+
+> **Addendum: that sentence held only for the rectangle, and the rest is now
+> measured.** The original wording — *"the feared disagreement between a
+> parametric section and the same section drawn in the editor does not exist"* —
+> read as a statement about the whole boundary below. It was not one. Measured on
+> the T-section
+> ([`docs/messungen/t-querschnitt-grashof-gegen-fe.md`](../messungen/t-querschnitt-grashof-gegen-fe.md)),
+> Grashof is **+10,7 % to +134 %** above the FE, and always on the stiff side.
+> The reason is the second approximation, not the first: `τ = Q·S/(I·t)` averages
+> across the cut width, and at a flange-to-web step `t` jumps by `bf/bw`. ν-blindness
+> is the smaller error — the spread over ν = 0 … 0,3 is a few percent.
+>
+> So the duplication is a **known, open gap**, not a settled state: one model,
+> two machines. Owner: `packages/TODO.md`. Two ways out, and no promise which:
+> write the four parametric shapes out as polygons so they can go through the FE,
+> or accept Grashof for the parametric branch and say so at the field. The
+> measurement is what a decision between them would be made on; it has not been
+> made.
 
 **The half-disc formula was misquoted, and the correct one is an oracle.**
 `e = 8a(3+4ν)/(15π(1+ν))` demands a ν-dependence that neither definition
@@ -395,13 +425,15 @@ JSDoc in `shapes/kernel.ts` and `properties.ts` says so at each field.
 
 - `@baustatik/cross-section` gains no dependency on `@baustatik/material`, and
   `sectionProperties` gains no parameter.
-- ~~A new package owns assembly and evaluation~~ — **superseded by
-  [ADR 0046](0046-the-solid-section-fe-lives-in-cross-section.md):** assembly and
-  evaluation live in `cross-section/src/warping/`. Unchanged is what the bullet
-  was actually protecting — the mesher and the solver arrive as ports from the
-  caller, and the package never imports WASM
-  ([ADR 0009](0009-fem-solver-ports-and-async-solve.md)). A package boundary was
-  not what enforced that; the mesh type is declared structurally instead.
+- A new package owns assembly and evaluation. ~~Superseded by
+  [ADR 0046](0046-the-solid-section-fe-lives-in-cross-section.md)~~ —
+  **and reinstated by [ADR 0047](0047-the-solid-section-fe-lives-in-its-own-package.md),
+  for a different reason than the original one.** The bullet was written to
+  protect "`cross-section` imports no WASM"; ADR 0046 rightly said a package
+  boundary is not what enforces that. What the built thing showed is that
+  `@baustatik/cross-section-fe` is the *orchestrator* and imports both artifacts,
+  and that its sharpest oracles need a real mesh — which `cross-section`'s
+  deliberately Emscripten-free suite cannot run.
 - **`SectionGeometry` gains the optional block**, next to `outline` in both
   variants, costing a `schemaVersion` tick and a shape check in the snapshot
   parser — which checks shape, not resolvability, as always. Not `CrossSection`:

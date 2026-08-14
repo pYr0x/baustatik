@@ -42,6 +42,11 @@ export {
   ZeroLengthWallError,
 } from './errors';
 export {
+  type FESectionState,
+  type FESectionValues,
+  kappaFromCoefficients,
+} from './fe-values';
+export {
   createSectionPolicy,
   DEFAULT_SECTION_POLICY,
   parseSectionPolicy,

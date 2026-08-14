@@ -30,6 +30,7 @@
 
 import {
   type CrossSection,
+  kappaFromCoefficients,
   type SectionPolicy,
   type SectionProperties,
   sectionProperties,
@@ -76,6 +77,17 @@ export type { ElasticModuli };
  * ist der zwischen einem Stab ohne Schubverformung und einem Stab ohne
  * Steifigkeit; `'rigid'` ist der kanonische, JSON-faehige Weg dafuer.
  *
+ * HIER, UND NUR HIER, KOMMT ν INS SPIEL. Der gezeichnete VOLLQUERSCHNITT
+ * liefert kappa nicht als Zahl, sondern als ν-freie FORMEL
+ * (`1/kappaZ = d0 + d2·m²`, `m = ν/(1+ν)`) — der Querschnittssatz darf kein
+ * Material kennen (ADR 0020/0023/0026), und diese Funktion ist die eine Stelle,
+ * an der Geometrie und Material ohnehin zusammenkommen
+ * ([ADR 0045](../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)).
+ *
+ * FEHLT `nu`, BLEIBT ES SCHUBSTARR — beim Holz ist das der ehrliche Fall.
+ * Zurueckgerechnet wird ν NICHT: `E/(2G) − 1` gaebe fuer Stahl `0,30001` und
+ * fuer C24 `6,97`.
+ *
  * OB Schub ueberhaupt beruecksichtigt wird, entscheidet dieser Adapter NICHT.
  * Das ist eine globale Analyse-Einstellung, und `fem-solver` ersetzt `GAs`
  * bereits durch `'rigid'`, wenn `policy.shearDeformation === false`. Ein
@@ -87,11 +99,16 @@ export function sectionStiffness(
 ): SectionStiffness {
   const E = moduli.E * MPA_TO_KN_PER_M2;
   const G = moduli.G * MPA_TO_KN_PER_M2;
+  // Die Zahl schlaegt die Formel: eine duennwandige oder tabellierte Quelle
+  // liefert `kappaZ` direkt, und dort gibt es keine Koeffizienten. Beide sind
+  // nie gleichzeitig besetzt.
+  const kappaZ =
+    props.kappaZ ?? kappaFromCoefficients(props.inverseKappaZ, moduli.nu);
 
   return {
     EA: E * props.A,
     EI: E * props.Iy,
-    GAs: props.kappaZ === undefined ? 'rigid' : props.kappaZ * G * props.A,
+    GAs: kappaZ === undefined ? 'rigid' : kappaZ * G * props.A,
   };
 }
 

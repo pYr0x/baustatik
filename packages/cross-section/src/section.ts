@@ -11,7 +11,7 @@ import { rectangle } from './shapes/rectangle';
 import { tSection } from './shapes/t-section';
 import { type CatalogueValues, toSI } from './to-si';
 import type { SectionGeometry } from './types';
-import { MM_TO_CM } from './units';
+import { CM_TO_M, CM4_TO_M4, MM_TO_CM } from './units';
 import { wallPath } from './wall-path';
 
 /**
@@ -237,16 +237,29 @@ function shapeResult(spec: ShapeSpec) {
  * gedruckte Tabelle, um derentwillen die ganze cm-Zwischenwelt existiert
  * ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md)).
  *
- * kappa, SCHUBMITTELPUNKT UND `It` KOMMEN SEIT P5 AUS DEM WANDWEG — aber nur
- * beim MITTELLINIENMODELL, das duennwandig gerechnet werden soll. Fuer den
- * `outline`-Zweig und fuer `solid` bleiben sie `undefined` („nicht ermittelt",
- * nicht „null"): dort braeuchte es Grashof (P4), und `idealisation` schaltet
- * den WANDWEG, nicht die Topologie
- * ([ADR 0029](../../../docs/adr/0029-stress-points-follow-the-idealisation.md)).
- * Wo sie fehlen, heisst das fuer den Loeser `GAs: 'rigid'`, also die steifere
- * Richtung; dass jemand Schubverformung VERLANGT und sie nicht bekommt, meldet
- * `check()` in `@baustatik/fem-solver`
+ * ZWEI QUELLEN FUER kappa, SCHUBMITTELPUNKT UND `It`, und sie schliessen
+ * einander aus:
+ *
+ *   DER WANDWEG, beim MITTELLINIENMODELL, das duennwandig gerechnet werden
+ *   soll. Er liefert `kappaY`/`kappaZ` als ZAHL, weil die duennwandige Theorie
+ *   ν nicht kennt (ADR 0040/0041).
+ *
+ *   DIE FE, beim VOLLQUERSCHNITT — beide Eingabearten, sobald der
+ *   Aufloesungsschritt gelaufen ist und `feValues` im Satz steht. Sie liefert
+ *   kappa als FORMEL (`inverseKappaY`/`inverseKappaZ`), weil sie ν kennt und
+ *   der Querschnitt es nicht darf (ADR 0045).
+ *
+ * `idealisation` SCHALTET DEN WANDWEG, NICHT DIE TOPOLOGIE
+ * ([ADR 0029](../../../docs/adr/0029-stress-points-follow-the-idealisation.md))
+ * — dieselbe Figur, zwei Deutungen, zwei kappa.
+ *
+ * IST NICHTS DA, BLEIBT ES `undefined` („nicht ermittelt", nicht „null"). Fuer
+ * den Loeser heisst das `GAs: 'rigid'`, also die steifere Richtung; dass jemand
+ * Schubverformung VERLANGT und sie nicht bekommt, meldet `check()` in
+ * `@baustatik/fem-solver`
  * ([ADR 0035](../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
+ * Genau deshalb darf der Aufloesungsschritt OPTIONAL sein, ohne dass jemand
+ * falsch rechnet.
  */
 function geometryResult(
   geometry: SectionGeometry,
@@ -273,7 +286,7 @@ function geometryResult(
   };
 
   if (geometry.kind !== 'midline' || geometry.idealisation !== 'thin-walled') {
-    return outline;
+    return { ...outline, ...feResult(geometry) };
   }
 
   // Der Wandweg bekommt seine Stuecke in ZENTIMETERN — derselbe Faktor auf
@@ -291,6 +304,37 @@ function geometryResult(
     yM: path.yM,
     zM: path.zM,
     It: path.It,
+  };
+}
+
+/**
+ * Der FE-Block des Satzes, in Katalogeinheiten.
+ *
+ * ER STEHT IN SI UND NICHT IN ZENTIMETERN, und das ist eine bewusste
+ * Ausnahme von der cm-Zwischenwelt: `It` und der Schubmittelpunkt einer
+ * gezeichneten Figur stehen in keiner Profiltabelle, gegen die man sie diffen
+ * koennte, und `@baustatik/cross-section-fe` rechnet ohnehin in SI
+ * ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md),
+ * [ADR 0047](../../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)).
+ * Zurueckgerechnet wird hier, damit `toSI` die EINE Umrechnungsstelle bleibt.
+ *
+ * `unsupported` LIEFERT TROTZDEM `It`, wenn ueberhaupt vernetzt wurde: `ω` ist
+ * eine physische Verschiebung und von der Lochbedingung des Schubproblems
+ * unberuehrt (ADR 0045).
+ */
+function feResult(geometry: SectionGeometry): Partial<CatalogueValues> {
+  const state = geometry.feValues;
+  if (state === undefined) return {};
+  if (state.status === 'unsupported') {
+    return state.It === undefined ? {} : { It: state.It / CM4_TO_M4 };
+  }
+  const { values } = state;
+  return {
+    It: values.It / CM4_TO_M4,
+    yM: values.yM / CM_TO_M,
+    zM: values.zM / CM_TO_M,
+    inverseKappaY: values.inverseKappaY,
+    inverseKappaZ: values.inverseKappaZ,
   };
 }
 
