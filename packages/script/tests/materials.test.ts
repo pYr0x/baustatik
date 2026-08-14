@@ -41,7 +41,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
     // biome-ignore lint/performance/noDelete: der Test baut genau einen v2-Satz.
     delete (v2 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v2, schemaVersion: 2 })).toThrow(
-      'Snapshot.schemaVersion muss 11 sein.',
+      'Snapshot.schemaVersion muss 12 sein.',
     );
   });
 
@@ -55,7 +55,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
           materials: [{ kind: 'steel', id: 'm-1', grade: 'S235' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 11 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 12 sein.');
   });
 
   it('verlangt materials auch dann, wenn es leer bleibt', () => {

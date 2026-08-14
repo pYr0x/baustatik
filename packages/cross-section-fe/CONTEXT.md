@@ -46,20 +46,35 @@ gerechnet wurde, ohne ein zweites Mal zu vernetzen).
 
 ## Die geeichte Formulierung
 
+**Beide Randwertprobleme laufen über eine Verschiebung** und damit über reines
+Neumann (ADR 0048). Es gibt deshalb **eine** Matrix, **eine** Zerlegung und fünf
+rechte Seiten.
+
 ```text
 m = ν / (1 + ν)                       ν = 0 → m = 0     ν = 0,3 → m = 0,23077
 
-Schub:    ∇²Φ = −m·y/Iy,    Φ = −1/(2·Iy) ∫ z² dy  auf ∂A      (Dirichlet)
-          τ_y = ∂Φ/∂z,      τ_z = −∂Φ/∂y − z²/(2·Iy)
+Schub:    τ   = ∇ψ + p,     p = ( 0 , −z²/(2·Iy) + m·y²/(2·Iy) )
+          ∇²ψ = 0,          ∂ψ/∂n = ( z²/(2·Iy) − m·y²/(2·Iy) )·n_z
+          ψ   = ψ₀ + m·ψ₁
+          τ_a = ( ∂ψ₀/∂y , ∂ψ₀/∂z − z²/(2·Iy) )
+          τ_b = ( ∂ψ₁/∂y , ∂ψ₁/∂z + y²/(2·Iy) )
 
-Torsion:  ∇²ω = 0,          ∂ω/∂n = z·n_y − y·n_z              (Neumann)
+Torsion:  ∇²ω = 0,          ∂ω/∂n = z·n_y − y·n_z
           It  = ∫(y² + z² + y·ω,z − z·ω,y) dA
 ```
 
-`m` steht allein in der rechten Seite, der Randterm ist ν-frei. Also ist `Φ`
-affin in `m`, das Spannungsfeld ebenso, und `1/κ = d₀ + d₂·m²` ist **exakt** und
-keine Näherung. `d₁` ist beweisbar null (ADR 0045) und wird deshalb nicht
-gespeichert — es fällt in `evaluate.ts` trotzdem an und steht als Diagnose da.
+`m` steht allein im Randterm, und der zerfällt linear. Also ist `ψ` affin in
+`m`, das Spannungsfeld ebenso, und `1/κ = d₀ + d₂·m²` ist **exakt** und keine
+Näherung. `d₁` ist beweisbar null (ADR 0045) und wird deshalb nicht gespeichert
+— es fällt in `evaluate.ts` trotzdem an und steht als Diagnose da. Seit ADR 0048
+läuft es mit `O(h³)` gegen null, statt strukturell null zu sein, und prüft damit
+das Feld statt der Formulierung.
+
+**Warum `p` auch die Quelle trägt und nicht nur die Wirbelstärke:** so steht der
+algebraische Term `z²/(2·Iy)` exakt im Integranden, und `ψ₀` ist beim Rechteck
+**linear** — Tri6 trägt das exakt. Mit `∇²ψ₀ = −z/Iy` und `∂ψ₀/∂n = 0` wäre `ψ₀`
+dort kubisch, und `κ = 5/6` träfe nur noch auf acht statt zwölf Stellen
+(gemessen, ADR 0048).
 
 ## Invarianten
 
@@ -93,53 +108,56 @@ gespeichert — es fällt in `evaluate.ts` trotzdem an und steht als Diagnose da
 
 ## Löcher
 
-Die Randbedingung legt `Φ` **entlang** eines Randes fest, nicht auf ihm: je
-Schleife bleibt eine Konstante offen. Am Außenrand ist sie eine Eichung, an jedem
-Innenrand eine echte Unbekannte.
+**Sie kosten nichts** — seit [ADR 0048](../../docs/adr/0048-the-shear-problem-uses-the-warping-formulation.md)
+keine Zusatzbedingung, keine Kopplungsmatrix, keine zusätzliche rechte Seite und
+keine Grenze.
 
-1. **Je Loch eine rechte Seite mehr**, auf derselben Zerlegung.
-2. **Zusatzbedingung `∮_Γk ∂Φ/∂n ds = 0`**, aus der schwachen Form:
-   `Fluss_k = Σ_{i∈Γk} [(K·Φ)ᵢ − m·fᵢ]`. Ohne Kanten-Element-Zuordnung, ohne
-   Normalenrichtung, ohne Vorzeichenrisiko.
-3. **Die Kopplungsmatrix ganz**, nicht nur ihre Diagonale — sie ist das
-   Schur-Komplement von `K` auf die Innenränder. Nur die Diagonale zu nehmen
-   kostet **27,2 %** an κ bei zwei Löchern. Ihre Symmetrie ist eine kostenlose
-   Selbstprüfung.
-
-**Die Bedingung wegzulassen ist kein Feinheitsproblem: 85,6 % Fehler an κ.**
-
-### Die harte Grenze
+Beide Randwertprobleme laufen über eine **Verschiebung** mit Neumann-Rand, und
+eine Verschiebung ist auf jedem Gebiet eindeutig. Die Verträglichkeit eines
+Neumann-Problems gilt über den **ganzen** Rand und nicht je Schleife:
 
 ```text
-∮ dΦ = −1/(2·Iy) ∮ z² dy = (1/Iy)·∫∫_D z dA
+ψ₀:  −∮ z²/(2·Iy) dy = (1/Iy)·∫∫ z dA = 0     Schwerpunkt, per Konstruktion
+ψ₁:   ∮ y²/(2·Iy) dy = 0                      exaktes Differential
 ```
 
-Der Sprung verschwindet **genau dann, wenn der Schwerpunkt jedes Lochs auf der
-Biegeachse liegt**. Sonst ist Φ mehrdeutig und als FE-Feld nicht darstellbar.
+Beides ist **identisch** erfüllt. Kein Schwerpunkt eines Lochs kommt darin vor,
+keine Biegeachse und keine Lage.
 
-- **Der Restfluss zeigt das NICHT an** — er steht bei 10⁻¹⁷: die Zusatzbedingung
-  ist erfüllt, nur für das falsche Randwertproblem.
-- **Der Anzeiger ist der Randschluss je Schleife**, und er steht in `assemble.ts`
-  als Prüfung.
-- Die Umsetzung **verweigert** (`status: 'unsupported'`, `reason:
-  'hole-off-bending-axis'`) und liefert `It` trotzdem.
+Was übrig bleibt, ist die Buchführung: `holeLoops` liefert `holeCount` für die
+Diagnosen, und der Randumlauf geht über **alle** Schleifen — wer nur den
+Außenrand nimmt, bekommt für den Kreisring ein `It`, das keine Formel bestätigt.
+
+> **Bis ADR 0048 stand hier das Gegenteil.** Die Spannungsfunktion `Φ` war je
+> Randschleife nur bis auf eine Konstante bestimmt; jedes Loch brachte eine
+> Unbekannte, eine Zusatzbedingung `∮_Γk ∂Φ/∂n ds = 0` und eine Kopplungsmatrix
+> mit. Und ihr Randdatum musste beim Umlauf schließen — `∮dΦ = (1/Iy)·∫∫_D z dA`
+> verschwindet nur, wenn der Schwerpunkt jedes Lochs auf der Biegeachse liegt,
+> weshalb die Umsetzung sonst verweigerte (`reason: 'hole-off-bending-axis'`).
+> Das war eine Eigenschaft der **Formulierung**, nicht der Figur. Die
+> Begründungsspur steht in
+> [`docs/messungen/loch-zusatzbedingung.md`](../../docs/messungen/loch-zusatzbedingung.md)
+> und der Ablösebeleg in
+> [`docs/messungen/verwoelbung-gegen-dirichlet.md`](../../docs/messungen/verwoelbung-gegen-dirichlet.md).
 
 ## Die Orakel
 
 Es gibt **keine billige Selbstprüfung, die den Netzfehler abdeckt** — deshalb
 tragen die Orakel diese Last. Die Gleichgewichtsprobe `∫τ_z dA = Qz` sieht den
-m-Anteil nicht (Φ₁ verschwindet auf dem Rand) und aus demselben Grund auch keine
-vergessene Lochbedingung.
+m-Anteil nicht: `τ_b` ist quellenfrei und hat keine Resultierende.
 
 | Orakel | was es findet |
 | --- | --- |
-| Rechteck, `m = 0`, κ = `0,833333333333` | die scharfe Zahl: Φ ist dort linear |
+| Rechteck, `m = 0`, κ = `0,833333333333` | die scharfe Zahl: `ψ₀` ist dort linear |
 | `It` Rechteck gegen die Fourierreihe | jeden Vorzeichenfehler im Neumann-Randterm |
 | Kreis gegen Timoshenko/Goodier | den **m-Anteil des Spannungsfelds** — als einziges |
 | Halbkreis gegen Sokolnikoff | die Konstante des Schubmittelpunkts |
 | Kreisring, `It = π(a⁴−b⁴)/2` | ob der Mesher ein Loch vernetzt und der Umlauf beide Schleifen findet |
 | `A`, `Iy`, `Iz` aus dem Netz | jeden Indexdreher in der Assemblierung |
-| Kasten mit außermittigem Loch | die Verweigerung selbst |
+| Kasten mit außermittigem Loch, wandernd | **Stetigkeit über die Exzentrizität** — der Fall ohne geschlossene Formel |
+
+Die beiden mittleren tragen das Vorzeichen des `ψ₁`-Randterms, und sie sind die
+einzigen: bei `m = 0` trägt `ψ₁` nichts bei, das Rechteck sieht ihn also nicht.
 
 **Cowper taugt NICHT als Kriterium** und steht in keinem `expect`: seine Formel
 gibt für das Rechteck bei ν = 0,3 `0,84967`, gemessen wird `0,832942` — κ aus der

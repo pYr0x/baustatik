@@ -3,6 +3,14 @@
 <!-- ERZEUGT von verifaction/loch-zusatzbedingung.mjs.
      Nicht von Hand bearbeiten — der nächste Lauf überschreibt die Datei. -->
 
+> **Weg 2 ist gegangen worden.** Der Ausblick weiter unten nennt zwei Auswege aus
+> der Lochgrenze; der zweite — die Verwölbungsformulierung — ist seit
+> [ADR 0048](../adr/0048-the-shear-problem-uses-the-warping-formulation.md) der
+> Produktivweg, und die Grenze gibt es nicht mehr. Dieser Bericht misst die
+> **Dirichlet-Fassung** und bleibt als Begründungsspur stehen: er ist der Grund,
+> aus dem gewechselt wurde. Der Ablösebeleg steht in
+> [Verwölbungsformulierung gegen Dirichlet](verwoelbung-gegen-dirichlet.md).
+
 Beleg-Artefakt zu [ADR 0045](../adr/0045-solid-section-values-are-nu-free-coefficients.md),
 Fortsetzung von [ν-Abhängigkeit der Schubwerte](nu-abhaengigkeit-schubwerte.md)
 auf **mehrfach zusammenhängende** Figuren.

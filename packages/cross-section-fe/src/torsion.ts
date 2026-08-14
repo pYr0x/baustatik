@@ -4,8 +4,9 @@
  * `∇²ω = 0` mit `∂ω/∂n = z·n_y − y·n_z` — NEUMANN, nicht Prandtl. Die
  * Prandtl-Spannungsfunktion braeuchte auf jedem Innenrand wieder eine
  * Konstante; `ω` ist eine physische Verschiebung und auf jedem Gebiet
- * eindeutig. Deshalb ist `It` von der Lochbedingung des Schubproblems
- * unberuehrt (ADR 0045).
+ * eindeutig. Genau dieses Argument hat ADR 0048 auf das SCHUBPROBLEM
+ * uebertragen — dieses Modul ist die Vorlage des dortigen Randterms, und beide
+ * laufen heute auf derselben Matrix.
  *
  * `ω` IST DREHINVARIANT. `z·n_y − y·n_z` ist das Kreuzprodukt `n × r` und
  * aendert sich unter einer Drehung des Bezugssystems nicht — das Feld wird

@@ -455,10 +455,14 @@ async function runFE(): Promise<void> {
 function feSummary(state: FESectionState, computed: CrossSectionFEMesh | undefined): string {
     const elements = computed === undefined ? 0 : computed.elements.length / 6;
     if (state.status === 'unsupported') {
-        return state.reason === 'hole-off-bending-axis'
-            ? 'Verweigert: ein Loch liegt nicht auf der Biegeachse — Φ ist dort ' +
-                  'mehrdeutig (ADR 0045).'
-            : 'Verweigert: zwei getrennte Materialflächen.';
+        // `It` steht hier mit, wie auf der outline-Seite: bei
+        // `disconnected-areas` wird vor dem Vernetzen verweigert, also fehlt es
+        // in aller Regel — aber wenn eine Zahl da ist, wird sie gezeigt.
+        const withIt =
+            state.It === undefined
+                ? ''
+                : ` It bleibt unberührt: ${(state.It * M4_TO_CM4).toFixed(2)} cm⁴.`;
+        return `Verweigert: zwei getrennte Materialflächen — das Stabmodell trägt sie nicht.${withIt}`;
     }
     const kappaZero = kappaFromCoefficients(state.values.inverseKappaZ, 0);
     const kappa03 = kappaFromCoefficients(state.values.inverseKappaZ, 0.3);

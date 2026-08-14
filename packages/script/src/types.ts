@@ -262,6 +262,20 @@ export type FEMModelBuilderConfig = {
  * `feValues` und `nu` sind OPTIONAL, `FEElements` ist es nicht — deshalb weist
  * `parseSectionPolicy` jede v10-Datei ab, und deshalb ist es ein Bruch.
  *
+ * **v12 — ein Verweigerungsgrund weniger.** `feValues.reason` kannte
+ * `'hole-off-bending-axis'`; seit
+ * [ADR 0048](../../../docs/adr/0048-the-shear-problem-uses-the-warping-formulation.md)
+ * rechnet das Schubproblem über eine Verschiebung statt über eine
+ * Spannungsfunktion, und die Bedingung — der Schwerpunkt jedes Lochs auf der
+ * Biegeachse — verschwindet ersatzlos. Sie war eine Eigenschaft der
+ * FORMULIERUNG und keine der Figur.
+ *
+ * DAS IST EIN ECHTER BRUCH, obwohl die Union nur SCHRUMPFT: ein v11-Snapshot
+ * kann `reason: 'hole-off-bending-axis'` tragen, und `parseFEValues` weist ihn
+ * künftig ab. Dieselbe Figur liefert heute `status: 'computed'` — den Wert
+ * still umzuschreiben hieße, eine Verweigerung in Zahlen zu verwandeln, die
+ * niemand nachgerechnet hat.
+ *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein älterer Snapshot
  * wird ABGELEHNT. Ein v3 per Lookup zu ergänzen wäre genau die stille
  * Auflösung, die v4 abschafft — einmal ausgeführt im ungünstigsten Moment
@@ -271,7 +285,7 @@ export type FEMModelBuilderConfig = {
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 11;
+  readonly schemaVersion: 12;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];

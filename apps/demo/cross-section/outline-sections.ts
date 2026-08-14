@@ -423,11 +423,7 @@ async function runFE(): Promise<void> {
 function feSummary(state: FESectionState, computed: CrossSectionFEMesh | undefined): string {
     const elements = computed === undefined ? 0 : computed.elements.length / 6;
     if (state.status === 'unsupported') {
-        const reason =
-            state.reason === 'hole-off-bending-axis'
-                ? 'Ein Loch liegt nicht auf der Biegeachse — Φ ist dort mehrdeutig, ' +
-                  'κ und der Schubmittelpunkt fallen weg (ADR 0045).'
-                : 'Zwei getrennte Materialflächen — das Stabmodell trägt sie nicht.';
+        const reason = 'Zwei getrennte Materialflächen — das Stabmodell trägt sie nicht.';
         const withIt =
             state.It === undefined
                 ? ''
