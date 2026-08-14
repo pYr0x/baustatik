@@ -1,5 +1,15 @@
 # @baustatik/fem-solver
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [2108d8a]
+  - @baustatik/core@0.0.3
+  - @baustatik/fem-geometry@0.0.4
+  - @baustatik/fem-load-resolve@0.0.4
+  - @baustatik/fem-loads@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes
