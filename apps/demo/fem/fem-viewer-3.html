@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FEM-Viewer 3 — die Naht</title>
+    <script src="./fem-viewer-3.ts" type="module"></script>
+    <style>
+        :root {
+            font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+            color: #1c1f24;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 300px 360px;
+            height: 100%;
+        }
+
+        #container {
+            min-width: 0;
+        }
+
+        /* Der Querschnitt steht NEBEN dem Stabwerk: links, worauf gerechnet
+           wurde, rechts daneben, was dabei herauskam. */
+        #section {
+            min-width: 0;
+            border-left: 1px solid #d5d8dd;
+        }
+
+        #panel {
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+            min-width: 0;
+            padding: 0.9rem;
+            overflow: auto;
+            border-left: 1px solid #d5d8dd;
+            background: #f7f8fa;
+            font-size: 0.82rem;
+        }
+
+        h2 {
+            margin: 0 0 0.4rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #5c636d;
+        }
+
+        .back {
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            z-index: 100;
+            padding: 2px 8px;
+            border: 1px solid #dfe2e7;
+            border-radius: 4px;
+            background: #fff;
+            font-size: 0.75rem;
+            color: #5c636d;
+            text-decoration: none;
+        }
+
+        .back:hover {
+            text-decoration: underline;
+        }
+
+        .block {
+            padding: 0.7rem;
+            border: 1px solid #dfe2e7;
+            border-radius: 5px;
+            background: white;
+        }
+
+        .value {
+            font-weight: 700;
+        }
+
+        .muted {
+            color: #6b727c;
+        }
+
+        .note {
+            margin: 0.35rem 0 0;
+            line-height: 1.4;
+            color: #6b727c;
+            white-space: pre-wrap;
+        }
+
+        button {
+            width: 100%;
+            border: 1px solid #b9bec6;
+            border-radius: 4px;
+            padding: 0.45rem 0.7rem;
+            background: #eceef1;
+            color: inherit;
+            font: inherit;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        button:hover:not(:disabled) {
+            background: #e0e3e8;
+        }
+
+        button:disabled {
+            opacity: 0.55;
+            cursor: default;
+        }
+
+        button + button {
+            margin-top: 0.4rem;
+        }
+
+        table.values {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        table.values th,
+        table.values td {
+            padding: 0.16rem 0;
+            text-align: left;
+            font-variant-numeric: tabular-nums;
+        }
+
+        table.values th {
+            font-weight: 600;
+            width: 8.5rem;
+        }
+
+        table.values td {
+            text-align: right;
+        }
+
+        .count {
+            float: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .findings {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .findings li {
+            padding: 0.3rem 0;
+            border-top: 1px solid #eef0f3;
+            line-height: 1.35;
+        }
+
+        .findings li:first-child {
+            border-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <a class="back" href="../index.html">← Zur Übersicht</a>
+    <main>
+        <div id="container"></div>
+        <div id="section"></div>
+        <aside id="panel" aria-label="Ablaufspalte">
+            <section class="block">
+                <h2>Worum es hier geht</h2>
+                <p class="note">
+Dasselbe Modell, ein Klick dazwischen, zwei Durchbiegungen.
+
+Ein Einfeldträger mit einem GEZEICHNETEN Vollquerschnitt (Rechteck
+200 × 300 als kind: 'outline'). Solange feValues fehlt, ist kappaZ
+undefined, GAs = 'rigid' — gerechnet wird schubstarr, und check()
+meldet ShearDeformationUnavailableWarning.
+
+Der FE-Lauf füllt den Satz. Danach setzt resolveSectionStiffness
+das ν = 0,3 des STABMATERIALS in die Koeffizienten ein, GAs ist
+eine Zahl, die Durchbiegung wird größer und die Warnung
+verschwindet. Das ist der Sicherungsanker aus ADR 0035 als Bild.
+                </p>
+            </section>
+
+            <section class="block">
+                <h2>Der Ablauf</h2>
+                <button id="compute-fe" type="button">Querschnittswerte rechnen (FE)</button>
+                <button id="solve" type="button">Rechnen</button>
+                <div id="status" class="note"></div>
+            </section>
+
+            <section class="block">
+                <h2>Der Querschnittssatz</h2>
+                <div id="fe-state" class="value">–</div>
+                <div id="section-values"></div>
+            </section>
+
+            <section class="block">
+                <h2>Ergebnis</h2>
+                <div id="result"></div>
+            </section>
+
+            <section class="block">
+                <h2>Hinweise <span id="warning-count" class="count">0</span></h2>
+                <ul id="warnings" class="findings" aria-live="polite"></ul>
+            </section>
+        </aside>
+    </main>
+</body>
+
+</html>

@@ -1,5 +1,18 @@
 # The solid-section FE lives in `cross-section`
 
+> **Superseded by [ADR 0047](0047-the-solid-section-fe-lives-in-its-own-package.md).**
+> The FE lives in `@baustatik/cross-section-fe`, assembly included. This ADR
+> weighed a *pure* package that would have imported no WASM; what was built is
+> the orchestrator and imports both. Two findings from the build settled it: the
+> sharpest oracles need a real mesh, and `cross-section` keeps its suite
+> Emscripten-free — code and oracles would have ended up on opposite sides of a
+> package boundary; and the package costs no new export, because `A` and `Iy`
+> are already in the public `sectionProperties`.
+>
+> **The restated quadrature invariant below stands** — it is a better rule than
+> the one it replaced, and it is no worse for having lost its original occasion.
+> This document is kept because it records what was decided when.
+
 The assembly and evaluation of the solid-section FE — element matrices, the two
 right-hand sides, the boundary walk, the energy integrals — live in
 `@baustatik/cross-section` under `src/warping/`. **No new package.**

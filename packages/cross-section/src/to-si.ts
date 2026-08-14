@@ -21,6 +21,9 @@ export type CatalogueValues = {
   /** Dimensionslos — reist unverändert durch. */
   readonly kappaY?: number;
   readonly kappaZ?: number;
+  /** Ebenfalls dimensionslos: `1/kappa = d0 + d2·m²` (ADR 0045). */
+  readonly inverseKappaY?: readonly [number, number];
+  readonly inverseKappaZ?: readonly [number, number];
   /**
    * Schubmittelpunkt, im selben System wie `ys`/`zs` — `undefined` heisst NICHT
    * ERMITTELT. `alpha`/`Iu`/`Iv` stehen hier NICHT: sie sind reine Algebra auf
@@ -133,6 +136,8 @@ export function toSI(values: CatalogueValues): SectionProperties {
     zs: values.zs * CM_TO_M,
     kappaY: values.kappaY,
     kappaZ: values.kappaZ,
+    inverseKappaY: values.inverseKappaY,
+    inverseKappaZ: values.inverseKappaZ,
     ...principalAxes(Iy, Iz, Iyz),
     yM: values.yM === undefined ? undefined : values.yM * CM_TO_M,
     zM: values.zM === undefined ? undefined : values.zM * CM_TO_M,

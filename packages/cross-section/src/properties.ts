@@ -44,9 +44,32 @@ export type SectionProperties = {
    * `undefined` heisst SCHUBSTARR — nicht „null Schubflaeche". Ein Profil ohne
    * tabellierte Schubflaeche rechnet lieber ohne Schubverformung, als dass hier
    * ein Naeherungswert erfunden wird.
+   *
+   * BEIM GEZEICHNETEN VOLLQUERSCHNITT STEHT ES NICHT HIER, sondern als FORMEL
+   * in `inverseKappaY`/`inverseKappaZ` daneben: κ haengt dort an ν, und
+   * `SectionProperties` bleibt materialfrei (ADR 0020/0045).
    */
   kappaY?: number;
   kappaZ?: number;
+  /**
+   * kappa als ν-freie FORMEL: `1/kappaY = d0 + d2·m²` mit `m = ν/(1+ν)` [-].
+   *
+   * DAS IST DIE VIERTE ANTWORT AUF DIESELBE FRAGE, und sie ist die einzige, die
+   * ohne Material auskommt und trotzdem exakt bleibt. Gefuellt wird sie allein
+   * vom gezeichneten Vollquerschnitt aus dem FE-Block der `SectionGeometry`;
+   * die parametrische Form, die Katalogzeile und der Wandweg liefern `kappaY`
+   * beziehungsweise `kappaZ` direkt.
+   *
+   * BEIDE SIND NIE GLEICHZEITIG BESETZT. Wer κ braucht, nimmt `kappaZ` und
+   * faellt auf `kappaFromCoefficients(inverseKappaZ, nu)` zurueck — genau das
+   * tut `@baustatik/fem-section-resolve`, die eine Stelle, an der Geometrie und
+   * Material zusammenkommen.
+   *
+   * `readonly`, wie `It`: `SectionProperties` veraenderlich zu haben ist eine
+   * ABWEICHUNG (CODING_STANDARDS.md §11) und wird nicht fortgeschrieben.
+   */
+  readonly inverseKappaY?: readonly [number, number];
+  readonly inverseKappaZ?: readonly [number, number];
   /**
    * Der Drehwinkel der HAUPTACHSEN gegen `y`/`z` [rad] — PFLICHT.
    *
@@ -78,10 +101,10 @@ export type SectionProperties = {
    * ZWEI VOLLQUERSCHNITTE, ZWEI ANTWORTEN, und die Grenze ist gewollt
    * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)):
    * beim GEZEICHNETEN (`kind: 'section-geometry'`) faellt `It` aus der
-   * FE-Rechnung und steht kuenftig; beim PARAMETRISCHEN (`kind: 'shape'` mit
-   * `idealisation: 'solid'`) bleibt es dauerhaft `undefined`, weil die FE einen
-   * Polygonzug braucht und `ShapeSpec` keinen traegt. Dasselbe gilt fuer `zM`
-   * beim `t-section`.
+   * FE-Rechnung und STEHT, sobald der Aufloesungsschritt gelaufen ist; beim
+   * PARAMETRISCHEN (`kind: 'shape'` mit `idealisation: 'solid'`) bleibt es
+   * dauerhaft `undefined`, weil die FE einen Polygonzug braucht und `ShapeSpec`
+   * keinen traegt. Dasselbe gilt fuer `zM` beim `t-section`.
    *
    * `readonly`, ANDERS ALS DIE FELDER DARUEBER: dass `SectionProperties`
    * veraenderlich ist, steht in `CODING_STANDARDS.md` §11 als ABWEICHUNG vom

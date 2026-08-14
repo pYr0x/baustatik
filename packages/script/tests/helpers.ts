@@ -13,12 +13,13 @@
  */
 
 /** Die aktuelle Schemaversion des Snapshots. */
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 /**
  * Die `SectionPolicy` des Rumpfs — die EFFEKTIVEN Werte, wie sie seit ADR 0033
  * im Satz stehen (`discretisationTolerance` seit v7, `principalAxisTolerance` seit v8,
- * `miterLimit` seit v9, `thickWallRatio` und `shearCentreTolerance` seit v10).
+ * `miterLimit` seit v9, `thickWallRatio` und `shearCentreTolerance` seit v10,
+ * `FEElements` seit v11).
  */
 export const SNAPSHOT_SECTION_POLICY = {
   discretisationTolerance: 0.05,
@@ -26,6 +27,7 @@ export const SNAPSHOT_SECTION_POLICY = {
   miterLimit: 2,
   thickWallRatio: 1 / 3,
   shearCentreTolerance: 1e-6,
+  FEElements: 4000,
 };
 
 /** Ein vollständiger, gültiger Rumpf zum Überschreiben einzelner Felder. */

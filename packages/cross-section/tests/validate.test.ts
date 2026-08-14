@@ -716,6 +716,104 @@ describe('Die Drift: der mitgeführte Umriss gegen seine Neuableitung', () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toBeInstanceOf(OutlineDriftWarning);
   });
+
+  // Der FE-Fingerabdruck ist DERSELBE Anlass an einer zweiten Zahl: das Gate
+  // kann die FE nicht neu rechnen, den Umriss leitet es ohnehin neu ab
+  // (ADR 0045).
+  it('meldet einen FE-Block, dessen Fingerabdruck nicht mehr zum Umriss passt', () => {
+    const rings = [
+      {
+        vertices: [
+          { y: 0, z: 0 },
+          { y: 100, z: 0 },
+          { y: 100, z: 100 },
+          { y: 0, z: 100 },
+        ],
+      },
+    ];
+    const geometry = createSectionGeometry(
+      { kind: 'outline', rings },
+      DEFAULT_SECTION_POLICY,
+    );
+
+    // 10 000 mm² sind 0,01 m². Der Block behauptet 0,02 m² — er stammt von
+    // einer anderen Figur.
+    const { errors, warnings } = check({
+      ...geometry,
+      feValues: {
+        status: 'computed',
+        values: {
+          It: 1,
+          yM: 0,
+          zM: 0,
+          inverseKappaY: [1.2, 0],
+          inverseKappaZ: [1.2, 0],
+        },
+        fingerprint: { A: 0.02, Iy: 1 },
+      },
+    });
+    expect(errors).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    const drift = warnings[0] as OutlineDriftWarning;
+    expect(drift.carried).toBeCloseTo(20000, 6);
+    expect(drift.derived).toBeCloseTo(10000, 6);
+  });
+
+  it('schweigt bei einem FE-Block, dessen Fingerabdruck traegt', () => {
+    const rings = [
+      {
+        vertices: [
+          { y: 0, z: 0 },
+          { y: 100, z: 0 },
+          { y: 100, z: 100 },
+          { y: 0, z: 100 },
+        ],
+      },
+    ];
+    const geometry = createSectionGeometry(
+      { kind: 'outline', rings },
+      DEFAULT_SECTION_POLICY,
+    );
+    const { warnings } = check({
+      ...geometry,
+      feValues: {
+        status: 'computed',
+        values: {
+          It: 1,
+          yM: 0,
+          zM: 0,
+          inverseKappaY: [1.2, 0],
+          inverseKappaZ: [1.2, 0],
+        },
+        fingerprint: { A: 0.01, Iy: 8.3333e-6 },
+      },
+    });
+    expect(warnings.filter((w) => w instanceof OutlineDriftWarning)).toEqual([]);
+  });
+
+  // `unsupported` traegt keinen Fingerabdruck — es gibt nichts zu vergleichen,
+  // und das ist kein Befund.
+  it('schweigt bei einem verweigerten FE-Block', () => {
+    const rings = [
+      {
+        vertices: [
+          { y: 0, z: 0 },
+          { y: 100, z: 0 },
+          { y: 100, z: 100 },
+          { y: 0, z: 100 },
+        ],
+      },
+    ];
+    const geometry = createSectionGeometry(
+      { kind: 'outline', rings },
+      DEFAULT_SECTION_POLICY,
+    );
+    const { warnings } = check({
+      ...geometry,
+      feValues: { status: 'unsupported', reason: 'hole-off-bending-axis' },
+    });
+    expect(warnings.filter((w) => w instanceof OutlineDriftWarning)).toEqual([]);
+  });
 });
 
 describe('Der gekappte Miter-Spitz und die nicht endliche Wölbung', () => {

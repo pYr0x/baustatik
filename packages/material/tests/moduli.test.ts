@@ -6,12 +6,17 @@ describe('lookupMaterial', () => {
     expect(lookupMaterial('steel', 'S235')?.moduli).toEqual({
       E: 210000,
       G: 80769,
+      nu: 0.3,
     });
     // Ecm = 33000, ν = 0,2 → G = 33000 / 2,4 = 13750
     expect(lookupMaterial('concrete', 'C30/37')?.moduli).toEqual({
       E: 33000,
       G: 13750,
+      nu: 0.2,
     });
+    // OHNE ν, und das ist die Aussage: Holz ist orthotrop, es gibt kein
+    // isotropes ν, und die FE des Vollquerschnitts liefert dort kein κ
+    // (ADR 0045).
     expect(lookupMaterial('timber', 'C24')?.moduli).toEqual({
       E: 11000,
       G: 690,
@@ -50,14 +55,19 @@ describe('the copy and the catalogue agree, under either Annex', () => {
 
   it('steel', () => {
     const copy = lookupMaterial('steel', 'S355');
-    expect(copy?.moduli).toEqual({ E: de.steel('S355').Es, G: de.steel('S355').G });
-    expect(copy?.moduli).toEqual({ E: en.steel('S355').Es, G: en.steel('S355').G });
+    const s = de.steel('S355');
+    expect(copy?.moduli).toEqual({ E: s.Es, G: s.G, nu: s.nu });
+    expect(copy?.moduli).toEqual({
+      E: en.steel('S355').Es,
+      G: en.steel('S355').G,
+      nu: en.steel('S355').nu,
+    });
   });
 
   it('concrete', () => {
     const copy = lookupMaterial('concrete', 'C30/37');
     const c = de.concrete('C30/37');
-    expect(copy?.moduli).toEqual({ E: c.Ecm, G: c.G });
+    expect(copy?.moduli).toEqual({ E: c.Ecm, G: c.G, nu: c.nu });
     expect(copy?.moduli.G).toBe(en.concrete('C30/37').G);
     // Gegenprobe, dass die beiden Kataloge nicht dasselbe Objekt sind.
     expect(c.fcd).not.toBe(en.concrete('C30/37').fcd);

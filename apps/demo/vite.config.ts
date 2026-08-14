@@ -20,6 +20,7 @@ export default defineConfig({
         femScripting: page('fem/fem-scripting.html'),
         femViewer: page('fem/fem-viewer.html'),
         femViewer2: page('fem/fem-viewer-2.html'),
+        femViewer3: page('fem/fem-viewer-3.html'),
         linearSolver: page('fem/linear-solver.html'),
         konva: page('konva.html'),
       },

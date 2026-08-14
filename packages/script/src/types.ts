@@ -247,10 +247,20 @@ export type FEMModelBuilderConfig = {
  * `parseSectionPolicy` ist strikt, also weist jede v9-Datei ab.
  *
  * DASS DER BRUCH IN VIER TEILPROJEKTEN NACHEINANDER FÄLLT, IST EIN MUSTER —
- * und mit v10 ist die Liste der datierten Kandidaten abgearbeitet. Die Frage,
+ * und mit v10 war die Liste der datierten Kandidaten abgearbeitet. Die Frage,
  * ob ein Monorepo ohne Abnehmer überhaupt Schemabrüche zählen sollte, steht in
- * `packages/TODO.md`; der nächste Zähler ist dort für den Policy-Refactor
- * vorgemerkt und heisst v11.
+ * `packages/TODO.md`.
+ *
+ * **v11 — die FE des Vollquerschnitts.** Drei Dinge zugleich, und alle drei
+ * gehören demselben Vorgang: `SectionPolicy` bekommt `FEElements`, die
+ * Netzdichte, unter der gerechnet wurde; `SectionGeometry` bekommt in BEIDEN
+ * Varianten den optionalen Block `feValues` mit `It`, dem Schubmittelpunkt und
+ * den beiden ν-freien κ-Koeffizientenpaaren; und `ElasticModuli` bekommt
+ * `nu?`, ohne das aus den Koeffizienten kein κ wird
+ * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md),
+ * [ADR 0047](../../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)).
+ * `feValues` und `nu` sind OPTIONAL, `FEElements` ist es nicht — deshalb weist
+ * `parseSectionPolicy` jede v10-Datei ab, und deshalb ist es ein Bruch.
  *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein älterer Snapshot
  * wird ABGELEHNT. Ein v3 per Lookup zu ergänzen wäre genau die stille
@@ -261,7 +271,7 @@ export type FEMModelBuilderConfig = {
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 10;
+  readonly schemaVersion: 11;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];

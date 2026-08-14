@@ -41,7 +41,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
     // biome-ignore lint/performance/noDelete: der Test baut genau einen v2-Satz.
     delete (v2 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v2, schemaVersion: 2 })).toThrow(
-      'Snapshot.schemaVersion muss 10 sein.',
+      'Snapshot.schemaVersion muss 11 sein.',
     );
   });
 
@@ -55,7 +55,7 @@ describe('Der Snapshot traegt die Materialien mit', () => {
           materials: [{ kind: 'steel', id: 'm-1', grade: 'S235' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 10 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 11 sein.');
   });
 
   it('verlangt materials auch dann, wenn es leer bleibt', () => {
@@ -150,12 +150,30 @@ describe('Die kopierten Moduln an der Snapshot-Grenze', () => {
       { E: 0, G: 80769 },
       { E: 210000, G: -1 },
       { E: 210000 },
-      { E: 210000, G: 80769, nu: 0.3 },
+      { E: 210000, G: 80769, poisson: 0.3 },
+      { E: 210000, G: 80769, nu: 'viel' },
     ]) {
       expect(() =>
         parseFEMModelSnapshot(snapshot({ materials: [{ ...s235, moduli }] })),
       ).toThrow(SnapshotValidationError);
     }
+  });
+
+  // `nu` ist seit v11 ein erlaubtes, OPTIONALES Feld: ohne es wird aus den
+  // FE-Koeffizienten kein kappa, und beim Holz ist genau das die richtige
+  // Antwort (ADR 0045).
+  it('nimmt `nu` an und laesst es weg, wenn es fehlt', () => {
+    const withNu = parseFEMModelSnapshot(
+      snapshot({
+        materials: [{ ...s235, moduli: { E: 210000, G: 80769, nu: 0.3 } }],
+      }),
+    );
+    expect(withNu.materials[0]?.moduli.nu).toBe(0.3);
+
+    const withoutNu = parseFEMModelSnapshot(
+      snapshot({ materials: [{ ...s235, moduli: { E: 210000, G: 80769 } }] }),
+    );
+    expect(withoutNu.materials[0]?.moduli.nu).toBeUndefined();
   });
 
   it('prueft NICHT, ob ein Stab auf ein vorhandenes Material zeigt', () => {
@@ -188,11 +206,21 @@ describe('Der Builder befragt den Sortenkatalog — und nur er', () => {
   it('legt die Moduln in den Satz', () => {
     const model = createFEMModelBuilder();
     model.material({ kind: 'concrete', grade: 'C30/37' });
-    // C30/37: Ecm = 33 000 MPa, G = 33 000 / 2,4 = 13 750 MPa.
+    // C30/37: Ecm = 33 000 MPa, G = 33 000 / 2,4 = 13 750 MPa, ν = 0,2.
     expect(model.finish().materials[0].moduli).toEqual({
       E: 33000,
       G: 13750,
+      nu: 0.2,
     });
+  });
+
+  // Holz ist ORTHOTROP: `E0,mean` und `G,mean` stehen unabhaengig in der
+  // Tabelle, ein isotropes ν gibt es nicht — und aus `E`/`G` zurueckgerechnet
+  // ergaebe es 6,97 (ADR 0045).
+  it('legt fuer Holz KEIN nu in den Satz', () => {
+    const model = createFEMModelBuilder();
+    model.material({ kind: 'timber', grade: 'C24' });
+    expect(model.finish().materials[0]?.moduli.nu).toBeUndefined();
   });
 
   it('speichert die KANONISCHE Sorte', () => {

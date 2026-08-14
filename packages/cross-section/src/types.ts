@@ -1,4 +1,5 @@
 import type { mm } from '@baustatik/units';
+import type { FESectionState } from './fe-values';
 import type { Idealisation } from './section';
 
 /**
@@ -35,8 +36,15 @@ import type { Idealisation } from './section';
  * TOPOLOGIE, nicht die Punktzahl, aus der `A`, `Iy` und `Iz` fallen: voller
  * Preis, halber Schutz.
  *
+ * DIE FE-WERTE STEHEN IN BEIDEN VARIANTEN, neben `outline`. Dort steht schon
+ * ein abgeleitetes Feld, und mit ihm reist die Provenienz. NICHT an
+ * `CrossSection`: die FE braucht einen Polygonzug, `kind: 'shape'` traegt
+ * keinen und bekaeme den Block deshalb nie
+ * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md),
+ * [ADR 0047](../../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)).
+ *
  * Reine Daten, JSON-serialisierbar — Voraussetzung dafuer, dass der Querschnitt
- * im Snapshot mitreisen kann (`schemaVersion: 7`, wo seit ADR 0033 auch die
+ * im Snapshot mitreisen kann (`schemaVersion: 11`, wo seit ADR 0033 auch die
  * `SectionPolicy` steht, unter der `outline` erzeugt wurde).
  */
 export type SectionGeometry =
@@ -47,12 +55,20 @@ export type SectionGeometry =
       idealisation: Idealisation;
       /** ABGELEITET aus `nodes`/`walls`, nicht unabhaengig gepflegt. */
       outline: Polygon[];
+      /**
+       * Die FE-Werte des Vollquerschnitts. ABWESEND heisst „der
+       * Aufloesungsschritt lief noch nicht" — der dritte Zustand neben
+       * `computed` und `unsupported`.
+       */
+      feValues?: FESectionState;
     }
   | {
       kind: 'outline';
       rings: Ring[];
       /** ABGELEITET aus `rings`, nicht unabhaengig gepflegt. */
       outline: Polygon[];
+      /** Siehe die `midline`-Variante. */
+      feValues?: FESectionState;
     };
 
 /**

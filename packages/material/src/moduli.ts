@@ -14,8 +14,8 @@
  */
 
 import { concreteShearModulus } from './concrete';
-import { CONCRETE_DATA } from './data/concrete';
-import { STEEL_DATA } from './data/steel';
+import { CONCRETE_DATA, CONCRETE_POISSON } from './data/concrete';
+import { STEEL_DATA, STEEL_POISSON } from './data/steel';
 import { TIMBER_DATA } from './data/timber';
 import { UnknownGradeError } from './errors';
 import { lookupGrade } from './lookup';
@@ -49,11 +49,17 @@ export function lookupMaterial(
 ): MaterialLookup | undefined {
   try {
     switch (kind) {
+      // `nu` reist mit, wo es eine gibt — Stahl und Beton sind isotrop, und die
+      // Zahl steht ohnehin schon als Konstante da (ADR 0045).
       case 'steel': {
         const found = lookupGrade('steel', STEEL_DATA, grade);
         return {
           grade: found.grade,
-          moduli: { E: found.data.Es, G: STEEL_SHEAR_MODULUS },
+          moduli: {
+            E: found.data.Es,
+            G: STEEL_SHEAR_MODULUS,
+            nu: STEEL_POISSON,
+          },
         };
       }
       case 'concrete': {
@@ -63,9 +69,13 @@ export function lookupMaterial(
           moduli: {
             E: found.data.Ecm,
             G: concreteShearModulus(found.data.Ecm),
+            nu: CONCRETE_POISSON,
           },
         };
       }
+      // OHNE `nu`, und das ist die Aussage: Holz ist orthotrop, `E0,mean` und
+      // `G,mean` sind unabhaengig tabelliert, und ein isotropes ν gibt es dort
+      // nicht. Der Vollquerschnitt aus Holz bleibt schubstarr.
       case 'timber': {
         const found = lookupGrade('timber', TIMBER_DATA, grade);
         return {

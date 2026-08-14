@@ -157,6 +157,81 @@ die Spannungspunkte, seit P5 außerdem `It`. Bewusst noch nicht angefasst:
 - **`i-shape` mit unabhängigen Gurten**, das I und T subsumiert (T = Grenzfall
   `tf,unten = 0`). Das ist eine Formänderung im Modellsatz, kein Aufräumen.
 
+### Der Vollquerschnitt hat zwei Maschinen — offen seit P9
+
+Seit [ADR 0045](../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)
+und [ADR 0047](../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)
+liefert die FE κ, `It` und den Schubmittelpunkt für den **gezeichneten**
+Vollquerschnitt. Der **parametrische** (`kind: 'shape'` + `idealisation:
+'solid'`) behält sein Grashof-κ aus `shear.ts` — ihm fehlt der Polygonzug, den
+die FE braucht.
+
+**Das ist eine bekannte, offene Lücke, kein erledigter Zustand: ein Modell, zwei
+Maschinen.** Und die entscheidende Messung ist gemacht
+([`docs/messungen/t-querschnitt-grashof-gegen-fe.md`](../docs/messungen/t-querschnitt-grashof-gegen-fe.md)):
+
+| Figur | `bf/bw` | Grashof gegen FE |
+| --- | --- | --- |
+| Plattenbalken 2000/200/250/500 | 8,0 | **+122 % … +134 %** |
+| Plattenbalken 1000/150/300/600 | 3,3 | +34 % |
+| Quadrat-T 300/150/150/300 | 2,0 | +16 % |
+| Stahl-T 200/15/10/200 | 20,0 | +11 % |
+
+Für das Rechteck waren es 0,08 %; für die T-Figur ist es das Hundertfache, und
+Grashof liegt immer auf der **steifen** Seite. Der Grund ist die zweite Näherung,
+nicht die erste: `τ = Q·S/(I·t)` mittelt über die Schnittbreite, und am Übergang
+Gurt/Steg springt `t` um `bf/bw`. Die ν-Blindheit ist der kleinere Fehler.
+
+Zwei Auswege, und **entschieden ist keiner**:
+
+1. Die vier parametrischen Formen als Polygonzug ausschreiben, dann laufen sie
+   durch dieselbe FE. Das ist ein eigenes Stück Arbeit und hat mit der FE nichts
+   zu tun.
+2. Grashof für den parametrischen Zweig behalten und es **am Feld sagen** — dann
+   ist die Doppelung dokumentiert statt still.
+
+Der Ausweg, der heute schon offen steht: wer FE-Werte für eine parametrische Form
+will, **zeichnet die Figur**. Genau das tun die Vorgaben auf
+`outline-sections.html`.
+
+### Spannungspunkte für die gezeichnete Figur — offen
+
+Sie kommen später aus dem **FE-Feld** und ausdrücklich **nicht** aus einer
+zweiten Grashof-Maschine: `τ` liegt nach dem Lauf punktweise vor, und eine
+Vorlage, die dieselbe Größe noch einmal näherungsweise rechnet, wäre die dritte
+Meinung über dieselbe Figur. Was fehlt, ist die Frage, **welche** Punkte eine
+gezeichnete Figur überhaupt hat — bei einer Vorlage sind es benannte Orte, bei
+einem freien Umriss ist es eine Auswahl.
+
+### Die Stufenkette — offen, und ein ADR lohnt noch nicht
+
+Der Auflösungsschritt aus P9 ist die **erste Stufe** einer Kette, die später
+mehrere haben kann: Querschnittswerte, dann Stabwerk, dann Bemessung — jede
+rechnet, schreibt ihr Ergebnis in den Modellsatz und ist fertig; die nächste
+liest von dort. Das Vorbild ist die Modulkette in SOFiSTiK (AQUA rechnet
+Querschnitte in die Datenbank, STAR rechnet danach das Stabwerk und holt sie sich
+von dort). Der Modellsatz — heute der Pinia-Store — ist diese Datenbank.
+
+Gebaut ist davon **nichts weiter**: kein Ablaufsteuerer, keine
+Abhängigkeitsverwaltung, kein automatisches Nachziehen. Bei zwei Stufen und einer
+Kante wäre das eine Maschine, die gegen ein einziges Beispiel entworfen ist.
+
+Offen sind zwei Fragen:
+
+- **Die Steuerung.** „Rechne, was veraltet ist" — **ausgelöst, nicht reaktiv**.
+  Reaktiv hieße ein Netz je Tastendruck; der Toleranzregler auf
+  `outline-sections.html` feuert auf jedem `input`-Ereignis.
+- **Die Tragfähigkeit des Pinia-Stores** als dieser Speicher. Zwei Regeln halten
+  ihn heute: große Zahlenfelder kommen nicht hinein (das Netz bleibt transient,
+  ADR 0039 — in den Satz gehen sieben Zahlen, nicht hunderttausend), und ein
+  Ergebnis trägt alles bei sich, was zum Auswerten nötig ist (ADR 0019/0027).
+
+Ein ADR dafür lohnt erst, wenn die **zweite** Stufe ansteht — vorher gäbe es nur
+ein Beispiel, gegen das man entwerfen könnte. Was die erste Stufe erfüllt und
+jede weitere erfüllen sollte, sind drei Eigenschaften: das Ergebnis trägt einen
+Fingerabdruck seiner Eingabe, „abwesend / verweigert / gerechnet" sind drei
+Zustände und nicht zwei, und eine Stufe ruft keine andere.
+
 ### Zwei Clipping-Bibliotheken in `geometry-2d` — offen seit P3
 
 P3 hat `clipper2-ts` für die Aufweitung der Mittellinien eingezogen und lässt es
@@ -248,10 +323,15 @@ urteilt.
   den FEM-Viewer erreicht eine Policy dagegen nie, er zeichnet das Modell, nicht
   die Einstellung.
 - **`analysisPolicy`: wird modellgebunden.** Pflichtfeld im FEM-Tool-Dokument,
-  und das ist dann **Snapshot v11**: v10 ist mit P5 vergeben
-  (`thickWallRatio` und `shearCentreTolerance` in der `SectionPolicy`,
-  [ADR 0040](../docs/adr/0040-the-wall-path-is-positioned.md)). Eigenes
-  `schemaVersion` fällt im selben Schritt — erst adoptieren, dann Version
+  und das ist dann **die nächste freie Snapshot-Version** — nicht mehr v11: die
+  ist mit P9 vergeben (`FEElements` in der `SectionPolicy`, `feValues` in
+  `SectionGeometry`, `nu?` in `ElasticModuli`,
+  [ADR 0045](../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)/[0047](../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)),
+  wie v10 mit P5
+  ([ADR 0040](../docs/adr/0040-the-wall-path-is-positioned.md)). **Eine Nummer
+  im Voraus zu reservieren hat sich damit als Fehler erwiesen** — die Version
+  gehört dem Vorgang, der sie bricht, und nicht dem, der sie zuerst aufschreibt.
+  Eigenes `schemaVersion` fällt im selben Schritt — erst adoptieren, dann Version
   entfernen. Form, Composition-Root und Striktheit
   bleiben, wie sie sind. Plan: [`plan-refactor-policy.md`](plan-refactor-policy.md).
 - **Eigenes Package für den Projekt-Behälter: nein.** Die Tool-Dokumente sind
