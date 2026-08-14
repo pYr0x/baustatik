@@ -5,7 +5,7 @@
  * besitzt, besitzt seine Regeln". `SectionGeometry` und `SectionProperties`
  * gehören diesem Package, also gehören ihm auch die Regeln darüber.
  * `@baustatik/fem` hat denselben Schritt für `Node`/`Beam` getan
- * ([ADR 0008](../../../docs/adr/0008-model-rules-live-in-fem.md)), und der
+ * ([ADR 0008](../../../../docs/adr/0008-model-rules-live-in-fem.md)), und der
  * Preis ist hier derselbe und ebenso klein: das Package hängt jetzt außerdem
  * an `@baustatik/errors`. Ein neuer Knoten im Abhängigkeitsgraphen entsteht
  * nicht — jeder heutige Abhängige hängt ohnehin daran.
@@ -14,7 +14,7 @@
  * `SectionValidationError` heißt „dieser Satz ist NICHT RECHENBAR".
  * `SectionValidationWarning` heißt „rechenbar, aber UNTER EINER ANNAHME" — sie
  * hält nichts auf
- * ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
+ * ([ADR 0032](../../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
  * KLASSEN UND KEINE STRINGS, und alle tragen ihre Ids als FELDER: das Gate
  * gibt seine Befunde ZURUECK, und eine Oberfläche markiert daran die
@@ -342,7 +342,7 @@ export class ShearCentreOffsetWarning extends SectionValidationWarning {
  *
  * Bei genau einer Zelle kommt EINE skalare Verträglichkeitsgleichung dazu, und
  * ihr Ergebnis ist ein konstanter Zuschlag auf den Schubfluss der Zelle
- * (`src/wall-path.ts`). Ab zwei Zellen sind es `n` gekoppelte Unbekannte, also
+ * (`calculation/wall-path/`). Ab zwei Zellen sind es `n` gekoppelte Unbekannte, also
  * ein Gleichungssystem — ein anderes Vorhaben, und keines, das sich hinter
  * einer Zahl verstecken sollte.
  *
@@ -601,7 +601,7 @@ export class NonFiniteBulgeError extends SectionValidationError {
  *
  * DIE SCHRANKE IST DIE DER GEOMETRIE, NICHT DIE DES QUERSCHNITTS —
  * `Bulge.isDiscretisable` entscheidet, hier steht keine zweite Zahl daneben
- * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)
+ * ([ADR 0033](../../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)
  * lässt nur `discretisationTolerance` als Modellannahme zu, und genau die geht hinein).
  *
  * ER GILT FÜR BEIDE EINGABEARTEN, wie sein Zwilling: die Sehne, an der die
@@ -685,7 +685,7 @@ export class OutlineDriftWarning extends SectionValidationWarning {
  * `60°`.
  *
  * ZWEI URSACHEN, EINE SCHRANKE. Seit
- * [ADR 0038](../../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)
+ * [ADR 0038](../../../../docs/adr/0038-a-chained-joint-is-mitered-across-a-thickness-jump.md)
  * wird `overshoot` an der GEBAUTEN Ecke gemessen statt aus `α` gerechnet, und
  * damit meldet sich auch der zweite Fall: treffen zwei verschiedene
  * Wandstärken in einem fast gestreckten Stoß aufeinander, läuft der

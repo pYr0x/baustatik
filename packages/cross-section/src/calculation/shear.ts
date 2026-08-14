@@ -7,7 +7,7 @@
  * Das Integral laeuft ueber den WANDSCHUBFLUSS-WEG, nicht ueber Flaechenschnitte
  * — die beiden Definitionen fallen beim Rechteck zusammen und beim I-Profil um
  * 11 % auseinander. Gegen die IPE-Reihe geprueft ist die hier verwendete
- * ([ADR 0021](../../../docs/adr/0021-section-values-separate-from-tabulated-profiles.md)).
+ * ([ADR 0021](../../../../docs/adr/0021-section-values-separate-from-tabulated-profiles.md)).
  *
  * Fuers Rechteck faellt daraus exakt 5/6 heraus; der Wert wird nirgends gesetzt,
  * sondern gerechnet, und ein Test haelt fest, dass 5/6 herauskommt.

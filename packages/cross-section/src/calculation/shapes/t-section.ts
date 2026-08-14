@@ -1,5 +1,5 @@
 import type { cm } from '@baustatik/units';
-import type { Idealisation } from '../section';
+import type { Idealisation } from '../../model/idealisation';
 import { crossWallInterval, endMoment, partIntervals } from '../shear';
 import { allPositive, type ShapeResult } from './kernel';
 
@@ -51,7 +51,7 @@ export function tSectionCentroid(
  * `bf`/`hf` sind Breite und Dicke des Gurts OBEN, `bw` die Stegbreite, `h` die
  * GESAMThoehe. Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der
  * Gurtoberkante — damit ist `zs` die Zahl, die man von Hand nachrechnet.
- * Abmessungen in ZENTIMETERN (siehe `shapeResult`).
+ * Abmessungen in ZENTIMETERN (siehe `shapeValues`).
  */
 export function tSection(
   bf: cm,

@@ -1,7 +1,7 @@
 import { lookupProfile } from '@baustatik/steel-profiles';
 import { describe, expect, it } from 'vitest';
 import { type CrossSection, sectionProperties } from '../src/index';
-import { CM2_TO_M2, CM4_TO_M4 } from '../src/units';
+import { CM2_TO_M2, CM4_TO_M4 } from '../src/calculation/units';
 
 function values(cs: CrossSection) {
   const p = sectionProperties(cs);

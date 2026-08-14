@@ -1,11 +1,11 @@
 import type { mm } from '@baustatik/units';
-import type { FESectionState } from './fe-values';
-import type { Idealisation } from './section';
+import type { FESectionState } from './fe-section-values';
+import type { Idealisation } from './idealisation';
 
 /**
  * Der gespeicherte Querschnitt des EDITORS — die dritte Quelle neben der
  * parametrischen Form und der Katalogzeile
- * ([ADR 0030](../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
+ * ([ADR 0030](../../../../docs/adr/0030-the-section-editor-stores-a-wall-graph.md)).
  *
  * ZWEI VARIANTEN, ZWEI EINGABEARTEN, und die Trennung ist die eigentliche
  * Aussage:
@@ -30,7 +30,7 @@ import type { Idealisation } from './section';
  * DER ABGELEITETE UMRISS REIST MIT. Er ist eine Denormalisierung, aber keine
  * ungepruefte: das Gate leitet ihn ohnehin ab, der Vergleich kostet nichts,
  * und aus stiller Drift wird ein Befund. Der Grund ist derselbe wie bei der
- * kopierten Profilzeile ([ADR 0027](../../../docs/adr/0027-catalogues-are-import-sources.md)):
+ * kopierten Profilzeile ([ADR 0027](../../../../docs/adr/0027-catalogues-are-import-sources.md)):
  * ein Bericht druckt `A = 5163,21 mm²`, eine neue Bibliotheksversion liefert
  * `5163,19` — still. Ihn als `Ring[]` mit `bulge` mitzufuehren sicherte nur die
  * TOPOLOGIE, nicht die Punktzahl, aus der `A`, `Iy` und `Iz` fallen: voller
@@ -40,8 +40,8 @@ import type { Idealisation } from './section';
  * ein abgeleitetes Feld, und mit ihm reist die Provenienz. NICHT an
  * `CrossSection`: die FE braucht einen Polygonzug, `kind: 'shape'` traegt
  * keinen und bekaeme den Block deshalb nie
- * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md),
- * [ADR 0047](../../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)).
+ * ([ADR 0045](../../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md),
+ * [ADR 0047](../../../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)).
  *
  * Reine Daten, JSON-serialisierbar — Voraussetzung dafuer, dass der Querschnitt
  * im Snapshot mitreisen kann (`schemaVersion: 11`, wo seit ADR 0033 auch die
@@ -107,7 +107,7 @@ export type SectionNode = { id: string; y: mm; z: mm };
  * Bogens. `0` oder weggelassen heisst Gerade. Sie ist DIMENSIONSLOS und
  * deshalb ungebrandet. Ihr Vorzeichen folgt `Arc.sweep`
  * (`@baustatik/section-geometry`): positiv dreht von `+y` nach `+z`
- * ([ADR 0031](../../../docs/adr/0031-the-cross-section-plane.md)). Die
+ * ([ADR 0031](../../../../docs/adr/0031-the-cross-section-plane.md)). Die
  * Endtangente weicht damit um `Δ/2 = 2·atan(bulge)` von der Sehne ab — das ist
  * alles, was die Knickwarnung des Gates braucht, und der Grund, warum sie
  * ohne `Arc`-Objekt auskommt.
@@ -144,10 +144,10 @@ export type Vertex = { y: mm; z: mm; bulge?: number };
  * Vorzeichenaussage ist es nicht. Sie ist dieselbe Regel wie in
  * `@baustatik/section-geometry`, wo `signedArea > 0` den positiven Drehsinn
  * `+y → +z` meint
- * ([ADR 0034](../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)).
+ * ([ADR 0034](../../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)).
  *
  * DER UMLAUFSINN TRÄGT BEDEUTUNG, er wird nicht geraten: aus ihm fällt in
- * `green.ts` das Loch von selbst aus der Summe heraus — kein Sonderfall für
+ * `calculation/green.ts` das Loch von selbst aus der Summe heraus — kein Sonderfall für
  * den hohlen Betonkasten, kein Verschachtelungstest auf der Rechenstrecke.
  * Verkehrt herum gewickelt liefert Green ein negatives `A`; das fängt das
  * Gate mit `NegativeOutlineAreaError` ab.
@@ -181,6 +181,6 @@ export type Ring = { vertices: Vertex[] };
  *
  * DIE WINDUNGSREGEL DES `Ring` GILT HIER UNVERÄNDERT WEITER: `signedArea > 0`
  * ist Material, `< 0` ein Loch. `deriveOutlineFromRings` fasst den Umlaufsinn
- * nicht an, und `green.ts` liest ihn — das ist die ganze Kette (ADR 0034).
+ * nicht an, und `calculation/green.ts` liest ihn — das ist die ganze Kette (ADR 0034).
  */
 export type Polygon = { readonly points: readonly { y: mm; z: mm }[] };

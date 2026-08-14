@@ -12,9 +12,12 @@ import {
   validateSectionGeometry,
   type Wall,
 } from '../src/index';
-import { scaleSegments, segments } from '../src/segment';
-import { MM_TO_CM } from '../src/units';
-import { wallPath } from '../src/wall-path';
+import {
+  scaleSegments,
+  segments,
+} from '../src/calculation/wall-path/segments';
+import { MM_TO_CM } from '../src/calculation/units';
+import { wallPath } from '../src/calculation/wall-path/calculate-wall-path';
 import {
   boxGraph,
   disconnectedGraph,

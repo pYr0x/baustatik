@@ -11,7 +11,7 @@ import { allPositive, type ShapeResult } from './kernel';
  * deshalb belegt er, dass die Definition stimmt.
  *
  * Eingabesystem: `y = 0` auf der Symmetrieachse, `z = 0` an der Oberkante.
- * Abmessungen in ZENTIMETERN; `shapeResult` hat die mm der `ShapeSpec` bereits
+ * Abmessungen in ZENTIMETERN; `shapeValues` hat die mm der `ShapeSpec` bereits
  * umgerechnet.
  */
 export function rectangle(b: cm, h: cm): ShapeResult | undefined {

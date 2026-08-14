@@ -8,7 +8,7 @@ import {
 } from '../src/index';
 // NICHT aus dem Barrel: der allgemeine Zweig hat heute keine Quelle, die ihn
 // erreicht, und gehoert deshalb nicht in die oeffentliche Tuer des Packages.
-import { principalAxes } from '../src/to-si';
+import { principalAxes } from '../src/calculation/to-si';
 
 /**
  * Die Hauptachsenlage — `alpha`, `Iu`, `Iv` — und der Schubmittelpunkt.

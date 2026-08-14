@@ -1,19 +1,43 @@
-// DER WANDWEG BLEIBT INNEN. `cellCount`/`componentCount` (`branch.ts`),
-// `Segment`/`segments`/`wallMoments` (`segment.ts`) und `wallPath`
-// (`wall-path.ts`) sind der Rechenweg von P5 und keine Tür: nach aussen tragen
-// ihn `SectionProperties` (κ, `yM`/`zM`, `It`) und die Befunde des Gates. Das
-// Wandmodell ist ausdrücklich intern (CONTEXT.md, ADR 0041) — es zu
+// DER WANDWEG BLEIBT INNEN. `geometry/wall-graph/` und
+// `calculation/wall-path/` sind der Rechenweg von P5 und keine Tür: nach außen
+// tragen ihn `SectionProperties` (κ, `yM`/`zM`, `It`) und die Befunde des Gates.
+// Das Wandmodell ist ausdrücklich intern (CONTEXT.md, ADR 0041) — es zu
 // veröffentlichen stellte ein zweites Bezugssystem neben `ys`/`zs`.
-export { type Branch, branches } from './branch';
+export { profileProperties } from './calculation/profile-properties';
+export { sectionProperties } from './calculation/section-properties';
 export {
   createSectionGeometry,
   type SectionGeometryInput,
-} from './create-section-geometry';
+} from './geometry/create-section-geometry';
+export { deriveOutline } from './geometry/outline/derive-outline';
+export { deriveOutlineFromRings } from './geometry/outline/derive-outline-from-rings';
+export { deriveOutlineFromWalls } from './geometry/outline/derive-outline-from-walls';
+export { type Branch, branches } from './geometry/wall-graph/branches';
+export type { CrossSection } from './model/cross-section';
 export {
-  deriveOutline,
-  deriveOutlineFromRings,
-  deriveOutlineFromWalls,
-} from './derive-outline';
+  type FESectionState,
+  type FESectionValues,
+  kappaFromCoefficients,
+} from './model/fe-section-values';
+export type { Idealisation } from './model/idealisation';
+export type {
+  Polygon,
+  Ring,
+  SectionGeometry,
+  SectionNode,
+  Vertex,
+  Wall,
+} from './model/section-geometry';
+export type { SectionProperties } from './model/section-properties';
+export type { ShapeSpec } from './model/shape-spec';
+export {
+  createSectionPolicy,
+  DEFAULT_SECTION_POLICY,
+  parseSectionPolicy,
+  type SectionPolicy,
+  type SectionPolicyOverrides,
+} from './policy';
+export { type StressPoint, stressPoints } from './stress-points/index';
 export {
   type BulgeSite,
   DegenerateOutlineRingError,
@@ -40,38 +64,9 @@ export {
   UnnestedHoleWarning,
   type WallEnd,
   ZeroLengthWallError,
-} from './errors';
-export {
-  type FESectionState,
-  type FESectionValues,
-  kappaFromCoefficients,
-} from './fe-values';
-export {
-  createSectionPolicy,
-  DEFAULT_SECTION_POLICY,
-  parseSectionPolicy,
-  type SectionPolicy,
-  type SectionPolicyOverrides,
-} from './policy';
-export type { SectionProperties } from './properties';
-export {
-  type CrossSection,
-  type Idealisation,
-  profileProperties,
-  type ShapeSpec,
-  sectionProperties,
-} from './section';
-export { type StressPoint, stressPoints } from './stress-points/index';
-export type {
-  Polygon,
-  Ring,
-  SectionGeometry,
-  SectionNode,
-  Vertex,
-  Wall,
-} from './types';
+} from './validation/errors';
 export {
   type SectionValidationResult,
   validateSectionGeometry,
   validateSectionProperties,
-} from './validate';
+} from './validation/validate';

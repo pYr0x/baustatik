@@ -13,7 +13,7 @@ import { convert } from '@baustatik/units';
  * Package exportiert: `sectionProperties` und `stressPoints`.
  */
 
-// Die Umrechnung geht hier in die GEGENRICHTUNG zu `src/units.ts`: das Package
+// Die Umrechnung geht hier in die GEGENRICHTUNG zu `src/calculation/units.ts`: das Package
 // liefert SI, gedruckt wird die Katalogeinheit, in der man die Zahl gegen eine
 // Profiltabelle haelt. Faktoren aus `@baustatik/units`, nicht als Literal.
 const M2_TO_CM2 = convert(1).from('m^2').toExact('cm^2');

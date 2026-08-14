@@ -26,9 +26,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { chainedJoints, deriveOutlineFromWalls } from '../src/derive-outline';
+import { deriveOutlineFromWalls } from '../src/geometry/outline/derive-outline-from-walls';
+import { chainedJoints } from '../src/geometry/outline/miter-joints';
 import { createSectionPolicy } from '../src/policy';
-import type { Polygon } from '../src/types';
+import type { Polygon } from '../src/model/section-geometry';
 import { node, wall } from './helpers';
 
 /** Mittellinienmaße des Dreiecks [mm] — Basis oben, Spitze unten (`z` zeigt nach unten). */

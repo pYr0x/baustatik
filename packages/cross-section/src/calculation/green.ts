@@ -5,7 +5,7 @@
  * steht in BEIDEN Varianten von `SectionGeometry` und ist bereits diskretisiert
  * — hier wird nie nach `nodes`, `walls` oder `rings` gefragt, und deshalb braucht
  * diese Datei weder eine Bibliothek noch die Unterscheidung `midline`/`outline`
- * ([ADR 0035](../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
+ * ([ADR 0035](../../../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)).
  *
  * ARBEITSTEILUNG: die Algebra eines EINZELNEN Ringes liegt unten, in
  * `Polygon.moments` (`@baustatik/section-geometry`). Hier liegt allein die
@@ -14,7 +14,7 @@
  * Aussage dieses Packages und keine der ebenen Geometrie.
  *
  * MATERIAL UND LOCH STECKEN IM UMLAUFSINN: `signedArea > 0` ist Material,
- * `< 0` ein Loch ([ADR 0034](../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)).
+ * `< 0` ein Loch ([ADR 0034](../../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)).
  * Weil `Polygon.moments` roh und vorzeichenbehaftet liefert, addieren sich alle
  * sechs Zahlen LINEAR, und der hohle Betonkasten braucht keinen Sonderfall —
  * das Loch zieht sich über sein Vorzeichen selbst ab. Ein
@@ -22,11 +22,11 @@
  * Warnung im Gate.
  *
  * SKALENFREI, wie die Formfunktionen: was hineingeht, bestimmt, was
- * herauskommt. `geometryResult` in `section.ts` reicht Zentimeter herein.
+ * herauskommt. `geometryValues` in `geometry-properties.ts` reicht Zentimeter herein.
  */
 
 import { Polygon as SectionPolygon } from '@baustatik/section-geometry';
-import type { Polygon } from './types';
+import type { Polygon } from '../model/section-geometry';
 
 /**
  * Was aus dem Umriss fällt — auf den SCHWERPUNKT bezogen, in der Einheit der

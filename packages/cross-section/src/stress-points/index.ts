@@ -1,5 +1,9 @@
-import { type CrossSection, sectionProperties } from '../section';
-import { tSectionCentroid, tSectionWall } from '../shapes/t-section';
+import { sectionProperties } from '../calculation/section-properties';
+import {
+  tSectionCentroid,
+  tSectionWall,
+} from '../calculation/shapes/t-section';
+import type { CrossSection } from '../model/cross-section';
 import { iSymmetricPoints, rectanglePoints, tSectionPoints } from './compact';
 import { rolledIStressPoints } from './rolled-i';
 import { iSymmetricThinPoints, tSectionThinPoints } from './thin';
@@ -12,7 +16,7 @@ import type { StressPoint } from './types';
  * allein. `idealisation` beantwortet die Frage „wie fliesst der Schub", und
  * dieselbe Frage darf nicht zwei Maschinen haben: sie steuert kappa UND die
  * Spannungspunkte, oder keines von beiden
- * ([ADR 0029](../../../docs/adr/0029-stress-points-follow-the-idealisation.md)).
+ * ([ADR 0029](../../../../docs/adr/0029-stress-points-follow-the-idealisation.md)).
  *
  * | Form | `solid` | `thin-walled` |
  * | --- | --- | --- |
@@ -38,7 +42,7 @@ import type { StressPoint } from './types';
  * und der parametrische Zweig hat gar keine Tabelle, aus der sie kommen
  * koennten. Sie zu tabellieren hiesse, zwei Quellen fuer eine Groesse zu
  * fuehren, von denen eine fuer die Haelfte der Querschnitte leer bliebe
- * ([ADR 0022](../../../docs/adr/0022-stress-points-are-computed-from-a-template.md)).
+ * ([ADR 0022](../../../../docs/adr/0022-stress-points-are-computed-from-a-template.md)).
  */
 export function stressPoints(
   cs: CrossSection,

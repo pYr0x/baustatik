@@ -1,7 +1,7 @@
 /**
  * Das UNABHAENGIGE ORAKEL fuer kappa: numerische Integration.
  *
- * `src/shear.ts` rechnet `integral S^2/t ds` geschlossen, indem es das Polynom
+ * `src/calculation/shear.ts` rechnet `integral S^2/t ds` geschlossen, indem es das Polynom
  * vierten Grades ausmultipliziert. Diese Datei rechnet dasselbe Integral
  * numerisch, aus einer Beschreibung des Weges, die den Hebelarm als FUNKTION
  * angibt statt als Koeffizienten. Kein Schritt der einen Rechnung kommt in der

@@ -5,13 +5,13 @@
  * `EA`, `EI`, `GAs`, also Geometrie MAL Material. Hier steht, was jede
  * Profiltabelle unter *section properties* druckt. Die Multiplikation leistet
  * `@baustatik/fem-section-resolve` und sonst niemand
- * ([ADR 0020](../../../docs/adr/0020-section-properties-versus-section-stiffness.md)).
+ * ([ADR 0020](../../../../docs/adr/0020-section-properties-versus-section-stiffness.md)).
  *
  * ALLES IN SI-METERN — und das ist die EINZIGE Stelle im Package, an der SI
  * steht. Innen rechnen beide Quellen in Katalogeinheiten (cm², cm⁴, cm), weil
  * man das gegen die gedruckte Tabelle diffen koennen muss: `Iy: 8356` liest
  * man, `8.356e-5` nicht. Umgerechnet wird an genau einer Stelle, in `toSI`
- * ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md)).
+ * ([ADR 0024](../../../../docs/adr/0024-units-at-the-package-boundary.md)).
  *
  * SI steht hier, weil dahinter `fem-section-resolve` `A` in m² mit `E` in
  * kN/m² multipliziert und `EA` in kN herauskommen soll.
@@ -77,12 +77,12 @@ export type SectionProperties = {
    * bereits getroffene Festlegung von `Arc.sweep` in
    * `@baustatik/section-geometry`, auf die sich die DXF-Vorzeichenregel des
    * `bulge` schon stuetzt
-   * ([ADR 0031](../../../docs/adr/0031-the-cross-section-plane.md)).
+   * ([ADR 0031](../../../../docs/adr/0031-the-cross-section-plane.md)).
    *
    * GEGEN DLUBAL IST DAS VORZEICHEN GESPIEGELT (L 30×20×3: hier `+23,12°`,
    * dort `−23,12°`). Gespiegelt wird EINMAL, in der Berichtsausgabe — dieselbe
    * Figur wie `phiY = −theta` in
-   * [ADR 0005](../../../docs/adr/0005-rotation-sense-phiy-versus-theta.md).
+   * [ADR 0005](../../../../docs/adr/0005-rotation-sense-phiy-versus-theta.md).
    *
    * Bereich `(−π/2, +π/2]`, zusammen mit `Iu >= Iv` eindeutig.
    */
@@ -99,7 +99,7 @@ export type SectionProperties = {
    * Formeln liegen drei Zehnerpotenzen.
    *
    * ZWEI VOLLQUERSCHNITTE, ZWEI ANTWORTEN, und die Grenze ist gewollt
-   * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)):
+   * ([ADR 0045](../../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)):
    * beim GEZEICHNETEN (`kind: 'section-geometry'`) faellt `It` aus der
    * FE-Rechnung und STEHT, sobald der Aufloesungsschritt gelaufen ist; beim
    * PARAMETRISCHEN (`kind: 'shape'` mit `idealisation: 'solid'`) bleibt es

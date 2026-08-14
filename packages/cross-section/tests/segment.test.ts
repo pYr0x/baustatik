@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SECTION_POLICY } from '../src/index';
-import { scaleSegments, segments, wallMoments } from '../src/segment';
+import {
+  scaleSegments,
+  segments,
+} from '../src/calculation/wall-path/segments';
+import { wallMoments } from '../src/calculation/wall-path/wall-moments';
 import { iGraph, node, wall } from './helpers';
 
 /**
