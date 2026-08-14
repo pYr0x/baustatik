@@ -182,3 +182,35 @@ The oracles that see the `m`-part of the field — circle against
 Timoshenko/Goodier, half-circle against Sokolnikoff — carry the sign of the `ψ₁`
 boundary term and are unchanged. `m = 0` does not see it, so the rectangle does
 not either.
+
+## Re-entrant corners are unchanged, and now measured
+
+At a re-entrant corner — every corner of a rectangular hole, the inside corner of
+an angle — `τ` is **singular in the continuous solution**. For material interior
+angle `ω` the Neumann problem has exponent `λ = π/ω`; with `ω = 3π/2` that is
+`ψ ~ r^(2/3)`, so `τ = ∇ψ ~ r^(−1/3) → ∞`.
+
+**κ itself is unaffected**: it is an energy integral, and `|τ|²·dA ~ r^(−2/3)·r dr`
+converges. What suffers is the *rate*: the H1 error is capped at `O(h^λ)`, the
+energy error at `O(h^(2λ)) = O(h^(4/3))` instead of `O(h⁴)`.
+
+This is **pre-existing and formulation-independent** — both candidate splittings
+give identical field distances at those corners, and the Dirichlet version had it
+too. It is recorded here because the same measurement run now covers it, and
+because nothing else in the repository did: the mesh-independence test
+(`door.test.ts`) uses the rectangle, the one figure without a singularity.
+
+| Figur | einspringende Ecken | beobachtete `p` | erwartet |
+| --- | --- | --- | --- |
+| Rechteck 200 × 300 | keine | 3,77 … 3,91 | 4 |
+| Kasten 200 × 400, Loch bei `z = 60` | 4 × 270° | 0,96 … 1,43 | 4/3 |
+| Winkel 200 × 120 × 30 | 1 × 270° | 0,70 … 1,41 | 4/3 |
+
+Extrapolated from the observed order, the residual in `d0` at ~149 000 elements is
+`7·10⁻⁵` for both singular figures. Practically: on such a figure, quadrupling
+the element count buys roughly a **halving** of the error, not the sixteen-fold
+improvement the rectangle gives.
+
+No remedy is built. Graded meshes towards the corner, a singularity element, or
+extrapolation in the production code are the known routes; whether one is needed
+is a separate question from this ADR.

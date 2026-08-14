@@ -91,8 +91,18 @@ dort kubisch, und `κ = 5/6` träfe nur noch auf acht statt zwölf Stellen
   sich. `yM`/`zM` werden exakt zurückgedreht; `inverseKappaY`/`inverseKappaZ`
   gehören damit den Hauptachsen und fallen bei `alpha = 0` — dem Regelfall, den
   das Gate mit `NotPrincipalAxesWarning` absichert — mit `y` und `z` zusammen.
-- **`K` ist drehinvariant.** Beide Lastrichtungen laufen deshalb auf EINER Matrix
-  und EINER Zerlegung: `4 + h` rechte Seiten statt zweier Faktorisierungen.
+- **`K` ist drehinvariant, und beide Randwertprobleme sind reines Neumann.**
+  Torsion und beide Lastrichtungen laufen deshalb auf EINER Matrix und EINER
+  Zerlegung: **fünf** rechte Seiten statt zweier Faktorisierungen (ADR 0048).
+- **An einer einspringenden Ecke ist `τ` singulär** — in der kontinuierlichen
+  Lösung, nicht erst im Netz: bei Materialinnenwinkel `ω = 3π/2` ist
+  `τ ~ r^(−1/3)`. κ bleibt davon **unberührt**, weil das Energieintegral
+  konvergiert; was leidet, ist die Ordnung. Gemessen `p ≈ 1` statt `4`, also
+  kauft eine Vervierfachung der Elementzahl dort nur eine Halbierung des
+  Fehlers ([Bericht](../../docs/messungen/verwoelbung-gegen-dirichlet.md)). Das
+  betrifft jede Figur mit Lochecke oder Innenecke, ist formulierungsunabhängig
+  und **nicht abgemildert** — kein graduiertes Netz, kein Singularitätselement,
+  keine Extrapolation.
 - **Der Umlaufsinn trägt Material und Loch** (`signedArea > 0` ist Material,
   ADR 0034). Die Umsetzung nach `MeshRing2D.kind` ist eine Vorzeichenabfrage —
   kein Verschachtelungstest, Lochsaatpunkte erzeugt der Mesher selbst.

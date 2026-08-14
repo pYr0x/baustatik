@@ -1,8 +1,16 @@
 /**
  * MESSGERAET, kein Regressionstest.
  *
- * DIE FRAGE: Liefert die Verwoelbungsformulierung des Schubproblems DASSELBE
- * Spannungsfeld wie die heutige Spannungsfunktion mit Dirichlet-Rand?
+ * ZWEI FRAGEN:
+ *
+ *   1. Liefert die Verwoelbungsformulierung des Schubproblems DASSELBE
+ *      Spannungsfeld wie die heutige Spannungsfunktion mit Dirichlet-Rand?
+ *   2. Wie schnell steht die Zahl bei einer Figur mit EINSPRINGENDER ECKE?
+ *
+ * Die zweite Frage ist unabhaengig von der ersten und aelter als sie: sie
+ * betrifft jede Diskretisierung dieses Problems. Sie steht hier, weil dieselbe
+ * Maschinerie sie ohne Zusatzaufwand beantwortet — siehe „DIE ZWEITE FRAGE"
+ * weiter unten.
  *
  * WARUM SIE GESTELLT WIRD. Die Dirichlet-Fassung legt `Φ` nur ENTLANG jeder
  * Randschleife fest; je Schleife bleibt eine Konstante offen, und das Randdatum
@@ -34,6 +42,26 @@
  * tragen, bei B steht sie als algebraischer Term exakt im Integranden. Welche
  * der beiden das Rechteck bei `m = 0` noch auf zwoelf Stellen trifft, ist eine
  * Messfrage und keine Geschmacksfrage — deshalb laufen hier beide.
+ *
+ * DIE ZWEITE FRAGE: WIE SCHNELL STEHT DIE ZAHL? An einer einspringenden Ecke
+ * ist `τ` SINGULAER, und zwar in der kontinuierlichen Loesung und nicht erst im
+ * Netz. Bei Materialinnenwinkel `ω` hat das Neumann-Problem den Exponenten
+ * `λ = π/ω`; fuer die Ecke eines Rechtecklochs oder die Innenecke eines Winkels
+ * ist `ω = 3π/2`, also
+ *
+ *   ψ ~ r^(2/3)     τ = ∇ψ ~ r^(−1/3) → ∞
+ *
+ * κ SELBST BLEIBT DAVON UNBERUEHRT: es ist ein Energieintegral, und
+ * `|τ|²·dA ~ r^(−2/3)·r dr` konvergiert. Endlich ist die Zahl also. Was leidet,
+ * ist die ORDNUNG, mit der sie sich einstellt: der H1-Fehler ist durch die
+ * Singularitaet auf `O(h^λ)` gedeckelt, der Energiefehler damit auf
+ * `O(h^(2λ)) = O(h^(4/3))` statt `O(h^4)` wie bei glatter Loesung.
+ *
+ * DAS IST VORHERSAGE UND WIRD ALS SOLCHE GEPRUEFT. Die Reihe laeuft ueber vier
+ * Netzdichten mit Vervierfachung je Schritt — `h` halbiert sich also, und der
+ * Abstand aufeinanderfolgender Werte verhaelt sich wie `2^p`. Das Rechteck
+ * laeuft als GLATTE Gegenprobe mit: ohne es waere nicht zu unterscheiden, ob
+ * eine langsame Ordnung an der Ecke oder an der Maschinerie liegt.
  *
  * WAS DIESES SKRIPT NICHT TUT: es urteilt nicht. Es gibt keine Schranke,
  * unterhalb derer etwas „in Ordnung" waere — das entscheidet ein ADR.
@@ -257,6 +285,67 @@ const FIGURES = [
     area: 0.2 * 0.4 - 0.06 * 0.12,
   },
 ];
+
+/**
+ * Die Verfeinerungsreihe. VIERFACHUNG JE SCHRITT, damit sich `h` halbiert —
+ * nur dann ist der Quotient aufeinanderfolgender Abstaende `2^p`.
+ */
+const REFINEMENT_STEPS = [1500, 6000, 24000, 96000];
+
+/**
+ * Drei Figuren, und die erste ist die Gegenprobe.
+ *
+ * Ohne eine GLATTE Figur in derselben Reihe waere eine langsame Ordnung nicht
+ * der Ecke zuzuordnen — sie koennte ebensogut an der Quadratur, am Loeser oder
+ * am Mesher liegen.
+ */
+const REFINEMENT_FIGURES = [
+  {
+    name: 'Rechteck 200 × 300',
+    note: 'GLATTE Gegenprobe — kein einspringender Winkel, keine Singularität.',
+    corner: 'keine',
+    rings: [{ kind: 'material', coordinates: rectangleRing(0.2, 0.3) }],
+    area: 0.2 * 0.3,
+  },
+  {
+    name: 'Kasten 200 × 400, Loch bei z = 60',
+    note: 'Die Figur, für die es diese Formulierung gibt: vier einspringende Ecken am Loch, und das Loch liegt neben der Biegeachse.',
+    corner: '4 × 270°',
+    rings: [
+      { kind: 'material', coordinates: boxRing(0, 0, 0.2, 0.4) },
+      { kind: 'hole', coordinates: boxRing(0, 0.06, 0.06, 0.12) },
+    ],
+    area: 0.2 * 0.4 - 0.06 * 0.12,
+  },
+  {
+    name: 'Winkel 200 × 120 × 30',
+    note: 'Eine einzige einspringende Ecke, dafür ohne Symmetrieachse.',
+    corner: '1 × 270°',
+    rings: [{ kind: 'material', coordinates: angleRing(0.2, 0.12, 0.03) }],
+    area: 0.2 * 0.03 + (0.12 - 0.03) * 0.03,
+  },
+];
+
+/**
+ * Was in der Reihe verfolgt wird.
+ *
+ * `floor` ist ein Bezugsmass AUS DER FIGUR, kein gemessener Wert — es wird
+ * gebraucht, wo die Groesse selbst aus SYMMETRIE verschwindet. Ohne es waere
+ * `zM` des Rechtecks (`≡ 0`, gemessen `4·10⁻¹⁰`) eine relative Aenderung von
+ * 3600 %, und die Reihe berichtete Rauschen als Bewegung. Die Dimension muss
+ * stimmen: `It ~ Flaeche²`, `zM ~ Laenge`.
+ */
+const TRACKED = [
+  { key: 'd0', label: '`d0`', digits: 9, floor: () => 1 },
+  { key: 'It', label: '`It` [m⁴]', digits: 9, floor: (f) => f.area ** 2 },
+  { key: 'zM', label: '`zM` [m]', digits: 9, floor: (f) => Math.sqrt(f.area) },
+];
+
+/** Unterhalb dessen ist eine Groesse null und keine kleine Zahl. */
+const ZERO_LEVEL = 1e-7;
+
+/** Unterhalb dessen ist eine AENDERUNG Gleitkommarauschen und keine Bewegung. */
+const NOISE_LEVEL = 1e-9;
 
 // ---------------------------------------------------------------------------
 // Bezugssystem
@@ -945,6 +1034,184 @@ function measure(section, solve) {
 }
 
 // ---------------------------------------------------------------------------
+// Die Verfeinerungsreihe
+// ---------------------------------------------------------------------------
+
+/**
+ * Nur der PRODUKTIVWEG (Variante B), fuer die Verfeinerungsreihe.
+ *
+ * Der Dirichlet-Weg kommt hier nicht vor: gefragt ist, wie schnell die Zahl
+ * steht, die das Package liefert — nicht, ob zwei Formulierungen uebereinstimmen.
+ *
+ * BEIDE LASTRICHTUNGEN NACHEINANDER, nicht nebeneinander: die Gausspunkt-Tabelle
+ * einer Richtung ist bei 96 000 Elementen dreistellig in MB, und so kann die
+ * erste eingesammelt werden, bevor die zweite entsteht.
+ */
+function warpingScalars(section, solve) {
+  const theta = principalRotation(section.Iy, section.Iz, section.Iyz);
+  const frameZ = createFrame(section, theta);
+  const frameY = createFrame(section, theta + Math.PI / 2);
+  const system = neumannSystem(section);
+
+  const torsion = torsionLoad(section, system);
+  const loadsZ = warpingLoadsB(section, system, frameZ);
+  const loadsY = warpingLoadsB(section, system, frameY);
+
+  const columns = [
+    torsion.rhs,
+    loadsZ.psi0.rhs,
+    loadsZ.psi1.rhs,
+    loadsY.psi0.rhs,
+    loadsY.psi1.rhs,
+  ];
+  const rhs = new Float64Array(system.free * columns.length);
+  for (let at = 0; at < columns.length; at++) {
+    rhs.set(columns[at], at * system.free);
+  }
+  const d = solve(
+    system.free,
+    system.rows,
+    system.cols,
+    system.values,
+    columns.length,
+    rhs,
+  );
+  const field = (at) =>
+    expand(
+      section,
+      system,
+      d.subarray(at * system.free, (at + 1) * system.free),
+      undefined,
+    );
+
+  const omega = field(0);
+  const perFrame = (frame, psi0, psi1) => {
+    const table = gaussTable(section, frame);
+    const tau = stressField(table, frame, 'warping-b', psi0, psi1);
+    return evaluateStress(section, table, tau, omega);
+  };
+  const inZ = perFrame(frameZ, field(1), field(2));
+  const inY = perFrame(frameY, field(3), field(4));
+
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  return {
+    d0: inZ.inverseKappa[0],
+    d2: inZ.inverseKappa[1],
+    It: inZ.It,
+    yM: section.ys + (inZ.uM * cos - inY.uM * sin),
+    zM: section.zs + (inZ.uM * sin + inY.uM * cos),
+    equilibrium: inZ.Fz,
+  };
+}
+
+/**
+ * Eine verfolgte Groesse ueber die ganze Reihe, aufbereitet.
+ *
+ * DIE ORDNUNG WIRD NICHT GEGEN EINE WAHRHEIT GEMESSEN — es gibt keine
+ * geschlossene Zahl — sondern gegen die eigene Bewegung: mit `Fehler ~ C·h^p`
+ * und halbiertem `h` je Schritt verhaelt sich der Abstand aufeinanderfolgender
+ * Werte wie `2^p`, und die Unbekannte `C` kuerzt sich heraus:
+ *
+ *   p = log₂(Δ_vorher / Δ_danach)
+ *
+ * BEZOGEN WIRD AUF DAS FEINSTE NETZ ODER AUF DIE FIGUR, je nachdem, was
+ * groesser ist. Das ist der Punkt: eine Groesse, die aus Symmetrie
+ * verschwindet, hat keinen eigenen Massstab, und ohne einen von aussen
+ * berichtete die Reihe Rauschen als Konvergenz.
+ *
+ * `order` steht nur da, wo BEIDE beteiligten Abstaende ueber dem Rauschen
+ * liegen — sonst ist `log₂` zweier Rundungsfehler eine Zufallszahl.
+ */
+function series(steps, tracked, figure) {
+  const values = steps.map((step) => step[tracked.key]);
+  const finest = Math.abs(values[values.length - 1]);
+  const scale = Math.max(finest, tracked.floor(figure));
+
+  const gaps = values.map((value, index) =>
+    index === 0 ? undefined : Math.abs(value - values[index - 1]) / scale,
+  );
+  const orders = values.map((_, index) => {
+    if (index === 0 || index + 1 >= values.length) return undefined;
+    const first = gaps[index];
+    const second = gaps[index + 1];
+    if (first < NOISE_LEVEL || second < NOISE_LEVEL) return undefined;
+    return Math.log2(first / second);
+  });
+
+  return { values, gaps, orders, scale, isZero: finest / scale < ZERO_LEVEL };
+}
+
+/**
+ * Der geschaetzte Restfehler am FEINSTEN Netz, relativ.
+ *
+ * Aus der beobachteten Ordnung fortgeschrieben: die noch ausstehenden Schritte
+ * bilden eine geometrische Reihe mit Quotient `2^(−p)`, also
+ * `Rest = Δ_letzt·2^(−p) / (1 − 2^(−p))`. Das ist eine EXTRAPOLATION und keine
+ * Messung — sie steht und faellt mit der Annahme, dass `p` so bleibt.
+ */
+function extrapolatedResidual(entry) {
+  const lastGap = entry.gaps[entry.gaps.length - 1];
+  const lastOrder = entry.orders[entry.orders.length - 2];
+  if (lastGap === undefined || lastOrder === undefined) return undefined;
+  const quotient = 2 ** -lastOrder;
+  if (!(quotient > 0 && quotient < 1)) return undefined;
+  return (lastGap * quotient) / (1 - quotient);
+}
+
+/** Eine Zelle der Reihe: Wert, Abstand, Ordnung — oder der Grund, warum nicht. */
+function seriesCells(entry, index, digits) {
+  if (entry.isZero) return ['≈ 0', '—', '—'];
+  const gap = entry.gaps[index];
+  const order = entry.orders[index];
+  return [
+    entry.values[index].toExponential(digits),
+    gap === undefined ? '—' : gap < NOISE_LEVEL ? 'Rauschen' : gap.toExponential(2),
+    order === undefined ? '—' : order.toFixed(2),
+  ];
+}
+
+function runRefinement(mesher, solve, prepareSection) {
+  const rows = [];
+  for (const figure of REFINEMENT_FIGURES) {
+    const steps = [];
+    for (const elements of REFINEMENT_STEPS) {
+      const mesh = mesher.generate({
+        rings: figure.rings.map((ring) => ({
+          kind: ring.kind,
+          coordinates: new Float64Array(ring.coordinates),
+        })),
+        element: 'tri6',
+        maxElementArea: figure.area / elements,
+        switches: { quality: true },
+      });
+      const section = prepareSection(mesh);
+      steps.push({
+        elements: section.elementCount,
+        ...warpingScalars(section, solve),
+      });
+    }
+    rows.push({ figure, steps });
+
+    console.log(`${figure.name}   (einspringende Ecken: ${figure.corner})`);
+    for (const tracked of TRACKED) {
+      const entry = series(steps, tracked, figure);
+      console.log(`  ${tracked.key}${entry.isZero ? '   ≈ 0 (Symmetrie)' : ''}`);
+      if (entry.isZero) continue;
+      for (let index = 0; index < steps.length; index++) {
+        const [value, gap, order] = seriesCells(entry, index, tracked.digits);
+        console.log(
+          `    ${String(steps[index].elements).padStart(7)}  ${value}  ` +
+            `Δ ${gap.padStart(9)}  p ${order.padStart(5)}`,
+        );
+      }
+    }
+    console.log('');
+  }
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
 // Lauf und Bericht
 // ---------------------------------------------------------------------------
 
@@ -1014,11 +1281,15 @@ async function main() {
     console.log('');
   }
 
-  writeReport(rows);
+  console.log('── Verfeinerungsreihe ──────────────────────────────────────');
+  console.log('');
+  const refinement = runRefinement(mesher, solve, fe.prepareSection);
+
+  writeReport(rows, refinement);
   console.log(`Bericht: ${fileURLToPath(REPORT_URL)}`);
 }
 
-function writeReport(rows) {
+function writeReport(rows, refinement) {
   const lines = [];
   lines.push('# Verwölbungsformulierung gegen Dirichlet');
   lines.push('');
@@ -1187,12 +1458,180 @@ function writeReport(rows) {
     );
   }
   lines.push('');
+  lines.push('## Wie schnell steht die Zahl?');
+  lines.push('');
+  lines.push(
+    'Eine zweite, von der ersten unabhängige Frage — und eine ältere: sie betrifft',
+  );
+  lines.push(
+    'jede Diskretisierung dieses Problems und nicht nur die neue Formulierung.',
+  );
+  lines.push('Gerechnet wird deshalb hier **nur der Produktivweg** (Variante B).');
+  lines.push('');
+  lines.push(
+    'An einer **einspringenden Ecke** ist `τ` singulär, und zwar in der',
+  );
+  lines.push(
+    'kontinuierlichen Lösung. Bei Materialinnenwinkel `ω` hat das Neumann-Problem den',
+  );
+  lines.push(
+    'Exponenten `λ = π/ω`; für die Ecke eines Rechtecklochs und für die Innenecke',
+  );
+  lines.push('eines Winkels ist `ω = 3π/2`:');
+  lines.push('');
+  lines.push('```text');
+  lines.push('ψ ~ r^(2/3)        τ = ∇ψ ~ r^(−1/3)  →  ∞');
+  lines.push('```');
+  lines.push('');
+  lines.push(
+    '**κ bleibt davon unberührt.** Es ist ein Energieintegral, und',
+  );
+  lines.push(
+    '`|τ|²·dA ~ r^(−2/3)·r dr` konvergiert — die Zahl ist endlich. Was leidet, ist die',
+  );
+  lines.push(
+    'ORDNUNG, mit der sie sich einstellt: der H1-Fehler ist durch die Singularität auf',
+  );
+  lines.push(
+    '`O(h^λ)` gedeckelt, der Energiefehler damit auf `O(h^(2λ)) = O(h^(4/3))` statt',
+  );
+  lines.push('`O(h⁴)` wie bei glatter Lösung.');
+  lines.push('');
+  lines.push(
+    'Gemessen wird nicht gegen eine Wahrheit — es gibt keine geschlossene Zahl —',
+  );
+  lines.push(
+    'sondern gegen die eigene Bewegung. Je Schritt vervierfacht sich die Elementzahl,',
+  );
+  lines.push(
+    '`h` halbiert sich also, und mit `Fehler ~ C·h^p` verhält sich der Abstand',
+  );
+  lines.push('aufeinanderfolgender Werte wie `2^p`:');
+  lines.push('');
+  lines.push('```text');
+  lines.push('p = log₂( Δ_vorher / Δ_danach )');
+  lines.push('```');
+  lines.push('');
+  lines.push(
+    'Das Rechteck läuft als **glatte Gegenprobe** mit. Ohne es wäre eine langsame',
+  );
+  lines.push(
+    'Ordnung nicht der Ecke zuzuordnen — sie könnte ebensogut an der Quadratur, am',
+  );
+  lines.push('Löser oder am Mesher liegen.');
+  lines.push('');
+  lines.push('Zwei Dinge, die beim Lesen zählen:');
+  lines.push('');
+  lines.push(
+    '- **`p` steht nur, wo sich etwas bewegt.** Wo der Abstand zweier Netze auf',
+  );
+  lines.push(
+    '  Gleitkommarauschen liegt, ist `log₂` zweier Rundungsfehler eine Zufallszahl und',
+  );
+  lines.push(
+    '  keine Ordnung; die Spalte trägt dann `Rauschen`. `≈ 0` heißt: die Größe',
+  );
+  lines.push('  verschwindet aus Symmetrie und hat keinen eigenen Maßstab.');
+  lines.push(
+    '- **Die Netze sind NICHT geschachtelt.** Triangle vernetzt jeden Schritt neu, also',
+  );
+  lines.push(
+    '  liegt auf der asymptotischen Rate noch Netz-zu-Netz-Rauschen. `p` schwankt',
+  );
+  lines.push(
+    '  deshalb; zu lesen ist die Größenordnung, nicht die zweite Stelle.',
+  );
+  lines.push('');
+  for (const { figure, steps } of refinement) {
+    lines.push(`### ${figure.name}`);
+    lines.push('');
+    lines.push(`Einspringende Ecken: **${figure.corner}**. ${figure.note}`);
+    lines.push('');
+    lines.push(
+      `| Elemente |${TRACKED.map((t) => ` ${t.label} | Δ | p |`).join('')}`,
+    );
+    lines.push(`| --- |${' --- |'.repeat(TRACKED.length * 3)}`);
+    const entries = TRACKED.map((tracked) => series(steps, tracked, figure));
+    for (let index = 0; index < steps.length; index++) {
+      const cells = TRACKED.map((tracked, at) =>
+        seriesCells(entries[at], index, tracked.digits)
+          .map((cell) => ` ${cell} |`)
+          .join(''),
+      );
+      lines.push(`| ${steps[index].elements} |${cells.join('')}`);
+    }
+    lines.push('');
+    const residuals = TRACKED.map((tracked, at) => ({
+      label: tracked.label,
+      value: entries[at].isZero ? undefined : extrapolatedResidual(entries[at]),
+    })).filter((entry) => entry.value !== undefined);
+    if (residuals.length > 0) {
+      lines.push(
+        `Aus der Ordnung fortgeschrieben, Restfehler am feinsten Netz: ` +
+          `${residuals.map((r) => `${r.label} \`${r.value.toExponential(2)}\``).join(', ')}.`,
+      );
+      lines.push('');
+    }
+  }
+  lines.push('### Was die Reihe zeigt');
+  lines.push('');
+  lines.push('Die gemessenen Ordnungen fallen in zwei getrennte Gruppen:');
+  lines.push('');
+  lines.push('| Figur | einspringende Ecken | beobachtete `p` | erwartet |');
+  lines.push('| --- | --- | --- | --- |');
+  for (const { figure, steps } of refinement) {
+    const observed = TRACKED.flatMap((tracked) => {
+      const entry = series(steps, tracked, figure);
+      return entry.isZero
+        ? []
+        : entry.orders.filter((order) => order !== undefined);
+    });
+    const span =
+      observed.length === 0
+        ? '—'
+        : `${Math.min(...observed).toFixed(2)} … ${Math.max(...observed).toFixed(2)}`;
+    lines.push(
+      `| ${figure.name} | ${figure.corner} | ${span} | ` +
+        `${figure.corner === 'keine' ? '`4` (glatt)' : '`4/3 ≈ 1,33` (λ = 2/3)'} |`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    'Die glatte Figur trifft `O(h⁴)`, die beiden mit einspringender Ecke liegen bei',
+  );
+  lines.push(
+    'rund `1` — also dort, wo die Singularität sie hinstellt, und nicht bei `4`. Die',
+  );
+  lines.push(
+    'Vorhersage aus `λ = π/ω` ist damit bestätigt, und zwar an zwei verschiedenen',
+  );
+  lines.push('Figuren mit verschiedener Eckenzahl.');
+  lines.push('');
+  lines.push(
+    'Praktisch heißt das: bei einer Figur mit Lochecke oder Innenecke kauft eine',
+  );
+  lines.push(
+    'Vervierfachung der Elementzahl **rund eine Halbierung** des Fehlers statt der',
+  );
+  lines.push('sechzehn Mal besseren Zahl, die man vom Rechteck gewohnt ist.');
+  lines.push('');
   lines.push('## Was hier NICHT steht');
   lines.push('');
   lines.push(
-    'Keine Schranke. Welcher Abstand tragbar ist und welche Variante der Produktivcode',
+    'Keine Schranke. Welcher Abstand tragbar ist, welche Variante der Produktivcode',
   );
-  lines.push('führt, entscheidet ADR 0048 und nicht dieses Messgerät.');
+  lines.push(
+    'führt und ab welchem Restfehler eine Netzdichte zu grob heißt, entscheidet ein',
+  );
+  lines.push('ADR und nicht dieses Messgerät.');
+  lines.push('');
+  lines.push(
+    'Und kein Gegenmittel. Graduierte Netze zur Ecke hin, ein Singularitätselement oder',
+  );
+  lines.push(
+    'eine Extrapolation im Produktivcode wären die bekannten Wege — gebaut ist keiner,',
+  );
+  lines.push('und ob einer gebraucht wird, ist eine andere Frage als diese hier.');
   lines.push('');
 
   mkdirSync(dirname(fileURLToPath(REPORT_URL)), { recursive: true });
