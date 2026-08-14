@@ -1566,6 +1566,28 @@ function writeReport(data) {
   lines.push('     Nicht von Hand bearbeiten — der nächste Lauf überschreibt die Datei. -->');
   lines.push('');
   lines.push(
+    '> **Weg 2 ist gegangen worden.** Der Ausblick weiter unten nennt zwei Auswege aus',
+  );
+  lines.push(
+    '> der Lochgrenze; der zweite — die Verwölbungsformulierung — ist seit',
+  );
+  lines.push(
+    '> [ADR 0048](../adr/0048-the-shear-problem-uses-the-warping-formulation.md) der',
+  );
+  lines.push(
+    '> Produktivweg, und die Grenze gibt es nicht mehr. Dieser Bericht misst die',
+  );
+  lines.push(
+    '> **Dirichlet-Fassung** und bleibt als Begründungsspur stehen: er ist der Grund,',
+  );
+  lines.push(
+    '> aus dem gewechselt wurde. Der Ablösebeleg steht in',
+  );
+  lines.push(
+    '> [Verwölbungsformulierung gegen Dirichlet](verwoelbung-gegen-dirichlet.md).',
+  );
+  lines.push('');
+  lines.push(
     'Beleg-Artefakt zu [ADR 0045](../adr/0045-solid-section-values-are-nu-free-coefficients.md),',
   );
   lines.push(

@@ -133,7 +133,13 @@ describe('computeFESectionValues', () => {
     expect(mesh).toBeUndefined();
   });
 
-  it('verweigert ein Loch neben der Biegeachse und liefert It trotzdem', async () => {
+  it('rechnet ein Loch NEBEN der Biegeachse durch', async () => {
+    // DER BELEG FUER DEN GANZEN UMBAU. Dieselbe Figur — Kasten 200 × 400, Loch
+    // 60 × 120 bei z = 210, also 10 mm aus der Achse — hat bis ADR 0048
+    // `hole-off-bending-axis` geliefert: die Spannungsfunktion `Φ` war je
+    // Randschleife nur bis auf eine Konstante bestimmt, und ihr Randdatum
+    // schloss nicht. Ueber eine Verschiebung gerechnet gibt es die Bedingung
+    // nicht mehr.
     const geometry = createSectionGeometry(
       {
         kind: 'outline',
@@ -141,14 +147,19 @@ describe('computeFESectionValues', () => {
       },
       DEFAULT_SECTION_POLICY,
     );
-    const { state } = await computeFESectionValues(
+    const { state, diagnostics } = await computeFESectionValues(
       geometry,
       DEFAULT_SECTION_POLICY,
     );
-    expect(state.status).toBe('unsupported');
-    if (state.status !== 'unsupported') return;
-    expect(state.reason).toBe('hole-off-bending-axis');
-    expect(state.It).toBeGreaterThan(0);
+    expect(state.status).toBe('computed');
+    if (state.status !== 'computed') return;
+    expect(state.values.It).toBeGreaterThan(0);
+    expect(state.values.inverseKappaZ[0]).toBeGreaterThan(1);
+
+    // Der Schubmittelpunkt liegt auf der Symmetrieachse `y = 100 mm`; das Loch
+    // ist nur in `z` ausmittig, also verschiebt es allein `zM`.
+    expect(state.values.yM).toBeCloseTo(0.1, 5);
+    expect(diagnostics?.holeCount).toBe(1);
   });
 
   it('laesst FEElements die Netzdichte steuern, ohne die Zahl zu bewegen', async () => {

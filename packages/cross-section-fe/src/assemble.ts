@@ -10,34 +10,47 @@
  *   1. `K` ist ROTATIONSINVARIANT. `∫∇N_i·∇N_j dA` aendert sich unter einer
  *      Drehung des Bezugssystems nicht, weil die Drehung orthogonal ist. Beide
  *      Lastrichtungen laufen deshalb auf EINER Matrix und EINER Zerlegung —
- *      `2·(2 + h)` rechte Seiten statt zweier Faktorisierungen.
+ *      und seit ADR 0048 auch die Torsion, weil beide Randwertprobleme reines
+ *      Neumann sind: EINE Matrix, EINE Zerlegung, fuenf rechte Seiten.
  *   2. GERECHNET WIRD IN DEN HAUPTACHSEN. Die Herleitung setzt sie voraus:
- *      `σ_x = M·z/Iy` gilt nur dort, und `∮z²dy` ist nur dort das richtige
- *      Randdatum. Gedreht wird nach dem Vernetzen — die Topologie bleibt, nur
- *      die Koordinaten drehen sich.
- *   3. DER RANDSCHLUSS IST DIE PRUEFUNG. `∮dΦ = (1/Iy)·∫∫_D z dA` verschwindet
- *      genau dann, wenn der Schwerpunkt jedes Lochs auf der Biegeachse liegt.
- *      Sonst ist Φ mehrdeutig und als FE-Feld nicht darstellbar — und der
- *      Restfluss zeigt das NICHT an (ADR 0045).
+ *      `σ_x = M·z/Iy` gilt nur dort. Gedreht wird nach dem Vernetzen — die
+ *      Topologie bleibt, nur die Koordinaten drehen sich.
+ *   3. BEIDE RECHTEN SEITEN DES SCHUBS SIND RANDINTEGRALE, und ihre
+ *      Vertraeglichkeit ist IDENTISCH erfuellt (ADR 0048):
+ *
+ *      ```text
+ *      ψ₀:  ∮ z²/(2·Iy) dy = −(1/Iy)·∫∫ z dA = 0     (Schwerpunkt)
+ *      ψ₁:  ∮ y²/(2·Iy) dy = 0                       (exaktes Differential)
+ *      ```
+ *
+ *      Beide gelten GLOBAL ueber den ganzen Rand und nicht je Schleife. Genau
+ *      darum kennt diese Formulierung keine Lochgrenze: `ψ` ist eine
+ *      Verschiebung und auf jedem Gebiet eindeutig, waehrend die frueher hier
+ *      geloeste Spannungsfunktion `Φ` je Randschleife eine offene Konstante
+ *      liess und ihr Randdatum beim Umlauf schliessen musste.
  */
 
 import { atOrThrow } from '@baustatik/core';
-import { type BoundaryLoop, elementNodes, type FESection } from './prepare';
-import { elementPoints, TRIANGLE_3, TRIANGLE_6 } from './tri6';
+import { elementNodes, type FESection } from './prepare';
+import {
+  edgeShape,
+  edgeShapeDerivatives,
+  elementPoints,
+  GAUSS_3,
+  TRIANGLE_3,
+} from './tri6';
 
-/** Die Steifigkeitsmatrix auf den freien Knoten, plus die Elementmatrizen. */
+/** Die Steifigkeitsmatrix auf den freien Knoten. */
 export type StiffnessSystem = {
   readonly free: number;
-  /** Netzknoten -> Zeile, oder `-1` fuer einen gebundenen Knoten. */
+  /** Netzknoten -> Zeile, oder `-1` fuer den einen gehaltenen Knoten. */
   readonly freeIndex: Int32Array;
   readonly rows: Uint32Array;
   readonly cols: Uint32Array;
   readonly values: Float64Array;
-  /** `36` Werte je Element, zeilenweise — fuer `K·Φ` ueber ALLE Knoten. */
-  readonly elementK: Float64Array;
 };
 
-/** Ein gedrehtes Bezugssystem samt allem, was daran haengt. */
+/** Ein gedrehtes Bezugssystem samt beider rechten Seiten des Schubproblems. */
 export type Frame = {
   /** Drehwinkel gegen das Eingabesystem [rad]. */
   readonly theta: number;
@@ -46,78 +59,47 @@ export type Frame = {
   readonly z: Float64Array;
   /** `∫z²dA` IN DIESEM System. */
   readonly Iy: number;
-  /** Das Dirichlet-Randdatum `g`, Basis null je Schleife. */
-  readonly boundaryValues: Float64Array;
-  /** Je Innenrand ein Indikatorfeld — die Dirichlet-Daten der Zusatzfelder. */
-  readonly holeIndicator: readonly Float64Array[];
+  /** `∮ −z²/(2·Iy)·N_i dy` — die rechte Seite des `m⁰`-Feldes. */
+  readonly rhsPsi0: Float64Array;
+  /** `∮ +y²/(2·Iy)·N_i dy` — die rechte Seite des `m¹`-Feldes. */
+  readonly rhsPsi1: Float64Array;
   /**
-   * Der Randschluss je Schleife, bezogen auf die Spannweite des Datums.
-   * Ueber der Schranke ist die Figur ausserhalb der Formulierung.
+   * Der Rest der Vertraeglichkeit je rechter Seite, bezogen auf die Summe der
+   * Betraege. Beide sind IDENTISCH null; jeder Wert ueber Rauschniveau ist ein
+   * Fehler und keine Eigenschaft der Figur (ADR 0048).
    */
-  readonly closure: number;
-  /** `−Σ K_ij·g_j` ueber die gebundenen Knoten. */
-  readonly rhsDirichlet: Float64Array;
-  /** `(1/Iy)·∫y·N_i dA`, ohne den Faktor `m`. */
-  readonly rhsLoad: Float64Array;
-  /** Je Innenrand `−Σ K_ij·ind_j`. */
-  readonly rhsHole: readonly Float64Array[];
-  /** Derselbe Lastvektor ueber ALLE Knoten — die Randzeilen braucht der Fluss. */
-  readonly loadFull: Float64Array;
+  readonly compatibilityPsi0: number;
+  readonly compatibilityPsi1: number;
 };
 
 /**
- * Ab wann der Randschluss als gebrochen gilt, bezogen auf die Spannweite des
- * Randdatums.
+ * `K` fuer ein reines NEUMANN-Problem: es haelt genau ein Knoten.
  *
- * DIE ZAHL IST GROSSZUEGIG, WEIL DER FEHLER GROB IST: fuer ein Polygon ist
- * `∮z²dy` exakt gleich `−2∫∫z dA`, jede Kante wird exakt integriert, und was
- * bleibt, ist Gleitkommarauschen. Gemessen wurde ein echter Verstoss mit
- * 16,4 % der Spannweite — vier Zehnerpotenzen ueber dieser Schranke
- * (ADR 0045).
- */
-const CLOSURE_TOLERANCE = 1e-8;
-
-/**
- * `K` auf den freien Knoten des SCHUBPROBLEMS — gebunden ist jeder Randknoten.
+ * SEIT ADR 0048 IST DAS DIE EINZIGE MATRIX DES PACKAGES. Torsion und Schub
+ * laufen beide ueber eine Verschiebung mit Neumann-Rand, also ueber dieselbe
+ * Matrix und dieselbe Zerlegung.
+ *
+ * FESTGEHALTEN WIRD DER KNOTEN MIT DEM KLEINSTEN INDEX, und zwar SYMMETRISCH —
+ * Zeile UND Spalte fallen weg. Nur so bleibt `K` positiv definit, und nur dann
+ * traegt die Cholesky-Zerlegung. Ein Lagrange-Multiplikator fuer den
+ * Nullmittelwert zerstoerte genau das. Die Willkuer kostet nichts: `ψ` und `ω`
+ * sind bis auf eine Konstante bestimmt, und weder `τ = ∇ψ + p` noch `It` sehen
+ * sie.
  *
  * Die Dreipunktregel ist hier EXAKT und nicht sparsam: bei geraden Kanten ist
  * die Jacobi-Matrix konstant, die Gradienten sind linear, ihr Produkt ist
  * quadratisch.
  */
-export function assembleShearStiffness(section: FESection): StiffnessSystem {
-  const freeIndex = new Int32Array(section.nodeCount).fill(-1);
-  let free = 0;
-  for (let node = 0; node < section.nodeCount; node += 1) {
-    if (atOrThrow(section.isBoundary, node) === 0) freeIndex[node] = free++;
-  }
-  return assembleStiffness(section, freeIndex, free);
-}
-
-/**
- * `K` fuer das TORSIONSPROBLEM: reines Neumann, also haelt genau ein Knoten.
- *
- * FESTGEHALTEN WIRD DER KNOTEN MIT DEM KLEINSTEN INDEX, und zwar SYMMETRISCH —
- * Zeile UND Spalte fallen weg. Nur so bleibt `K` positiv definit, und nur dann
- * traegt die Cholesky-Zerlegung. Ein Lagrange-Multiplikator fuer den
- * Nullmittelwert zerstoerte genau das.
- */
-export function assembleTorsionStiffness(section: FESection): StiffnessSystem {
+export function assembleNeumannStiffness(section: FESection): StiffnessSystem {
   const freeIndex = new Int32Array(section.nodeCount).fill(-1);
   let free = 0;
   for (let node = 1; node < section.nodeCount; node += 1)
     freeIndex[node] = free++;
-  return assembleStiffness(section, freeIndex, free);
-}
 
-function assembleStiffness(
-  section: FESection,
-  freeIndex: Int32Array,
-  free: number,
-): StiffnessSystem {
-  const elementK = new Float64Array(36 * section.elementCount);
   const entries = new Map<number, number>();
   const elementY = new Float64Array(6);
   const elementZ = new Float64Array(6);
+  const local = new Float64Array(36);
 
   for (let element = 0; element < section.elementCount; element += 1) {
     const nodes = elementNodes(section.mesh, element);
@@ -126,12 +108,11 @@ function assembleStiffness(
       elementY[i] = atOrThrow(section.y, node);
       elementZ[i] = atOrThrow(section.z, node);
     }
-    const points = elementPoints(TRIANGLE_3, elementY, elementZ);
-    const offset = 36 * element;
-    for (const point of points) {
+    local.fill(0);
+    for (const point of elementPoints(TRIANGLE_3, elementY, elementZ)) {
       for (let i = 0; i < 6; i += 1) {
         for (let j = 0; j < 6; j += 1) {
-          elementK[offset + 6 * i + j] +=
+          local[6 * i + j] +=
             (atOrThrow(point.dNdy, i) * atOrThrow(point.dNdy, j) +
               atOrThrow(point.dNdz, i) * atOrThrow(point.dNdz, j)) *
             point.weight;
@@ -147,10 +128,7 @@ function assembleStiffness(
         // Nur das untere Dreieck — mehr nimmt der Loeser nicht.
         if (column < 0 || column > row) continue;
         const key = row * 0x4000_0000 + column;
-        entries.set(
-          key,
-          (entries.get(key) ?? 0) + atOrThrow(elementK, offset + 6 * i + j),
-        );
+        entries.set(key, (entries.get(key) ?? 0) + atOrThrow(local, 6 * i + j));
       }
     }
   }
@@ -167,7 +145,7 @@ function assembleStiffness(
     at += 1;
   }
 
-  return { free, freeIndex, rows, cols, values, elementK };
+  return { free, freeIndex, rows, cols, values };
 }
 
 /**
@@ -187,7 +165,7 @@ export function principalRotation(Iy: number, Iz: number, Iyz: number): number {
 }
 
 /**
- * Ein gedrehtes Bezugssystem mit Randdatum, Lastvektor und Randschluss.
+ * Ein gedrehtes Bezugssystem mit beiden rechten Seiten.
  *
  * `theta` dreht das SYSTEM: `y' = y·cosθ + z·sinθ`, `z' = −y·sinθ + z·cosθ`.
  */
@@ -217,203 +195,89 @@ export function createFrame(
     throw new Error('Das Traegheitsmoment der Lastrichtung ist nicht positiv.');
   }
 
-  const datum = boundaryDatum(section, y, z, Iy);
-  const holeIndicator = section.holeLoops.map((loop) => {
-    const indicator = new Float64Array(section.nodeCount);
-    for (const node of loop.nodes) indicator[node] = 1;
-    return indicator;
-  });
-
-  const { rhsLoad, loadFull } = loadVector(section, system, y, z, Iy);
-  const rhsDirichlet = liftDirichlet(section, system, datum.values);
-  const rhsHole = holeIndicator.map((indicator) =>
-    liftDirichlet(section, system, indicator),
+  const psi0 = shearLoad(
+    section,
+    system,
+    y,
+    z,
+    (_y, zq) => -(zq * zq) / (2 * Iy),
   );
+  const psi1 = shearLoad(section, system, y, z, (yq) => (yq * yq) / (2 * Iy));
 
   return {
     theta,
     y,
     z,
     Iy,
-    boundaryValues: datum.values,
-    holeIndicator,
-    closure: datum.closure,
-    rhsDirichlet,
-    rhsLoad,
-    rhsHole,
-    loadFull,
+    rhsPsi0: psi0.rhs,
+    rhsPsi1: psi1.rhs,
+    compatibilityPsi0: psi0.compatibility,
+    compatibilityPsi1: psi1.compatibility,
   };
 }
 
 /**
- * Das Randdatum `Φ = −1/(2·Iy)·∫z²dy`, je Schleife bei null beginnend.
+ * Ein Randintegral `∮c(y,z)·N_i dy` ueber ALLE Schleifen, samt seinem
+ * Vertraeglichkeitsrest.
  *
- * DER MITTELKNOTEN BEKOMMT SEINEN EIGENEN WERT, nicht das Mittel der Ecken:
- * das Datum ist laengs einer geraden Kante ein Polynom dritten Grades in der
- * Bogenlaenge, und ein Tri6-Feld kann davon den quadratischen Anteil tragen.
+ * WOHER DAS `dy` KOMMT. Die schwache Form von `∇²ψ = 0` mit `∂ψ/∂n = g` lautet
+ * `∫∇ψ·∇v dA = ∮g·v ds`. Beide Randdaten haben die Gestalt `g = c·n_z`, und mit
+ * der Normalenkonvention aus `prepare.ts` (`n = (dz, −dy)/L`, `ds = L·dt`) gilt
+ * `n_z·ds = −dy`. Die Kantenlaenge kuerzt sich also heraus — es wird nirgends
+ * durch eine Kantenlaenge geteilt, und `c` traegt das Vorzeichen bereits:
  *
- * Zurueck kommt ausserdem der groesste Randschluss, bezogen auf die Spannweite
- * des Datums — der ANZEIGER dafuer, ob die Figur ueberhaupt in der Formulierung
- * liegt.
+ * ```text
+ * ψ₀:  ∂ψ₀/∂n = +z²/(2·Iy)·n_z   →   rhs_i = ∮ −z²/(2·Iy)·N_i dy
+ * ψ₁:  ∂ψ₁/∂n = −y²/(2·Iy)·n_z   →   rhs_i = ∮ +y²/(2·Iy)·N_i dy
+ * ```
+ *
+ * DREI-PUNKT-GAUSS JE RANDSEGMENT: laengs einer geraden Kante ist der Integrand
+ * vom Grad 4, `GAUSS_3` ist exakt bis 5 — Reserve vorhanden.
+ *
+ * DER RAND LAEUFT UEBER ALLE SCHLEIFEN, auch die der Loecher. Wer nur den
+ * Aussenrand nimmt, bekommt fuer den Kreisring Zahlen, die keine Formel
+ * bestaetigt — dasselbe gilt fuer `torsionLoad`.
  */
-function boundaryDatum(
+function shearLoad(
   section: FESection,
+  system: StiffnessSystem,
   y: Float64Array,
   z: Float64Array,
-  Iy: number,
-): { readonly values: Float64Array; readonly closure: number } {
-  const values = new Float64Array(section.nodeCount);
-  const factor = -1 / (2 * Iy);
-  let low = 0;
-  let high = 0;
-  let worst = 0;
+  coefficient: (y: number, z: number) => number,
+): { readonly rhs: Float64Array; readonly compatibility: number } {
+  const rhs = new Float64Array(system.free);
+  let compatibility = 0;
+  let scale = 0;
 
   for (const loop of section.loops) {
-    let running = 0;
-    for (let at = 0; at < loop.edges.length; at += 1) {
-      const [a, middle, b] = atOrThrow(loop.edges, at);
-      const ya = atOrThrow(y, a);
-      const yb = atOrThrow(y, b);
-      const za = atOrThrow(z, a);
-      const zb = atOrThrow(z, b);
-      const dy = yb - ya;
-      // Beide Stammfunktionen von `∫z²dy` laengs der geraden Kante, exakt.
-      const toMiddle =
-        factor * dy * ((7 * za * za + 4 * za * zb + zb * zb) / 24);
-      const toEnd = factor * dy * ((za * za + za * zb + zb * zb) / 3);
-      values[middle] = running + toMiddle;
-      const closing = at + 1 === loop.edges.length;
-      if (closing) worst = Math.max(worst, Math.abs(running + toEnd));
-      else values[b] = running + toEnd;
-      running += toEnd;
-      low = Math.min(low, running, atOrThrow(values, middle));
-      high = Math.max(high, running, atOrThrow(values, middle));
-    }
-  }
-
-  const spread = high - low;
-  return { values, closure: spread > 0 ? worst / spread : worst };
-}
-
-/** `f_i = (1/Iy)·∫y·N_i dA` — Grad 3, also die Sechspunktregel. */
-function loadVector(
-  section: FESection,
-  system: StiffnessSystem,
-  y: Float64Array,
-  z: Float64Array,
-  Iy: number,
-): { readonly rhsLoad: Float64Array; readonly loadFull: Float64Array } {
-  const rhsLoad = new Float64Array(system.free);
-  const loadFull = new Float64Array(section.nodeCount);
-  const elementY = new Float64Array(6);
-  const elementZ = new Float64Array(6);
-
-  for (let element = 0; element < section.elementCount; element += 1) {
-    const nodes = elementNodes(section.mesh, element);
-    for (let i = 0; i < 6; i += 1) {
-      const node = atOrThrow(nodes, i);
-      elementY[i] = atOrThrow(y, node);
-      elementZ[i] = atOrThrow(z, node);
-    }
-    for (const point of elementPoints(TRIANGLE_6, elementY, elementZ)) {
-      for (let i = 0; i < 6; i += 1) {
-        const value = (point.y * atOrThrow(point.N, i) * point.weight) / Iy;
-        const node = atOrThrow(nodes, i);
-        loadFull[node] = atOrThrow(loadFull, node) + value;
-        const row = atOrThrow(system.freeIndex, node);
-        if (row >= 0) rhsLoad[row] = atOrThrow(rhsLoad, row) + value;
+    for (const [a, middle, b] of loop.edges) {
+      const nodes: readonly [number, number, number] = [a, middle, b];
+      for (const gauss of GAUSS_3) {
+        const N = edgeShape(gauss.t);
+        const dN = edgeShapeDerivatives(gauss.t);
+        let yq = 0;
+        let zq = 0;
+        let dy = 0;
+        for (let i = 0; i < 3; i += 1) {
+          const node = atOrThrow(nodes, i);
+          yq += atOrThrow(N, i) * atOrThrow(y, node);
+          zq += atOrThrow(N, i) * atOrThrow(z, node);
+          dy += atOrThrow(dN, i) * atOrThrow(y, node);
+        }
+        const scaled = gauss.w * coefficient(yq, zq) * dy;
+        compatibility += scaled;
+        scale += Math.abs(scaled);
+        for (let i = 0; i < 3; i += 1) {
+          const row = atOrThrow(system.freeIndex, atOrThrow(nodes, i));
+          if (row < 0) continue;
+          rhs[row] = atOrThrow(rhs, row) + scaled * atOrThrow(N, i);
+        }
       }
     }
   }
-  return { rhsLoad, loadFull };
-}
 
-/** `−Σ_j K_ij·d_j` ueber die GEBUNDENEN Knoten `j`. */
-function liftDirichlet(
-  section: FESection,
-  system: StiffnessSystem,
-  datum: Float64Array,
-): Float64Array {
-  const rhs = new Float64Array(system.free);
-  for (let element = 0; element < section.elementCount; element += 1) {
-    const nodes = elementNodes(section.mesh, element);
-    const offset = 36 * element;
-    for (let i = 0; i < 6; i += 1) {
-      const row = atOrThrow(system.freeIndex, atOrThrow(nodes, i));
-      if (row < 0) continue;
-      for (let j = 0; j < 6; j += 1) {
-        const node = atOrThrow(nodes, j);
-        if (atOrThrow(system.freeIndex, node) >= 0) continue;
-        rhs[row] =
-          atOrThrow(rhs, row) -
-          atOrThrow(system.elementK, offset + 6 * i + j) *
-            atOrThrow(datum, node);
-      }
-    }
-  }
-  return rhs;
-}
-
-/**
- * `K·φ` ueber ALLE Knoten, elementweise.
- *
- * Gebraucht wird davon nur die Summe ueber die Knoten einer Randschleife — aber
- * die Randzeilen fehlen im aufgestellten System, also wird hier frisch
- * multipliziert.
- */
-export function applyStiffness(
-  section: FESection,
-  system: StiffnessSystem,
-  phi: Float64Array,
-): Float64Array {
-  const out = new Float64Array(section.nodeCount);
-  for (let element = 0; element < section.elementCount; element += 1) {
-    const nodes = elementNodes(section.mesh, element);
-    const offset = 36 * element;
-    for (let i = 0; i < 6; i += 1) {
-      let sum = 0;
-      for (let j = 0; j < 6; j += 1) {
-        sum +=
-          atOrThrow(system.elementK, offset + 6 * i + j) *
-          atOrThrow(phi, atOrThrow(nodes, j));
-      }
-      const node = atOrThrow(nodes, i);
-      out[node] = atOrThrow(out, node) + sum;
-    }
-  }
-  return out;
-}
-
-/**
- * Der Fluss `∮_Γk ∂Φ/∂n ds` je Innenrand, aus der SCHWACHEN FORM.
- *
- * Mit `w` = eins auf `Γk` und null auf allen uebrigen Raendern gilt
- * `∮w·∂Φ/∂n ds = (K·Φ)·w − m·loadFull·w`, also eine Summe ueber die Knoten der
- * Schleife. KEINE Kanten-Element-Zuordnung, keine Normalenrichtung, kein
- * Vorzeichenrisiko.
- */
-export function holeFlux(
-  section: FESection,
-  system: StiffnessSystem,
-  frame: Frame,
-  phi: Float64Array,
-  loadFactor: number,
-): Float64Array {
-  const stiff = applyStiffness(section, system, phi);
-  const flux = new Float64Array(section.holeLoops.length);
-  for (let hole = 0; hole < section.holeLoops.length; hole += 1) {
-    const loop: BoundaryLoop = atOrThrow(section.holeLoops, hole);
-    let sum = 0;
-    for (const node of loop.nodes) {
-      sum +=
-        atOrThrow(stiff, node) - loadFactor * atOrThrow(frame.loadFull, node);
-    }
-    flux[hole] = sum;
-  }
-  return flux;
-}
-
-/** Ob der Randschluss traegt — sonst ist Φ mehrdeutig (ADR 0045). */
-export function closureHolds(frame: Frame): boolean {
-  return frame.closure <= CLOSURE_TOLERANCE;
+  return {
+    rhs,
+    compatibility: scale > 0 ? compatibility / scale : compatibility,
+  };
 }

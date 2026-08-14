@@ -75,9 +75,7 @@ function boxRing(yc: number, zc: number, b: number, h: number): Float64Array {
 
 /** κ aus den Koeffizienten bei gegebenem ν. */
 function kappa(result: FEResult, nu: number): number {
-  const shear = result.shear;
-  if (shear === undefined) throw new Error('Die Rechnung hat verweigert.');
-  const value = kappaFromCoefficients(shear.inverseKappaZ, nu);
+  const value = kappaFromCoefficients(result.shear.inverseKappaZ, nu);
   if (value === undefined) throw new Error('kappa fehlt.');
   return value;
 }
@@ -111,10 +109,13 @@ describe('Das Rechteck bei m = 0 ist die scharfe Zahl', () => {
       [{ kind: 'material', coordinates: rectangleRing(1, 2) }],
       2,
     );
-    // `d₁ = 2·A·E01` ist beweisbar null (ADR 0045) — und ausdruecklich KEIN
-    // Anzeiger fuer eine vergessene Lochbedingung.
-    expect(Math.abs(result.diagnostics.d1RatioZ)).toBeLessThan(1e-9);
-    expect(Math.abs(result.diagnostics.d1RatioY)).toBeLessThan(1e-9);
+    // `d₁ = 2·A·E01` ist beweisbar null (ADR 0045) — im KONTINUUM. Ueber `∇ψ`
+    // gerechnet laeuft die Zahl mit rund `O(h³)` dorthin, statt wie unter der
+    // Dirichlet-Fassung maschinengenau null zu sein (ADR 0048). Die Schranke
+    // liegt deshalb bei `1e-7` und nicht bei `1e-9`: bei dieser Netzdichte
+    // steht die Zahl bei `8·10⁻⁹`, bei vierfacher bei `4·10⁻¹⁰`.
+    expect(Math.abs(result.diagnostics.d1RatioZ)).toBeLessThan(1e-7);
+    expect(Math.abs(result.diagnostics.d1RatioY)).toBeLessThan(1e-7);
   });
 
   it('legt den Schubmittelpunkt der doppelt symmetrischen Figur in den Ursprung', async () => {
@@ -123,7 +124,6 @@ describe('Das Rechteck bei m = 0 ist die scharfe Zahl', () => {
       2,
     );
     const shear = result.shear;
-    if (shear === undefined) throw new Error('Die Rechnung hat verweigert.');
     expect(Math.abs(shear.yM)).toBeLessThan(1e-9);
     expect(Math.abs(shear.zM)).toBeLessThan(1e-9);
   });
@@ -217,7 +217,6 @@ describe('Der Halbkreis gegen Sokolnikoff', () => {
       (Math.PI * a * a) / 2,
     );
     const shear = result.shear;
-    if (shear === undefined) throw new Error('Die Rechnung hat verweigert.');
 
     // Sokolnikoff misst `e` vom KREISMITTELPUNKT — und genau dort liegt der
     // Ursprung der Eingaberinge, in dem `yM` steht. Der Schwerpunkt bei
@@ -248,8 +247,8 @@ describe('Der Kreisring prueft die Installation', () => {
   });
 });
 
-describe('Die Lochbedingung', () => {
-  it('ist bei mittigem Loch erfuellt und die Kopplungsmatrix symmetrisch', async () => {
+describe('Löcher, auch neben der Biegeachse', () => {
+  it('haelt die Vertraeglichkeit beider rechten Seiten identisch ein', async () => {
     const result = await run(
       [
         { kind: 'material', coordinates: boxRing(0, 0, 0.2, 0.4) },
@@ -257,15 +256,21 @@ describe('Die Lochbedingung', () => {
       ],
       0.2 * 0.4 - 0.06 * 0.12,
     );
-    expect(result.shear).toBeDefined();
-    expect(result.diagnostics.capacitanceAsymmetry).toBeLessThan(1e-8);
-    expect(result.diagnostics.closureZ).toBeLessThan(1e-10);
+    // `∮z²dy` und `∮y²dy` verschwinden BEIDE identisch — das erste, weil die
+    // Koordinaten schwerpunktsbezogen sind, das zweite, weil `y²dy` ein
+    // exaktes Differential ist. Anders als der frueher hier gepruefte
+    // Randschluss ist das keine Eigenschaft der Figur (ADR 0048).
+    const { diagnostics } = result;
+    expect(Math.abs(diagnostics.compatibilityPsi0Z)).toBeLessThan(1e-12);
+    expect(Math.abs(diagnostics.compatibilityPsi1Z)).toBeLessThan(1e-12);
+    expect(Math.abs(diagnostics.compatibilityPsi0Y)).toBeLessThan(1e-12);
+    expect(Math.abs(diagnostics.compatibilityPsi1Y)).toBeLessThan(1e-12);
   });
 
-  it('verweigert, wenn das Loch nicht auf der Biegeachse liegt', async () => {
-    // Kasten 200 × 400 mit einem Loch 60 × 120, um 60 mm aus der Achse
-    // geschoben: der Randschluss bricht, Φ ist mehrdeutig. Der RESTFLUSS zeigt
-    // das nicht an — er stuende bei 10⁻¹⁷ (ADR 0045).
+  it('rechnet ein Loch neben der Biegeachse und haelt das Gleichgewicht', async () => {
+    // GENAU DIE FIGUR, DIE BIS ADR 0048 VERWEIGERT WURDE: Kasten 200 × 400 mit
+    // einem Loch 60 × 120, um 60 mm aus der Achse geschoben. Der Randschluss
+    // der Spannungsfunktion brach dort um 16,4 % der Spannweite.
     const result = await run(
       [
         { kind: 'material', coordinates: boxRing(0, 0, 0.2, 0.4) },
@@ -273,10 +278,53 @@ describe('Die Lochbedingung', () => {
       ],
       0.2 * 0.4 - 0.06 * 0.12,
     );
-    expect(result.shear).toBeUndefined();
-    expect(result.diagnostics.closureZ).toBeGreaterThan(1e-3);
-    // `It` bleibt unberuehrt und wird trotzdem geliefert.
+    expect(result.diagnostics.equilibriumZ).toBeCloseTo(1, 9);
+    expect(result.diagnostics.equilibriumY).toBeCloseTo(1, 9);
+    // Beweisbar null im Grenzwert, siehe oben — hier zusaetzlich der Beleg,
+    // dass das Loch daran nichts aendert.
+    expect(Math.abs(result.diagnostics.d1RatioZ)).toBeLessThan(1e-7);
     expect(result.It).toBeGreaterThan(0);
+  });
+
+  it('laesst kappa und yM stetig ueber die Exzentrizitaet laufen', async () => {
+    // DIE ABSICHERUNG OHNE ORAKEL. Fuer das ausmittige Loch gibt es keine
+    // geschlossene Formel; was es gibt, ist Stetigkeit. Das Loch wandert in
+    // gleichen Schritten aus der Achse, und weder κ noch der Schubmittelpunkt
+    // duerfen springen. Bis ADR 0048 war dieser Test unmoeglich: der Code
+    // sprang beim ersten Schritt von einer Zahl auf eine Verweigerung.
+    const offsets = [0, 0.02, 0.04, 0.06, 0.08];
+    const measured: { readonly kappa: number; readonly zM: number }[] = [];
+    for (const offset of offsets) {
+      const result = await run(
+        [
+          { kind: 'material', coordinates: boxRing(0, 0, 0.2, 0.4) },
+          { kind: 'hole', coordinates: boxRing(0, offset, 0.06, 0.12) },
+        ],
+        0.2 * 0.4 - 0.06 * 0.12,
+        2000,
+      );
+      const shear = result.shear;
+      measured.push({ kappa: kappa(result, 0.3), zM: shear.zM });
+    }
+
+    // Die zweite Differenz misst den Knick: bei einer glatten Abhaengigkeit
+    // ist sie klein gegen die erste. Ein Sprung — der alte Uebergang von Zahl
+    // auf Verweigerung — stuende hier in derselben Groessenordnung wie die
+    // Werte selbst.
+    for (let index = 1; index + 1 < offsets.length; index += 1) {
+      const before = atOrThrow(measured, index - 1);
+      const here = atOrThrow(measured, index);
+      const after = atOrThrow(measured, index + 1);
+      expect(
+        Math.abs(after.kappa - 2 * here.kappa + before.kappa),
+      ).toBeLessThan(0.1 * Math.abs(here.kappa));
+      expect(Math.abs(after.zM - 2 * here.zM + before.zM)).toBeLessThan(0.01);
+    }
+
+    // Und sie laufen wirklich — ein konstantes Ergebnis waere kein Beleg.
+    const first = atOrThrow(measured, 0);
+    const last = atOrThrow(measured, measured.length - 1);
+    expect(Math.abs(last.zM - first.zM)).toBeGreaterThan(1e-6);
   });
 });
 

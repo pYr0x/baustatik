@@ -810,7 +810,7 @@ describe('Die Drift: der mitgeführte Umriss gegen seine Neuableitung', () => {
     );
     const { warnings } = check({
       ...geometry,
-      feValues: { status: 'unsupported', reason: 'hole-off-bending-axis' },
+      feValues: { status: 'unsupported', reason: 'disconnected-areas' },
     });
     expect(warnings.filter((w) => w instanceof OutlineDriftWarning)).toEqual([]);
   });

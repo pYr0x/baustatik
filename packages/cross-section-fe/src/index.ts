@@ -106,18 +106,6 @@ export async function computeFESectionValues(
   const section = prepareSection(mesh);
   const result = computeFromMesh(section, solve);
 
-  if (result.shear === undefined) {
-    return {
-      state: {
-        status: 'unsupported',
-        reason: 'hole-off-bending-axis',
-        It: result.It,
-      },
-      mesh,
-      diagnostics: result.diagnostics,
-    };
-  }
-
   return {
     state: {
       status: 'computed',
