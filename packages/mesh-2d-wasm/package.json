@@ -30,7 +30,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "pnpm build && vitest run --project Unit",
+    "test": "vitest run --project Unit",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --fix .",
     "format": "oxfmt --write ."
