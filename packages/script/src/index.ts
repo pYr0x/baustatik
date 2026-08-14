@@ -1,8 +1,4 @@
-export {
-  createFEMModelBuilder,
-  defineModel,
-  FEMScriptError,
-} from './builder';
+export { createFEMModelBuilder, defineModel, FEMScriptError } from './builder';
 export { femScriptDeclarations } from './declarations';
 export type {
   ActionCategory,

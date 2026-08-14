@@ -5,11 +5,12 @@
   "printWidth": 80,
   "ignorePatterns": [
     "**/*.md",
+    "src/data/**",
     "dist",
     "build",
     "coverage",
-    "pkg",
-    "native",
-    "vendor"
+    "tests",
+    "**/*.test.*",
+    "**/*.browser.test.*"
   ]
 }

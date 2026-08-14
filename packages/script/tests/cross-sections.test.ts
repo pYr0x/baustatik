@@ -58,9 +58,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
     // zeigt. Stillschweigend ein leeres `crossSections` zu ergaenzen taeuschte
     // vor, es liesse sich rechnen.
     const v1 = snapshot();
-    // biome-ignore lint/performance/noDelete: der Test baut genau einen v1-Satz.
     delete (v1 as Record<string, unknown>).crossSections;
-    // biome-ignore lint/performance/noDelete: v1 kannte `materials` nicht.
     delete (v1 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v1, schemaVersion: 1 })).toThrow(
       'Snapshot.schemaVersion muss 11 sein.',
@@ -137,7 +135,6 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
 
   it('verlangt crossSections auch dann, wenn es leer bleibt', () => {
     const withoutKey = snapshot();
-    // biome-ignore lint/performance/noDelete: fehlendes Pflichtfeld ist der Punkt.
     delete (withoutKey as Record<string, unknown>).crossSections;
     expect(() => parseFEMModelSnapshot(withoutKey)).toThrow(
       SnapshotValidationError,

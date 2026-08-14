@@ -285,7 +285,6 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
       ...buildSnapshot(),
       schemaVersion: 6,
     };
-    // biome-ignore lint/performance/noDelete: der Test baut genau einen v6-Satz.
     delete v6.sectionPolicy;
 
     expect(() => parseFEMModelSnapshot(v6)).toThrow(SnapshotValidationError);
@@ -324,7 +323,6 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
 
   it('verlangt sectionPolicy auch bei richtiger Versionsnummer', () => {
     const withoutPolicy: Record<string, unknown> = { ...buildSnapshot() };
-    // biome-ignore lint/performance/noDelete: fehlendes Pflichtfeld ist der Punkt.
     delete withoutPolicy.sectionPolicy;
 
     expect(() => parseFEMModelSnapshot(withoutPolicy)).toThrow(

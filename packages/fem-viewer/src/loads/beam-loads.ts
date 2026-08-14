@@ -188,7 +188,8 @@ export function beamLoadSpecs(
       q1,
       q2,
     });
-    if (distributed) specs.push(...distributedForceSpecs(distributed, vp, style));
+    if (distributed)
+      specs.push(...distributedForceSpecs(distributed, vp, style));
   }
 
   return specs;

@@ -271,9 +271,7 @@ function parseModuli(input: unknown, path: string): ElasticModuli {
     // ν ist OPTIONAL, und die Abwesenheit ist eine Aussage: Holz ist orthotrop
     // und hat keine (ADR 0045). Nur endlich geprueft, nicht auf `(−1, 0,5)`
     // eingegrenzt — die Formpruefung urteilt nicht ueber Werkstoffe.
-    ...(value.nu === undefined
-      ? {}
-      : { nu: finite(value.nu, `${path}.nu`) }),
+    ...(value.nu === undefined ? {} : { nu: finite(value.nu, `${path}.nu`) }),
   };
 }
 

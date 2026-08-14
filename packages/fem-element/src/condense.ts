@@ -60,14 +60,7 @@ const PIVOT_FLOOR = 1e-9;
  */
 export function releasedIndices(releases?: ElementReleases): number[] {
   const { start, end } = releases ?? {};
-  const flags = [
-    start?.u,
-    start?.w,
-    start?.theta,
-    end?.u,
-    end?.w,
-    end?.theta,
-  ];
+  const flags = [start?.u, start?.w, start?.theta, end?.u, end?.w, end?.theta];
   return flags.flatMap((flag, index) => (flag === true ? [index] : []));
 }
 

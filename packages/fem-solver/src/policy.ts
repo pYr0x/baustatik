@@ -65,10 +65,7 @@ export const ANALYSIS_POLICY_SCHEMA_VERSION = 3;
  * Aufrufer aus reinem JavaScript könnte sonst `push('iterativ')` schreiben und
  * damit die Werteprüfung des Parsers verändern — der Typ hält ihn nicht auf.
  */
-export const LINEAR_SYSTEM_KINDS = Object.freeze([
-  'dense',
-  'sparse',
-] as const);
+export const LINEAR_SYSTEM_KINDS = Object.freeze(['dense', 'sparse'] as const);
 
 export type LinearSystemKind = (typeof LINEAR_SYSTEM_KINDS)[number];
 
@@ -265,7 +262,9 @@ export function createAnalysisPolicy(
 function assertValidLinearSystem(value: unknown): LinearSystemKind {
   if (!(LINEAR_SYSTEM_KINDS as readonly unknown[]).includes(value)) {
     throw new InvalidAnalysisPolicyError(
-      `"linearSystem" muss ${LINEAR_SYSTEM_KINDS.map((kind) => `"${kind}"`).join(
+      `"linearSystem" muss ${LINEAR_SYSTEM_KINDS.map(
+        (kind) => `"${kind}"`,
+      ).join(
         ' oder ',
       )} sein (war: ${typeof value === 'string' ? `"${value}"` : typeof value}).`,
       'linearSystem',

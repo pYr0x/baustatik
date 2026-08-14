@@ -125,12 +125,18 @@ function baseline(force: DistributedForce, gap: number): Line {
   // `s(p1)` ist per Definition 0, weil ab `p1` gemessen wird.
   const s2 = along(segment.p1, segment.p2, direction);
   const smin = Math.min(0, s2);
-  return Line.make(shift(segment.p1, gap - smin), shift(segment.p2, s2 - smin + gap));
+  return Line.make(
+    shift(segment.p1, gap - smin),
+    shift(segment.p2, s2 - smin + gap),
+  );
 }
 
 /** Der Punkt auf `line` beim Parameter `t` aus [0, 1]. */
 function at(line: Line, t: number): Point {
-  return Point.translate(line.p1, Vector.scale(Vector.fromPoints(line.p1, line.p2), t));
+  return Point.translate(
+    line.p1,
+    Vector.scale(Vector.fromPoints(line.p1, line.p2), t),
+  );
 }
 
 function polygonSpec(

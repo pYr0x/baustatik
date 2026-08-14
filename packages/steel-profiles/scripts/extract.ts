@@ -301,7 +301,9 @@ function readFields(block: Block): Record<string, number> {
     }
     const parsed = Number(row.value);
     if (!Number.isFinite(parsed)) {
-      throw new Error(`${block.id}: Feld "${name}" ist keine Zahl: "${row.value}".`);
+      throw new Error(
+        `${block.id}: Feld "${name}" ist keine Zahl: "${row.value}".`,
+      );
     }
     out[name] = round(parsed * (spec.factor ?? 1));
   }
@@ -332,7 +334,10 @@ function areaFromDimensions(f: Record<string, number>): number {
   return mm2 / 100; // mm^2 -> cm^2
 }
 
-function assertPlausible(series: Series, rows: { id: string; f: Record<string, number> }[]): void {
+function assertPlausible(
+  series: Series,
+  rows: { id: string; f: Record<string, number> }[],
+): void {
   if (rows.length !== EXPECTED_COUNT[series]) {
     throw new Error(
       `${series}: ${rows.length} Profile gelesen, erwartet ${EXPECTED_COUNT[series]}.`,
@@ -407,7 +412,10 @@ ${entries}
 // ---------------------------------------------------------------------------
 
 const log: string[] = [];
-const fixture: Record<string, { nr: number; y: number; z: number; Sy: number; Sz: number; t: number }[]> = {};
+const fixture: Record<
+  string,
+  { nr: number; y: number; z: number; Sy: number; Sz: number; t: number }[]
+> = {};
 
 for (const series of ['IPE', 'HEA'] as const) {
   const markdown = readFileSync(
@@ -456,11 +464,19 @@ for (const series of ['IPE', 'HEA'] as const) {
  * Build-Schritt ist; beide CONTEXT.md nennen es.
  */
 writeFileSync(
-  resolve(repoRoot, 'packages', 'cross-section', 'tests', 'fixtures', 'rstab-stress-points.json'),
+  resolve(
+    repoRoot,
+    'packages',
+    'cross-section',
+    'tests',
+    'fixtures',
+    'rstab-stress-points.json',
+  ),
   `${JSON.stringify(
     {
       _source: `${SOURCE_NOTE}; erzeugt von packages/steel-profiles/scripts/extract.ts.`,
-      _units: 'y, z, t in mm; Sy, Sz in cm3. Koordinaten relativ zum Schwerpunkt.',
+      _units:
+        'y, z, t in mm; Sy, Sz in cm3. Koordinaten relativ zum Schwerpunkt.',
       profiles: fixture,
     },
     null,

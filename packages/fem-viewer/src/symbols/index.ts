@@ -17,11 +17,7 @@ export {
   distributedForce,
   distributedForceSpecs,
 } from './distributed-force';
-export {
-  forceLabelText,
-  momentLabelText,
-  symbolLabelSpec,
-} from './label';
+export { forceLabelText, momentLabelText, symbolLabelSpec } from './label';
 export { markerSpec } from './marker';
 export { type Moment, moment, momentSpecs } from './moment';
 export { type PointForce, pointForce, pointForceSpecs } from './point-force';

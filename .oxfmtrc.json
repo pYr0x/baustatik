@@ -1,0 +1,23 @@
+{
+  "singleQuote": true,
+  "tabWidth": 2,
+  "useTabs": false,
+  "printWidth": 80,
+  "ignorePatterns": [
+    "**/*.md",
+    "**/*.html",
+    "**/*.yaml",
+    "**/*.yml",
+    "**/*.toml",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/pkg/**",
+    "**/native/**",
+    "**/vendor/**",
+    "**/tests/**",
+    "**/node_modules/**",
+    "**/*.test.*",
+    "**/*.browser.test.*"
+  ]
+}

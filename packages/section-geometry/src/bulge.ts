@@ -33,12 +33,7 @@ export const Bulge: {
   ): boolean;
   toArc(p1: Point, p2: Point, bulge: number, tolerance: number): Arc;
   fromArc(arc: Arc): number;
-  toPolyline(
-    p1: Point,
-    p2: Point,
-    bulge: number,
-    tolerance: number,
-  ): Polyline;
+  toPolyline(p1: Point, p2: Point, bulge: number, tolerance: number): Polyline;
 } = {
   /**
    * Der Öffnungswinkel `Δ = 4·atan(bulge)` [rad], mit Vorzeichen.

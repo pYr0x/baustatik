@@ -347,6 +347,7 @@ function cycleEdges(edges: readonly Edge[]): readonly Edge[] {
   let peeled = true;
   while (peeled) {
     peeled = false;
+    // oxlint-disable-next-line unicorn/no-useless-spread -- die Kopie ist Absicht: die Schleife loescht aus `alive`, die Iteration darf dabei nicht mitwandern.
     for (const edge of [...alive]) {
       if (degree.get(edge.a) !== 1 && degree.get(edge.b) !== 1) continue;
       alive.delete(edge);

@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error"
+  },
+  "ignorePatterns": [
+    "dist",
+    "build",
+    "coverage",
+    "tests",
+    "pkg",
+    "native",
+    "vendor",
+    "**/*.test.*",
+    "**/*.browser.test.*"
+  ]
+}

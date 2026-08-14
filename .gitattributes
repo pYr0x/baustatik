@@ -1,0 +1,2 @@
+# Behandle alle Textdateien standardmäßig mit LF
+* text=auto eol=lf

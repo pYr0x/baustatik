@@ -41,7 +41,9 @@ export interface MaterialCatalog {
  * factories are closures over the resolved Annex — there is no global mutable
  * configuration (see docs/adr/0002).
  */
-export function createMaterials(config: CreateMaterialsConfig): MaterialCatalog {
+export function createMaterials(
+  config: CreateMaterialsConfig,
+): MaterialCatalog {
   const na = resolveNationalAnnex(config.na);
   return {
     na,

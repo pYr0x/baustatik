@@ -223,7 +223,10 @@ export function internalForcesStations(
   for (const segment of load.segments) base.push(segment.from, segment.to);
   for (const point of load.points) base.push(point.a);
 
-  const stations = unique(base.map((x) => clamp(x, L)), eps);
+  const stations = unique(
+    base.map((x) => clamp(x, L)),
+    eps,
+  );
 
   // Punkt 4, je Intervall zwischen zwei benachbarten Grundstuetzstellen: dort
   // ist `qz` linear und `V + my_e` quadratisch, beides ohne Sprung.
@@ -234,7 +237,11 @@ export function internalForcesStations(
     if (h <= eps) continue;
 
     extrema.push(
-      ...rootsIn(x0, h, (x) => internalForcesAt(state, x, 'left').V + myAt(load, x)),
+      ...rootsIn(
+        x0,
+        h,
+        (x) => internalForcesAt(state, x, 'left').V + myAt(load, x),
+      ),
       ...rootsIn(x0, h, (x) => qzAt(load, x)),
     );
   }
@@ -253,11 +260,7 @@ export function internalForcesStations(
  * und 3/4, nicht an den Raendern, weil dort die Zugehoerigkeit zu einem
  * Lastabschnitt mehrdeutig ist.
  */
-function rootsIn(
-  x0: number,
-  h: number,
-  f: (x: number) => number,
-): number[] {
+function rootsIn(x0: number, h: number, f: (x: number) => number): number[] {
   const g1 = f(x0 + 0.25 * h);
   const g2 = f(x0 + 0.5 * h);
   const g3 = f(x0 + 0.75 * h);
@@ -282,9 +285,7 @@ function rootsIn(
     }
   }
 
-  return roots
-    .filter((t) => t > 0 && t < 1)
-    .map((t) => x0 + t * h);
+  return roots.filter((t) => t > 0 && t < 1).map((t) => x0 + t * h);
 }
 
 function clamp(x: number, L: number): number {

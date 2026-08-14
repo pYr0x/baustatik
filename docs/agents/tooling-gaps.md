@@ -14,9 +14,10 @@ Last verified: 2026-08-06.
   no CI step. `pnpm build` compiles through Vite + `vite-plugin-dts`, which
   does not fail the build the way `tsc --noEmit` would.
 - **`lint` cannot fail on formatting.** Every package's `lint` script passes
-  `--fix` (Biome) or `--write` (oxfmt). CI runs `pnpm lint`, so it mutates the
+  `--fix`. CI runs `pnpm lint`, so it mutates the
   checkout and exits 0 unless a rule is genuinely unfixable. There is no
-  `--check` / CI-mode variant.
+  `--check` / CI-mode variant. Formatting itself is checked by `pnpm check`
+  (`oxfmt --check packages && oxlint packages`).
 - **Coverage is collected but never enforced.** Every `vitest.config.ts` sets
   `coverage.enabled: true` with the istanbul provider; no package configures
   `thresholds`.
@@ -25,23 +26,12 @@ Last verified: 2026-08-06.
   their `*.browser.test.ts` files run solely via the separate `test:browser`
   script. `konva-adapter`'s screenshot project is excluded on purpose.
 
-## Unfinished linter migration
+## Linter migration status
 
-Two toolchains split the workspace:
-
-| Toolchain | Packages |
-| --- | --- |
-| `biome check --fix .` | `core`, `cross-section`, `cross-section-viewer`, `geometry-2d`, `round`, `units`, `viewport-2d` |
-| `oxlint --fix .` + `oxfmt --write .` | the other 16 |
-
-`biome.json` still includes all of `packages/**` (minus `section-geometry`), so
-root `pnpm check` reformats the oxlint packages with Biome. The two formatters
-agree on 2 spaces / single quotes / width 80, so drift is limited to edge cases
-and to import organisation, which only Biome performs.
-
-`fem-section-resolve`, `script` and `steel-profiles` run `oxlint` **without**
-an `.oxlintrc.json` / `.oxfmtrc.json`, so they fall back to defaults and lint
-their `tests/` directory, which the other packages exclude.
+The migration to oxlint + oxfmt is done: every package lints with
+`oxlint --fix .` and formats with `oxfmt --write .`. Root `pnpm check`
+(`oxfmt --check packages && oxlint packages`, 2026-08-15) passes. `biome.json`
+is gone from the observed script set.
 
 ## TypeScript strictness
 

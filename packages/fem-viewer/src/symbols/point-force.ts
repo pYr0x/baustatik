@@ -93,7 +93,10 @@ interface Shaft {
  */
 function shaft(force: PointForce, vp: Viewport, style: SymbolStyle): Shaft {
   const back = (distance: number): Point =>
-    Point.translate(force.at, Vector.scale(force.direction, -distance / vp.scale));
+    Point.translate(
+      force.at,
+      Vector.scale(force.direction, -distance / vp.scale),
+    );
   return {
     tip: back(style.forceGapPx),
     tail: back(style.forceGapPx + style.forceArrowLengthPx),

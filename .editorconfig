@@ -1,0 +1,17 @@
+root = true
+
+# Standard-Regeln für alle Dateien (UTF-8, LF, 2 Spaces, max. 80 Zeichen)
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+max_line_length = 80
+trim_trailing_whitespace = true
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off

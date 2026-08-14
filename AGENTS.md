@@ -66,9 +66,9 @@ What the scripts do not tell you:
   `pnpm --filter @baustatik/<pkg> typecheck` yourself before handing off.
 - Every `lint` script writes (`--fix` / `--write`), so CI's lint step cannot
   fail on formatting drift — it silently reformats.
-- Seven packages lint with Biome, seventeen with Oxlint/Oxfmt. This is an
-  unfinished migration, not a layered setup: follow the package-local scripts.
-  Root `pnpm check` runs Biome over `packages/**` regardless.
+- Every package lints with Oxlint and formats with Oxfmt; `pnpm check`
+  (`oxfmt --check packages && oxlint packages`) verifies both, and `pnpm format`
+  writes them.
 - CI runs `build → lint → test` on Node 24; `engines` says `>=18`. The pinned
   package manager is `pnpm@11.16.0`.
 - `@baustatik/linear-solver-wasm` and `@baustatik/sparse-solver-wasm` prefer a

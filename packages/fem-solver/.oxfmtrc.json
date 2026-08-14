@@ -4,6 +4,7 @@
   "useTabs": false,
   "printWidth": 80,
   "ignorePatterns": [
+    "**/*.md",
     "dist",
     "build",
     "coverage",

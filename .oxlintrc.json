@@ -1,0 +1,17 @@
+{
+  "categories": {
+    "correctness": "error"
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/pkg/**",
+    "**/native/**",
+    "**/vendor/**",
+    "**/tests/**",
+    "**/node_modules/**",
+    "**/*.test.*",
+    "**/*.browser.test.*"
+  ]
+}
