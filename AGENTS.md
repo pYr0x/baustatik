@@ -61,16 +61,19 @@ pnpm --filter @baustatik/cross-section test
 
 What the scripts do not tell you:
 
-- **`typecheck` runs in no Turbo task and in no CI step.** 24 packages define
-  `tsc --noEmit`; nothing invokes it. Run
-  `pnpm --filter @baustatik/<pkg> typecheck` yourself before handing off.
+- **`typecheck` runs via Turbo, repo-wide and in CI.** `pnpm typecheck` runs
+  `tsc --noEmit` in every workspace that defines it (25 packages plus
+  `apps/demo`) and depends on `^build`, because per-package `tsc` resolves
+  workspace imports through `dist/`. `@baustatik/errors` and the two Rust WASM
+  crates have no script and are skipped. For a single package, run
+  `pnpm --filter @baustatik/<pkg> typecheck`.
 - Every `lint` script writes (`--fix` / `--write`), so CI's lint step cannot
   fail on formatting drift — it silently reformats.
 - Seven packages lint with Biome, seventeen with Oxlint/Oxfmt. This is an
   unfinished migration, not a layered setup: follow the package-local scripts.
   Root `pnpm check` runs Biome over `packages/**` regardless.
-- CI runs `build → lint → test` on Node 24; `engines` says `>=18`. The pinned
-  package manager is `pnpm@11.16.0`.
+- CI runs `build → typecheck → lint → test` on Node 24; `engines` says `>=18`.
+  The pinned package manager is `pnpm@11.16.0`.
 - `@baustatik/linear-solver-wasm` and `@baustatik/sparse-solver-wasm` prefer a
   local Rust toolchain, then build/test in Docker (`rust-wasm:latest`). Without
   either, a build accepts a prebuilt `pkg/`; never skipped in CI or with
@@ -91,7 +94,7 @@ What the scripts do not tell you:
   `schemaVersion` in `@baustatik/script` is a data-format counter and is not a
   package version.
 
-Known tooling gaps, none of them fixed:
+Known tooling gaps, most still unfixed:
 [`docs/agents/tooling-gaps.md`](docs/agents/tooling-gaps.md).
 
 ## Browser automation

@@ -90,6 +90,9 @@
       "persistent": true
     },
     "lint": {},
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,
