@@ -1,5 +1,5 @@
 import type { cm, cm2, cm4 } from '@baustatik/units';
-import type { SectionProperties } from './properties';
+import type { SectionProperties } from '../model/section-properties';
 import { CM_TO_M, CM2_TO_M2, CM4_TO_M4 } from './units';
 
 /**

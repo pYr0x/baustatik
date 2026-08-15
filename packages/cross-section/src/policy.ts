@@ -42,7 +42,7 @@
 
 import { DEFAULT_ARC_TOLERANCE } from '@baustatik/section-geometry';
 import type { mm } from '@baustatik/units';
-import { InvalidSectionPolicyError } from './errors';
+import { InvalidSectionPolicyError } from './validation/errors';
 
 /**
  * Die Stellschrauben der Querschnitts-ERZEUGUNG.

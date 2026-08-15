@@ -12,7 +12,7 @@ import { type StressPoint, stressPoint } from './types';
  * Rechteckparabel IST Grashof —, beim I liegen sie 3 % auseinander.
  *
  * Dieselbe Frage darf nicht zwei Maschinen haben: `idealisation` steuert seit
- * [ADR 0029](../../../docs/adr/0029-stress-points-follow-the-idealisation.md)
+ * [ADR 0029](../../../../docs/adr/0029-stress-points-follow-the-idealisation.md)
  * BEIDE Antworten, kappa und die Spannungspunkte, oder keine.
  *
  * DIE GRÖSSEN KOMMEN AUS DENSELBEN FORMELN, die `thinPaths()` in
@@ -38,7 +38,7 @@ import { type StressPoint, stressPoint } from './types';
  *
  * Eine Wand QUER zur Schubrichtung hat über ihre ganze Länge denselben
  * Hebelarm, `S` wächst also nur linear — das ist `crossWallInterval` in
- * `shear.ts`, hier an einer Stelle ausgewertet statt integriert.
+ * `calculation/shear.ts`, hier an einer Stelle ausgewertet statt integriert.
  *
  * `Math.abs(y)`, weil der Gurt von BEIDEN Spitzen her aufgeschnitten wird: der
  * Schubfluss läuft von jeder freien Spitze zur Stegachse, und die beiden

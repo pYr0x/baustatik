@@ -2,7 +2,7 @@ import { profilesIn } from '@baustatik/steel-profiles';
 import { describe, expect, it } from 'vitest';
 import type { SectionProperties } from '../src/index';
 import { type CrossSection, sectionProperties } from '../src/index';
-import { CM2_TO_M2 } from '../src/units';
+import { CM2_TO_M2 } from '../src/calculation/units';
 import {
   acrossPiece,
   alongPiece,

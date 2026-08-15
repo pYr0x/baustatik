@@ -3,12 +3,12 @@
  *
  * DER TYP LIEGT HIER, DIE RECHNUNG NICHT. `@baustatik/cross-section` bleibt
  * frei von WASM; gerechnet wird in `@baustatik/cross-section-fe`
- * ([ADR 0047](../../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)).
+ * ([ADR 0047](../../../../docs/adr/0047-the-solid-section-fe-lives-in-its-own-package.md)).
  * Der Satz braucht den Typ trotzdem, denn `SectionGeometry` traegt das Feld —
  * und `sectionProperties` liest es.
  *
  * KEINE MATERIALZAHL, KEIN ν. Das ist der ganze Trick von
- * [ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md):
+ * [ADR 0045](../../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md):
  * κ haengt an der Querdehnzahl, der Querschnitt darf sie aber nicht kennen
  * (ADR 0020/0023/0026). Also wird nicht die Zahl gespeichert, sondern die
  * FORMEL — zwei Koeffizienten je Achse, und ν wird erst dort eingesetzt, wo

@@ -1,6 +1,6 @@
 /**
  * Das Gate des Querschnitts — ZWEI TUEREN, weil zwei verschiedene Fragen
- * ([ADR 0032](../../../docs/adr/0032-the-cross-section-gate-warns.md)).
+ * ([ADR 0032](../../../../docs/adr/0032-the-cross-section-gate-warns.md)).
  *
  *   `validateSectionGeometry`   — ist die GEZEICHNETE FIGUR in sich stimmig?
  *   `validateSectionProperties` — sind die ZAHLEN unter den Annahmen der ebenen
@@ -29,15 +29,15 @@
 
 import { atOrThrow } from '@baustatik/core';
 import { Bulge, Polygon } from '@baustatik/section-geometry';
+import { cellCount, componentCount } from '../geometry/wall-graph/branches';
 import {
   buildGraph,
-  cellCount,
-  componentCount,
   nodeIdOf,
   normalizeAngle,
   outgoingTangent,
-} from './branch';
-import { chainedJoints, deriveOutline } from './derive-outline';
+} from '../geometry/wall-graph/graph';
+import { deriveOutline } from '../geometry/outline/derive-outline';
+import { chainedJoints } from '../geometry/outline/miter-joints';
 import {
   type BulgeSite,
   DegenerateOutlineRingError,
@@ -63,17 +63,17 @@ import {
   UnnestedHoleWarning,
   ZeroLengthWallError,
 } from './errors';
-import type { SectionPolicy } from './policy';
-import type { SectionProperties } from './properties';
-import { type SegmentRun, segments } from './segment';
+import type { SectionProperties } from '../model/section-properties';
+import type { SectionPolicy } from '../policy';
+import { type SegmentRun, segments } from '../calculation/wall-path/segments';
 import type {
   Polygon as OutlinePolygon,
   Ring,
   SectionGeometry,
   SectionNode,
   Wall,
-} from './types';
-import { M2_TO_MM2 } from './units';
+} from '../model/section-geometry';
+import { M2_TO_MM2 } from '../calculation/units';
 
 /** Das Ergebnis einer Gate-Prüfung. Zwei Sorten Befund. */
 export type SectionValidationResult = {
@@ -90,7 +90,7 @@ export type SectionValidationResult = {
  * Ergebnis ändert, wird übergeben und nicht importiert (ADR 0011). Sie steht
  * seit `schemaVersion: 7` auf Projektebene im Snapshot, also reicht der
  * Aufrufer genau die Einstellung herein, unter der die Figur ERZEUGT wurde
- * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
+ * ([ADR 0033](../../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  */
 export function validateSectionGeometry(
   geometry: SectionGeometry,
@@ -424,7 +424,7 @@ function ringBulgeFindings(
  * SEIT DER FE ZWEI VERGLEICHE AUF DERSELBEN SCHRANKE, und der zweite ist KEINE
  * neue Warnung, sondern derselbe Anlass an einer zweiten Zahl: der FE-Block
  * traegt einen Fingerabdruck (`A`, `Iy`) des Umrisses, auf dem gerechnet wurde
- * ([ADR 0045](../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)).
+ * ([ADR 0045](../../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)).
  * Das Gate kann die FE nicht neu rechnen — sie ist asynchron —, den Umriss
  * leitet es aber ohnehin neu ab. Weicht der Fingerabdruck ab, ist der Block
  * VERALTET, und aus stiller Drift wird ein Befund. `Iy` bleibt dabei
@@ -484,7 +484,7 @@ function drift(
  * `principalAxisTolerance`. Sie wurde in P0 bereits durchgereicht, obwohl es
  * nichts zu lesen gab: beide Türen gemeinsam umzustellen kostete EINEN Bruch
  * statt zweier über zwei Teilprojekte
- * ([ADR 0033](../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
+ * ([ADR 0033](../../../../docs/adr/0033-the-cross-section-has-a-creation-policy.md)).
  */
 export function validateSectionProperties(
   properties: SectionProperties,
@@ -561,7 +561,7 @@ function gyrationRadius(properties: SectionProperties): number {
  *
  * Sie stehen zusammen, weil sie dieselbe Zahl lesen: `signedArea` je Ring.
  * Außen `> 0` heißt Material, `< 0` ein Loch
- * ([ADR 0034](../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)).
+ * ([ADR 0034](../../../../docs/adr/0034-winding-is-mathematical-and-the-factory-does-not-normalise.md)).
  *
  * AUSDRÜCKLICH NICHT GEPRÜFT: doppelte aufeinanderfolgende Punkte — sie
  * tragen zur Shoelace-Summe exakt null bei und sind damit harmlos — und die
@@ -652,7 +652,7 @@ function duplicateIds(
  * Regelfall an jedem geschweißten Profil.
  *
  * DIE ZWEITE FASSUNG VON `outgoingTangent` IST MIT P5 ENTFALLEN. Sie stand
- * hier, weil das Gate vor `branch.ts` keinen Graphen hatte; seither gibt es
+ * hier, weil das Gate vor `geometry/wall-graph/` keinen Graphen hatte; seither gibt es
  * `buildGraph` samt Gradzählung und die Tangente an EINER Stelle. Der
  * Nebengewinn ist ein Gleichlauf, den die zweite Fassung nur zufällig hatte:
  * entartete Wände fallen jetzt in derselben Funktion heraus, aus der auch die

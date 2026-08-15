@@ -1,5 +1,5 @@
 import type { cm, cm2, cm4 } from '@baustatik/units';
-import type { SectionProperties } from '../properties';
+import type { SectionProperties } from '../../model/section-properties';
 import { type ShearFlowInterval, shearArea } from '../shear';
 import { toSI } from '../to-si';
 
@@ -29,7 +29,7 @@ export type ShapeResult = {
   readonly zs: cm;
   /**
    * Der Schubmittelpunkt, im SELBEN System wie `ys`/`zs` — die Invariante aus
-   * [ADR 0031](../../../../docs/adr/0031-the-cross-section-plane.md).
+   * [ADR 0031](../../../../../docs/adr/0031-the-cross-section-plane.md).
    *
    * `yM` steht bei jeder Form: alle vier haben eine Symmetrieachse in y, also
    * liegt er auf ihr. `zM` steht ueberall dort, wo die Form ausserdem
@@ -55,7 +55,7 @@ export type ShapeResult = {
    * „nicht ermittelt".
    *
    * UND ES BLEIBT DABEI — das ist keine Luecke, die noch geschlossen wird.
-   * [ADR 0045](../../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)
+   * [ADR 0045](../../../../../docs/adr/0045-solid-section-values-are-nu-free-coefficients.md)
    * loest das Randwertproblem per FE, aber NUR fuer den GEZEICHNETEN
    * Querschnitt (`kind: 'section-geometry'`): die FE braucht einen Polygonzug,
    * und `ShapeSpec` traegt Abmessungen, keinen Umriss. Wer `It` fuer ein

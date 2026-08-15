@@ -5,7 +5,7 @@
  * > „`Segment` bleibt für das POSITIONIERTE Wegstück reserviert, aus dem kappa
  * > und die Spannungspunkte einmal gemeinsam fallen sollen."
  *
- * `ShearFlowInterval` (`src/shear.ts`) ist das LAGELOSE Gegenstück und bleibt
+ * `ShearFlowInterval` (`../shear.ts`) ist das LAGELOSE Gegenstück und bleibt
  * unverändert: es benennt ein Stück der Laufkoordinate `s`, kein Stück
  * Querschnitt. Hier steht der Ort.
  *
@@ -14,7 +14,7 @@
  * DIESELBE Geometrie. Steckte `S` im `Segment`, bräuchte eine Figur zwei
  * Listen — und die Korrelation ihrer Stationen wäre genau die Doppelsprache,
  * gegen die ADR 0030 argumentiert. Die Rechnung darüber liegt in
- * `src/wall-path.ts`.
+ * `calculate-wall-path.ts`.
  *
  * BÖGEN SIND HIER SCHON WEG. `Bulge.toPolyline` löst eine Bogenwand unter
  * `policy.discretisationTolerance` in gerade Stücke auf — dieselbe Modellannahme wie in
@@ -26,16 +26,16 @@
  * herauskommt. `segments` liest `SectionNode`/`Wall` und arbeitet damit in
  * MILLIMETERN; `scaleSegments` bringt das Ergebnis in die Zentimeterwelt, in
  * der der Rest des Packages rechnet. Skaliert werden die PUNKTE und nicht das
- * Ergebnis — dieselbe Figur wie bei `shapeResult` und `geometryResult`
- * ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md)).
+ * Ergebnis — dieselbe Figur wie bei `shapeValues` und `geometryValues`
+ * ([ADR 0024](../../../../../docs/adr/0024-units-at-the-package-boundary.md)).
  */
 
 import { atOrThrow } from '@baustatik/core';
-import { Bulge } from '@baustatik/section-geometry';
-import { type Branch, branches, buildGraph } from './branch';
-import { usableBulge } from './derive-outline';
-import type { SectionPolicy } from './policy';
-import type { SectionNode, Wall } from './types';
+import { type Branch, branches } from '../../geometry/wall-graph/branches';
+import { buildGraph } from '../../geometry/wall-graph/graph';
+import { wallPolyline } from '../../geometry/wall-graph/wall-polyline';
+import type { SectionNode, Wall } from '../../model/section-geometry';
+import type { SectionPolicy } from '../../policy';
 
 /**
  * Ein gerades, POSITIONIERTES Stück Wandmittellinie.
@@ -129,22 +129,11 @@ function runSegments(
 
     // `nodeIds[i]` ist der Knoten, an dem Wand `i` BETRETEN wird (ein Eintrag
     // mehr als `wallIds`, siehe `Branch`).
-    const forward =
-      graphWall.wall.startNodeId === atOrThrow(branch.nodeIds, index);
-    const from = forward ? graphWall.start : graphWall.end;
-    const to = forward ? graphWall.end : graphWall.start;
-
-    // `bulge` gehört der Wand in IHRER Richtung; rückwärts dreht das Vorzeichen
-    // mit — dieselbe Zeile wie in `pointsOf` (`derive-outline.ts`).
-    const raw = graphWall.wall.bulge ?? 0;
-    const p1 = { y: from.y, z: from.z };
-    const p2 = { y: to.y, z: to.z };
-    const points = Bulge.toPolyline(
-      p1,
-      p2,
-      usableBulge(p1, p2, forward ? raw : -raw, policy),
-      policy.discretisationTolerance,
-    ).points;
+    const points = wallPolyline(
+      graphWall,
+      atOrThrow(branch.nodeIds, index),
+      policy,
+    );
 
     for (let i = 0; i + 1 < points.length; i++) {
       const a = atOrThrow(points, i);
@@ -173,7 +162,7 @@ function runSegments(
 /**
  * Dieselben Läufe in einem anderen Längenmassstab.
  *
- * DIE EINE STELLE, an der der Wandweg den Massstab wechselt: `geometryResult`
+ * DIE EINE STELLE, an der der Wandweg den Massstab wechselt: `geometryValues`
  * ruft `segments` in Millimetern und rechnet in Zentimetern weiter. Skaliert
  * werden Startpunkt, Länge und Wandstärke; die Richtung ist ein Einheitsvektor
  * und bleibt.
@@ -213,76 +202,5 @@ export function reverseSegment(segment: Segment): Segment {
     z: segment.z + segment.dz * segment.length,
     dy: -segment.dy,
     dz: -segment.dz,
-  });
-}
-
-/**
- * Die Querschnittswerte des WANDMODELLS — Linienelemente mal `t`, auf den
- * Wandschwerpunkt bezogen.
- *
- * DAS GEGENSTÜCK ZU `greenValues`, und der Unterschied ist der Zweck: Green
- * rechnet die UMRISSFIGUR, hier steht die Figur, die der Schubfluss sieht.
- * Welche von beiden welche Grösse trägt, entscheidet nicht der Aufrufer,
- * sondern ADR 0041 — κ nimmt `I` aus dem Umriss, der Schubmittelpunkt aus dem
- * Wandmodell.
- *
- * OHNE `t³/12`. Der Eigenanteil eines Linienelements um seine eigene Achse ist
- * genau der Anteil, den die dünnwandige Theorie fallen lässt; ihn mitzunehmen
- * hiesse, eine dritte Figur zu führen, die weder Umriss noch Mittellinie ist.
- *
- * INTERN UND NIE VERÖFFENTLICHT: `ys`/`zs` in `SectionProperties` bleiben die
- * der Umrissfigur. Dieselbe Trennung führt `tSectionWall` seit ADR 0029 für
- * genau eine Form — hier gilt sie für jeden gezeichneten Querschnitt.
- *
- * `undefined` heisst „keine Fläche", wie bei `greenValues`.
- */
-export type WallMoments = {
-  /** Wandfläche `Σ l·t` [L²]. */
-  readonly A: number;
-  /** Schwerpunkt des Wandmodells im Eingabesystem [L]. */
-  readonly ys: number;
-  readonly zs: number;
-  /** `∫z² dA` um den Wandschwerpunkt [L⁴]. */
-  readonly Iy: number;
-  /** `∫y² dA` um den Wandschwerpunkt [L⁴]. */
-  readonly Iz: number;
-  /** `+∫y·z dA` um den Wandschwerpunkt [L⁴] — ohne Negation, wie in Green. */
-  readonly Iyz: number;
-};
-
-export function wallMoments(
-  segments: readonly Segment[],
-): WallMoments | undefined {
-  let A = 0;
-  let Sy = 0;
-  let Sz = 0;
-  // Roh um den URSPRUNG, wie in `green.ts`: die Steiner-Verschiebung passiert
-  // einmal am Ende und nicht je Segment.
-  let IyO = 0;
-  let IzO = 0;
-  let IyzO = 0;
-
-  for (const { y, z, dy, dz, length: L, t } of segments) {
-    const dA = t * L;
-    A += dA;
-    Sy += dA * (y + (dy * L) / 2);
-    Sz += dA * (z + (dz * L) / 2);
-    IyO += dA * (z * z + z * dz * L + (dz * dz * L * L) / 3);
-    IzO += dA * (y * y + y * dy * L + (dy * dy * L * L) / 3);
-    IyzO += dA * (y * z + ((y * dz + z * dy) * L) / 2 + (dy * dz * L * L) / 3);
-  }
-
-  if (!(Number.isFinite(A) && A > 0)) return undefined;
-
-  const ys = Sy / A;
-  const zs = Sz / A;
-
-  return Object.freeze({
-    A,
-    ys,
-    zs,
-    Iy: IyO - A * zs * zs,
-    Iz: IzO - A * ys * ys,
-    Iyz: IyzO - A * ys * zs,
   });
 }

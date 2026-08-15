@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { branches, cellCount, componentCount } from '../src/branch';
+import {
+  branches,
+  cellCount,
+  componentCount,
+} from '../src/geometry/wall-graph/branches';
 import {
   boxGraph,
   disconnectedGraph,

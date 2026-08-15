@@ -10,12 +10,10 @@
 import { Polygon as GeometryPolygon } from '@baustatik/section-geometry';
 import { describe, expect, it } from 'vitest';
 import { createSectionPolicy } from '../src/policy';
-import {
-  chainedJoints,
-  deriveOutline,
-  deriveOutlineFromWalls,
-} from '../src/derive-outline';
-import type { Polygon } from '../src/types';
+import { deriveOutline } from '../src/geometry/outline/derive-outline';
+import { deriveOutlineFromWalls } from '../src/geometry/outline/derive-outline-from-walls';
+import { chainedJoints } from '../src/geometry/outline/miter-joints';
+import type { Polygon } from '../src/model/section-geometry';
 import { node, wall } from './helpers';
 
 const POLICY = createSectionPolicy();

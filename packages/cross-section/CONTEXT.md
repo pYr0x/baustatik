@@ -15,10 +15,11 @@ diskretisiertem Umriss**. Beide Marken benennen eine LINIE, nicht ihren Inhalt:
 die Mittellinie gegen den Umriss. Seit
 [ADR 0035](../../docs/adr/0035-the-editor-section-yields-values-without-kappa.md)
 traegt sie auch **Werte**: `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` fallen nach Green
-aus dem mitgefuehrten Umriss (`src/green.ts`), `alpha`/`Iu`/`Iv` als Algebra
+aus dem mitgefuehrten Umriss (`src/calculation/green.ts`), `alpha`/`Iu`/`Iv` als Algebra
 mit. Seit P5 kommen **κ, der Schubmittelpunkt und `It`** dazu — aber nur fuer
 das **duennwandig gerechnete Mittellinienmodell mit hoechstens einer Zelle**,
-und zwar aus dem positionierten Wandweg (`src/segment.ts`, `src/wall-path.ts`,
+und zwar aus dem positionierten Wandweg (`src/calculation/wall-path/segments.ts`,
+`src/calculation/wall-path/calculate-wall-path.ts`,
 [ADR 0040](../../docs/adr/0040-the-wall-path-is-positioned.md)). Fuer
 **DIE ZWEITE QUELLE IST DIE FE**, und mit ihr ist die Luecke fuer
 `kind: 'outline'` und fuer `midline` + `solid` geschlossen: der VOLLQUERSCHNITT
@@ -48,11 +49,30 @@ Laeufe, Aufweitung um `t/2`, Vereinigung ueber `Polygon.inflate`. Eine Tuer und
 nicht zwei, weil das Gate den Umriss fuer die Drift-Pruefung neu ableitet und
 die Fallunterscheidung sonst zweimal im Repo staende.
 
-`createSectionGeometry(input, policy)` (`src/create-section-geometry.ts`) ist
+`createSectionGeometry(input, policy)` (`src/geometry/create-section-geometry.ts`) ist
 die **Fabrik**: Eingabe plus Policy ergeben den vollstaendigen Satz. Der Record
 bleibt daneben **frei konstruierbar** — er ist reine, JSON-serialisierbare
 Daten und muss aus einer geladenen Datei rekonstruierbar sein, ohne durch eine
 Fabrik zu laufen.
+
+### Source layout
+
+`src/index.ts` ist die einzige oeffentliche Tuer. Dahinter ist die
+Implementierung nach Verantwortung geordnet:
+
+| Ordner | Verantwortung |
+| --- | --- |
+| `model/` | serialisierbare Querschnittstypen, Ergebnis- und FE-Typen |
+| `geometry/` | Fabrik, Umrissableitung und gemeinsame Wandgraph-Topologie |
+| `calculation/` | Querschnittswerte, Einheiten, Formeln und interner Wandweg |
+| `stress-points/` | Spannungspunkt-Vorlagen und ihr Dispatch |
+| `validation/` | Gate und seine Befunde |
+
+Innerhalb von `geometry/outline/` bleiben Ringableitung, Wandableitung und
+Miter-Geometrie getrennt. `calculation/wall-path/` folgt den Rechenphasen:
+positionierte Segmente, Topologie, Schubfluss, Torsion und Wandmomente. Interne
+Ordner haben bewusst keine eigenen Barrel-Dateien; die Importkante soll den
+tatsaechlichen Besitzer zeigen.
 
 ### Die Zugregel
 
@@ -66,7 +86,7 @@ nur, wenn beide als EIN Pfad hineingehen. Welches Paar das ist, aendert den
 Umriss. Daran haengt die Zusage: **zwei Wandgraphen gleicher Gestalt mit
 anderen Ids liefern denselben Umriss.**
 
-`Branch` (`src/branch.ts`) ist der Lauf zwischen VERZWEIGUNGSKNOTEN (Grad ≠ 2),
+`Branch` (`src/geometry/wall-graph/branches.ts`) ist der Lauf zwischen VERZWEIGUNGSKNOTEN (Grad ≠ 2),
 das Wort, das ADR 0030 reserviert hat, und er wird **exportiert** — P5 braucht
 dieselbe Zerlegung fuer den Wandweg. Der Offsetpfad geht weiter als der Branch:
 er kettet an jedem Knoten und wird zusaetzlich an jedem Dickensprung geteilt,
@@ -184,12 +204,13 @@ Die Multiplikation leistet `@baustatik/fem-section-resolve` und sonst niemand.
 Umgerechnet wird an **einer Eingangsstelle je Quelle und an einem gemeinsamen
 Ausgang**:
 
-- `shapeResult` in `src/section.ts` — mm → cm, fuer die parametrische Form.
-- `geometryResult` daneben — mm → cm, fuer den gezeichneten Umriss. Es skaliert
-  die **Punkte**, nicht das Ergebnis: dieselbe Figur wie bei `shapeResult`, und
+- `shapeValues` in `src/calculation/section-properties.ts` — mm → cm, fuer die parametrische Form.
+- `geometryValues` in `src/calculation/geometry-properties.ts` — mm → cm, fuer
+  den gezeichneten Umriss. Es skaliert die **Punkte**, nicht das Ergebnis:
+  dieselbe Figur wie bei `shapeValues`, und
   ein Faktor an einer Stelle statt dreier (cm², cm⁴, cm) am Ausgang.
 - Die Katalogzeile braucht keine: sie fuehrt bereits cm.
-- **`toSI` in `src/to-si.ts` — cm → SI, fuer ALLE Quellen.** Dass es nur eine
+- **`toSI` in `src/calculation/to-si.ts` — cm → SI, fuer ALLE Quellen.** Dass es nur eine
   ist, ist der eigentliche Gewinn: `ShapeResult`, `SteelProfileData` und die
   Green-Werte fuehren dieselben Einheiten, und keine Quelle braucht einen
   eigenen Rechenweg.
@@ -198,7 +219,7 @@ Ausgang**:
 fuer die richtige Aussage.)
 
 Die Faktoren stehen nicht als Literal im Code, sondern kommen aus
-`@baustatik/units` (`src/units.ts`) — und zwar aus **`toExact`**, nicht aus
+`@baustatik/units` (`src/calculation/units.ts`) — und zwar aus **`toExact`**, nicht aus
 `to`: `convert(...).to(...)` rundet atomar auf ganze mm, aus `139,5 mm` wuerde
 `0,14 m` ([ADR 0024](../../docs/adr/0024-units-at-the-package-boundary.md)).
 
@@ -362,14 +383,14 @@ mit P5 vergeben. Die Abgrenzung, um die es dabei ging:
 
 | Typ | Datei | lagelos? | wofuer |
 | --- | --- | --- | --- |
-| `Segment` | `src/segment.ts` | **nein** — Startpunkt und Richtung | der Weg entlang der Wandmittellinien |
-| `ShearFlowInterval` | `src/shear.ts` | **ja** — nur ein Stueck von `s` | die abgeleitete Energieform |
+| `Segment` | `src/calculation/wall-path/segments.ts` | **nein** — Startpunkt und Richtung | der Weg entlang der Wandmittellinien |
+| `ShearFlowInterval` | `src/calculation/shear.ts` | **ja** — nur ein Stueck von `s` | die abgeleitete Energieform |
 
 **Kein `S` im `Segment`**, und das ist die tragende Entscheidung: `Sy` und `Sz`
 sind zwei verschieden parametrisierte Laeufe ueber DIESELBE Geometrie. Steckte
 `S` darin, braeuchte eine Figur zwei Listen, deren Stationen korreliert werden
 muessten. `shearArea` bleibt die eine Stelle, an der aus einem Weg eine Zahl
-wird; `src/shear.ts` ist fuer P5 **unveraendert** geblieben.
+wird; `src/calculation/shear.ts` ist fuer P5 **unveraendert** geblieben.
 
 **Boegen sind vor dem Weg weg**: `Bulge.toPolyline` unter `policy.discretisationTolerance`,
 dieselbe Modellannahme wie in der Umriss-Ableitung. Jedes `Segment` ist damit
@@ -408,7 +429,7 @@ die Trennung da.
 ### Eine Zelle ja, zwei nein
 
 `Zellen = E − V + C`, gezaehlt ueber die **Laeufe** (`cellCount`,
-`componentCount` in `src/branch.ts`) — die zyklomatische Zahl ist gegen das
+`componentCount` in `src/geometry/wall-graph/branches.ts`) — die zyklomatische Zahl ist gegen das
 Unterteilen einer Kante unempfindlich, also lesen Gate und Wandweg DIESELBE
 Zerlegung.
 
@@ -724,7 +745,7 @@ EIN Feld, `discretisationTolerance`, und auch das nur beim gezeichneten Wandgrap
 Wandweg zerlegt seine Bogenwaende unter derselben Toleranz, unter der der
 mitgefuehrte Umriss entstanden ist. Ein Querschnitt **ohne Bogenwand** ist von
 der Zahl unberuehrt. Das ist eine bewusste Abweichung von ADR 0011 und in
-`section.ts` als solche vermerkt.
+`calculation/section-properties.ts` als solche vermerkt.
 
 **Optional heisst nicht „darf auf der Rechenstrecke fehlen".** `SectionModel`
 in `@baustatik/fem-section-resolve` fuehrt `sectionPolicy` als **Pflichtfeld**
@@ -891,7 +912,7 @@ ein Beispiel nicht unbemerkt veraltet. Details in
   trifft). Nicht „Band" (kein Fachbegriff), nicht „Streifen" (das ist Hillerborgs
   Plattenverfahren) und nicht „Lamelle": die Lamelle ist im Stahl- und Betonbau
   das aufgeschweisste bzw. aufgeklebte Blech.
-- **`ShearFlowInterval`** (`shear.ts`) ist ein Stueck des Schubflusswegs: ein
+- **`ShearFlowInterval`** (`calculation/shear.ts`) ist ein Stueck des Schubflusswegs: ein
   Intervall der Laufkoordinate `s` mit konstanter Dicke `t`, auf dem `S(s)`
   quadratisch ist. **Intervall und nicht Segment**, weil der Typ LAGELOS ist —
   `pathZ` des I-Profils benutzt dasselbe Gurtobjekt viermal, ein Ort liesse sich
@@ -902,7 +923,7 @@ ein Beispiel nicht unbemerkt veraltet. Details in
   Groesse — die Schubenergie ist das Prinzip hinter der Formel, keine Einheit,
   die der Typ traegt. Die Literatur hat fuer dieses Stueck kein eigenes Wort;
   sie integriert abschnittsweise und beschriftet „Bereich I, II, III".
-- **`Segment`** (`segment.ts`) ist das **positionierte** Gegenstueck dazu:
+- **`Segment`** (`calculation/wall-path/segments.ts`) ist das **positionierte** Gegenstueck dazu:
   Startpunkt, Richtung, Laenge, `t`, `wallId`. Seit P5 vergeben, und ohne `S` —
   `Sy` und `Sz` sind zwei Laeufe ueber dieselbe Geometrie (ADR 0040). Ein
   `SegmentRun` ist ein `Branch` samt seinen Stuecken.
@@ -923,7 +944,7 @@ ein Beispiel nicht unbemerkt veraltet. Details in
   keine Maschinen.
 
   **Neu ist, dass das Umrissmodell ZWEI MASCHINEN hat**: Grashof als Naeherung
-  (`shear.ts`, fuer die parametrische Form) und die FE als exakte Rechnung
+  (`calculation/shear.ts`, fuer die parametrische Form) und die FE als exakte Rechnung
   (`@baustatik/cross-section-fe`, fuer die gezeichnete Figur). Dieselbe Frage,
   zwei Antworten — eine bekannte, offene Luecke, gemessen und in
   `packages/TODO.md` verzeichnet (ADR 0045/0047).

@@ -1,5 +1,5 @@
 import type { cm3, mm } from '@baustatik/units';
-import { MM3_TO_CM3 } from '../units';
+import { MM3_TO_CM3 } from '../calculation/units';
 
 /**
  * Ein Spannungspunkt: die Stelle, an der ein Nachweis spaeter `sigma` und `tau`
@@ -14,7 +14,7 @@ import { MM3_TO_CM3 } from '../units';
  * Referenz-Fixture, und es ist die Form, in der die Abmessungen ohnehin
  * hereinkommen — der Vergleich mit der Quelle braucht damit keinen
  * Umrechnungsfaktor mehr, in dem sich ein Fehler verstecken koennte
- * ([ADR 0024](../../../docs/adr/0024-units-at-the-package-boundary.md)).
+ * ([ADR 0024](../../../../docs/adr/0024-units-at-the-package-boundary.md)).
  */
 export type StressPoint = {
   /** Ordnungsnummer im Bericht, 1-basiert. */

@@ -1,6 +1,6 @@
 /**
  * Die Fabrik: aus der EINGABE wird der vollständige Satz
- * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
+ * ([ADR 0037](../../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
  *
  * `SectionGeometry` führt den abgeleiteten Umriss MIT (ADR 0030). Bis hierher
  * musste ihn jeder Aufrufer selbst danebenlegen — die Demo tat es wörtlich, mit
@@ -21,10 +21,15 @@
  * doppelt stehen.
  */
 
-import { deriveOutline } from './derive-outline';
-import type { SectionPolicy } from './policy';
-import type { Idealisation } from './section';
-import type { Ring, SectionGeometry, SectionNode, Wall } from './types';
+import type { Idealisation } from '../model/idealisation';
+import type {
+  Ring,
+  SectionGeometry,
+  SectionNode,
+  Wall,
+} from '../model/section-geometry';
+import type { SectionPolicy } from '../policy';
+import { deriveOutline } from './outline/derive-outline';
 
 /**
  * Was der Editor zeichnet — der Satz OHNE seinen abgeleiteten Umriss.

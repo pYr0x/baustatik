@@ -12,7 +12,7 @@
  * Abmessung gehört in den Test, der sie gegen ein Orakel hält.
  */
 
-import type { SectionNode, Wall } from '../src/types';
+import type { SectionNode, Wall } from '../src/model/section-geometry';
 
 export const node = (id: string, y: number, z: number): SectionNode => ({
   id,
