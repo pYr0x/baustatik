@@ -25,7 +25,6 @@ export {
   UnknownLoadCaseError,
   UnknownSectionStiffnessError,
   UnrestrainedDegreeOfFreedomError,
-  UnsupportedAnalysisPolicySchemaVersionError,
 } from './errors';
 export {
   internalForcesAlong,
@@ -33,7 +32,6 @@ export {
   type SectionForcesAt,
 } from './internal-forces';
 export {
-  ANALYSIS_POLICY_SCHEMA_VERSION,
   type AnalysisPolicy,
   type AnalysisPolicyOverrides,
   createAnalysisPolicy,

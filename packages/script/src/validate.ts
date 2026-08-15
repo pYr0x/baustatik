@@ -18,6 +18,7 @@ import {
   modelGeometry,
   type NodeLoad,
 } from '@baustatik/fem-loads';
+import { parseAnalysisPolicy } from '@baustatik/fem-solver';
 import type {
   ElasticModuli,
   Material,
@@ -41,6 +42,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
     'crossSections',
     'materials',
     'sectionPolicy',
+    'analysisPolicy',
     'supports',
     'loadCases',
   ]);
@@ -73,8 +75,20 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // einer bewussten Wahl zu unterscheiden. Eine Migration ist ein Werkzeug,
   // das jemand AUFRUFT, sieht und ablehnen kann — und AB HIER IST JEDE
   // v9-DATEI VERLOREN.
-  if (snapshot.schemaVersion !== 12) {
-    fail('Snapshot.schemaVersion muss 12 sein.');
+  //
+  // Bei v12 fehlt die `analysisPolicy` (ADR 0049) — und sie ist der fuenfte
+  // Fall, in dem eine eingesetzte Voreinstellung verfuehrerisch waere und
+  // genau deshalb ausbleibt: `DEFAULT_ANALYSIS_POLICY` laege bereit, aber
+  // `shearDeformation` und `linearSystem` sind RECHENWEISUNGEN. Sie zu
+  // ergaenzen hiesse zu behaupten, jemand habe sie so gewaehlt.
+  //
+  // DIESE PRUEFUNG IST ZUGLEICH DIE, DIE `parseAnalysisPolicy` VERLOREN HAT:
+  // sie stand dort als eigene `ANALYSIS_POLICY_SCHEMA_VERSION` und beantwortete
+  // fuer den Teilsatz, was hier fuer den ganzen Satz beantwortet wird — „diese
+  // Datei ist neuer als das Programm". Zwei Zaehler ueber denselben Bytes
+  // koennten einander widersprechen; dieser hier kommt zuerst.
+  if (snapshot.schemaVersion !== 13) {
+    fail('Snapshot.schemaVersion muss 13 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -149,6 +163,20 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
   const sectionPolicy = parseSectionPolicy(snapshot.sectionPolicy);
 
+  // PFLICHTFELD seit v13 und aus demselben Grund wie die `sectionPolicy`: hier
+  // stehen die EFFEKTIVEN Werte (ADR 0049). Fehlt es, ist das kein v12 mit
+  // Nachsicht — `shearDeformation` und `linearSystem` einzusetzen hiesse zu
+  // behaupten, jemand habe diese Rechenweise gewaehlt.
+  //
+  // Und wieder prueft es SEIN EIGENTUEMER, samt dessen eigener Fehlerklasse
+  // (`InvalidAnalysisPolicyError`, ADR 0011/0033): `@baustatik/fem-solver`
+  // entscheidet, was eine gueltige Analyse-Einstellung ist, nicht dieser
+  // Parser.
+  if (snapshot.analysisPolicy === undefined) {
+    fail('Snapshot.analysisPolicy fehlt.');
+  }
+  const analysisPolicy = parseAnalysisPolicy(snapshot.analysisPolicy);
+
   const supports = array(snapshot.supports, 'Snapshot.supports').map(
     (value, index) => {
       const support = record(value, `Snapshot.supports[${index}]`);
@@ -210,12 +238,13 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 12,
+    schemaVersion: 13,
     nodes,
     beams,
     crossSections,
     materials,
     sectionPolicy,
+    analysisPolicy,
     supports,
     loadCases,
   };
@@ -473,7 +502,11 @@ function parseFEValues(input: unknown, path: string): FESectionState {
       // Seit ADR 0048 ist `disconnected-areas` der EINZIGE Grund. Ein
       // v11-Schnappschuss kann `hole-off-bending-axis` tragen, und genau den
       // weist diese Zeile ab — dafuer ist die feste Versionszahl da.
-      reason: oneOf(value.reason, ['disconnected-areas'] as const, `${path}.reason`),
+      reason: oneOf(
+        value.reason,
+        ['disconnected-areas'] as const,
+        `${path}.reason`,
+      ),
       // `It` reist mit, wenn ueberhaupt vernetzt wurde.
       ...(value.It === undefined
         ? {}

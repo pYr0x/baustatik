@@ -185,7 +185,6 @@ ERZEUGEN, nicht beim Rechnen
 
 ```text
 AnalysisPolicy = {
-  schemaVersion:      3                       Eigentuemer: fem-solver
   loads:              LoadValidationPolicy    Eigentuemer: fem-loads
   shearDeformation:   boolean (Default true)  Eigentuemer: fem-solver
   deformationLimits:  warn/fail x rotation/   Eigentuemer: fem-solver
@@ -200,13 +199,16 @@ aus Geschwindigkeitsgruenden: 2 000 Knoten sind 6 000 Freiheitsgrade und damit
 `36e6` Zahlen — 288 MB allein fuer `K` im Hauptthread, bei rund zwoelf besetzten
 Eintraegen je Zeile.
 
-**Weder Version 2 noch Version 3 hat einen Migrationspfad.** Ein v1-Dokument
-kennt `deformationLimits` nicht, ein v2-Dokument kennt `linearSystem` nicht, und
-beide scheitern am strikten Parser. Das ist zulaessig, weil
-`parseAnalysisPolicy` zu keinem der beiden Zeitpunkte einen produktiven Aufrufer
-hatte — es liegt nichts Persistiertes herum. Ein stillschweigend ergaenzter
-Default waere ausserdem eine Einstellung, die der Anwender nie gewaehlt hat —
-bei `linearSystem` waere es die Wahl des Loesers.
+**Die Policy traegt KEINE eigene `schemaVersion` mehr**
+([ADR 0049](../../docs/adr/0049-the-tool-document-is-the-versioned-record-unit.md)).
+Sie trug eine, solange sie ALLEIN reiste — sie stand in keinem Dokument, also
+konnte nichts anderes sagen, wie alt sie ist. Seit sie Pflichtfeld des
+`FEMModelSnapshot` ist (v13), versioniert der Satz sie mit, und der eigene
+Zaehler ist eine zweite Wahrheit ueber dieselben Bytes: zwei Zaehler koennen
+einander widersprechen, und es gaebe keine Regel, welcher gilt. Die drei
+gewesenen Fassungen (1 bis 3) hatten dementsprechend nie einen Migrationspfad —
+`parseAnalysisPolicy` hatte zu keinem der Zeitpunkte einen produktiven
+Aufrufer, es lag nichts Persistiertes herum.
 
 **Jedes Package bringt seine eigene Scheibe mit** — samt Default und
 Werteprueferei. Dieses Package setzt sie zusammen: `createAnalysisPolicy`
@@ -215,10 +217,13 @@ reicht deren Fehler unveraendert durch. Dafuer kommt keine Package-Grenze hinzu.
 
 **Die persistierte Form ist die vollstaendige effektive Policy**, nicht die
 Abweichungen: sonst rechnete dasselbe Projekt nach einer Aenderung der
-Software-Defaults still anders. `parseAnalysisPolicy` prueft deshalb erst die
-VERSION und dann die Form — ein Dokument aus einer neueren Fassung traegt
-legitim unbekannte Felder, und `UnsupportedAnalysisPolicySchemaVersionError` ist
-darauf die richtige Auskunft, nicht „unbekanntes Feld".
+Software-Defaults still anders. `parseAnalysisPolicy` prueft deshalb die Form
+VOLLSTAENDIG — und seit ADR 0049 NUR NOCH die Form. Die Auskunft „diese Datei
+ist neuer als das Programm" gibt `parseFEMModelSnapshot`, und zwar FRUEHER: ein
+fremder Satz wird abgewiesen, bevor der Teilsatz hier ankommt. Wer bis hierher
+kommt, hat die passende Dokumentversion — deshalb ist „unbekanntes Feld" hier
+jetzt die richtige Auskunft, und ein mitgeschlepptes `schemaVersion` faellt
+darunter.
 
 **App-weite Weitergabe.** Die Anwendung ruft EINMAL
 `createAnalysisPolicy(overrides)` und reicht exakt dasselbe unveraenderliche

@@ -3,12 +3,8 @@ import {
   InvalidLoadValidationPolicyError,
 } from '@baustatik/fem-loads';
 import { describe, expect, it } from 'vitest';
+import { InvalidAnalysisPolicyError } from '../src/errors';
 import {
-  InvalidAnalysisPolicyError,
-  UnsupportedAnalysisPolicySchemaVersionError,
-} from '../src/errors';
-import {
-  ANALYSIS_POLICY_SCHEMA_VERSION,
   createAnalysisPolicy,
   DEFAULT_ANALYSIS_POLICY,
   DEFAULT_DEFORMATION_LIMITS,
@@ -17,15 +13,17 @@ import {
 } from '../src/policy';
 
 describe('DEFAULT_ANALYSIS_POLICY', () => {
-  it('traegt die vollstaendige Form mit Version', () => {
+  it('traegt die vollstaendige Form, und keine eigene Version', () => {
+    // KEIN `schemaVersion` mehr (ADR 0049): die Policy ist Pflichtfeld des
+    // `FEMModelSnapshot`, und der versioniert sie mit. Ein eigener Zaehler auf
+    // dem Teilsatz waere eine zweite Wahrheit ueber dieselben Bytes.
     expect(DEFAULT_ANALYSIS_POLICY).toEqual({
-      schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
       loads: DEFAULT_LOAD_VALIDATION_POLICY,
       shearDeformation: true,
       deformationLimits: DEFAULT_DEFORMATION_LIMITS,
       linearSystem: 'sparse',
     });
-    expect(ANALYSIS_POLICY_SCHEMA_VERSION).toBe(3);
+    expect('schemaVersion' in DEFAULT_ANALYSIS_POLICY).toBe(false);
   });
 
   it('rechnet voreingestellt duennbesetzt', () => {
@@ -91,8 +89,6 @@ describe('createAnalysisPolicy', () => {
       suspiciousReferenceFactor: 0.1,
     });
     expect(Object.isFrozen(policy.loads)).toBe(true);
-    // Die Version bleibt die aktuelle, auch bei Overrides.
-    expect(policy.schemaVersion).toBe(ANALYSIS_POLICY_SCHEMA_VERSION);
   });
 
   it('reicht den Fehler des Eigentuemers unveraendert durch', () => {
@@ -185,7 +181,6 @@ describe('parseAnalysisPolicy', () => {
     // die Overrides — sonst waeren Projekte nicht mehr reproduzierbar, sobald
     // die Software-Defaults sich aendern.
     expect(json).toEqual({
-      schemaVersion: 3,
       loads: {
         stationRelativeTolerance: 1e-9,
         minimumReferenceFactor: 1e-9,
@@ -201,21 +196,23 @@ describe('parseAnalysisPolicy', () => {
     expect(parseAnalysisPolicy(json)).toEqual(policy);
   });
 
-  it('lehnt ein v1-Dokument ab, statt es stillschweigend zu ergaenzen', () => {
-    // Kein Migrationspfad: `deformationLimits` fehlt in v1, und ein
-    // stillschweigend ergaenzter Default waere eine Einstellung, die der
-    // Anwender nie gewaehlt hat. Zum Zeitpunkt des Versionssprungs hatte
-    // `parseAnalysisPolicy` keinen produktiven Aufrufer — es liegt nichts
-    // Persistiertes herum, das migriert werden muesste.
-    const v1 = {
-      schemaVersion: 1,
-      loads: DEFAULT_LOAD_VALIDATION_POLICY,
-      shearDeformation: true,
-    };
-
-    expect(() => parseAnalysisPolicy(v1)).toThrow(
-      UnsupportedAnalysisPolicySchemaVersionError,
-    );
+  it('kennt `schemaVersion` nicht mehr — sie ist ein unbekanntes Feld', () => {
+    // Der eigene Zaehler ist WEG und nicht bloss ungeprueft (ADR 0049). Ein
+    // Satz, der ihn noch traegt, ist damit ein Formfehler wie jeder andere:
+    // still zu schlucken, was einmal die Version war, hiesse eine Auskunft zu
+    // geben, fuer die es keine Wahrheit mehr gibt.
+    expect(() =>
+      parseAnalysisPolicy({
+        ...JSON.parse(JSON.stringify(DEFAULT_ANALYSIS_POLICY)),
+        schemaVersion: 3,
+      }),
+    ).toThrow(InvalidAnalysisPolicyError);
+    expect(() =>
+      parseAnalysisPolicy({
+        ...JSON.parse(JSON.stringify(DEFAULT_ANALYSIS_POLICY)),
+        schemaVersion: 3,
+      }),
+    ).toThrow(/schemaVersion/);
   });
 
   it('prueft die geschachtelte Form der Verformungsgrenzen', () => {
@@ -292,34 +289,22 @@ describe('parseAnalysisPolicy', () => {
     expect(Object.isFrozen(parsed.deformationLimits.fail)).toBe(true);
   });
 
-  it('unterscheidet die nicht unterstuetzte Version von der ungueltigen Form', () => {
-    const future = {
-      schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION + 1,
-      loads: DEFAULT_LOAD_VALIDATION_POLICY,
-      shearDeformation: true,
-      deformationLimits: DEFAULT_DEFORMATION_LIMITS,
-      spannungstheorie: 'II',
-    };
-
-    // Die Version wird ZUERST geprueft: ein Dokument aus einer neueren Fassung
-    // hat legitim Felder, die diese Fassung nicht kennt. „Unbekanntes Feld"
-    // waere hier die falsche Auskunft.
-    expect(() => parseAnalysisPolicy(future)).toThrow(
-      UnsupportedAnalysisPolicySchemaVersionError,
-    );
-    expect(() => parseAnalysisPolicy(future)).toThrow(
-      new RegExp(String(ANALYSIS_POLICY_SCHEMA_VERSION + 1)),
-    );
-
+  it('meldet ein Feld aus einer neueren Fassung als unbekannt', () => {
+    // Die Auskunft „diese Datei ist neuer als das Programm" gibt seit ADR 0049
+    // `parseFEMModelSnapshot`, und zwar BEVOR der Satz hier ankommt. Wer bis
+    // hierher kommt, hat die passende Dokumentversion — dann ist ein fremdes
+    // Feld genau das, was der Fehler sagt.
     expect(() =>
-      parseAnalysisPolicy({ ...DEFAULT_ANALYSIS_POLICY, schemaVersion: '1' }),
+      parseAnalysisPolicy({
+        ...JSON.parse(JSON.stringify(DEFAULT_ANALYSIS_POLICY)),
+        spannungstheorie: 'II',
+      }),
     ).toThrow(InvalidAnalysisPolicyError);
   });
 
   it('verlangt die vollstaendigen Top-Level-Felder und lehnt unbekannte ab', () => {
     expect(() =>
       parseAnalysisPolicy({
-        schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
         shearDeformation: true,
       }),
     ).toThrow(InvalidAnalysisPolicyError);
@@ -349,30 +334,12 @@ describe('parseAnalysisPolicy', () => {
   it('delegiert das Blatt an den Parser seines Eigentuemers', () => {
     expect(() =>
       parseAnalysisPolicy({
-        schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
         loads: { stationRelativeTolerance: 1e-9 },
         shearDeformation: true,
         deformationLimits: DEFAULT_DEFORMATION_LIMITS,
         linearSystem: 'sparse',
       }),
     ).toThrow(InvalidLoadValidationPolicyError);
-  });
-
-  it('lehnt ein v2-Dokument ab, statt `linearSystem` zu ergaenzen', () => {
-    // Derselbe Grund wie bei 1 -> 2: ein stillschweigend ergaenzter Default
-    // waere eine Einstellung, die der Anwender nie gewaehlt hat — und hier
-    // waere es die WAHL DES LOESERS. Auch zu diesem Zeitpunkt hatte
-    // `parseAnalysisPolicy` keinen produktiven Aufrufer.
-    const v2 = {
-      schemaVersion: 2,
-      loads: DEFAULT_LOAD_VALIDATION_POLICY,
-      shearDeformation: true,
-      deformationLimits: DEFAULT_DEFORMATION_LIMITS,
-    };
-
-    expect(() => parseAnalysisPolicy(v2)).toThrow(
-      UnsupportedAnalysisPolicySchemaVersionError,
-    );
   });
 
   it('verlangt `linearSystem` und nimmt keine fremde Zeichenkette an', () => {

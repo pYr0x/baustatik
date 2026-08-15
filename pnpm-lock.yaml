@@ -810,6 +810,9 @@ importers:
       '@baustatik/fem-loads':
         specifier: workspace:*
         version: link:../fem-loads
+      '@baustatik/fem-solver':
+        specifier: workspace:*
+        version: link:../fem-solver
       '@baustatik/material':
         specifier: workspace:*
         version: link:../material

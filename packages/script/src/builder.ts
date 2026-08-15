@@ -7,6 +7,10 @@ import {
 import { BaustatikError } from '@baustatik/errors';
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type { BeamLoad, LoadCase, NodeLoad } from '@baustatik/fem-loads';
+import {
+  type AnalysisPolicy,
+  createAnalysisPolicy,
+} from '@baustatik/fem-solver';
 import { lookupMaterial, type Material } from '@baustatik/material';
 import {
   lookupProfile,
@@ -49,18 +53,27 @@ export function defineModel(definition: ModelDefinition): ModelDefinition {
 /**
  * Ein Modellbauer.
  *
- * DIE POLICY WIRD GEPRUEFT UND NICHT NUR ENTGEGENGENOMMEN. `SectionPolicy` ist
- * rein strukturell über `mm = number & { __unit?: 'mm' }`, also geht
+ * BEIDE POLICIES WERDEN GEPRUEFT UND NICHT NUR ENTGEGENGENOMMEN. `SectionPolicy`
+ * ist rein strukturell über `mm = number & { __unit?: 'mm' }`, also geht
  * `{ discretisationTolerance: 0 }` durch den Compiler — und `parseFEMModelSnapshot` wiese
  * den fertigen Satz danach zurück. Der Bauer dürfte nie einen Satz ausgeben,
  * den sein eigener Parser ablehnt; `createSectionPolicy` ist die prüfende Tür,
  * und hier wird sie erzwungen statt erhofft. Ohne Argument liefert sie
  * `DEFAULT_SECTION_POLICY`.
+ *
+ * Für die `analysisPolicy` gilt seit v13 dasselbe Wort für Wort, mit
+ * `createAnalysisPolicy` als Tür (ADR 0049): auch `{ linearSystem: 'iterativ' }`
+ * käme aus reinem JavaScript ungehindert bis hierher. Die Factory nimmt
+ * allerdings OVERRIDES entgegen, dieser Bauer eine VOLLSTAENDIGE Policy — sie
+ * wird hier also nicht gemischt, sondern nur durchgereicht und dabei geprüft.
  */
 export function createFEMModelBuilder(
   config?: FEMModelBuilderConfig,
 ): FEMModelSnapshotBuilder {
-  return new FEMModelBuilderImpl(createSectionPolicy(config?.sectionPolicy));
+  return new FEMModelBuilderImpl(
+    createSectionPolicy(config?.sectionPolicy),
+    createAnalysisPolicy(config?.analysisPolicy),
+  );
 }
 
 const nodeRecords = new WeakMap<NodeHandleImpl, Node>();
@@ -151,9 +164,11 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
   readonly #beamHandles = new WeakSet<BeamHandleImpl>();
   readonly #loadCaseHandles = new WeakSet<LoadCaseHandleImpl>();
   readonly #sectionPolicy: SectionPolicy;
+  readonly #analysisPolicy: AnalysisPolicy;
 
-  constructor(sectionPolicy: SectionPolicy) {
+  constructor(sectionPolicy: SectionPolicy, analysisPolicy: AnalysisPolicy) {
     this.#sectionPolicy = sectionPolicy;
+    this.#analysisPolicy = analysisPolicy;
   }
 
   node(position: Position): NodeHandle {
@@ -342,7 +357,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
 
   finish(): FEMModelSnapshot {
     return structuredClone({
-      schemaVersion: 12,
+      schemaVersion: 13,
       nodes: this.#nodes,
       beams: this.#beams,
       crossSections: this.#crossSections,
@@ -350,6 +365,10 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
       // Der EFFEKTIVE Wert, nicht die Abweichung: was hier steht, gilt, auch
       // wenn sich der Software-Default morgen bewegt (ADR 0033).
       sectionPolicy: this.#sectionPolicy,
+      // Dasselbe fuer die Rechnung (ADR 0049). `structuredClone` loest das
+      // `Object.freeze` beider Policies auf — der Satz ist eine KOPIE, und der
+      // Aufrufer soll an ihr nichts entdecken, was am Original haengt.
+      analysisPolicy: this.#analysisPolicy,
       supports: this.#supports,
       loadCases: this.#loadCases,
     });

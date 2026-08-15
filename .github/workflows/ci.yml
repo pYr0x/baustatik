@@ -65,20 +65,19 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --filter @baustatik/konva-adapter exec playwright install --with-deps chromium
 
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
       # ADR 0036: bis zur ersten Freigabe ist jeder Changeset 'patch'. Ein
       # major/minor-Label ist ein Versionsentscheid, den es ohne Abnehmer nicht gibt.
       # Das Skript parst das Frontmatter robust (einfache/doppelte/keine Anfuehrungszeichen).
       - name: Changesets are patch-only until the first release (ADR 0036)
         run: node scripts/check-release-policy.mjs
 
-      - name: Build
-        run: pnpm build
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Test
-        run: pnpm test
+      - name: Run Turbo Pipeline (Build, Lint, Typecheck, Test)
+        run: pnpm turbo run build typecheck lint test
