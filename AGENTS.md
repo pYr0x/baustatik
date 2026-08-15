@@ -75,12 +75,15 @@ What the scripts do not tell you:
 - CI runs `build → lint → test` on Node 24; `engines` says `>=18`. The pinned
   package manager is `pnpm@11.16.0`.
 - `@baustatik/linear-solver-wasm` and `@baustatik/sparse-solver-wasm` prefer a
-  local Rust toolchain, then build/test in Docker (`rust-wasm:latest`). Without
+  local Rust toolchain, then build/test in Docker (`baustatik/rust-wasm:1.0.0`).
+  The image is built automatically from `docker/Dockerfile.rust`. Without
   either, a build accepts a prebuilt `pkg/`; never skipped in CI or with
   `FORCE_WASM_BUILD=1`. See each package's `CONTEXT.md`.
 - `@baustatik/mesh-2d-wasm` builds its generated `pkg/` with Emscripten 6.0.6:
-  Docker locally, native `emcc` in CI and releases. Its `toolchain.json` and
-  `scripts/build.mjs` are the single source of that toolchain contract.
+  a local `emcc` first, otherwise Docker with
+  `baustatik/emscripten:6.0.6`, native `emcc` in CI and releases. The image is
+  built automatically from `docker/Dockerfile.emscripten`. Its `toolchain.json`
+  and `scripts/build.mjs` are the single source of that toolchain contract.
 - `@baustatik/cross-section-fe`'s suite **meshes and solves for real** and
   therefore needs both `pkg/` artifacts present. It does not skip itself — the
   oracles are the only thing covering the mesh error, so a silent skip would be

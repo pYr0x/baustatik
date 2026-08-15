@@ -1,0 +1,5 @@
+.git
+.turbo
+node_modules
+packages/*/pkg
+packages/*/rust/target

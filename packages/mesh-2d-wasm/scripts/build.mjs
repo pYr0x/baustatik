@@ -7,6 +7,11 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  ensureDockerImage,
+  hasDocker,
+  runDockerBuild,
+} from '../../../scripts/docker-wasm.mjs';
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TOOLCHAIN = JSON.parse(
@@ -82,12 +87,6 @@ function output(command, args) {
   return `${result.stdout}\n${result.stderr}`;
 }
 
-function hasDocker() {
-  return (
-    output('docker', ['info', '--format', '{{.ServerVersion}}']) !== undefined
-  );
-}
-
 function assertVersion(command, args, name) {
   const version = output(command, args);
   if (version === undefined || !version.includes(TOOLCHAIN.emscriptenVersion)) {
@@ -104,22 +103,23 @@ function buildNative() {
 }
 
 function buildDocker() {
+  ensureDockerImage(
+    TOOLCHAIN.dockerImage,
+    TOOLCHAIN.dockerfile,
+    'mesh-2d-wasm',
+  );
   assertVersion(
     'docker',
     ['run', '--rm', TOOLCHAIN.dockerImage, 'emcc', '--version'],
     'Das Docker-Image',
   );
-  run('docker', [
-    'run',
-    '--rm',
-    '--mount',
-    `type=bind,source=${PACKAGE_ROOT},target=/work`,
-    '--workdir',
-    '/work',
-    TOOLCHAIN.dockerImage,
-    'emcc',
-    ...EMSCRIPTEN_ARGS,
-  ]);
+  runDockerBuild({
+    image: TOOLCHAIN.dockerImage,
+    dockerfile: TOOLCHAIN.dockerfile,
+    packageRoot: PACKAGE_ROOT,
+    command: ['emcc', ...EMSCRIPTEN_ARGS],
+    label: 'mesh-2d-wasm',
+  });
 }
 
 function fingerprint() {
@@ -139,6 +139,8 @@ mkdirSync(join(PACKAGE_ROOT, 'pkg'), { recursive: true });
 const expectedFingerprint = fingerprint();
 
 if (isCI || forced) {
+  buildNative();
+} else if (output('emcc', ['--version']) !== undefined) {
   buildNative();
 } else if (hasDocker()) {
   buildDocker();

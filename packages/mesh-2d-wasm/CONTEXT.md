@@ -49,10 +49,11 @@ boundary with Steiner points.
 ## Build
 
 `scripts/build.mjs` is the only source of Emscripten flags. It pins Emscripten
-6.0.6 in `toolchain.json`, builds with Docker locally, and requires native
-`emcc` in CI or when `FORCE_WASM_BUILD=1`. Without Docker, the driver accepts
-`pkg/` only when its source and toolchain fingerprint matches. `pkg/` is
-generated and ignored.
+6.0.6 in `toolchain.json`, prefers native `emcc` locally and otherwise builds
+with `baustatik/emscripten:6.0.6` from `docker/Dockerfile.emscripten`. CI and
+`FORCE_WASM_BUILD=1` require native `emcc`. Without either toolchain, the
+driver accepts `pkg/` only when its source and toolchain fingerprint matches.
+`pkg/` is generated and ignored.
 
 ```text
 pnpm --filter @baustatik/mesh-2d-wasm build

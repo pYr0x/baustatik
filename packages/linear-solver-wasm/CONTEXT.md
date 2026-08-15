@@ -51,8 +51,9 @@ per Port herein (ADR 0009). `apps/demo` ist der einzige Ort, der beide kennt.
 
 `build` und `test` laufen nicht direkt gegen `wasm-pack`/`cargo`, sondern ueber
 `scripts/run-with-toolchain.mjs`. Lokal nutzt es zuerst die vorhandene Toolchain
-und sonst Docker mit `rust-wasm:latest`. Erst wenn beides fehlt, darf ein
-vorhandenes `pkg/` den Build ueberspringen; dazu müssen
+und sonst das automatisch aus `docker/Dockerfile.rust` gebaute Image
+`baustatik/rust-wasm:1.0.0`. Erst wenn beides fehlt, darf ein vorhandenes
+`pkg/` den Build ueberspringen; dazu müssen
 `pkg/linear_solver_wasm.js` und `pkg/linear_solver_wasm_bg.wasm` vorhanden sein.
 In CI (`CI` gesetzt) und mit `FORCE_WASM_BUILD=1` wird nie auf Docker oder ein
 vorgebautes Artefakt ausgewichen — eine fehlende native Toolchain ist dort ein

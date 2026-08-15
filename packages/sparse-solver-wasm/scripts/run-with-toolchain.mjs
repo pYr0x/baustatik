@@ -7,9 +7,10 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hasDocker, runDockerBuild } from '../../../scripts/docker-wasm.mjs';
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const RUST_WASM_IMAGE = 'rust-wasm:latest';
+const RUST_WASM_IMAGE = 'baustatik/rust-wasm:1.0.0';
 
 const TASKS = {
   build: {
@@ -84,34 +85,15 @@ function runNative() {
   if (taskName === 'build') removeWasmPackGitignore();
 }
 
-function hasDocker() {
-  const probe = spawnSync(
-    'docker',
-    ['info', '--format', '{{.ServerVersion}}'],
-    {
-      stdio: 'ignore',
-      shell: process.platform === 'win32',
-    },
-  );
-  return probe.error === undefined && probe.status === 0;
-}
-
 function runDocker() {
   const [bin, ...args] = task.command;
-  console.log(
-    `[sparse-solver-wasm] lokale Toolchain fehlt; verwende ${RUST_WASM_IMAGE}.`,
-  );
-  run('docker', [
-    'run',
-    '--rm',
-    '--mount',
-    `type=bind,source=${PACKAGE_ROOT},target=/work`,
-    '--workdir',
-    '/work',
-    RUST_WASM_IMAGE,
-    bin,
-    ...args,
-  ]);
+  runDockerBuild({
+    image: RUST_WASM_IMAGE,
+    dockerfile: 'docker/Dockerfile.rust',
+    packageRoot: PACKAGE_ROOT,
+    command: [bin, ...args],
+    label: 'sparse-solver-wasm',
+  });
   if (taskName === 'build') removeWasmPackGitignore();
 }
 
@@ -138,7 +120,7 @@ if (missingArtifacts.length > 0) {
   console.error(
     `[sparse-solver-wasm] "${task.tool}" und Docker fehlen, und es liegt kein vorgebautes pkg/ vor ` +
       `(fehlend: ${missingArtifacts.join(', ')}).\n` +
-      '    Entweder Rust + wasm-pack installieren, Docker mit rust-wasm:latest bereitstellen ' +
+      '    Entweder Rust + wasm-pack installieren, Docker mit baustatik/rust-wasm:1.0.0 bereitstellen ' +
       'oder das pkg/-Verzeichnis von einem Rechner mit Toolchain kopieren.',
   );
   process.exit(1);

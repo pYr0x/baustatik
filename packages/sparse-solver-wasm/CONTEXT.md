@@ -88,10 +88,11 @@ einem Worker (ADR 0009).
 ## Build
 
 `scripts/run-with-toolchain.mjs` nutzt lokal zuerst `wasm-pack` beziehungsweise
-`cargo`. Fehlt das Werkzeug, führt es den Task im Docker-Image
-`rust-wasm:latest` aus. Nur ohne lokale Toolchain und Docker akzeptiert der
-Build ein vorhandenes `pkg/`; CI und `FORCE_WASM_BUILD=1` verlangen immer die
-native Toolchain.
+`cargo`. Fehlt das Werkzeug, baut es bei Bedarf das Image aus
+`docker/Dockerfile.rust` und führt den Task in
+`baustatik/rust-wasm:1.0.0` aus. Nur ohne lokale Toolchain und Docker akzeptiert
+der Build ein vorhandenes `pkg/`; CI und `FORCE_WASM_BUILD=1` verlangen immer
+die native Toolchain.
 
 ```text
 pnpm --filter @baustatik/sparse-solver-wasm build

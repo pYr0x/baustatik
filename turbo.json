@@ -3,7 +3,13 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "pkg/**", ".next/**", "!.next/cache/**", ".output/**"]
+      "outputs": [
+        "dist/**",
+        "pkg/**",
+        ".next/**",
+        "!.next/cache/**",
+        ".output/**"
+      ]
     },
     "test": {
       "dependsOn": ["^build"],
@@ -25,6 +31,8 @@
         "vendor/triangle/triangle.c",
         "vendor/triangle/triangle.h",
         "scripts/build.mjs",
+        "../../scripts/docker-wasm.mjs",
+        "../../docker/Dockerfile.emscripten",
         "toolchain.json",
         "package.json",
         "tsconfig.json"
@@ -54,6 +62,8 @@
         "rust/Cargo.toml",
         "rust/Cargo.lock",
         "scripts/run-with-toolchain.mjs",
+        "../../scripts/docker-wasm.mjs",
+        "../../docker/Dockerfile.rust",
         "package.json"
       ]
     },
@@ -62,6 +72,8 @@
       "inputs": [
         "rust/**",
         "scripts/run-with-toolchain.mjs",
+        "../../scripts/docker-wasm.mjs",
+        "../../docker/Dockerfile.rust",
         "package.json"
       ],
       "outputs": ["pkg/**"]
@@ -71,6 +83,8 @@
       "inputs": [
         "rust/**",
         "scripts/run-with-toolchain.mjs",
+        "../../scripts/docker-wasm.mjs",
+        "../../docker/Dockerfile.rust",
         "package.json"
       ],
       "outputs": ["pkg/**"]
@@ -82,6 +96,8 @@
         "rust/Cargo.toml",
         "rust/Cargo.lock",
         "scripts/run-with-toolchain.mjs",
+        "../../scripts/docker-wasm.mjs",
+        "../../docker/Dockerfile.rust",
         "package.json"
       ]
     },
