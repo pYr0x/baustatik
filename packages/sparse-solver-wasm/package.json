@@ -1,6 +1,6 @@
 {
   "name": "@baustatik/sparse-solver-wasm",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": false,
   "files": [
     "pkg",

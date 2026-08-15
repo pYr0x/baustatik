@@ -1,5 +1,11 @@
 # @baustatik/mesh-2d-wasm
 
+## 0.0.4
+
+### Patch Changes
+
+- 8243eae: Use reproducible Docker toolchains as the local fallback for WASM builds.
+
 ## 0.0.3
 
 ### Patch Changes
