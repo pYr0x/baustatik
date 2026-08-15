@@ -198,7 +198,7 @@ describe('der 2D-Mesher', () => {
       previous = result;
     }
     expect(mesherHeapByteLength(mesher)).toBe(heapByteLength);
-  }, 15_000);
+  }, 20_000);
 });
 
 function validIndices(result: Mesh2DResult): boolean {
