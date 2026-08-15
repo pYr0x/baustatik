@@ -80,4 +80,4 @@ jobs:
         run: node scripts/check-release-policy.mjs
 
       - name: Run Turbo Pipeline (Build, Lint, Typecheck, Test)
-        run: pnpm turbo run build typecheck lint test
+        run: pnpm turbo run build typecheck lint test --cache-dir=.turbo/cache --summarize
