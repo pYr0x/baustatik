@@ -133,7 +133,10 @@ The four limits are data, not a capability, so they join the versioned
 `AnalysisPolicy` as `deformationLimits` rather than becoming a port (ADR 0011).
 `ANALYSIS_POLICY_SCHEMA_VERSION` goes from 1 to 2; no migration path exists,
 because at the time of the bump `parseAnalysisPolicy` had no production caller
-and nothing was persisted.
+and nothing was persisted. (That counter reached `3` and was then removed
+entirely — the policy is versioned by the document that carries it,
+[ADR 0049](0049-the-tool-document-is-the-versioned-record-unit.md). The
+`deformationLimits` decision here is unaffected.)
 
 Unlike `SingularStiffnessMatrixError`, `ImplausibleDisplacementError` names the
 node **exactly**. The pivot marks where the rank deficiency became visible during

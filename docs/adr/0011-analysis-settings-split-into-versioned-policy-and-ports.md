@@ -1,5 +1,15 @@
 # Analysis settings split into a versioned policy and ports
 
+> **Amended by [ADR 0049](0049-the-tool-document-is-the-versioned-record-unit.md)
+> on *where* the version sits.** The split below — data versus capability — is
+> untouched, and so is "the version sits on the record rather than on the
+> program". What changed is which record: `AnalysisPolicy` no longer carries a
+> `schemaVersion` of its own. It is a mandatory field of the `FEMModelSnapshot`
+> (v13), and that document versions it. `ANALYSIS_POLICY_SCHEMA_VERSION` and
+> `UnsupportedAnalysisPolicySchemaVersionError` are gone; `parseAnalysisPolicy`
+> checks form only. The reasoning below is kept as it was written, when the
+> policy still travelled alone.
+
 An **analysis setting** is anything that steers the computation without changing
 the model. A column's cross-section belongs to the model; whether its shear
 deformation is accounted for is a setting.

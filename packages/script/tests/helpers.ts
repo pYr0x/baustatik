@@ -13,7 +13,7 @@
  */
 
 /** Die aktuelle Schemaversion des Snapshots. */
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 /**
  * Die `SectionPolicy` des Rumpfs — die EFFEKTIVEN Werte, wie sie seit ADR 0033
@@ -30,6 +30,29 @@ export const SNAPSHOT_SECTION_POLICY = {
   FEElements: 4000,
 };
 
+/**
+ * Die `AnalysisPolicy` des Rumpfs — seit v13 Pflichtfeld und ebenfalls in den
+ * EFFEKTIVEN Werten (ADR 0049).
+ *
+ * AUSGESCHRIEBEN statt `DEFAULT_ANALYSIS_POLICY` importiert, aus demselben
+ * Grund wie oben bei der `SectionPolicy`: die Fixture soll den Satz ZEIGEN. Ein
+ * importierter Default liesse einen Test gruen bleiben, der genau die Frage
+ * stellt, ob das Feld ueberhaupt im Satz steht.
+ */
+export const SNAPSHOT_ANALYSIS_POLICY = {
+  loads: {
+    stationRelativeTolerance: 1e-9,
+    minimumReferenceFactor: 1e-9,
+    suspiciousReferenceFactor: 0.05,
+  },
+  shearDeformation: true,
+  deformationLimits: {
+    warn: { rotation: 0.1, relativeDisplacement: 0.1 },
+    fail: { rotation: 1e3, relativeDisplacement: 1e4 },
+  },
+  linearSystem: 'sparse',
+};
+
 /** Ein vollständiger, gültiger Rumpf zum Überschreiben einzelner Felder. */
 export function snapshot(overrides: Record<string, unknown> = {}) {
   return {
@@ -39,6 +62,7 @@ export function snapshot(overrides: Record<string, unknown> = {}) {
     crossSections: [],
     materials: [],
     sectionPolicy: { ...SNAPSHOT_SECTION_POLICY },
+    analysisPolicy: structuredClone(SNAPSHOT_ANALYSIS_POLICY),
     supports: [],
     loadCases: [],
     ...overrides,

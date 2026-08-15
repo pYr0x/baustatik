@@ -10,7 +10,8 @@
  *
  *   DATEN — schreibbar als JSON. Toleranzen, Warnschwellen,
  *           `shearDeformation`. Sie wohnen HIER, in der `AnalysisPolicy`, und
- *           werden versioniert persistiert.
+ *           werden persistiert — VERSIONIERT WIRD SIE NICHT MEHR HIER, sondern
+ *           von dem Dokument, das sie traegt (ADR 0049).
  *   FAEHIGKEIT — ist Code. `formulation`, `solveLinearSystem`,
  *           `getSectionStiffness`. Sie bleiben Ports in `SolverConfig`.
  *
@@ -34,23 +35,7 @@ import {
   type LoadValidationPolicyOverrides,
   parseLoadValidationPolicy,
 } from '@baustatik/fem-loads';
-import {
-  InvalidAnalysisPolicyError,
-  UnsupportedAnalysisPolicySchemaVersionError,
-} from './errors';
-
-/**
- * Die Version der persistierten Form.
- *
- * Steht am Datensatz und nicht am Programm, weil ein Projekt laenger lebt als
- * eine Fassung der Software: der Parser muss sagen koennen „das ist eine
- * neuere Datei", statt an einem unbekannten Feld zu scheitern.
- *
- * `3` seit `linearSystem` dazugekommen ist, OHNE Migrationspfad — dieselbe
- * Begründung wie bei 1 -> 2: es liegt nichts Persistiertes herum, das zu
- * migrieren wäre. Eine Version 2 wird abgelehnt, nicht ergänzt.
- */
-export const ANALYSIS_POLICY_SCHEMA_VERSION = 3;
+import { InvalidAnalysisPolicyError } from './errors';
 
 /**
  * Die beiden Rechenwege durch `K d = F`.
@@ -129,10 +114,15 @@ export const DEFAULT_DEFORMATION_LIMITS: DeformationLimits = Object.freeze({
  * VOLLSTAENDIG heisst: hier stehen die effektiven Werte, nicht die
  * Abweichungen. Sonst rechnete dasselbe Projekt nach einer Aenderung der
  * Software-Defaults still anders.
+ *
+ * OHNE EIGENE `schemaVersion` (ADR 0049). Sie stand hier, solange die Policy
+ * fuer sich allein reiste; seit sie Pflichtfeld des `FEMModelSnapshot` ist,
+ * versioniert ihn dessen `schemaVersion` mit. Ein zweiter Zaehler auf einem
+ * Teilsatz waere eine zweite Wahrheit ueber dieselben Bytes — und die einzige
+ * Antwort, die er gab („diese Datei ist neuer als das Programm"), gibt jetzt
+ * das Dokument.
  */
 export type AnalysisPolicy = {
-  readonly schemaVersion: typeof ANALYSIS_POLICY_SCHEMA_VERSION;
-
   /** Die Scheibe von `@baustatik/fem-loads` — dort wohnen ihre Regeln. */
   readonly loads: LoadValidationPolicy;
 
@@ -188,13 +178,7 @@ export type AnalysisPolicy = {
   readonly linearSystem: LinearSystemKind;
 };
 
-/**
- * Was ein Aufrufer abweichend setzen darf — verschachtelt nach Eigentuemer.
- *
- * `schemaVersion` fehlt bewusst: die aktuelle Fassung schreibt immer die
- * aktuelle Version. Eine gewaehlte Version waere eine zweite Wahrheit ueber die
- * Form der Daten.
- */
+/** Was ein Aufrufer abweichend setzen darf — verschachtelt nach Eigentuemer. */
 export type AnalysisPolicyOverrides = {
   readonly loads?: LoadValidationPolicyOverrides;
   readonly shearDeformation?: boolean;
@@ -207,7 +191,6 @@ export type AnalysisPolicyOverrides = {
 
 /** Die Voreinstellung der gesamten Rechenkette. */
 export const DEFAULT_ANALYSIS_POLICY: AnalysisPolicy = Object.freeze({
-  schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
   loads: DEFAULT_LOAD_VALIDATION_POLICY,
   shearDeformation: true,
   deformationLimits: DEFAULT_DEFORMATION_LIMITS,
@@ -215,7 +198,6 @@ export const DEFAULT_ANALYSIS_POLICY: AnalysisPolicy = Object.freeze({
 });
 
 const FIELDS = [
-  'schemaVersion',
   'loads',
   'shearDeformation',
   'deformationLimits',
@@ -241,7 +223,6 @@ export function createAnalysisPolicy(
   }
 
   return Object.freeze({
-    schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
     loads: createLoadValidationPolicy(overrides.loads),
     shearDeformation:
       overrides.shearDeformation ?? DEFAULT_ANALYSIS_POLICY.shearDeformation,
@@ -345,30 +326,15 @@ function assertValidDeformationLimits(limits: DeformationLimits): void {
 /**
  * Eine Policy aus einem Projektdatensatz.
  *
- * STRIKT und in dieser REIHENFOLGE: erst die Version, dann die Form. Ein
- * Dokument aus einer neueren Fassung hat legitim Felder, die es hier noch nicht
- * gibt — „unbekanntes Feld" waere darauf die falsche Auskunft, und der
- * Anwender braucht die andere („diese Datei ist neuer als das Programm"), um
- * etwas dagegen tun zu koennen.
+ * PRUEFT NUR NOCH DIE FORM — vollstaendig, keine unbekannten Felder,
+ * Werteregeln. Die Frage „ist diese Datei neuer als das Programm?" beantwortet
+ * seit ADR 0049 die `schemaVersion` DES DOKUMENTS, und sie beantwortet sie
+ * ZUERST: `parseFEMModelSnapshot` lehnt einen fremden Satz ab, bevor er hier
+ * ankommt. Deshalb ist „unbekanntes Feld" hier die richtige Auskunft — wer bis
+ * hierher kommt, hat die passende Dokumentversion.
  */
 export function parseAnalysisPolicy(input: unknown): AnalysisPolicy {
   const record = asRecord(input);
-
-  const schemaVersion = record.schemaVersion;
-  if (typeof schemaVersion !== 'number') {
-    throw new InvalidAnalysisPolicyError(
-      schemaVersion === undefined
-        ? '"schemaVersion" fehlt.'
-        : `"schemaVersion" muss eine Zahl sein (war: ${typeof schemaVersion}).`,
-      'schemaVersion',
-    );
-  }
-  if (schemaVersion !== ANALYSIS_POLICY_SCHEMA_VERSION) {
-    throw new UnsupportedAnalysisPolicySchemaVersionError(
-      schemaVersion,
-      ANALYSIS_POLICY_SCHEMA_VERSION,
-    );
-  }
 
   for (const key of Object.keys(record)) {
     if (!(FIELDS as readonly string[]).includes(key)) {
@@ -399,7 +365,6 @@ export function parseAnalysisPolicy(input: unknown): AnalysisPolicy {
   }
 
   return Object.freeze({
-    schemaVersion: ANALYSIS_POLICY_SCHEMA_VERSION,
     // Das Blatt prueft sein Eigentuemer — samt seiner eigenen Fehlerklasse.
     loads: parseLoadValidationPolicy(record.loads),
     shearDeformation,

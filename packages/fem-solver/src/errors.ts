@@ -438,26 +438,8 @@ export class InvalidSolverConfigError extends BaustatikError {
   }
 }
 
-/**
- * Der Datensatz traegt eine Schema-Version, die diese Fassung nicht kennt.
- *
- * EIGENE KLASSE und nicht `InvalidAnalysisPolicyError`, weil der Anwender
- * verschiedene Dinge tun kann: eine kaputte Einstellung repariert er, eine
- * neuere Datei oeffnet er mit einer neueren Fassung. Die Unterscheidung geht
- * verloren, sobald beides derselbe Fehler ist.
- */
-export class UnsupportedAnalysisPolicySchemaVersionError extends BaustatikError {
-  readonly schemaVersion: number;
-  readonly supportedSchemaVersion: number;
-
-  // Die unterstuetzte Version kommt als Argument und nicht aus `policy.ts`:
-  // andersherum importierte `errors.ts` aus dem Modul, das es selbst importiert.
-  constructor(schemaVersion: number, supportedSchemaVersion: number) {
-    super(
-      `Analyse-Einstellung: Schema-Version ${schemaVersion} wird nicht ` +
-        `unterstuetzt (unterstuetzt wird ${supportedSchemaVersion}).`,
-    );
-    this.schemaVersion = schemaVersion;
-    this.supportedSchemaVersion = supportedSchemaVersion;
-  }
-}
+// `UnsupportedAnalysisPolicySchemaVersionError` stand hier, solange die
+// `AnalysisPolicy` ihre eigene `schemaVersion` trug. Seit ADR 0049 versioniert
+// sie das Dokument, das sie traegt, und die Auskunft „diese Datei ist neuer als
+// das Programm" gibt `parseFEMModelSnapshot` — an EINER Stelle, fuer den
+// ganzen Satz.

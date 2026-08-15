@@ -260,16 +260,24 @@ entscheiden bleibt, ob `clipper2-ts` martinez ganz ablöst:
 
 ## 6. Das Projekt als Behälter — die Tool-Dokumente und ihre modellgebundenen Policies
 
-**Der Befund, der diesen Abschnitt auslöst:** die `AnalysisPolicy` wird heute
+> **Erledigt für den FEM-Teil, 2026-08-15
+> ([ADR 0049](../docs/adr/0049-the-tool-document-is-the-versioned-record-unit.md)).**
+> Die `AnalysisPolicy` ist seit Snapshot **v13** Pflichtfeld des
+> `FEMModelSnapshot` und hat ihre eigene `ANALYSIS_POLICY_SCHEMA_VERSION`
+> (zuletzt 3) dabei verloren. Die Frage „wie viele `schemaVersion` trägt eine
+> Projektdatei?" ist damit beantwortet: **eine pro Tool-Dokument.** Offen
+> bleibt der Rest dieses Abschnitts — der Projekt-Behälter und der Umzug der
+> `sectionPolicy` in das künftige Querschnitts-Dokument.
+
+**Der Befund, der diesen Abschnitt auslöste:** die `AnalysisPolicy` wurde
 **nirgends** persistiert. Typ, Default und der strikte `parseAnalysisPolicy`
 existieren seit [ADR 0011](../docs/adr/0011-analysis-settings-split-into-versioned-policy-and-ports.md)
-und tragen eine eigene `ANALYSIS_POLICY_SCHEMA_VERSION` (heute 2) — aber der
-Parser hat bis heute **keinen produktiven Aufrufer**, und genau deshalb durfte
+und trugen eine eigene `ANALYSIS_POLICY_SCHEMA_VERSION` — aber der
+Parser hatte **keinen produktiven Aufrufer**, und genau deshalb durfte
 der Sprung 1 → 2 ohne Migrationspfad passieren (`fem-solver/CONTEXT.md`). Die
-Einstellung erreicht die Rechnung ausschließlich zur Laufzeit über
-`SolverConfig.analysisPolicy`. Das ändert sich: sie wird modellgebunden, wie es
-`SectionPolicy` schon ist. Der Plan dafür steht in
-[`plan-refactor-policy.md`](plan-refactor-policy.md).
+Einstellung erreichte die Rechnung ausschließlich zur Laufzeit über
+`SolverConfig.analysisPolicy`. Das hat sich geändert: sie ist modellgebunden,
+wie es `SectionPolicy` schon war.
 
 ### Die Gliederung, die gilt: Positionen sind Tools
 
@@ -306,7 +314,8 @@ urteilt.
   `schemaVersion` trägt eine Projektdatei?" ist damit beantwortet: eine pro
   Tool-Dokument, plus eine für die Projekt-Hülle (Name, Bauvorhaben, Verweise).
   Eigene Zähler auf Policies (`ANALYSIS_POLICY_SCHEMA_VERSION`) wären die
-  „zweite Wahrheit über dieselben Bytes", gegen die ADR 0033 argumentiert.
+  „zweite Wahrheit über dieselben Bytes", gegen die ADR 0033 argumentiert —
+  **umgesetzt in ADR 0049**, der Zähler ist entfallen.
 - **Migration verhält sich wie ein Programm-Update.** Ändert ein Package
   Berechnungsgrundlagen oder Toleranzen, muss die Datei migriert werden, und
   der Anwender bestätigt. Ausgelöst wird die Migration von der **Version am

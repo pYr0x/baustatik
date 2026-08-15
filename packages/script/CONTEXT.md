@@ -80,7 +80,8 @@ into a snapshot.
   `crossSectionId` pointing nowhere; a v2 snapshot's `materialId` *is* the grade
   rather than a reference; a v3 snapshot lacks the copied numbers; a v6 lacks
   the `sectionPolicy` under which its carried outlines were produced; a v7, v8
-  or v9 carries that policy with only some of its five fields. **Every snapshot
+  or v9 carries that policy with only some of its five fields; a v12 lacks the
+  `analysisPolicy` entirely. **Every snapshot
   that carries a partial policy is the most tempting of all** —
   `DEFAULT_SECTION_POLICY` is sitting right there — and also the worst:
   substituting it would *assert* that the outline was discretised at 0.05 mm
@@ -106,6 +107,21 @@ into a snapshot.
   `createFEMModelBuilder({ sectionPolicy })` takes a *complete* policy, never
   overrides — the same rule as `SolverConfig.analysisPolicy`, so one application
   composes it once and hands the same frozen object to builder, gate and viewer.
+- **`analysisPolicy` is a mandatory project-level field since v13**, and the
+  snapshot is therefore the **one** versioned record unit: `AnalysisPolicy` lost
+  its own `ANALYSIS_POLICY_SCHEMA_VERSION` in the same move
+  ([ADR 0049](../../docs/adr/0049-the-tool-document-is-the-versioned-record-unit.md)).
+  Two counters over the same bytes can disagree, and `schemaVersion` here
+  answers the only question the other one asked — *is this file newer than the
+  program?* — before `parseAnalysisPolicy` ever sees the sub-record. It carries
+  **effective** values for the same reason `sectionPolicy` does; the difference
+  is what a substituted default would assert. For `sectionPolicy` it would be a
+  figure built under a tolerance nobody chose; here it would be a calculation
+  run under instructions nobody gave — `shearDeformation` and `linearSystem`.
+  **Its owner validates it too:** the parser calls `parseAnalysisPolicy` from
+  `@baustatik/fem-solver` and lets `InvalidAnalysisPolicyError` travel outward.
+  This is why this package depends on `fem-solver` at all; nothing here calls
+  the solver.
 - **Shape, not resolvability.** The parser checks discriminators, exact key
   sets, types and positive numbers. It does **not** check that a `profile` or a
   `grade` exists in the catalogue, that any id resolves, **or that `data`/`moduli`

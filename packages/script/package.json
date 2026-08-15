@@ -29,6 +29,7 @@
     "@baustatik/errors": "workspace:*",
     "@baustatik/fem": "workspace:*",
     "@baustatik/fem-loads": "workspace:*",
+    "@baustatik/fem-solver": "workspace:*",
     "@baustatik/material": "workspace:*",
     "@baustatik/steel-profiles": "workspace:*"
   },

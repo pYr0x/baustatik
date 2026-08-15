@@ -13,6 +13,7 @@ import type {
   LoadCase,
   NodeLoad,
 } from '@baustatik/fem-loads';
+import type { AnalysisPolicy } from '@baustatik/fem-solver';
 import type { Material, MaterialKind } from '@baustatik/material';
 
 type Without<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -163,20 +164,23 @@ export interface FEMModelSnapshotBuilder extends FEMModelBuilder {
 }
 
 /**
- * Was `createFEMModelBuilder` beim Aufbau braucht — heute genau eine Sache.
+ * Was `createFEMModelBuilder` beim Aufbau braucht — die beiden Policies des
+ * Dokuments.
  *
- * EINE VOLLSTAENDIGE POLICY, KEINE OVERRIDES, wie `SolverConfig.analysisPolicy`
+ * VOLLSTAENDIGE POLICIES, KEINE OVERRIDES, wie `SolverConfig.analysisPolicy`
  * und aus demselben Grund: die Anwendung ruft einmal `createSectionPolicy(…)`
- * und reicht exakt dasselbe unveränderliche Objekt an den Builder, an das
- * Gate und an den Viewer weiter. Nähme diese Stelle Abweichungen entgegen,
- * gäbe es zwei Orte, an denen derselbe Satz unterschiedlich zusammengesetzt
- * werden könnte.
+ * beziehungsweise `createAnalysisPolicy(…)` und reicht exakt dasselbe
+ * unveränderliche Objekt an den Builder, an das Gate und an den Viewer weiter.
+ * Nähme diese Stelle Abweichungen entgegen, gäbe es zwei Orte, an denen
+ * derselbe Satz unterschiedlich zusammengesetzt werden könnte.
  *
- * Auslassen heißt `DEFAULT_SECTION_POLICY` — im SATZ steht danach trotzdem
- * der vollständige, effektive Wert (ADR 0033).
+ * Auslassen heißt `DEFAULT_SECTION_POLICY` beziehungsweise
+ * `DEFAULT_ANALYSIS_POLICY` — im SATZ steht danach trotzdem der vollständige,
+ * effektive Wert (ADR 0033, ADR 0049).
  */
 export type FEMModelBuilderConfig = {
   readonly sectionPolicy?: SectionPolicy;
+  readonly analysisPolicy?: AnalysisPolicy;
 };
 
 /**
@@ -276,6 +280,27 @@ export type FEMModelBuilderConfig = {
  * still umzuschreiben hieße, eine Verweigerung in Zahlen zu verwandeln, die
  * niemand nachgerechnet hat.
  *
+ * **v13 — das Tool-Dokument ist die Datensatz-Einheit.** `analysisPolicy` wird
+ * PFLICHTFELD neben `sectionPolicy`, und die `AnalysisPolicy` verliert im
+ * selben Zug ihre eigene `schemaVersion`
+ * ([ADR 0049](../../../docs/adr/0049-the-tool-document-is-the-versioned-record-unit.md)).
+ *
+ * ZWEI ZÄHLER ÜBER DENSELBEN BYTES SIND EINER ZU VIEL. Die Analyse-Einstellung
+ * zählte seit ADR 0011 für sich (`ANALYSIS_POLICY_SCHEMA_VERSION`, zuletzt
+ * `3`), weil sie damals allein reiste — sie stand in keinem Dokument. Sobald
+ * sie IN diesem Satz steht, beantwortet dessen `schemaVersion` die einzige
+ * Frage, die ein eigener Zähler stellte („ist diese Datei neuer als das
+ * Programm?"), und zwar FRÜHER: `parseFEMModelSnapshot` weist ab, bevor
+ * `parseAnalysisPolicy` den Teilsatz überhaupt sieht. Zwei Zähler könnten
+ * einander widersprechen, und dann gäbe es keine Regel, welcher gilt.
+ *
+ * PFLICHT UND NICHT OPTIONAL, aus dem Grund, aus dem `sectionPolicy` es seit
+ * v7 ist: die Policy führt die EFFEKTIVEN Werte. Wäre sie auslassbar, hinge
+ * dasselbe Modell still an den Defaults der gerade laufenden Fassung — ein
+ * geändertes `shearDeformation` oder `linearSystem` rechnete andere Zahlen,
+ * ohne dass jemand etwas gewählt hätte. Ein v12 hat das Feld nicht und wird
+ * ABGEWIESEN.
+ *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein älterer Snapshot
  * wird ABGELEHNT. Ein v3 per Lookup zu ergänzen wäre genau die stille
  * Auflösung, die v4 abschafft — einmal ausgeführt im ungünstigsten Moment
@@ -285,7 +310,7 @@ export type FEMModelBuilderConfig = {
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 12;
+  readonly schemaVersion: 13;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];
@@ -300,6 +325,21 @@ export interface FEMModelSnapshot {
    * darf.
    */
   readonly sectionPolicy: SectionPolicy;
+  /**
+   * Die Analyse-Einstellung des Projekts, VOLLSTAENDIG und PFLICHT (seit v13,
+   * ADR 0049).
+   *
+   * DIE ZWEITE POLICY DESSELBEN DOKUMENTS, und die Trennlinie zwischen beiden
+   * ist ADR 0011s: `sectionPolicy` ändert das MODELL — unter ihr entsteht der
+   * mitgeführte Umriss —, `analysisPolicy` ändert nur die RECHNUNG darüber.
+   * Deshalb sind es zwei Felder und nicht eines.
+   *
+   * SIE TRÄGT KEINE EIGENE `schemaVersion` mehr: dieser Satz versioniert sie
+   * mit. Was sie NICHT enthält, sind die Ports (`formulation`,
+   * `solveLinearSystem`, `getSectionStiffness`) — Fähigkeit ist Code und hat
+   * keine JSON-Form, sie bleibt in `SolverConfig`.
+   */
+  readonly analysisPolicy: AnalysisPolicy;
   readonly supports: readonly NodeSupport[];
   readonly loadCases: readonly LoadCase[];
 }

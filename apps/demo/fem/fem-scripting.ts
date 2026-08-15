@@ -7,7 +7,12 @@ import {
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import { resolveSectionStiffness } from '@baustatik/fem-section-resolve';
 import { effectiveLoads, type LoadCase } from '@baustatik/fem-loads';
-import { createFEMSolver } from '@baustatik/fem-solver';
+import {
+  type AnalysisPolicy,
+  createAnalysisPolicy,
+  createFEMSolver,
+  type FEMSolver,
+} from '@baustatik/fem-solver';
 import type { Material } from '@baustatik/material';
 import { createFEMViewer, FEM_LAYERS } from '@baustatik/fem-viewer';
 import { createKonvaAdapter } from '@baustatik/konva-adapter';
@@ -103,6 +108,11 @@ const useFEMScriptStore = defineStore('fem-scripting', {
     // seine Bogenwaende zerlegen (ADR 0033, ADR 0040). Bis das erste Modell
     // geladen ist, steht die Voreinstellung da.
     sectionPolicy: createSectionPolicy() as SectionPolicy,
+    // Die ZWEITE Policy des Dokuments, seit Snapshot v13 ebenfalls Pflichtfeld
+    // (ADR 0049) — und sie reist genauso mit: unter ihr ist das Skriptergebnis
+    // zu rechnen. Bis das erste Modell geladen ist, steht auch hier die
+    // Voreinstellung.
+    analysisPolicy: createAnalysisPolicy() as AnalysisPolicy,
     supports: [] as NodeSupport[],
     loadCases: [] as LoadCase[],
     activeLoadCaseId: '',
@@ -128,6 +138,7 @@ const useFEMScriptStore = defineStore('fem-scripting', {
         state.crossSections = [...snapshot.crossSections];
         state.materials = [...snapshot.materials];
         state.sectionPolicy = snapshot.sectionPolicy;
+        state.analysisPolicy = snapshot.analysisPolicy;
         state.supports = [...snapshot.supports];
         state.loadCases = snapshot.loadCases.map((loadCase) =>
           structuredClone(loadCase),
@@ -179,20 +190,34 @@ const viewer = createFEMViewer({
 viewer.requestRender();
 store.$subscribe(() => viewer.requestRender());
 
-const solver = createFEMSolver({
-  getNodes: () => store.nodes,
-  getBeams: () => store.beams,
-  getSupports: () => store.supports,
-  getLoadCases: () => store.loadCases,
-  // Ab hier rechnet die FEM ECHT. Der Snapshot ist selbsttragend — seit v4
-  // nicht nur in den Verweisen, sondern in den ZAHLEN: die Profilzeile und die
-  // Moduln reisen als Kopie mit (ADR 0027). Deshalb steht hier kein Katalog
-  // mehr, und ein Modell rechnet in zwei Jahren, was es heute rechnet.
-  getSectionStiffness: (beam) => resolveSectionStiffness(beam, store),
-  // BEIDE Ports: welcher rechnet, sagt die `AnalysisPolicy` (ADR 0042).
-  solveLinearSystem,
-  solveSparseSystem,
-});
+/**
+ * Der Rechenkopf zum aktuellen Store-Zustand.
+ *
+ * DIE MODELLTEILE KOMMEN ALS PORT herein und werden bei jedem Aufruf frisch
+ * gelesen — die `analysisPolicy` NICHT: `createFEMSolver` loest sie einmal beim
+ * Bauen auf (`InvalidSolverConfigError`, ADR 0043). Ein Skript, das einen Satz
+ * mit anderer Einstellung mitbringt, braucht deshalb einen NEUEN Kopf, sonst
+ * rechnete der alte still unter der alten Policy weiter.
+ */
+function buildSolver(): FEMSolver {
+  return createFEMSolver({
+    getNodes: () => store.nodes,
+    getBeams: () => store.beams,
+    getSupports: () => store.supports,
+    getLoadCases: () => store.loadCases,
+    // Ab hier rechnet die FEM ECHT. Der Snapshot ist selbsttragend — seit v4
+    // nicht nur in den Verweisen, sondern in den ZAHLEN: die Profilzeile und die
+    // Moduln reisen als Kopie mit (ADR 0027). Deshalb steht hier kein Katalog
+    // mehr, und ein Modell rechnet in zwei Jahren, was es heute rechnet.
+    getSectionStiffness: (beam) => resolveSectionStiffness(beam, store),
+    // BEIDE Ports: welcher rechnet, sagt die `AnalysisPolicy` (ADR 0042).
+    solveLinearSystem,
+    solveSparseSystem,
+    analysisPolicy: store.analysisPolicy,
+  });
+}
+
+let solver = buildSolver();
 
 runButton.addEventListener('click', () => void runScript());
 editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
@@ -246,6 +271,12 @@ async function runScript(): Promise<void> {
       setStatus('Modellfehler', [errorMessage(error)], 'error');
       return;
     }
+
+    // Der Rechenkopf wird NEU gebaut und nicht umgebaut: mit dem Satz kam
+    // seine `analysisPolicy`, und die liest `createFEMSolver` nur beim Bauen
+    // (ADR 0049). Erst NACH `replaceModel`, damit ein abgewiesener Satz den
+    // alten, gueltigen Kopf stehen laesst.
+    solver = buildSolver();
 
     // DER AUFLOESUNGSSCHRITT, an genau der Stelle, an der er hingehoert:
     // zwischen „Modell steht" und „Modell rechnen". `runScript` ist ohnehin
