@@ -8,7 +8,7 @@
 ![WASM](https://img.shields.io/badge/WASM-fear%20%7C%20Triangle-654FF0?logo=webassembly&logoColor=white&style=flat-square)
 [![Changesets](https://img.shields.io/badge/maintained%20with-changesets-172b4d?logo=github&style=flat-square)](https://github.com/changesets/changesets)
 ![Linter](https://img.shields.io/badge/linted%20with-Oxlint-cyan?logo=oxlint&logoColor=white&style=flat-square)
-[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC_BY--NC--SA_4.0-lightgrey.svg?style=flat-square)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-lightgrey.svg?style=flat-square)](https://www.gnu.org/licenses/agpl-3.0)
 
 
 Structural-analysis / finite-element software.
