@@ -62,7 +62,19 @@ jobs:
       # Browser-Verhaltenstests (z.B. @baustatik/konva-adapter) laufen in
       # Chromium. Sie vergleichen keine Pixel und sind daher plattformunabhaengig;
       # Screenshot-Baselines bleiben lokal (`pnpm test:screenshot`).
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(pnpm --filter @baustatik/konva-adapter exec playwright --version)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
       - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @baustatik/konva-adapter exec playwright install --with-deps chromium
 
       - name: Cache Turborepo
