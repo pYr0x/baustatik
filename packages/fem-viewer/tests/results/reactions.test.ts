@@ -20,6 +20,7 @@ import { pan, screenPoint, type Viewport, viewport } from '@baustatik/viewport-2
 
 import { UnknownNodeReferenceError } from '../../src/errors';
 import { femSpecs } from '../../src/scene';
+import { solveResult } from '../helpers';
 
 const vp1 = viewport(screenPoint(0, 0), 1);
 const vp4 = viewport(screenPoint(0, 0), 4);
@@ -58,6 +59,11 @@ const reaction = (fields: Partial<Reaction> = {}): Reaction => ({
   ...fields,
 });
 
+/**
+ * EIN Ergebnis-Pull statt zweier: die Reaktionen kommen aus `result.reactions`
+ * und nicht mehr aus einem eigenen Eingang. Zwei Pulls, die dasselbe Ergebnis
+ * meinen, koennten desynchronisieren.
+ */
 function specsFor(
   reactions: ReadonlyMap<string, Reaction>,
   vp: Viewport = vp1,
@@ -67,7 +73,7 @@ function specsFor(
     beams: [beamAB],
     supports: [supportA],
     loads: [],
-    reactions,
+    result: solveResult({ reactions: new Map(reactions) }),
     viewport: vp,
   });
 }
@@ -122,7 +128,7 @@ describe('Leserichtung: die Kraft AUF das Tragwerk', () => {
       beams: [beamAB],
       supports: [supportA],
       loads: [{ id: 'nl', target: 'node', nodeIds: ['a'], fz: 10 } as never],
-      reactions: at({ fz: -10 }),
+      result: solveResult({ reactions: at({ fz: -10 }) }),
       viewport: vp1,
     });
 

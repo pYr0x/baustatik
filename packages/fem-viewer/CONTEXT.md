@@ -11,14 +11,20 @@ with an arrow at each end. Every force symbol stands off the place it refers to
 by the same gap and names that place with a red marker on the beam axis — the
 line load at both ends of its segment, the point load on a beam at its point of
 application. Support reactions draw as the *same* symbols in green, one band
-higher.
+higher. `N`, `V` and `M` draw as filled diagrams along the beam axis — one hue
+per internal force, the sign in the brightness — with their extreme values
+labelled, laid off on the side the dashed fibre marks.
 
 ## Boundaries
 
-- Owns: model-to-spec mapping for nodes, beams, supports, loads and support
-  reactions, the x/z → u/v coordinate mapping, paint-band assignment,
-  screen-constant symbol sizing, and viewport state (pan/zoom/reset).
-- Does not own: Konva or canvas rendering execution, FEM solving, grid line
+- Owns: model-to-spec mapping for nodes, beams, supports, loads, support
+  reactions and the N/V/M diagrams, the x/z → u/v coordinate mapping, paint-band
+  assignment, screen-constant symbol sizing, **the one world measure**
+  (`diagramOrdinateM`, ADR 0050) and the reference size it is normalised
+  against, and viewport state (pan/zoom/reset).
+- Does not own: Konva or canvas rendering execution, FEM solving, **the internal
+  forces along a beam and where their extrema sit** — that is
+  `internalForcesAlong`'s answer, already given for the report — grid line
   calculation (delegated to `@baustatik/grid-2d`), model validation beyond
   resolving beam endpoints, **where a beam load sits and which way it points** —
   that is `@baustatik/fem-load-resolve`'s answer, already given for the solver —
@@ -28,9 +34,11 @@ higher.
 ## Dependencies
 
 - `@baustatik/fem`: `Node` and `Beam` model types.
-- `@baustatik/fem-solver`: the `SupportReaction` type. The edge runs viewer →
-  solver and never the other way; today it is a pure type import, and
-  `internalForcesAlong` becomes a runtime one when the N/V/M diagrams land.
+- `@baustatik/fem-solver`: the `SolveResult` type **and** `internalForcesAlong`
+  — since the N/V/M diagrams landed this is a **runtime** import, not only a
+  type one. The edge runs viewer → solver and never the other way. The viewer
+  calls the reader and derives nothing itself: derived twice, picture and
+  calculation drift apart in exactly the pair one looks at the picture for.
 - `@baustatik/errors`: base `BaustatikError` class for package error hierarchy.
 - `@baustatik/render-core`: `Spec`, `LineSpec`, `CircleSpec`, `ArrowSpec`,
   `ArcPathSpec`, `PolygonSpec`, `RectangleSpec`, `LabelSpec`, `RenderDriver`.
@@ -73,22 +81,40 @@ a support symbol has no counterpart anywhere else.
     the point force it is the "on a beam" case and therefore the caller's
     (`loads/beam-loads.ts`).
   - [`label.ts`](src/symbols/label.ts): the label rule and the two unit texts.
+    The formatters only format — **whether a sign is shown is the caller's
+    decision**: `loads/` hands in the magnitude (there the sign is already spent
+    turning the arrow), `results/diagram-figure.ts` hands in the signed value.
   - [`style.ts`](src/symbols/style.ts): `SymbolStyle` — the **resolved** look with
     neutral names, plus the three schematic sizes. `MarkerStyle` and
     `DistributedStyle` sit beside it rather than inside it: `SymbolStyle` is
     shared with `results/`, and a reaction is never distributed and never sits on
-    a place *within* a beam.
+    a place *within* a beam. `LabelStyle` is split **out** of `SymbolStyle` for
+    the mirror-image reason: a diagram label has neither arrow nor arc, and as
+    mandatory fields it would have to invent ten numbers nobody reads.
+    `SymbolStyle extends LabelStyle`, so every existing caller is unchanged.
 - [`src/results/`](src/results): result → specs.
   - [`index.ts`](src/results/index.ts): `resultSpecs` — distribution, and the one
     place that turns "no result" into "no specs".
   - [`reactions.ts`](src/results/reactions.ts): what hangs at a supported node —
     components, reading direction, node lookup.
+  - [`internal-forces.ts`](src/results/internal-forces.ts): the first level of
+    the diagrams — the reference size across all beams, the sampling resolution
+    per beam, the call into `internalForcesAlong`, and `DiagramOptions`.
+  - [`diagram-figure.ts`](src/results/diagram-figure.ts): the second level —
+    point list to `area` polygons, `outline` and extreme-value labels. It stays
+    in `results/` rather than moving to `symbols/` for the same reason
+    `model/support-symbols.ts` stays in `model/`: the figure has no counterpart
+    anywhere else. An arrow draws both a load and a reaction; a diagram draws a
+    diagram.
   - [`style.ts`](src/results/style.ts): the `ResultStyle` slice and its defaults.
 - [`src/model/`](src/model): model → specs.
   - [`index.ts`](src/model/index.ts): `modelSpecs` — distribution, and the one
     place that resolves node references.
   - [`beam.ts`](src/model/beam.ts) / [`node.ts`](src/model/node.ts): the elements
     themselves — line and circle.
+  - [`fiber.ts`](src/model/fiber.ts): the dashed fibre on the `+ez` side. It
+    lives in `model/`, not `results/`: it is a property of the **beam** and is
+    drawn without any result.
   - [`hinge.ts`](src/model/hinge.ts): the hinge symbol and where it sits, plus
     `hasRelease` — the question "is there a hinge here?" belongs to the hinge.
   - [`support.ts`](src/model/support.ts): **which** symbol a support case gets and
@@ -105,8 +131,9 @@ a support symbol has no counterpart anywhere else.
 - [`src/layers.ts`](src/layers.ts): `FEM_LAYERS` paint bands and `FEMLayer` type.
 - [`src/viewer.ts`](src/viewer.ts): `createFEMViewer` — viewport state and driver wiring.
 - [`src/errors.ts`](src/errors.ts): `UnknownNodeReferenceError`,
-  `UnsupportedSupportError`. Stays at the top level: it is the **package's**
-  error hierarchy, and `index.ts` exports both directly.
+  `InvalidDiagramExaggerationError`, `UnsupportedSupportError`. Stays at the top
+  level: it is the **package's** error hierarchy, and `index.ts` exports them
+  directly.
 - [`docs/usage.md`](docs/usage.md): canonical API usage documentation.
 
 Tests mirror this layout — `tests/model/`, `tests/loads/`, `tests/results/`, plus
@@ -116,7 +143,21 @@ reaching all three, and that an absent result adds exactly nothing). Fixtures
 live in `tests/helpers.ts` and `tests/loads/helpers.ts`; the load side keeps its
 own because it needs a **skewed** beam, otherwise no test proves that the rotation
 into the beam frame happens at all. `tests/results/` builds its own inline — it
-needs a support and a result, not a skewed beam.
+needs a support and a result, not a skewed beam. The two `ElementEvaluationState`
+builders (`beamState`, `simplySupported`) do live in `tests/helpers.ts`, because
+`scene.test.ts` needs a result too; they name the state type **derived from**
+`SolveResult` rather than importing `@baustatik/fem-element`, which is
+deliberately not a dependency here.
+
+The one assertion worth finding again is the **arithmetic counter-check** in
+`tests/results/internal-forces.test.ts`: the simply supported beam under a
+uniform load has `M_max = qL²/8` at `x = L/2`, and the test pins that the
+**label text** carries exactly that number *and* that the matching polygon point
+sits exactly `diagramOrdinateM` off the axis (because this beam sets the
+reference). That binds scaling, extremum search and labelling into one
+assertion. Its sibling is the **world-versus-screen** contrast: the diagram
+points are *identical* in world coordinates at `vp1` and `vp2` while a load
+arrow beside them halves.
 
 **Types live with the thing they belong to, and there is no `types.ts`.** The
 types here are option objects and style slices, not a vocabulary of their own —
@@ -132,6 +173,14 @@ because they also break the import cycle between the mappings and `scene.ts`.
   [`@baustatik/cross-section-viewer`](../cross-section-viewer), where plate
   `thickness` is a genuine world quantity and correctly scales. Revisit if beams
   ever gain a 3D rendering.
+  **Amended by ADR 0050, not replaced**: it holds for everything that is a
+  *symbol*. The **diagram ordinate is the one world measure** in this package —
+  `diagramOrdinateM` is in metres, is not divided by `vp.scale`, and the area
+  therefore zooms with the structure. A plot whose height changed with the zoom
+  level would be unreadable the moment one compared two regions of the picture
+  at different magnifications. The `…M` suffix carries the statement, the same
+  way `…Px` carries "screen-constant" everywhere else; stroke, label and the
+  fibre's offset stay screen-constant.
 - **Two different unit conversions**: `strokeWidth` is passed through unchanged
   because adapters set `strokeScaleEnabled: false`, making the value already
   screen-pixels. Local symbol dimensions are divided by `vp.scale` because they
@@ -140,7 +189,7 @@ because they also break the import cycle between the mappings and `scene.ts`.
 - **Paint bands guarantee z-order, array order does not**: renderers append newly
   built shapes, so a beam added after the nodes exist would otherwise draw over
   them. `FEM_LAYERS`
-  (`['grid','supports','beams','nodes','hinges','loads','reactions']`,
+  (`['grid','supports','beams','nodes','hinges','diagrams','loads','reactions']`,
   last = topmost) is passed to the driver at construction. Loads sit near the top
   because they are the statement of the input, and an arrow hidden by a beam is
   not one. Reactions sit above them: they are only in the picture at all once
@@ -148,7 +197,13 @@ because they also break the import cycle between the mappings and `scene.ts`.
   arrow underneath the load arrow of the same node would be the one that is
   missing. Hinges sit above `nodes`: the hinge is a white disc that has to read
   as a **hole** in the beam, and underneath the node circle it would stop being
-  one. The tuple is simultaneously the name list, the type source and the
+  one. The diagrams get **one** band, not three: the z-order among `N`, `V` and
+  `M` is settled by array order inside the band (`N`, `V`, `M`, so `M` ends up on
+  top). It sits **below** `loads` and `reactions` because a diagram runs over
+  *every* beam and is therefore the one thing that crosses everything — above
+  them its area would tint every arrow and its opaque label boxes would hide
+  every load label. It sits above `beams` and `nodes` so it is not hidden itself.
+  The tuple is simultaneously the name list, the type source and the
   z-order — one declaration, one truth. Bands coarsen array order rather than
   competing with it: band order wins between bands, array order still applies
   within a band.
@@ -169,7 +224,11 @@ because they also break the import cycle between the mappings and `scene.ts`.
   fan-out needs. A support reaction gets its own namespace,
   `reaction:{nodeId}:{fx|fz|my}` plus the same symbol part: a node can carry a
   load *and* a reaction with the same component, and without the two prefixes
-  that would be the same ID twice.
+  that would be the same ID twice. A diagram gets a third namespace,
+  `diagram:{beamId}:{N|V|M}` plus its part — `:area:{i}` per sign run,
+  `:outline` once per beam, `:max:{0|1}:label` and `:min:{0|1}:label` for the
+  extreme values. The dashed fibre belongs to the beam and is named accordingly:
+  `beam:{beamId}:fiber`.
 - **The hinge sits next to the node, not on it, and every release is the same
   symbol**: it is offset two node radii along the beam axis, into its own beam.
   Drawn *at* the node it would hide under the node circle, and at a node where
@@ -191,10 +250,14 @@ because they also break the import cycle between the mappings and `scene.ts`.
   model does not have is a model error again and takes the same
   `UnknownNodeReferenceError`: a result naming a foreign node does not belong to
   this model. Its element id and node id coincide, because a reaction has no
-  identity of its own — it *is* the node. This package deliberately adds no third
-  error type. Unlike the transient `maxLines` condition in `grid-2d`, all of them
-  are data errors that do not resolve by panning, and a silently skipped element
-  disappears without trace.
+  identity of its own — it *is* the node. A result naming a foreign **beam** is
+  the same statement and keeps the solver's own `UnknownBeamError`, untranslated:
+  two names for one finding would be one too many. This package deliberately adds
+  no third error type **for dangling references**. Unlike the transient
+  `maxLines` condition in `grid-2d`, all of them are data errors that do not
+  resolve by panning, and a silently skipped element disappears without trace.
+  `InvalidDiagramExaggerationError` is not one of them — it is a broken
+  precondition on a caller's *option*, not a statement about the data.
 - **The load arrow is a schema, its length says nothing**: every concentrated force
   gets the same 48 px arrow, laid off against its direction; the magnitude lives
   in the label. A negative value flips the direction, the label keeps the unsigned
@@ -321,12 +384,92 @@ tip angle)`, nearly 3 px at these sizes. A fill-only triangle with the same
   `results/` ever branching on `NodeSupport`. One less place where the picture and
   the calculation could disagree about what is fixed.
 - **No result is the off state, and there is no switch beside it**:
-  `reactions === undefined` yields an empty list. A separate "show results" flag
+  `result === undefined` yields an empty list. A separate "show results" flag
   would be a second state that can desynchronise from the first — there is either
   a computed result or none. The caller discards its result on every model change;
   that serves the display, not correctness, since a `SolveResult` carries
   everything it needs to be evaluated (ADR 0019) and cannot go stale. But a
   support arrow at a node one has just moved asserts something.
+- **One result pull, not two**: `getResult` returns the whole `SolveResult`, and
+  the reactions are read out of `result.reactions`. Two pulls meaning the same
+  computation are exactly the second state the previous invariant rules out; the
+  diagrams and the reaction arrows have to be able to disagree about *nothing*.
+  This is what makes the edge to `fem-solver` a runtime import.
+- **`DiagramOptions` is a switch about the VIEW, not about the state**
+  (ADR 0050): `diagrams` does not say whether something was computed — it says
+  which of the three internal forces one wants to see. **Presence is the
+  switch**, and the value is the exaggeration; there is no `visible` field beside
+  it that could disagree with it. `exaggeration <= 0` (and `NaN`) **throws**
+  `InvalidDiagramExaggerationError`: "do not draw" is said by omitting the field,
+  not by a height of zero, and a negative factor would mirror the side the whole
+  picture hangs on. A pull rather than a constructor option, because the only
+  state in the viewer is the viewport — the same shape as
+  `cross-section-viewer`'s `getProperties`/`getStressPoints`/`getFEMesh`.
+- **The reference size is global per internal force, and zero draws nothing**
+  (ADR 0050): `ref[K] = max |K(x)|` over **all** beams and **all** stations, one
+  per component. Only that makes two field moments in one picture comparable.
+  Because `internalForcesStations` contains the exactly computed extremum
+  locations, this maximum is the real one and does not hang on `subdivisions`.
+  `ref[K] === 0` produces **not a single spec** — no zero line, no label —
+  following the same rule as ADR 0028. The check is against **exactly** `0`: on a
+  straight horizontal beam the longitudinal degrees of freedom decouple
+  completely and `N` is exactly zero, and where `N` couples it is genuine.
+- **One direction rule for all three, and it comes from the node order**: a value
+  is laid off multiplied by `ez`, exactly as `fem-element/src/internal-forces.ts`
+  pins it. `ez = (−ex.dz, ex.dx)` follows from `Line.frame` and therefore from
+  `startNodeId → endNodeId` alone. There is **no** mirror flag: a pure drawing
+  flag would put `M = +20 kNm` above one beam and below the next, and the picture
+  would contradict itself. Whoever wants to turn the fibre turns the beam. The
+  **dashed fibre** makes the side visible where it cannot be guessed (a column),
+  is drawn **always** — with or without a result — and its offset is
+  screen-constant. A switch for it is a view-policy question (`TODO.md` §2).
+- **`PolygonSpec`, no new primitive**: a diagram of its own shape would need a
+  new spec kind in `render-core`, and that package is deliberately domain-free
+  ("DER SPEC KENNT KEINE DREIECKE"). The figure splits into `area` **per sign
+  run** — because `PolygonSpec` carries exactly one `fillColor` — and `outline`
+  **once per beam**. The splitting point is the linear interpolation between two
+  neighbouring samples; for the polyline that is actually drawn that is not an
+  approximation but **exact**, because its zero crossing *is* that point. The
+  outline stays one continuous run even across a sign change: the curve is
+  continuous there, and a colour change in the middle of it would assert a break
+  that is not there. At a jump two samples share an `x`, and the vertical flank
+  falls out of the polyline for free. It **starts and ends on the beam axis**,
+  not on the curve: otherwise the closing edge is missing wherever the diagram
+  has a value at a beam end — a constant normal force would stand there as an
+  open horizontal line instead of a rectangle, and a fixed end would lose the
+  stroke from the beam up to its support moment. Where the end value is `0` the
+  axis point coincides with the curve point and is deduplicated away. It stays
+  **open**: closing it back over the axis would draw the zero line a second time,
+  and the beam is already there. Transparency lives **in the colour** (8-digit
+  hex) — `PolygonSpec` has no `opacity`, and one would have washed out the
+  outline that is meant to stay opaque. The **deep** fill carries more opacity
+  than the light one (55 % against 25 %): at equal opacity the hue alone stops
+  separating the two signs, and a moment diagram with a support moment reads as
+  one area.
+- **Hue is the internal force, brightness is the sign**: `M` violet, `V` orange,
+  `N` cyan, against the load's blue and the reaction's green. All three may be
+  visible at once, so belonging to a component has to be the *primary*
+  distinction and the sign the secondary one. Labels use the **deep** colour for
+  text and border on a very pale ground, **for both signs alike** — light text on
+  a light ground would be low-contrast, and the sign is already in the number and
+  in the side the label sits on.
+- **The label carries the sign, and that is the deliberate exception**: the
+  extreme values are written as `` `${roundSmart(v)} ${unit}` `` with their sign.
+  At a load arrow the sign is already spent — it turns the arrow — but in an
+  internal force it is part of the number, and at a column the side is not
+  self-explanatory. A **plateau** (a value reached at several stations) is
+  labelled at its **first and last** station and needs no tolerance: a constant
+  normal force is `N = −e[0]` bit-identical at every station, so the rule bites
+  exactly where it should (`x = 0` and `x = L`) and never on a parabola. **No
+  marker**: the load symbols set one because their figure does not touch the beam
+  (`forceGapPx`); the diagram area touches it — its closing edge *is* the axis.
+- **The resolution is two numbers answering two questions**:
+  `n = max(diagramSubdivisions, ceil(L / diagramMaxStepM))`. The chord error of
+  the global arc is `A/n²` and therefore independent of the beam length (the
+  height is normalised against `ref`) — that is what `diagramSubdivisions` is
+  for. The absolute grid of `diagramMaxStepM` secures the **short load segment on
+  a long beam**, into which a grid of `L/20` would place no point at all. More
+  points cost no specs: the polygon carries them in one array.
 
 ## Validation
 
@@ -367,14 +510,24 @@ pnpm --filter @baustatik/fem-viewer build
   downward force arrow runs — and both labels stack above the node. Legible, but
   not composed. Same open placement question as above, and the reason the gap
   could be worth making direction-dependent later.
-- **Of the results, only the support reactions are drawn.** The `N`, `V` and `M`
-  diagrams belong in the same `results/` directory and a second band, but they
-  need the reference size across all beams first — the same open question the
-  distributed loads hang on. The data side is already done:
-  `internalForcesAlong` delivers the stations including the doubled entries at a
-  jump.
-- The deformed shape is not drawn either. It needs the shape functions from
+- **The zero check on the reference size can be fooled by noise.** `ref[K] === 0`
+  is an exact comparison (ADR 0050), and it is right for the case it is built
+  for: on a straight horizontal beam `N` is exactly zero. In a nearly decoupled
+  frame, rounding noise of order `1e-14` would instead become the reference and
+  be normalised up to full ordinate height — a diagram made entirely of noise.
+  Documented rather than fought: a threshold needs a scale to be measured
+  against, and the only scale available here is the noise itself.
+- **Distributed loads do not yet share the diagram's reference size.** They stay
+  normalised per load; ADR 0050 records that they should inherit the rule, but
+  the rebuild is its own step. Until then the picture holds two scaling rules at
+  once.
+- The deformed shape is not drawn. It needs the shape functions from
   `@baustatik/fem-element`, not just the result type.
-- **One result at a time.** `getReactions` returns one map; which load case it
-  belongs to is the application's decision (ADR 0014), and the viewer has no
-  notion of a load case — deliberately the same limitation as on the load side.
+- **One result at a time.** `getResult` returns one `SolveResult`; which load
+  case it belongs to is the application's decision (ADR 0014), and the viewer has
+  no notion of a load case — deliberately the same limitation as on the load
+  side. Envelopes over several cases would need a reference size over the
+  envelope and are a separate question.
+- **Diagram labels join the unplaced-label problem.** An extreme value close to a
+  support can stack with the reaction label there; the same open placement rule
+  over *all* labels applies.

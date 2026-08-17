@@ -90,7 +90,12 @@ describe('createFEMViewer', () => {
 
     expect(driver.calls).toEqual(['applyViewport', 'reconcile', 'flush']);
     expect(driver.viewports).toEqual([viewport(screenPoint(0, 0), 1)]);
-    expect(driver.scenes[0].map((spec) => spec.id)).toEqual(['beam:ab', 'node:a', 'node:b']);
+    expect(driver.scenes[0].map((spec) => spec.id)).toEqual([
+      'beam:ab',
+      'beam:ab:fiber',
+      'node:a',
+      'node:b',
+    ]);
   });
 
   it('pulls the current model and screen size for every render', () => {
@@ -130,6 +135,7 @@ describe('createFEMViewer', () => {
     );
     expect(driver.scenes[1].map((spec) => spec.id)).toEqual([
       'beam:ab',
+      'beam:ab:fiber',
       'node:a',
       'node:b',
       'load:nl:b:fz:arrow',

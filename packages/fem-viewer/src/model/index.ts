@@ -5,6 +5,7 @@
  *
  *   index.ts                    WAS gezeichnet wird — Verteilung, Referenzen
  *   beam.ts / node.ts           die Elemente selbst
+ *   fiber.ts                    die gestrichelte Faser auf der +ez-Seite
  *   hinge.ts                    WIE ein Gelenk aussieht und wo es sitzt
  *   support.ts                  WELCHES Auflagersymbol ein Fall bekommt
  *   support-symbols.ts          WIE diese Symbole aussehen
@@ -21,6 +22,7 @@ import type { Viewport } from '@baustatik/viewport-2d';
 
 import { UnknownNodeReferenceError } from '../errors';
 import { beamSpecs } from './beam';
+import { fiberSpec } from './fiber';
 import { nodeSpec } from './node';
 import type { ModelStyle } from './style';
 import { supportSpec } from './support';
@@ -51,7 +53,13 @@ export function modelSpecs(options: ModelSpecOptions): readonly Spec[] {
     const end = byId.get(beam.endNodeId);
     if (!end) throw new UnknownNodeReferenceError(beam.id, beam.endNodeId);
 
-    specs.push(...beamSpecs(beam, start, end, vp, style));
+    // Die Faser haengt an JEDEM Stab und braucht kein Ergebnis: sie sagt, welche
+    // Seite die Knotenreihenfolge zur +z-Seite gemacht hat, und genau dorthin
+    // traegt `results/internal-forces.ts` spaeter einen positiven Wert ab.
+    specs.push(
+      ...beamSpecs(beam, start, end, vp, style),
+      fiberSpec(beam, start, end, vp, style),
+    );
   }
 
   for (const node of nodes) {

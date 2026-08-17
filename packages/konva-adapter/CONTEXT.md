@@ -61,6 +61,23 @@ Important consumers:
   for skewed directions (projecting the half size and intersecting the ray give
   different answers) and the gap is not testable. The label itself is never
   rotated.
+- **The label is built at a REFERENCE font size and shrunk by the group's
+  scale**, never by the font string. `LabelSpec.fontSize` is a *world* measure —
+  producers divide their screen pixels by `vp.scale` so the text stays the same
+  size on screen. Written straight into `Konva.Text.fontSize` that becomes
+  `ctx.font = '0.006px …'` at high zoom, and browsers quantise or drop a font
+  that small: the text first grows visibly uneven while zooming in and then
+  disappears, and `measureText` returns a width of `0`, so the box collapses with
+  it. `labelTextConfig` therefore always reports `REFERENCE_FONT_SIZE` and
+  `place` sets `scale = spec.fontSize / REFERENCE_FONT_SIZE` on the label group.
+  The font string stays well-formed, measurement stays stable, and the shrinking
+  happens in the transform — where the glyphs are rasterised at their *effective*
+  device size and are therefore exactly screen-constant. Consequently everything
+  **inside** the group is given in reference units (`padding`, `cornerRadius` are
+  divided by that same factor) while `strokeWidth` is not: `strokeScaleEnabled:
+  false` measures against the absolute transform and the group scale passes it
+  by. Anything reading the box size from outside — a test, a future placement
+  pass — has to multiply `getText().width()` by `scaleX()`.
 - **`fontFamily` is a spec field, not a Konva default**: otherwise appearance and
   screenshot baselines would depend on the font list of the machine.
 - **Screen-pixel strokes**: every primitive sets `strokeScaleEnabled: false`. Konva

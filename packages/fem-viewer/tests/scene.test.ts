@@ -20,6 +20,8 @@ import {
   nodeA,
   nodeB,
   nodeC,
+  simplySupported,
+  solveResult,
   specById,
   specsOf,
   supportA,
@@ -29,8 +31,12 @@ import {
 const NODE_LOAD = { id: 'nl', target: 'node', nodeIds: ['b'], fz: 10 };
 
 // Das Ergebnis zu `supportA`: die Stuetze haelt gegen die Last nach unten, `fz`
-// ist deshalb negativ (die Kraft AUF das Tragwerk zeigt nach oben).
-const REACTIONS = new Map([['a', { fx: 0, fz: -10, my: 0 }]]);
+// ist deshalb negativ (die Kraft AUF das Tragwerk zeigt nach oben). Es traegt
+// zugleich den Auswertungszustand des Stabs — EIN Pull fuer beides.
+const RESULT = solveResult({
+  reactions: new Map([['a', { fx: 0, fz: -10, my: 0 }]]),
+  beamStates: new Map([['ab', simplySupported(100, 10)]]),
+});
 
 /** Eine Szene, in der jede Sorte Spec genau einmal vorkommt. */
 function fullScene(rest: Record<string, unknown> = {}) {
@@ -40,7 +46,8 @@ function fullScene(rest: Record<string, unknown> = {}) {
     {
       supports: [supportA],
       loads: [NODE_LOAD as never],
-      reactions: REACTIONS,
+      result: RESULT,
+      diagrams: { M: 1 },
       ...rest,
     },
   );
@@ -62,20 +69,24 @@ describe('IDs bleiben ueber die ganze Szene eindeutig', () => {
     expect(() => validateSpecs(fullScene())).not.toThrow();
   });
 
-  it('keeps load and reaction apart at the SAME node', () => {
+  it('keeps load, reaction AND the three diagrams apart at the same beam', () => {
     // Der Fall, den die Namensraeume tragen muessen: an einem Knoten haengt eine
-    // Last und eine Auflagerkraft, beide mit derselben Komponente `fz`. Ohne die
-    // Praefixe `load:` und `reaction:` waeren es zweimal dieselbe ID, und
-    // validateSpecs schluege zu.
+    // Last und eine Auflagerkraft, beide mit derselben Komponente `fz`, und ueber
+    // demselben Stab liegen drei Verlaeufe. Ohne die Praefixe `load:`,
+    // `reaction:` und `diagram:` waeren es doppelte IDs, und validateSpecs
+    // schluege zu.
     const specs = specsOf([nodeA, nodeB], [beamAB], {
       supports: [supportA],
       loads: [{ id: 'nl', target: 'node', nodeIds: ['a'], fz: 10 } as never],
-      reactions: new Map([['a', { fx: 0, fz: -10, my: 0 }]]),
+      result: RESULT,
+      diagrams: { N: 1, V: 1, M: 1 },
     });
 
     const ids = specs.map((s) => s.id);
     expect(ids).toContain('load:nl:a:fz:arrow');
     expect(ids).toContain('reaction:a:fz:arrow');
+    expect(ids).toContain('diagram:ab:V:outline');
+    expect(ids).toContain('diagram:ab:M:outline');
     expect(() => validateSpecs(specs)).not.toThrow();
   });
 
@@ -119,17 +130,32 @@ describe('Szene und Baender passen zusammen', () => {
 });
 
 describe('Ohne Ergebnis bleibt die Szene die alte', () => {
-  it('adds not a single spec when reactions are absent', () => {
+  it('adds not a single spec when the result is absent', () => {
     // Der AUS-Zustand hat keinen eigenen Schalter: es gibt ein Ergebnis oder
     // keines. Waere `undefined` nicht exakt neutral, haette das Bild vor dem
     // ersten Rechnen einen anderen Inhalt als danach ohne Ergebnis.
     const withResult = fullScene();
-    const without = fullScene({ reactions: undefined });
+    const without = fullScene({ result: undefined });
 
     expect(without.map((s) => s.id)).toEqual(
-      withResult.map((s) => s.id).filter((id) => !id.startsWith('reaction:')),
+      withResult
+        .map((s) => s.id)
+        .filter(
+          (id) => !id.startsWith('reaction:') && !id.startsWith('diagram:'),
+        ),
     );
     expect(without.some((s) => s.layer === 'reactions')).toBe(false);
+    expect(without.some((s) => s.layer === 'diagrams')).toBe(false);
+  });
+
+  it('draws the reactions but no diagram when getDiagrams is omitted', () => {
+    // Die Verlaeufe haben ihren EIGENEN Schalter, und das ist kein zweiter
+    // Zustand neben dem Ergebnis: `diagrams` sagt nicht, OB gerechnet wurde,
+    // sondern WELCHE der drei Schnittgroessen man sehen will.
+    const specs = fullScene({ diagrams: undefined });
+
+    expect(specs.some((s) => s.id.startsWith('reaction:'))).toBe(true);
+    expect(specs.some((s) => s.id.startsWith('diagram:'))).toBe(false);
   });
 });
 

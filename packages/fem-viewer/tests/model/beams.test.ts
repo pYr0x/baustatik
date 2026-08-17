@@ -25,16 +25,21 @@ describe('Der Stab als Linie', () => {
     });
   });
 
-  it('emits exactly one line per beam', () => {
+  it('emits exactly one axis line per beam, plus its fibre', () => {
+    // Die zweite Linie ist die gestrichelte Faser (`model/fiber.ts`): sie gehoert
+    // zum Stab, nicht zum Ergebnis, und steht deshalb auch ohne Rechnung im Bild.
     const specs = specsOf([nodeA, nodeB], [beamAB]);
 
-    expect(specs.filter((s) => s.kind === 'line')).toHaveLength(1);
+    expect(specs.filter((s) => s.kind === 'line')).toHaveLength(2);
   });
 
-  it('puts every beam line into the beams band', () => {
+  it('puts the beam line and its fibre into the beams band', () => {
     const specs = specsOf([nodeA, nodeB], [beamAB]);
 
-    expect(inLayer(specs, 'beams').map((s) => s.id)).toEqual(['beam:ab']);
+    expect(inLayer(specs, 'beams').map((s) => s.id)).toEqual([
+      'beam:ab',
+      'beam:ab:fiber',
+    ]);
   });
 });
 

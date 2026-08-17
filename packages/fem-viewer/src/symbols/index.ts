@@ -26,6 +26,7 @@ export {
   DEFAULT_MOMENT_RADIUS_PX,
   DEFAULT_POINT_FORCE_ARROW_LENGTH_PX,
   type DistributedStyle,
+  type LabelStyle,
   type MarkerStyle,
   type SymbolStyle,
 } from './style';

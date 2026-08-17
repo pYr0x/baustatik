@@ -13,12 +13,20 @@
 // Ergebnisse liegen NOCH darueber. Sie sind nur im Bild, wenn gerechnet wurde,
 // und dann sind sie das, wofuer man hinsieht — ein Auflagerpfeil unter dem
 // Lastpfeil desselben Knotens waere genau der eine, der fehlt.
+//
+// Die Schnittgroessenverlaeufe bekommen EIN gemeinsames Band und nicht drei: die
+// z-Order unter N, V und M regelt die Array-Reihenfolge innerhalb des Bandes.
+// Es liegt UNTER 'loads' und 'reactions', weil der Verlauf ueber JEDEN Stab
+// laeuft und damit das eine Ding ist, das alles kreuzt — darueber toente seine
+// Flaeche jeden Pfeil, und seine deckenden Labelkaesten verdeckten jedes
+// Lastlabel. Ueber 'beams' und 'nodes', damit er selbst nicht verdeckt wird.
 export const FEM_LAYERS = [
   'grid',
   'supports',
   'beams',
   'nodes',
   'hinges',
+  'diagrams',
   'loads',
   'reactions',
 ] as const;
