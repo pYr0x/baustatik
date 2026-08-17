@@ -9,6 +9,7 @@
 import { expect } from 'vitest';
 
 import type { Beam, BeamEndReleases, Node, NodeSupport } from '@baustatik/fem';
+import type { SolveResult } from '@baustatik/fem-solver';
 import type { Spec } from '@baustatik/render-core';
 import { screenPoint, type Viewport, viewport } from '@baustatik/viewport-2d';
 
@@ -39,6 +40,64 @@ export const supportA: NodeSupport = {
   uz: 'fixed',
   phiY: 'free',
 };
+
+/**
+ * Der Auswertungszustand EINES Stabs.
+ *
+ * ABGELEITET statt importiert: `@baustatik/fem-element` ist bewusst keine
+ * Abhaengigkeit dieses Packages — der Viewer sieht den Typ nur, weil
+ * `SolveResult` ihn traegt. Genau so wird er hier auch benannt.
+ */
+type BeamState = NonNullable<ReturnType<SolveResult['beamStates']['get']>>;
+
+/**
+ * Ein Auswertungszustand aus Stabendkraeften und Stablast.
+ *
+ * `internalForcesAt` liest daraus nur `L`, `endForces[0..2]` und `load` — die
+ * Schnittgroessen kommen aus dem GLEICHGEWICHT, nicht aus dem Stoffgesetz
+ * (ADR 0018). Die uebrigen Felder stehen der Form halber da.
+ */
+export function beamState(
+  L: number,
+  endForces: readonly [number, number, number, number, number, number],
+  load: BeamState['load'] = { segments: [], points: [] },
+): BeamState {
+  return {
+    L,
+    endForces,
+    endDisplacements: [0, 0, 0, 0, 0, 0],
+    load,
+    deformation: { kind: 'timoshenko-2d-iie', phi: 0, EI: 1, EA: 1 },
+  };
+}
+
+/**
+ * Der EINFELDTRAEGER unter Gleichlast, als Auswertungszustand.
+ *
+ *   V(x) = qL/2 - q x        M(x) = (qL/2) x - q x²/2       M_max = qL²/8
+ *
+ * Aus `V(0) = -e[1]` und `M(0) = e[2]` folgen die beiden Stabendkraefte. Die
+ * Extremstelle `x = L/2` rechnet `internalForcesStations` EXAKT aus, sie haengt
+ * also nicht an der Rasterweite — das ist die Grundlage der Gegenprobe.
+ */
+export function simplySupported(L: number, q: number): BeamState {
+  return beamState(L, [0, -(q * L) / 2, 0, 0, (q * L) / 2, 0], {
+    segments: [{ from: 0, to: L, qx1: 0, qx2: 0, qz1: q, qz2: q, my1: 0, my2: 0 }],
+    points: [],
+  });
+}
+
+/** Ein Ergebnis mit nur den Feldern, die der Viewer liest. */
+export function solveResult(rest: Partial<SolveResult> = {}): SolveResult {
+  return {
+    loadCaseId: 'lf',
+    displacements: new Map(),
+    reactions: new Map(),
+    beamStates: new Map(),
+    warnings: [],
+    ...rest,
+  };
+}
 
 /** Ein Stab mit Freigaben — die Vorlage bleibt unberuehrt. */
 export function hinged(

@@ -13,7 +13,7 @@ import { roundSmart } from '@baustatik/round';
 import { type Viewport, worldPoint } from '@baustatik/viewport-2d';
 
 import type { FEMLayer } from '../layers';
-import type { SymbolStyle } from './style';
+import type { LabelStyle } from './style';
 
 /**
  * Der Labeltext.
@@ -23,16 +23,19 @@ import type { SymbolStyle } from './style';
  * Stellenzahl klein (`0.85 kN`). Ohne diese Festlegung haengt der Text an der
  * Fließkommadarstellung des Eingabewerts.
  *
- * Der Betrag kommt bereits ohne Vorzeichen herein — die Richtung zeigt das
- * Symbol, nicht die Schrift.
+ * OB EIN VORZEICHEN DASTEHT, ENTSCHEIDET DER AUFRUFER. Diese Stelle formatiert,
+ * was sie bekommt. Die Lastsymbole in `loads/` reichen den BETRAG herein — dort
+ * ist das Vorzeichen im Bild bereits aufgebraucht, es dreht den Pfeil. Der
+ * Schnittgroessenverlauf reicht den Wert MIT Vorzeichen herein: dort ist es Teil
+ * der Zahl, und an einer Stuetze ist die Auftragsseite nicht selbsterklaerend.
  */
-export function forceLabelText(magnitude: number, unit = 'kN'): string {
-  return `${roundSmart(magnitude)} ${unit}`;
+export function forceLabelText(value: number, unit = 'kN'): string {
+  return `${roundSmart(value)} ${unit}`;
 }
 
 /** Wie `forceLabelText`, nur die Einheit des Moments: kNm statt kN. */
-export function momentLabelText(magnitude: number, unit = 'kNm'): string {
-  return `${roundSmart(magnitude)} ${unit}`;
+export function momentLabelText(value: number, unit = 'kNm'): string {
+  return `${roundSmart(value)} ${unit}`;
 }
 
 interface SymbolLabelOptions {
@@ -45,7 +48,11 @@ interface SymbolLabelOptions {
   /** Seite, auf der das Label liegt. Nur die Richtung zaehlt, nicht die Laenge. */
   readonly direction: Vector;
   readonly viewport: Viewport;
-  readonly style: SymbolStyle;
+  /**
+   * Nur die Labelscheibe: ein Verlauf hat keinen Pfeil, und der Kasten liest
+   * ohnehin nichts anderes.
+   */
+  readonly style: LabelStyle;
 }
 
 export function symbolLabelSpec(options: SymbolLabelOptions): LabelSpec {

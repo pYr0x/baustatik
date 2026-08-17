@@ -16,7 +16,28 @@
  * `strokeWidth` und `borderWidth`, die der Adapter ohnehin in Screen-Pixeln
  * zeichnet (`strokeScaleEnabled: false`).
  */
-export interface SymbolStyle {
+/**
+ * Nur das, was ein LABEL braucht — die Scheibe, die `symbolLabelSpec` liest.
+ *
+ * Herausgeloest, seit auch die Schnittgroessenverlaeufe beschriften: ein
+ * Verlauf hat weder Pfeil noch Bogen, und mit `SymbolStyle` als Parametertyp
+ * muesste `results/style.ts` zehn Zahlen erfinden, die nie jemand liest — genau
+ * der Zustand, den `MarkerStyle` weiter unten aus demselben Grund ablehnt.
+ * `SymbolStyle` erweitert sie, jeder bisherige Aufrufer passt unveraendert.
+ */
+export interface LabelStyle {
+  readonly labelGapPx: number;
+  readonly labelFontSizePx: number;
+  readonly labelFontFamily: string;
+  readonly labelPaddingPx: number;
+  readonly labelCornerRadiusPx: number;
+  readonly labelTextColor: string;
+  readonly labelBackgroundColor: string;
+  readonly labelBorderColor: string;
+  readonly labelBorderWidthPx: number;
+}
+
+export interface SymbolStyle extends LabelStyle {
   readonly forceColor: string;
   /**
    * Abstand zwischen dem Angriffspunkt und der Pfeilspitze — die Figur beruehrt
@@ -38,15 +59,6 @@ export interface SymbolStyle {
   readonly momentArcWidthPx: number;
   readonly momentPointerLengthPx: number;
   readonly momentPointerWidthPx: number;
-  readonly labelGapPx: number;
-  readonly labelFontSizePx: number;
-  readonly labelFontFamily: string;
-  readonly labelPaddingPx: number;
-  readonly labelCornerRadiusPx: number;
-  readonly labelTextColor: string;
-  readonly labelBackgroundColor: string;
-  readonly labelBorderColor: string;
-  readonly labelBorderWidthPx: number;
 }
 
 /**

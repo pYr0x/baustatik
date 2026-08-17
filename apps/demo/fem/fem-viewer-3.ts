@@ -23,9 +23,9 @@ import {
   createAnalysisPolicy,
   createFEMSolver,
   type FEMSolver,
-  type SupportReaction,
+  type SolveResult,
 } from "@baustatik/fem-solver";
-import { createFEMViewer, FEM_LAYERS } from "@baustatik/fem-viewer";
+import { createFEMViewer, type DiagramOptions, FEM_LAYERS } from "@baustatik/fem-viewer";
 import { createKonvaAdapter as createKonvaDriver } from "@baustatik/konva-adapter";
 import { lookupMaterial, type Material, type MaterialKind } from "@baustatik/material";
 import { convert } from "@baustatik/units";
@@ -235,6 +235,34 @@ const frameSize = {
   height: Math.floor(frameBounds.height),
 };
 
+/**
+ * WELCHE Verlaeufe sichtbar sind, und wie hoch — reiner ANSICHTSzustand, wie
+ * der Viewport. Er gehoert nicht in den Store: er beschreibt weder das Modell
+ * noch sein Ergebnis, und er ueberlebt kein Neuladen.
+ *
+ * Die ANWESENHEIT eines Feldes in `DiagramOptions` ist der Schalter; ein Haken
+ * raus heisst „Feld weg", nicht „Hoehe null".
+ *
+ * Steht VOR dem Viewer, nicht dahinter: `getDiagrams` liest ihn beim ersten
+ * Zeichnen, und eine `const` hinter der Nutzung waere die zeitliche Totzone.
+ */
+const diagrams: { N: boolean; V: boolean; M: boolean; exaggeration: number } = {
+  N: false,
+  V: false,
+  M: true,
+  exaggeration: 1,
+};
+
+function diagramOptions(): DiagramOptions | undefined {
+  const options: DiagramOptions = {
+    ...(diagrams.N ? { N: diagrams.exaggeration } : {}),
+    ...(diagrams.V ? { V: diagrams.exaggeration } : {}),
+    ...(diagrams.M ? { M: diagrams.exaggeration } : {}),
+  };
+  // Kein Haken gesetzt = der Pull faellt ganz weg, nicht ein leeres Objekt.
+  return Object.keys(options).length === 0 ? undefined : options;
+}
+
 const viewer = createFEMViewer({
   driver: createKonvaDriver({
     container,
@@ -250,7 +278,12 @@ const viewer = createFEMViewer({
     const active = store.activeLoadCase;
     return active === undefined ? [] : effectiveLoads(active);
   },
-  getReactions: () => reactions,
+  // EIN Pull fuer das ganze Ergebnis: die Auflagerkraefte stehen darin, und die
+  // Schnittgroessenverlaeufe kaemen aus demselben Stueck.
+  getResult: () => result,
+  // Ein PULL wie alles andere: der Viewer haelt keinen Zustand ausser dem
+  // Viewport, und diese drei Haken sind Ansicht, nicht Modell.
+  getDiagrams: diagramOptions,
   getScreenSize: () => frameSize,
   grid: { spacing: 0.5 },
 });
@@ -285,18 +318,18 @@ const sectionViewer = createCrossSectionViewer({
 });
 
 /**
- * Die Auflagerkraefte des zuletzt gerechneten Laufs, und das Netz des zuletzt
+ * Das Ergebnis des zuletzt gerechneten Laufs, und das Netz des zuletzt
  * gerechneten Querschnitts — BEIDE transient, beide neben dem Store.
  *
  * Ein Ergebnis ist keine Eingabe. Aendert sich das Modell, ist der
  * Aufloesungsschritt hinfaellig; das Feld `feValues` ueberlebt nur, solange der
  * Fingerabdruck traegt.
  */
-let reactions: ReadonlyMap<string, SupportReaction> | undefined;
+let result: SolveResult | undefined;
 let mesh: CrossSectionFEMesh | undefined;
 
 store.$subscribe(() => {
-  reactions = undefined;
+  result = undefined;
   mesh = undefined;
   viewer.requestRender();
   sectionViewer.requestRender();
@@ -390,6 +423,43 @@ function currentProperties(): SectionProperties | undefined {
 computeFEButton.addEventListener("click", () => void runFE());
 solveButton.addEventListener("click", () => void runSolve());
 
+// ---------------------------------------------------------------------------
+// Die Schnittgroessen-Schalter.
+//
+// Sie schreiben in `diagrams` und NICHT in den Store: was man ansieht, ist keine
+// Eingabe. Deshalb raeumen sie auch kein Ergebnis weg — nur ein Neuzeichnen.
+// ---------------------------------------------------------------------------
+const diagramMCheckbox = element<HTMLInputElement>("diagram-m");
+const diagramVCheckbox = element<HTMLInputElement>("diagram-v");
+const diagramNCheckbox = element<HTMLInputElement>("diagram-n");
+const diagramExaggerationInput = element<HTMLInputElement>("diagram-exaggeration");
+const diagramExaggerationValue = element<HTMLSpanElement>("diagram-exaggeration-value");
+
+function applyDiagramOptions(): void {
+  diagrams.M = diagramMCheckbox.checked;
+  diagrams.V = diagramVCheckbox.checked;
+  diagrams.N = diagramNCheckbox.checked;
+  diagrams.exaggeration = Number(diagramExaggerationInput.value);
+  diagramExaggerationValue.textContent = String(diagrams.exaggeration);
+  viewer.requestRender();
+}
+
+for (const control of [
+  diagramMCheckbox,
+  diagramVCheckbox,
+  diagramNCheckbox,
+  diagramExaggerationInput,
+]) {
+  control.addEventListener("input", applyDiagramOptions);
+}
+
+// Die Controls tragen den Anfangsstand von `diagrams` — einmal angleichen.
+diagramMCheckbox.checked = diagrams.M;
+diagramVCheckbox.checked = diagrams.V;
+diagramNCheckbox.checked = diagrams.N;
+diagramExaggerationInput.value = String(diagrams.exaggeration);
+diagramExaggerationValue.textContent = String(diagrams.exaggeration);
+
 async function runFE(): Promise<void> {
   busy = true;
   renderPanel();
@@ -419,12 +489,12 @@ async function runSolve(): Promise<void> {
 
   busy = true;
   renderPanel();
-  reactions = undefined;
+  result = undefined;
   statusField.textContent = "Rechnet das Stabwerk …";
 
   try {
     const solved = await solver.solve(active.id);
-    reactions = solved.reactions;
+    result = solved;
     const midspan = solved.displacements.get((store.nodes[1] as Node).id);
     lastDeflection = midspan?.uz;
     statusField.textContent = "";

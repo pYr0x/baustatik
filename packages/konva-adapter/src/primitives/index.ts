@@ -10,6 +10,7 @@ import { circleConfig } from './circle';
 import { indexedLineListConfig } from './indexed-line-list';
 import {
   buildLabel,
+  labelScale,
   labelTagConfig,
   labelTextConfig,
   labelTopLeft,
@@ -26,6 +27,7 @@ export {
   arrowConfig,
   circleConfig,
   indexedLineListConfig,
+  labelScale,
   labelTagConfig,
   labelTextConfig,
   labelTopLeft,

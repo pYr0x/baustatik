@@ -18,9 +18,9 @@ import {
     createFEMSolver,
     type FEMSolver,
     type LinearSystemKind,
-    type SupportReaction,
+    type SolveResult,
 } from '@baustatik/fem-solver';
-import { createFEMViewer, FEM_LAYERS } from '@baustatik/fem-viewer';
+import { createFEMViewer, type DiagramOptions, FEM_LAYERS } from '@baustatik/fem-viewer';
 import { createKonvaAdapter as createKonvaDriver } from '@baustatik/konva-adapter';
 import { Point } from '@baustatik/fem-geometry';
 import { defineStore, createPinia } from 'pinia';
@@ -347,8 +347,8 @@ const driver = createKonvaDriver({
 });
 
 /**
- * Die Auflagerkraefte des zuletzt gerechneten Lastfalls — oder `undefined`,
- * solange nicht gerechnet ist.
+ * Das Ergebnis des zuletzt gerechneten Lastfalls — oder `undefined`, solange
+ * nicht gerechnet ist.
  *
  * NICHT im Store: ein Ergebnis ist keine Eingabe. Es gehoert zu genau dem
  * Modell und dem Lastfall, aus denen es entstanden ist, und wird deshalb bei
@@ -357,7 +357,32 @@ const driver = createKonvaDriver({
  * (ADR 0019), es koennte gar nicht falsch werden. Aber ein Auflagerpfeil an
  * einem Knoten, den man gerade verschoben hat, behauptet etwas.
  */
-let reactions: ReadonlyMap<string, SupportReaction> | undefined;
+let result: SolveResult | undefined;
+
+/**
+ * WELCHE Verlaeufe sichtbar sind, und wie hoch — reiner ANSICHTSzustand, wie
+ * der Viewport. Er gehoert nicht in den Store: er beschreibt weder das Modell
+ * noch sein Ergebnis, und er ueberlebt kein Neuladen.
+ *
+ * Die ANWESENHEIT eines Feldes in `DiagramOptions` ist der Schalter; ein Haken
+ * raus heisst „Feld weg", nicht „Hoehe null".
+ */
+const diagrams: { N: boolean; V: boolean; M: boolean; exaggeration: number } = {
+    N: false,
+    V: false,
+    M: true,
+    exaggeration: 1,
+};
+
+function diagramOptions(): DiagramOptions | undefined {
+    const options: DiagramOptions = {
+        ...(diagrams.N ? { N: diagrams.exaggeration } : {}),
+        ...(diagrams.V ? { V: diagrams.exaggeration } : {}),
+        ...(diagrams.M ? { M: diagrams.exaggeration } : {}),
+    };
+    // Kein Haken gesetzt = der Pull faellt ganz weg, nicht ein leeres Objekt.
+    return Object.keys(options).length === 0 ? undefined : options;
+}
 
 // 2. Viewer: Driver injizieren, Segmente per PULL aus dem Store.
 const viewer = createFEMViewer({
@@ -377,20 +402,29 @@ const viewer = createFEMViewer({
     // Dasselbe PULL-Muster wie bei den Rohdaten, nur aus dem Ergebnis statt aus
     // dem Store. `undefined` heisst „noch nicht gerechnet", und dann steht im
     // Bild kein Ergebnis — es braucht keinen Schalter daneben.
-    getReactions: () => {
-        if(reactions === undefined) {return undefined}
-        return new Map(
-        Array.from(reactions, ([id, reaction]) => [
-                id,
-                {
-                fx: round(reaction.fx).toDecimals(2),
-                fz: round(reaction.fz).toDecimals(2),
-                my: round(reaction.my).toDecimals(2)
-                }
-            ])
-        );
-
+    //
+    // EIN Pull fuer das ganze Ergebnis. Diese Seite rundet die Auflagerkraefte
+    // fuers Bild; sie baut dafuer eine KOPIE des Ergebnisses mit gerundeten
+    // `reactions` statt einer zweiten Quelle daneben.
+    getResult: () => {
+        if (result === undefined) { return undefined }
+        return {
+            ...result,
+            reactions: new Map(
+                Array.from(result.reactions, ([id, reaction]) => [
+                    id,
+                    {
+                        fx: round(reaction.fx).toDecimals(2),
+                        fz: round(reaction.fz).toDecimals(2),
+                        my: round(reaction.my).toDecimals(2)
+                    }
+                ])
+            ),
+        };
     },
+    // Ein PULL wie alles andere: der Viewer haelt keinen Zustand ausser dem
+    // Viewport, und diese drei Haken sind Ansicht, nicht Modell.
+    getDiagrams: diagramOptions,
     getScreenSize: () => stageSize,
     grid: { spacing: 1 }, // Weltkoordinaten; Segmente sind 60–100 Einheiten gross
 });
@@ -403,7 +437,7 @@ store.$subscribe(() => {
     // Das Verwerfen steht VOR dem Neuzeichnen und in DIESEM Abonnement, nicht im
     // zweiten weiter unten: die beiden laufen in Registrierungsreihenfolge, und
     // andersherum haenge fuer einen Frame die alte Auflagerkraft am neuen Modell.
-    reactions = undefined;
+    result = undefined;
     viewer.requestRender();
 });
 
@@ -641,24 +675,24 @@ async function solveActive(): Promise<void> {
     solveStatus.textContent = 'Rechnet …';
     // Erst weg, dann rechnen: so gibt es keinen Zweig, in dem ein alter
     // Auflagerpfeil eine fehlgeschlagene Rechnung ueberlebt.
-    reactions = undefined;
+    result = undefined;
 
     try {
-        const result = await solver.solve(active.id);
+        const solved = await solver.solve(active.id);
         // Ab hier stehen die Auflagerkraefte auch IM BILD, gruen und mit der
         // Spitze am Knoten: `fz` negativ heisst „die Stuetze drueckt nach oben",
         // und die Gleichgewichtsprobe gegen die blauen Lastpfeile ist damit
         // ablesbar, ohne die Zahlen hier daneben zu lesen.
-        reactions = result.reactions;
+        result = solved;
 
-        const support = result.reactions.get(store.nodes[0].id);
-        const displacement = result.displacements.get(store.nodes[1].id);
+        const support = solved.reactions.get(store.nodes[0].id);
+        const displacement = solved.displacements.get(store.nodes[1].id);
         solveStatus.textContent = [
             `Auflager Knoten 1: Fx ${support?.fx.toFixed(2)} kN, Fz ${support?.fz.toFixed(2)} kN`,
             `Knoten 2: uz ${displacement?.uz.toExponential(3)} m`,
-            ...result.warnings.map((warning) => `⚠ ${warning.message}`),
+            ...solved.warnings.map((warning) => `⚠ ${warning.message}`),
         ].join('\n');
-        console.log(active.name, result);
+        console.log(active.name, solved);
     } catch (error) {
         solveStatus.textContent = `Fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
@@ -670,6 +704,47 @@ async function solveActive(): Promise<void> {
         renderPanel();
     }
 }
+
+// ---------------------------------------------------------------------------
+// 5a. Die Schnittgroessen-Schalter.
+//
+// Sie schreiben in `diagrams` und NICHT in den Store: was man ansieht, ist keine
+// Eingabe. Deshalb loesen sie auch kein `check()` aus — nur ein Neuzeichnen.
+//
+// Die Ueberhoehung gilt fuer alle drei zugleich. Je Schnittgroesse einen eigenen
+// Regler gaebe es erst, wenn jemand N und M gleichzeitig verschieden ueberhoehen
+// will; der Typ `DiagramOptions` kann es bereits.
+// ---------------------------------------------------------------------------
+const diagramMCheckbox = element<HTMLInputElement>('diagram-m');
+const diagramVCheckbox = element<HTMLInputElement>('diagram-v');
+const diagramNCheckbox = element<HTMLInputElement>('diagram-n');
+const diagramExaggerationInput = element<HTMLInputElement>('diagram-exaggeration');
+const diagramExaggerationValue = element<HTMLSpanElement>('diagram-exaggeration-value');
+
+function applyDiagramOptions(): void {
+    diagrams.M = diagramMCheckbox.checked;
+    diagrams.V = diagramVCheckbox.checked;
+    diagrams.N = diagramNCheckbox.checked;
+    diagrams.exaggeration = Number(diagramExaggerationInput.value);
+    diagramExaggerationValue.textContent = String(diagrams.exaggeration);
+    viewer.requestRender();
+}
+
+for (const control of [
+    diagramMCheckbox,
+    diagramVCheckbox,
+    diagramNCheckbox,
+    diagramExaggerationInput,
+]) {
+    control.addEventListener('input', applyDiagramOptions);
+}
+
+// Die Controls tragen den Anfangsstand von `diagrams` — einmal angleichen.
+diagramMCheckbox.checked = diagrams.M;
+diagramVCheckbox.checked = diagrams.V;
+diagramNCheckbox.checked = diagrams.N;
+diagramExaggerationInput.value = String(diagrams.exaggeration);
+diagramExaggerationValue.textContent = String(diagrams.exaggeration);
 
 // ---------------------------------------------------------------------------
 // 6. Die Analyse-Einstellung: ansehen und aendern.

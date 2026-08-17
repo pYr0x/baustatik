@@ -221,6 +221,19 @@ describe('reconcile — arrow and label', () => {
     document.body.innerHTML = '';
   });
 
+  /**
+   * Die Boxmaße in WELTeinheiten.
+   *
+   * Der Text wird in einer festen REFERENZgroesse gebaut und die Gruppe
+   * skaliert — `getText().width()` ist deshalb ein Referenzmaß, und erst mal
+   * `scaleX()` steht da, was im Bild steht. Genau darauf bezieht sich die
+   * Platzierungsregel.
+   */
+  const boxSize = (node: Konva.Label): { width: number; height: number } => ({
+    width: node.getText().width() * node.scaleX(),
+    height: node.getText().height() * node.scaleY(),
+  });
+
   it('builds an arrow as a real Konva.Arrow with the head at the tip', () => {
     const h = createAdapterHarness();
     h.driver.reconcile([
@@ -316,8 +329,7 @@ describe('reconcile — arrow and label', () => {
     h.driver.reconcile([label()]);
 
     const node = currentStage().findOne('#lb') as Konva.Label;
-    const width = node.getText().width();
-    const height = node.getText().height();
+    const { width, height } = boxSize(node);
 
     // Richtung (0,-1): der untere Rand liegt 6 ueber dem Anker, waagerecht
     // zentriert.
@@ -332,8 +344,7 @@ describe('reconcile — arrow and label', () => {
     h.driver.reconcile([label({ direction: { u: 1, v: -1 } })]);
 
     const node = currentStage().findOne('#lb') as Konva.Label;
-    const width = node.getText().width();
-    const height = node.getText().height();
+    const { width, height } = boxSize(node);
 
     // d = (1,-1)/sqrt(2), t = min(hw, hh) * sqrt(2) — bei einer breiten Box
     // also ueber die Hoehe bestimmt.
@@ -342,6 +353,33 @@ describe('reconcile — arrow and label', () => {
 
     expect(node.x() + width / 2).toBeCloseTo(Math.SQRT1_2 * distance, 6);
     expect(node.y() + height / 2).toBeCloseTo(-Math.SQRT1_2 * distance, 6);
+
+    h.destroy();
+  });
+
+  it('keeps the box proportional to fontSize however far one zooms in', () => {
+    // DER FALL, FUER DEN DIE REFERENZGROESSE DA IST. `fontSize` ist ein Weltmaß
+    // und wird beim Reinzoomen beliebig klein; direkt im Fontstring („0.006px")
+    // quantisieren die Browser die Schrift oder verwerfen sie ganz — die Box
+    // waere dann sprunghaft breit und irgendwann leer. Ueber die Skalierung
+    // bleibt das Verhaeltnis Boxbreite/fontSize exakt dasselbe, und genau das
+    // heisst „auf dem Schirm gleich gross".
+    const h = createAdapterHarness();
+
+    h.driver.reconcile([label({ fontSize: 12, padding: 3, gap: 6 })]);
+    const coarse = boxSize(currentStage().findOne('#lb') as Konva.Label);
+
+    // Ein Zoomfaktor von 2000 — dort steht ohne die Referenzgroesse `0.006px`
+    // im Fontstring.
+    h.driver.reconcile([
+      label({ fontSize: 12 / 2000, padding: 3 / 2000, gap: 6 / 2000 }),
+    ]);
+    const node = currentStage().findOne('#lb') as Konva.Label;
+    const fine = boxSize(node);
+
+    expect(node.getText().fontSize()).toBe(100);
+    expect(fine.width * 2000).toBeCloseTo(coarse.width, 6);
+    expect(fine.height * 2000).toBeCloseTo(coarse.height, 6);
 
     h.destroy();
   });

@@ -14,6 +14,7 @@ import {
   arcPathData,
   arrowConfig,
   circleConfig,
+  labelScale,
   labelTagConfig,
   labelTextConfig,
   labelTopLeft,
@@ -265,13 +266,18 @@ describe('labelTextConfig() und labelTagConfig()', () => {
     cornerRadius: 0.15,
   };
 
-  it('maps the text fields to a Konva text config', () => {
+  it('builds the text at the REFERENCE size, not at the spec size', () => {
+    // `fontSize` ist ein WELTMASS und wird beim Zoomen beliebig klein. Direkt in
+    // den Fontstring gesetzt („0.012px") quantisieren die Browser die Schrift
+    // oder verwerfen sie — die Groesse waere beim Reinzoomen nicht mehr konstant.
+    // Die Verkleinerung macht deshalb die Skalierung der Gruppe.
     expect(labelTextConfig(spec)).toEqual({
       text: '10 kN',
-      fontSize: 0.6,
+      fontSize: 100,
       fontFamily: 'sans-serif',
       fill: '#1d4ed8',
-      padding: 0.15,
+      // In Referenzeinheiten: 0.15 Welt / (0.6/100) = 25.
+      padding: 25,
     });
   });
 
@@ -281,9 +287,22 @@ describe('labelTextConfig() und labelTagConfig()', () => {
       stroke: '#1d4ed8',
       strokeWidth: 1,
       strokeScaleEnabled: false,
-      cornerRadius: 0.15,
+      // Wie das padding in Referenzeinheiten; `strokeWidth` dagegen NICHT — es
+      // ist ueber `strokeScaleEnabled: false` ohnehin ein Screen-Pixel.
+      cornerRadius: 25,
       pointerDirection: 'none',
     });
+  });
+
+  it('keeps the on-screen size constant however small fontSize gets', () => {
+    // Der Kern der Regel: Referenzgroesse mal Skalierung ergibt immer wieder das
+    // Weltmass — und zwar OHNE dass eine winzige Zahl je im Fontstring landet.
+    for (const fontSize of [12, 0.6, 0.012, 1e-5]) {
+      const tiny = { ...spec, fontSize };
+
+      expect(labelTextConfig(tiny).fontSize).toBe(100);
+      expect(labelScale(tiny) * 100).toBeCloseTo(fontSize, 12);
+    }
   });
 
   it('passes optional border and corner fields through as undefined', () => {

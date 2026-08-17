@@ -9,13 +9,13 @@
 
 import type { Beam, Node, NodeSupport } from '@baustatik/fem';
 import type { FEMLoad } from '@baustatik/fem-loads';
-import type { SupportReaction } from '@baustatik/fem-solver';
+import type { SolveResult } from '@baustatik/fem-solver';
 import type { Spec } from '@baustatik/render-core';
 import type { Viewport } from '@baustatik/viewport-2d';
 
 import { loadSpecs } from './loads';
 import { modelSpecs } from './model';
-import { resultSpecs } from './results';
+import { type DiagramOptions, resultSpecs } from './results';
 import { DEFAULT_STYLE, type FEMStyle } from './style';
 
 export { type FEMStyle } from './style';
@@ -29,11 +29,18 @@ export interface FEMSceneOptions {
   readonly supports: readonly NodeSupport[];
   readonly loads: readonly FEMLoad[];
   /**
-   * Die Auflagerkraefte eines gerechneten Lastfalls, direkt aus
-   * `SolveResult.reactions`. Weggelassen = noch nicht gerechnet, und dann steht
-   * kein Ergebnis im Bild.
+   * Das gerechnete Ergebnis EINES Lastfalls, als GANZES. Weggelassen = noch
+   * nicht gerechnet, und dann steht kein Ergebnis im Bild.
+   *
+   * Ein Pull und nicht zwei: die Auflagerkraefte stehen darin, und ein zweiter
+   * Eingang fuer dieselbe Rechnung koennte mit dem ersten desynchronisieren.
    */
-  readonly reactions?: ReadonlyMap<string, SupportReaction>;
+  readonly result?: SolveResult;
+  /**
+   * Welche Schnittgroessen gezeichnet werden und wie hoch. Weggelassen = keine
+   * Verlaeufe; die Anwesenheit eines Feldes IST der Schalter.
+   */
+  readonly diagrams?: DiagramOptions;
   readonly viewport: Viewport;
   readonly style?: FEMStyle;
 }
@@ -44,7 +51,8 @@ export function femSpecs(options: FEMSceneOptions): readonly Spec[] {
     beams,
     supports,
     loads,
-    reactions,
+    result,
+    diagrams,
     viewport: vp,
     style,
   } = options;
@@ -59,6 +67,13 @@ export function femSpecs(options: FEMSceneOptions): readonly Spec[] {
   return [
     ...modelSpecs({ nodes, beams, supports, viewport: vp, style: resolved }),
     ...loadSpecs({ nodes, beams, loads, viewport: vp, style: resolved }),
-    ...resultSpecs({ nodes, reactions, viewport: vp, style: resolved }),
+    ...resultSpecs({
+      nodes,
+      beams,
+      result,
+      diagrams,
+      viewport: vp,
+      style: resolved,
+    }),
   ];
 }
