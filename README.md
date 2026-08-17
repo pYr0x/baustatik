@@ -1,14 +1,9 @@
 # baustatik
 
 [![CI](https://img.shields.io/github/actions/workflow/status/pYr0x/baustatik/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white&style=flat-square)](https://github.com/pYr0x/baustatik/actions/workflows/ci.yml)
-[![Demo](https://img.shields.io/github/actions/workflow/status/pYr0x/baustatik/deploy-app.yml?branch=main&label=Demo&logo=cloudflare&logoColor=white&style=flat-square)](https://github.com/pYr0x/baustatik/actions/workflows/deploy-app.yml)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white&style=flat-square)
-![pnpm](https://img.shields.io/badge/pnpm-11.16-F69220?logo=pnpm&logoColor=white&style=flat-square)
-![Turborepo](https://img.shields.io/badge/Turborepo-2.8-EF4444?logo=turborepo&logoColor=white&style=flat-square)
-![WASM](https://img.shields.io/badge/WASM-fear%20%7C%20Triangle-654FF0?logo=webassembly&logoColor=white&style=flat-square)
-[![Changesets](https://img.shields.io/badge/maintained%20with-changesets-172b4d?logo=github&style=flat-square)](https://github.com/changesets/changesets)
-![Linter](https://img.shields.io/badge/linted%20with-Oxlint-cyan?logo=oxlint&logoColor=white&style=flat-square)
-[![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-lightgrey.svg?style=flat-square)](https://www.gnu.org/licenses/agpl-3.0)
+![WASM](https://img.shields.io/badge/WASM-654FF0?logo=webassembly&logoColor=white&style=flat-square)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-none.svg?style=flat-square)](https://www.gnu.org/licenses/agpl-3.0)
 
 
 Structural-analysis / finite-element software.
