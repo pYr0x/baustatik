@@ -17,7 +17,7 @@ consumer exists outside the repo. Yet the change discipline kept producing
 real version decisions: breaking changes were labelled `major`, and
 `@baustatik/script` reached `2.0.0` on the strength of its `schemaVersion`
 breaks. The release pipeline
-([`.github/workflows/release.yml`](../../.github/workflows/release.yml)) is
+([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)) is
 fully wired — the changesets action opens "Version Packages" PRs and, once an
 `NPM_TOKEN` exists, publishes. Every "major" the agent writes therefore
 becomes a real bump and eventually a real publish, even though nobody is

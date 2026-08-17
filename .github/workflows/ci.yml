@@ -1,17 +1,26 @@
-name: CI
+name: CI / CD Pipeline
 
 on:
   push:
     branches: ["main"]
   pull_request:
-    branches-ignore:
-      - "changeset-release/**"
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
+  # Optional: Erlaubt manuelles Triggern über GitHub UI
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  build:
+  build-and-test:
     name: Build, Lint and Test
     runs-on: ubuntu-latest
+    if: "!startsWith(github.head_ref, 'changeset-release/')"
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -93,3 +102,86 @@ jobs:
 
       - name: Run Turbo Pipeline (Build, Lint, Typecheck, Test)
         run: pnpm turbo run build typecheck lint test --cache-dir=.turbo/cache --summarize
+
+      # Build-Artefakte für nachgelagerte Jobs (Deploy & Release) auf main sichern
+      - name: Upload Build Artifacts
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          retention-days: 1
+          path: |
+            packages/*/dist
+            packages/*/pkg
+            apps/demo/dist
+
+  deploy:
+    name: Deploy to Cloudflare Pages (Production)
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+  release:
+    name: Release
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.16.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Verify toolchain
+        run: |
+          node --version
+          pnpm --version
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Verify WASM package contents
+        run: |
+          pnpm --filter @baustatik/linear-solver-wasm exec npm pack --dry-run
+          pnpm --filter @baustatik/mesh-2d-wasm exec npm pack --dry-run
+          pnpm --filter @baustatik/sparse-solver-wasm exec npm pack --dry-run
+
+      - name: Create Release Pull Request or Publish to npm
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: pnpm publish-packages
+          version: pnpm version-packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
