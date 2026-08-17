@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  dockerOutput,
   ensureDockerImage,
   hasDocker,
   runDockerBuild,
@@ -108,11 +109,19 @@ function buildDocker() {
     TOOLCHAIN.dockerfile,
     'mesh-2d-wasm',
   );
-  assertVersion(
-    'docker',
-    ['run', '--rm', TOOLCHAIN.dockerImage, 'emcc', '--version'],
-    'Das Docker-Image',
-  );
+  const version = dockerOutput([
+    'run',
+    '--rm',
+    TOOLCHAIN.dockerImage,
+    'emcc',
+    '--version',
+  ]);
+  if (version === undefined || !version.includes(TOOLCHAIN.emscriptenVersion)) {
+    console.error(
+      `[mesh-2d-wasm] Das Docker-Image liefert nicht Emscripten ${TOOLCHAIN.emscriptenVersion}.`,
+    );
+    process.exit(1);
+  }
   runDockerBuild({
     image: TOOLCHAIN.dockerImage,
     dockerfile: TOOLCHAIN.dockerfile,

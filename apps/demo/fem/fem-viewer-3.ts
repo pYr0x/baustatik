@@ -222,7 +222,7 @@ store.addSupport(store.nodes[2] as Node, "free", "fixed", "free");
 // Durchbiegung ist dort gross genug, um ihn ohne Lupe zu sehen — bei `L/h = 20`
 // laege er unter einem Prozent, und die Seite haette nichts zu zeigen.
 store.addLoadCase("Einzellast in Feldmitte");
-store.addNodeLoad(store.nodes[1] as Node, 100);
+store.addNodeLoad(store.nodes[1] as Node, 10000);
 
 // ---------------------------------------------------------------------------
 // Zwei Bilder: links das Stabwerk, daneben der Querschnitt mit seinem Netz.
