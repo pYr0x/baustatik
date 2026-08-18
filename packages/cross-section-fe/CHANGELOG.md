@@ -1,5 +1,12 @@
 # @baustatik/cross-section-fe
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [7ce2046]
+  - @baustatik/cross-section@0.0.8
+
 ## 0.0.3
 
 ### Patch Changes
