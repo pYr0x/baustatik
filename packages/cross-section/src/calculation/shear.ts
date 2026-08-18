@@ -83,7 +83,7 @@ export function shearFlowIntegral(interval: ShearFlowInterval): number {
  * Die Schubflaeche `A_s` aus dem Traegheitsmoment und dem Weg.
  *
  * `I` ist IMMER das der Umrissfigur, auch wenn der Weg duennwandig idealisiert
- * ist. Genau so rechnet RSTAB, und genau daran haengt die Uebereinstimmung mit
+ * ist. So rechnet die Referenz, und genau daran haengt die Uebereinstimmung mit
  * dem Katalog.
  */
 export function shearArea(

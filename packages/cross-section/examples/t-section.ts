@@ -13,7 +13,9 @@ import { report } from './report.ts';
  * ohne Sonderfall und traegt dort kompakt `t = bf`; „Mitte Steg" haette ihn an
  * die falsche Stelle gesetzt.
  *
- * 9 Punkte: 8 Ecken + Schwerpunkt.
+ * 9 Punkte: fuenf im Gurt auf der AUSSENfaser (Spitzen, Stegflanken,
+ * Stegachse), einer im STEG unter dem Gurt — dort springt tau um `hf/bw` —,
+ * der Schwerpunkt und die beiden Ecken am freien Stegende (ADR 0052).
  */
 export function tSectionExample(): void {
   // Stahlbeton-Plattenbalken — kompakt.
@@ -30,9 +32,10 @@ export function tSectionExample(): void {
     },
   };
 
-  // Geschweisster Stahl-T — duennwandig. Hier laeuft `S` um den Schwerpunkt des
-  // WANDMODELLS, waehrend die Koordinaten um den der Umrissfigur liegen; bei
-  // dieser unsymmetrischen Form fallen die beiden auseinander.
+  // Geschweisster Stahl-T — duennwandig. `S` und die Koordinaten laufen um
+  // DENSELBEN Schwerpunkt, den der Umrissfigur: Gurt und Steg kacheln die
+  // Figur, ihr Schwerpunkt ist `zs` (ADR 0053). Bis dahin lief `S` um den
+  // Schwerpunkt des Mittellinienmodells, 0,88 mm daneben.
   const stahlT: CrossSection = {
     kind: 'shape',
     id: 'stahl-t',

@@ -2,7 +2,7 @@ import { lookupProfile, profileData, profilesIn } from '@baustatik/steel-profile
 import { describe, expect, it } from 'vitest';
 import { type CrossSection, type StressPoint, stressPoints } from '../src/index';
 import { rolledIGeometry } from '../src/stress-points/rolled-i';
-import fixture from './fixtures/rstab-stress-points.json';
+import fixture from './fixtures/rolled-i-stress-points.json';
 
 type ReferencePoint = {
   nr: number;
@@ -80,7 +80,7 @@ describe('IPE 80 gegen den gedruckten Ausdruck', () => {
 });
 
 describe('Die Nummerierung ist ein Vertrag', () => {
-  // RSTAB druckt „S-Punkt Nr. 1…13". Der Test haelt fest, WELCHE Nummer WO
+  // Der gedruckte Ausdruck nummiert „S-Punkt Nr. 1…13". Der Test haelt fest, WELCHE Nummer WO
   // sitzt — bevor der erste Bericht sie druckt und die Zuordnung damit nach
   // draussen gegeben ist.
   const pts = points(profile('IPE 300'));
@@ -131,8 +131,8 @@ describe('Die 546 Referenzpunkte', () => {
   //   Sy und Sz: 0,7 % relativ plus eine absolute Schwelle. Die Quelle ist
   //   in sich nicht symmetrisch — IPE 220 druckt an den beiden Steganfaengen
   //   119,44 und 119,73 (+-0,12 %), obwohl die Punkte spiegelbildlich liegen.
-  //   RSTAB widerspricht ausserdem SICH SELBST: sein Spannungspunkt 13 und
-  //   sein tabelliertes `Sy,max` gehen bei HEA 260 um 0,56 % auseinander.
+  //   Die Referenz widerspricht ausserdem SICH SELBST: ihr Spannungspunkt 13 und
+  //   ihr tabelliertes `Sy,max` gehen bei HEA 260 um 0,56 % auseinander.
   //   Unsere Rechnung trifft `Sy,max` auf 0,05 % — siehe den Selbstcheck
   //   weiter unten. Die 0,7 % sind die Spanne dieser Widersprueche, nicht
   //   unsere Unsicherheit.
@@ -164,7 +164,7 @@ describe('Die 546 Referenzpunkte', () => {
 
   it('vergleicht Sy und Sz', () => {
     // Punkt 3 und 8 sind ausgenommen und haben ihren eigenen Test: dort weicht
-    // RSTAB systematisch und unerklaert ab.
+    // die Referenz systematisch und unerklaert ab.
     for (const series of ['IPE', 'HEA'] as const) {
       for (const p of profilesIn(series)) {
         const mine = points(profile(p.id));
@@ -189,7 +189,7 @@ describe('Die 546 Referenzpunkte', () => {
     // Flaechenmoment des halben Gurts, `b/2 * tf * (h-tf)/2` — die geschlossene
     // Formel, die an Punkt 2 und 4 auf 0,45 % genau stimmt und aus derselben
     // Integration faellt, die `A`, `Iy` und `Sy,max` des ganzen Katalogs
-    // trifft. RSTAB druckt an genau diesen beiden Punkten etwas anderes, bis
+    // trifft. Die Referenz druckt an genau diesen beiden Punkten etwas anderes, bis
     // zu 2,8 % daneben, ohne dass sich aus den Daten eine Definition ablesen
     // liesse (der Unterschied ist weder ein fester Anteil der Ausrundung noch
     // eine Funktion von r/tf).
@@ -320,7 +320,7 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
     expect(pts).toHaveLength(9);
   });
 
-  it('gibt dem geschweissten I 15 Punkte', () => {
+  it('gibt dem geschweissten I 13 Punkte, wie dem gewalzten', () => {
     const pts = points({
       kind: 'shape',
       id: 'i',
@@ -333,10 +333,13 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
         idealisation: 'solid',
       },
     });
-    expect(pts).toHaveLength(15);
-    // 12 Ecken + Schwerpunkt + die beiden Punkte auf der Stegachse (0, +-h/2),
-    // die das gewalzte Profil nicht hat.
-    expect(pts.filter((p) => p.y === 0)).toHaveLength(3);
+    expect(pts).toHaveLength(13);
+    // Zehn Gurtpunkte auf den beiden AUSSENfasern, dazu drei auf der
+    // Stegachse: die beiden Gurtunterkanten und der Schwerpunkt. Die vier
+    // Ecken an der Gurtunterseite sind seit ADR 0052 weg — gleiches y,
+    // kleineres |z| als die Gurtspitze darueber, also nie massgebend.
+    expect(pts.filter((p) => p.y === 0)).toHaveLength(5);
+    expect(pts.filter((p) => Math.abs(p.z) === 150)).toHaveLength(10);
   });
 
   it('setzt beim breiten Gurt t = bf am Schwerpunkt', () => {
@@ -355,13 +358,13 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
         idealisation: 'solid',
       },
     });
-    const centroid = pts[8];
+    const centroid = pts[6];
     expect(centroid.y).toBe(0);
     expect(centroid.z).toBe(0);
     expect(centroid.t).toBeCloseTo(2000, 12);
     // Und die Gurtunterkante, wo die Breite auf bw springt: dort gilt die
     // KLEINERE Breite, weil die Schubspannung dort nach oben springt.
-    expect(pts[3].t).toBeCloseTo(250, 12);
+    expect(pts[5].t).toBeCloseTo(250, 12);
   });
 
   it('liefert an jedem freien Rand S = 0', () => {
@@ -381,30 +384,16 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
       },
     });
     expect(pts[0].Sy).toBeCloseTo(0, 12); // Gurtoberkante
-    expect(pts[6].Sy).toBeCloseTo(0, 12); // Stegunterkante
+    expect(pts[7].Sy).toBeCloseTo(0, 12); // Stegunterkante
     expect(pts[0].Sz).toBeCloseTo(0, 12); // linker Rand
-    expect(pts[1].Sz).toBeCloseTo(0, 12); // rechter Rand
+    expect(pts[4].Sz).toBeCloseTo(0, 12); // rechter Rand
   });
 });
 
 describe('Was undefined heisst', () => {
-  it('hat fuer den geschlossenen Kasten (noch) keine Vorlage', () => {
-    // Eine Vorlage ohne Referenzdaten waere geraten und nicht gerechnet. Der
-    // Kasten kommt mit den QRO-Daten, die ausserdem Bogentangenten mitbringen.
-    expect(
-      stressPoints({
-        kind: 'shape',
-        id: 'b',
-        shape: {
-          kind: 'hollow-rectangle',
-          b: 60,
-          h: 60,
-          t: 6.3,
-          idealisation: 'thin-walled',
-        },
-      }),
-    ).toBeUndefined();
-  });
+  // „Der geschlossene Kasten" stand hier, solange ihm die Referenzdaten
+  // fehlten. Er hat sie jetzt (TO 300/200/10) und damit beide Vorlagen —
+  // siehe `stress-points-hollow.test.ts`.
 
   // „Unbekanntes Profil" steht hier nicht mehr: seit ADR 0027 traegt der Satz
   // die Zeile, der Profilzweig ist also total. Der Tippfehler wird beim

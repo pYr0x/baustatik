@@ -34,7 +34,7 @@ per factor.
 
 ## `Az`, not `Av,z` — and it costs a third of the shear stiffness
 
-RSTAB prints three shear areas side by side for IPE 80, and they are not
+The printed table lists three shear areas side by side for IPE 80, and they are not
 interchangeable:
 
 | | IPE 80 | meaning | used for |
@@ -74,7 +74,7 @@ The third row is what the code computes. The residual gap in `Az` is the missing
 fillet: that material sits at the web-to-flange transition, where it contributes
 a lot to `Vz` and almost nothing to `Vy` — and the deviation is negative for
 **every one** of the 42 profiles. A tolerance test would prove nothing; the
-one-sidedness is the evidence that we compute the same definition RSTAB does.
+one-sidedness is the evidence that we compute the same definition the reference does.
 
 For a rectangle the definition yields **exactly 5/6**. The value appears nowhere
 in the source; that it comes out is the test that the definition is right.

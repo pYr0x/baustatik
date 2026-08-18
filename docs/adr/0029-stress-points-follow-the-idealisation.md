@@ -1,5 +1,35 @@
 # Stress points follow the idealisation
 
+> **Later:** [ADR 0052](0052-stress-points-sit-on-the-extreme-fibre.md) changed
+> *where* the points of the welded I and T sit — onto the flange's outer fibre,
+> plus a point in the web under each flange. It did not change this decision:
+> the two idealisations still read one station list, and the idealisation still
+> steers κ and the stress points together.
+
+> **Later still:** [ADR 0053](0053-the-stress-point-walls-tile-the-outline.md)
+> changed *what `S` is* at those points. The thin-walled walls now **tile the
+> outline figure**, so `S` is taken about the outline centroid and the T's two
+> centroids collapse into one — the section "The T-section's two centroids"
+> below describes a state that no longer exists. Two claims made here are
+> withdrawn with it: that the wall model's 11.60 cm³ is the *right* centroid
+> value for a welded I (it is 11.25; the catalogue's 11.61 belongs to the rolled
+> profile and its fillets), and that the web is where the r = 0 oracle stops (it
+> now holds at all thirteen points). What survives unchanged is the decision
+> itself — one question, one machine — and the **κ** half of it: the shear-energy
+> path keeps the centre-line development, for reasons ADR 0053 sets out with
+> numbers.
+
+> **The closed box is no longer `undefined`.** This ADR left it out for lack of
+> reference data, not of theory, and said so. The data arrived — the reference
+> for TO 300/200/10 and TO 400/200/10, transcribed to
+> `packages/cross-section/tests/fixtures/hollow-rectangle-stress-points.json` — so the box
+> now has both templates, exactly as the rule below prescribes: outline model
+> for `solid`, wall model for `thin-walled`. **The decision itself is
+> unchanged**; only the table row is —
+> [ADR 0051](0051-the-closed-box-tiles-the-outline-figure.md) then decided *how*
+> the box's wall model measures, and leaned on the rule below to move κ with it.
+> Details in the package's `CONTEXT.md`.
+
 Extends [ADR 0022](0022-stress-points-are-computed-from-a-template.md), which
 decided *that* stress points are computed from a template. This one decides
 *which* template: the one `idealisation` already selects for κ.
@@ -38,7 +68,7 @@ Because the right template already existed. `stress-points/rolled-i.ts` is not a
 band model at the flange; it is already the wall model — `t = tf`, and its lever
 arm `zf = (h − tf)/2` sits on the **centre line**. Its `halfFlangeMoment` is
 term-for-term what `crossWallInterval(−zf, tf, b/2)` computes for κ. It is
-validated against 546 RSTAB points; it was simply **not reachable from the
+validated against the catalogue points; it was simply **not reachable from the
 parametric branch**.
 
 So the work was not "a model is missing" but "the model we have is not
@@ -51,7 +81,9 @@ connected in one place".
 | `rectangle` | band machine | — (carries no `idealisation`) |
 | `i-symmetric` | band machine | **wall model** |
 | `t-section` | band machine | **wall model** |
-| `hollow-rectangle` | `undefined` | `undefined` |
+| `hollow-rectangle` | `undefined`&nbsp;† | `undefined`&nbsp;† |
+
+† Since resolved — see the note at the top: band machine and wall model.
 
 **`solid` keeps the band machine, and that is not a stopgap.** Grashof *is*
 right for solid sections; the rectangle parabola falls straight out of it.
@@ -129,5 +161,5 @@ doubly symmetric shapes the offset is exactly zero.
   of it. One path feeding both would need a start point and a direction per
   interval, and `Sy`/`Sz` would come from two differently parametrised paths
   whose stations then have to be correlated. What holds the two copies together
-  meanwhile are the tests: the flange against 546 RSTAB points, the I's centroid
-  against the catalogue, the T's free web end against zero.
+meanwhile are the tests: the flange against the catalogue points, the I's centroid
+against the catalogue, the T's free web end against zero.

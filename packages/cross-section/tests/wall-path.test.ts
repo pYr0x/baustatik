@@ -126,10 +126,24 @@ describe('κ des Wandgraphen trifft den geschlossenen Ausdruck der Form', () => 
     expect(wallGraph.kappaY).toBeCloseTo(shape?.kappaY ?? 0, 9);
   });
 
-  it('geschlossener Kasten: derselbe Wert wie `closedBoxPath`', () => {
-    // ZWEI UNABHÄNGIGE WEGE zur selben Zahl: die Form setzt ihren Startschnitt
-    // aus der SYMMETRIE (in Wandmitte ist der Schubfluss null), der Wandgraph
-    // schneidet irgendwo auf und rechnet `q₀` aus der Verträglichkeit.
+  it('geschlossener Kasten: die OFFENE Lücke zur Form, mit Zahl', () => {
+    // HIER STAND „derselbe Wert", und das galt, solange beide Seiten das reine
+    // Mittellinienmodell rechneten. Seit ADR 0051 tut die FORM das nicht mehr:
+    // ihre Wände parkettieren die Umrissfigur, damit ist ihr `S` exakt und
+    // die Spannungspunkte treffen den gedruckten Ausdruck. Der WANDGRAPH
+    // rechnet weiter Mittellinie.
+    //
+    // DAS IST EINE ECHTE, OFFENE LÜCKE und keine Toleranz. Sie steht hier mit
+    // Zahl, damit sie nicht unbemerkt wächst und damit eine spätere
+    // Übertragung der Parkettierung auf den Graphen merkt, dass sie sie
+    // schließt. Warum sie nicht mitgekommen ist: der Graph kennt beliebige
+    // Winkel und Dickensprünge, der Eckblock ist dort kein Quadrat, und die
+    // Korrektur hängt vom Gehrungswinkel ab. Die Geometrie dazu hat
+    // `geometry/outline/miter-joints.ts` (ADR 0038) — der Schubweg liest sie
+    // heute nicht.
+    //
+    // Die Form liegt dabei auf der GENAUEREN Seite: ihr `S` und das `I` aus
+    // `shearArea` kommen jetzt aus derselben Figur.
     const [b, h, t] = [100, 200, 8];
     const { nodes, walls } = boxGraph(b, h, t);
     const wallGraph = drawn(nodes, walls);
@@ -139,8 +153,18 @@ describe('κ des Wandgraphen trifft den geschlossenen Ausdruck der Form', () => 
       shape: { kind: 'hollow-rectangle', b, h, t, idealisation: 'thin-walled' },
     });
 
-    expect(wallGraph.kappaZ).toBeCloseTo(shape?.kappaZ ?? 0, 9);
-    expect(wallGraph.kappaY).toBeCloseTo(shape?.kappaY ?? 0, 9);
+    for (const key of ['kappaZ', 'kappaY'] as const) {
+      const graph = wallGraph[key] as number;
+      const form = shape?.[key] as number;
+      // Der Graph liegt ÜBER der Form, und das ist gerichtet: das
+      // Mittellinienmodell verkürzt den Hebelarm an jeder Ecke, sein `S` ist
+      // also zu klein und sein kappa damit zu groß.
+      expect(graph, key).toBeGreaterThan(form);
+      expect((graph - form) / form, key).toBeLessThan(0.003);
+    }
+    // Die Zahlen selbst, als Charakterisierung.
+    expect(wallGraph.kappaZ as number).toBeCloseTo(0.6238, 4);
+    expect(shape?.kappaZ as number).toBeCloseTo(0.6226, 4);
   });
 });
 

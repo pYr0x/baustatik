@@ -471,7 +471,7 @@
     Nummerierung ist ein veröffentlichter Vertrag.
   - **Das Orakel kostete keine neue Fixture:** ein geschweißtes I ohne Ausrundung
     IST das gewalzte Profil mit `r = 0`. An den 14 Gurtstationen stimmen die neue
-    Vorlage und die gegen 546 RSTAB-Punkte validierte `rolled-i.ts` auf
+    Vorlage und die gegen 546 Referenzpunkte validierte `rolled-i.ts` auf
     Gleitkommarauschen überein. Am STEG gilt das Orakel nicht — `rolled-i.ts`
     führt dort die lichte Höhe, das Wandmodell Gurtmitte zu Gurtmitte —, und der
     Schwerpunkt hat deshalb seine eigene Referenz: `Sy,max` des Katalogs, über die

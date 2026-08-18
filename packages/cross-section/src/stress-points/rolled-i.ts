@@ -5,7 +5,7 @@ import { type StressPoint, stressPoint } from './types';
  * Die Vorlage des GEWALZTEN I-Profils — 13 Punkte, und die Nummerierung ist ein
  * VEROEFFENTLICHTER VERTRAG.
  *
- * RSTAB druckt „S-Punkt Nr. 1…13": 1–5 oberer Flansch von links nach rechts,
+ * Der gedruckte Ausdruck fuehrt „S-Punkt Nr. 1…13": 1–5 oberer Flansch von links nach rechts,
  * 6–10 unterer ebenso, 11/12 Steganfang oben/unten, 13 Schwerpunkt. Wir
  * uebernehmen sie unveraendert; ein Test haelt sie fest, bevor der erste Bericht
  * sie druckt.
@@ -17,7 +17,7 @@ import { type StressPoint, stressPoint } from './types';
  * gedruckt.
  *
  * VORZEICHEN: `Sy` ist durchweg negativ, `Sz` spiegelt zwischen oberem und
- * unterem Gurt. Das ist keine Willkuer, sondern RSTABs Buchfuehrung ueber die
+ * unterem Gurt. Das ist keine Willkuer, sondern die Buchfuehrung ueber die
  * UMLAUFRICHTUNG des Schubflusses: am Gurt zaehlt der Teil bis zur NAECHSTEN
  * freien Spitze, und der untere Gurt wird gegenlaeufig durchlaufen. Fuer den
  * Betrag — und nur der geht in `|tau|` ein — ist die Richtung gleichgueltig;

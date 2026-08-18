@@ -11,11 +11,15 @@ import { report } from './report.ts';
  * laufenden Programmversion — und `sectionProperties` ist in diesem Zweig
  * total, es gibt kein „unbekanntes Profil" mehr.
  *
- * 13 Spannungspunkte in RSTABs gedruckter Nummerierung: 1–5 oberer Gurt von
+ * 13 Spannungspunkte in gedruckter Nummerierung: 1–5 oberer Gurt von
  * links, 6–10 unterer, 11/12 Steganfang, 13 Schwerpunkt. Die Gurtunterseiten-
  * Ecken fehlen bewusst: bei homogenem Querschnitt koennen sie nie massgebend
- * werden. Ein geschweisstes I (15 Punkte) liest sich deshalb anders — es ist
- * eine andere Form.
+ * werden.
+ *
+ * DAS GESCHWEISSTE I LIEST SICH SEIT ADR 0052 GENAUSO — dieselben 13 Stellen,
+ * dieselben Nummern, und bei `r = 0` an den Punkten 1 bis 12 dieselben Zahlen
+ * bis aufs letzte Bit. Dass es lange anders war (15 Punkte, eigene Zaehlung),
+ * war kein Formunterschied, sondern eine nicht angewandte Regel.
  */
 export function rolledProfileExample(): void {
   const profile = lookupProfile('IPE 300');

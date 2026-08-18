@@ -16,7 +16,7 @@
  * | κ        | Wandmodell | Umrissfigur   |
  * | `yM`/`zM`| Wandmodell | Wandmodell    |
  *
- * κ ist NACH AUSSEN gebunden: so rechnet RSTAB, und daran hängt die
+ * κ ist NACH AUSSEN gebunden: so rechnet die Referenz, und daran hängt die
  * Übereinstimmung mit der IPE-Reihe (ADR 0021) — es ist dieselbe Mischung, die
  * `../shapes/t-section.ts` seit jeher fährt. Der Schubmittelpunkt ist NACH INNEN
  * gebunden: `∫S dz = I` gilt nur für EINE Figur, und gemischt käme die

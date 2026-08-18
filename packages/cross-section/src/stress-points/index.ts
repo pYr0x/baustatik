@@ -1,12 +1,18 @@
 import { sectionProperties } from '../calculation/section-properties';
-import {
-  tSectionCentroid,
-  tSectionWall,
-} from '../calculation/shapes/t-section';
+import { tSectionCentroid } from '../calculation/shapes/t-section';
 import type { CrossSection } from '../model/cross-section';
-import { iSymmetricPoints, rectanglePoints, tSectionPoints } from './compact';
+import {
+  hollowRectanglePoints,
+  iSymmetricPoints,
+  rectanglePoints,
+  tSectionPoints,
+} from './compact';
 import { rolledIStressPoints } from './rolled-i';
-import { iSymmetricThinPoints, tSectionThinPoints } from './thin';
+import {
+  hollowRectangleThinPoints,
+  iSymmetricThinPoints,
+  tSectionThinPoints,
+} from './thin';
 import type { StressPoint } from './types';
 
 /**
@@ -23,19 +29,28 @@ import type { StressPoint } from './types';
  * | `rectangle` | Umrissmodell | — (traegt kein `idealisation`) |
  * | `i-symmetric` | Umrissmodell | Wandmodell |
  * | `t-section` | Umrissmodell | Wandmodell |
- * | `hollow-rectangle` | `undefined` | `undefined` |
+ * | `hollow-rectangle` | Umrissmodell | Wandmodell |
  *
  * `solid` behaelt das Umrissmodell, und das ist keine Uebergangsloesung:
  * Grashof IST fuer Vollquerschnitte richtig, die Rechteckparabel faellt genau
  * daraus.
  *
- * `undefined` heisst „fuer diese Form gibt es (noch) keine Vorlage" — heute der
- * geschlossene Kasten. Ihm fehlen die REFERENZDATEN, nicht die Theorie: den
- * umlaufenden Weg hat `closedBoxPath` in `shapes/hollow-rectangle.ts` bereits,
- * und kappa faellt daraus. Eine Vorlage ohne Referenz, gegen die sie zu pruefen
- * waere, ist geraten und nicht gerechnet; der Kasten kommt zusammen mit den
- * QRO-Daten, die ausserdem Bogentangenten mitbringen und deshalb eine eigene
- * Herleitung brauchen.
+ * WO DIE PUNKTE LIEGEN, entscheidet keine der Vorlagen selbst: die Stellen
+ * stehen in `open-stations.ts` (I und T) und `hollow-stations.ts` (Kasten),
+ * und beide Idealisierungen lesen dieselbe Liste. Die Regel dahinter — jede
+ * Stelle, an der `S` oder `t` springt oder ein Maximum hat, und die
+ * Koordinate dort in der RANDFASER — steht bei `OpenStation`
+ * ([ADR 0052](../../../../docs/adr/0052-stress-points-sit-on-the-extreme-fibre.md)).
+ *
+ * `undefined` heisst „fuer diese Form gibt es keine Vorlage" — heute nur noch
+ * die GEZEICHNETE Geometrie, fuer die im Voraus gar keine Form feststeht.
+ *
+ * Der geschlossene Kasten hatte bisher keine
+ * REFERENZDATEN — die Theorie fehlte ihm nie, den umlaufenden Weg hat
+ * `closedBoxPath` in `shapes/hollow-rectangle.ts` laengst und kappa faellt
+ * daraus. Mit der Referenz stehen jetzt beide Vorlagen, und der Kasten ist die
+ * einzige Form, deren Punkte NICHT auf ihrem Schwerpunkt liegen koennen: der
+ * liegt im Loch.
  *
  * WARUM UEBERHAUPT GERECHNET, wo nebenan „tabelliert, nicht nachgerechnet"
  * gilt: die Spannungspunkte fallen aus DENSELBEN Abmessungen wie alles andere,
@@ -76,26 +91,23 @@ export function stressPoints(
         : iSymmetricThinPoints(shape.h, shape.b, shape.tw, shape.tf);
     case 't-section': {
       const { bf, hf, bw, h } = shape;
-      // `sectionProperties` hat die Masse eben erst durchgelassen; beide
-      // Schwerpunkte sind damit bestimmt.
+      // `sectionProperties` hat die Masse eben erst durchgelassen; der
+      // Schwerpunkt ist damit bestimmt.
       const zs = tSectionCentroid(bf, hf, bw, h) as number;
       return shape.idealisation === 'solid'
         ? tSectionPoints(bf, hf, bw, h, zs)
-        : // `S` laeuft um den Schwerpunkt des WANDMODELLS, die Koordinaten um
-          // den der Umrissfigur. Beide kommen aus `shapes/t-section.ts`, damit
-          // kappa und die Spannungspunkte dieselben Zahlen benutzen.
-          tSectionThinPoints(
-            bf,
-            hf,
-            bw,
-            h,
-            zs,
-            tSectionWall(bf, hf, bw, h).zsWall,
-          );
+        : // EIN Schwerpunkt fuer beide Idealisierungen, seit ADR 0053: die
+          // duennwandigen Waende kacheln die Umrissfigur, ihr Schwerpunkt IST
+          // `zs`. `tSectionWall` bleibt fuer kappa zustaendig.
+          tSectionThinPoints(bf, hf, bw, h, zs);
     }
     case 'hollow-rectangle':
-      // Siehe oben: dem Kasten fehlen die Referenzdaten, nicht der Weg.
-      return undefined;
+      // Der Schwerpunkt liegt im LOCH; an seine Stelle treten die vier
+      // Wandmitten. Warum die sechzehn Stellen so und nicht anders liegen,
+      // steht bei `hollowStations`.
+      return shape.idealisation === 'solid'
+        ? hollowRectanglePoints(shape.b, shape.h, shape.t)
+        : hollowRectangleThinPoints(shape.b, shape.h, shape.t);
   }
 }
 

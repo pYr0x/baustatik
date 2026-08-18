@@ -76,9 +76,20 @@ function solidPaths(h: number, b: number, tw: number, tf: number, hw: number) {
  * Duennwandig: der Weg laeuft ueber die MITTELLINIEN, der Steg also von
  * Gurtmitte zu Gurtmitte (Laenge `h - tf`, nicht `h - 2tf`).
  *
- * Genau diese Idealisierung reproduziert `Sy,max` des Katalogs: fuer IPE 80
- * liefert sie 11,60 cm3 gegen tabellierte 11,61 — die kompakte Fassung kaeme
- * auf 11,25 und laege damit weit daneben.
+ * DIESER WEG DIENT NUR NOCH KAPPA. Die Spannungspunkte haben ihn mit
+ * [ADR 0053](../../../../../docs/adr/0053-the-stress-point-walls-tile-the-outline.md)
+ * verlassen und kacheln die Umrissfigur; hier bleibt er, weil kappa ein
+ * ENERGIEintegral ueber die ganze Wand ist und die `Az` des Profilkatalogs auf
+ * der Mittellinienabwicklung definiert sind. Gekachelt laege `Az` ueber alle 42
+ * IPE- und HEA-Profile UEBER der Tabelle (+1,0 bis +7,0 %) — ein geschweisstes
+ * I kann aber keine groessere Schubflaeche haben als das gewalzte mit denselben
+ * Aussenmassen. Mit der Mittellinie sind es −6,2 bis −3,5 %, immer zu klein,
+ * genau wie es die fehlende Ausrundung verlangt.
+ *
+ * Die aeltere Begruendung — „diese Idealisierung reproduziert `Sy,max` des
+ * Katalogs, 11,60 gegen 11,61" — ist ZURUECKGEZOGEN: der Katalogwert gehoert
+ * zum gewalzten Profil, seine Ausrundungen tragen 0,361 cm3, die doppelt
+ * gezaehlte Gurthaelfte 0,357. Zwei verschiedene Dinge, fast dieselbe Zahl.
  */
 function thinPaths(h: number, b: number, tw: number, tf: number) {
   const zf = (h - tf) / 2;

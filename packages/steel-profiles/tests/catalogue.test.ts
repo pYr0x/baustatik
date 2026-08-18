@@ -67,7 +67,7 @@ describe('IPE 80 gegen den gedruckten Ausdruck', () => {
 });
 
 describe('Az ist die Schubflaeche der Theorie, nicht die des EC 3', () => {
-  // Der Waechter ueber die Az-Entscheidung. RSTAB druckt fuer IPE 80 drei
+  // Der Waechter ueber die Az-Entscheidung. Der Ausdruck druckt fuer IPE 80 drei
   // Schubflaechen: Az = 2,69 (Schubenergie), Av,z = 3,57 (EC 3) und
   // Apl,z = 2,84 (plastisch). Traegt jemand hier den EC3-Wert ein, wird der
   // Stab um ein Drittel zu steif — und keine andere Pruefung merkt es.

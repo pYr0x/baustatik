@@ -10,7 +10,7 @@ import { MM3_TO_CM3 } from '../calculation/units';
  * brauchen eine SCHNITTGROESSE und gehoeren damit ins Bemessungspaket.
  *
  * EINHEITEN WIE DER GEDRUCKTE AUSDRUCK: Koordinaten und Dicken in mm,
- * statische Momente in cm³. Das ist RSTABs Darstellung, es ist die Form der
+ * statische Momente in cm³. Das ist die Form der
  * Referenz-Fixture, und es ist die Form, in der die Abmessungen ohnehin
  * hereinkommen — der Vergleich mit der Quelle braucht damit keinen
  * Umrechnungsfaktor mehr, in dem sich ein Fehler verstecken koennte

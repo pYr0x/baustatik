@@ -75,8 +75,8 @@ The shear switch. `shearDeformation` is a plain boolean, not a port, and the
 solver substitutes `'rigid'` for `GAs` when it is false. Every cross-section
 *has* a shear stiffness; neglecting it is a decision about the **analysis**, not
 a property of the section. So the catalogue is never asked to answer a question
-nobody put to it, and the switch lives where the analysis lives (the RSTAB
-convention, anticipated in `fem-element/src/types.ts`).
+nobody put to it, and the switch lives where the analysis lives (anticipated
+in `fem-element/src/types.ts`).
 
 > Amended by [ADR 0011](0011-analysis-settings-split-into-versioned-policy-and-ports.md):
 > the switch is still not a port, but it no longer sits directly on

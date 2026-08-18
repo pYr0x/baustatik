@@ -159,7 +159,7 @@ export function beamLoadSpecs(
     // DIE EINE STELLE, AN DER DIE BEZUGSLAENGE DOCH INS BILD SPRICHT: misst sie
     // an DIESEM Stab 0, dann traegt die Last dort nichts ein — `verticalProjection`
     // am waagrechten Stab, `horizontalProjection` am senkrechten. Gezeichnet wird
-    // dann nichts, so wie RSTAB es haelt.
+    // dann nichts.
     //
     // Das widerspricht ADR 0028 nicht, es ist sein Randfall: die Figur sagt, WIE
     // die Last wirkt, und hier wirkt keine. Eine Flaeche voller Pfeile ueber

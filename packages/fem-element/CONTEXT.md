@@ -96,7 +96,7 @@ Inkremente: die Biegelinie (der Platz dafuer ist in
   rechnen. Der geschlossene Bauer sieht `GAs` nie; das ist der Grund, warum er
   der Default ist. Herleitung: `docs/adr/0004-…`.
 - **Schub ist global, nicht pro Stab**: ob Schubverformung beruecksichtigt wird,
-  ist eine globale Analyse-Einstellung (RSTAB-Konvention) im Adapter/`fem-solver`.
+  ist eine globale Analyse-Einstellung im Adapter/`fem-solver`.
   fem-element weiss davon nichts und sieht nur das fertige `GAs` je Element.
 - **Drei Bindungsstufen**: `prepare(props, L, releases?)` bindet `props`, `L`
   und die Freisetzungen — `phi` wird genau einmal berechnet und genau einmal

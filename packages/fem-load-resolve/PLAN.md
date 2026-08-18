@@ -34,7 +34,7 @@ fest, die dort offen waren.
   (`z × x = y`). Das Ergebnis `phiY = −theta` stimmt trotzdem.
 - Es gab **keine** rechtshändige Festlegung im Code. `fem/src/types.ts:23`
   kennt `phiY` nur als `'fixed' | 'free'` — ein Sperrflag ohne Vorzeichen.
-- RSTAB-Referenz (`apps/demo/Knotenlast1.png`, `apps/demo/stabachsen.png`):
+- Rechtshändige Referenz:
   globales Y zeigt aus der Ebene, positives `My` dreht im Bild **CCW**. Das ist
   rechte-Hand-konsistent (Daumen zum Betrachter → Finger CCW).
 

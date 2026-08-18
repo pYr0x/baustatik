@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spannungsberechnung — baustatik</title>
+    <script src="./stress.ts" type="module"></script>
+    <style>
+        :root {
+            --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --color-bg: #f8fafc;
+            --color-surface: #ffffff;
+            --color-border: #e2e8f0;
+            --color-text: #0f172a;
+            --color-muted: #64748b;
+            --color-primary: #2563eb;
+            --color-primary-dark: #1d4ed8;
+            --color-primary-light: #dbeafe;
+            --color-accent: #f97316;
+            --color-success: #16a34a;
+            --color-danger: #dc2626;
+            font-family: var(--font-sans);
+            color: var(--color-text);
+            background: var(--color-bg);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            max-width: 1160px;
+            margin: 0 auto;
+            padding: 1.5rem 1.25rem 3.5rem;
+            line-height: 1.5;
+        }
+
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin: 0 0 1rem;
+            color: var(--color-muted);
+            font-size: 0.85rem;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.15s ease;
+        }
+
+        .back:hover {
+            color: var(--color-primary);
+            text-decoration: underline;
+        }
+
+        header {
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin: 0 0 0.4rem;
+            color: #0f172a;
+            letter-spacing: -0.02em;
+        }
+
+        .intro {
+            color: var(--color-muted);
+            font-size: 0.95rem;
+            margin: 0;
+            max-width: 800px;
+        }
+
+        .card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 0.6rem;
+            border-bottom: 1px solid var(--color-border);
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        h2 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin: 0;
+            color: #1e293b;
+        }
+
+        .section-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            background: #eff6ff;
+            color: var(--color-primary);
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+
+        /* Form styling */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 900px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+        }
+
+        .form-section-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.35rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .forces-row-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.65rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .forces-row-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.65rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            min-width: 0;
+            width: 100%;
+        }
+
+        .input-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #475569;
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+
+        .input-group label .lbl-name {
+            display: inline-flex;
+            align-items: baseline;
+        }
+
+        .input-group label .lbl-name i {
+            font-style: italic;
+            margin-left: 0.15rem;
+        }
+
+        .input-group label .lbl-name sub {
+            font-size: 0.75em;
+            line-height: 0;
+            vertical-align: -0.2em;
+        }
+
+        .input-group label .lbl-unit {
+            color: var(--color-muted);
+            font-weight: 400;
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            flex-shrink: 0;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 0.45rem 0.6rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            background: #fff;
+            color: #0f172a;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .btn-calc {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: var(--color-primary);
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.6rem 1.3rem;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.05s ease;
+            box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .btn-calc:hover {
+            background: var(--color-primary-dark);
+        }
+
+        .btn-calc:active {
+            transform: scale(0.98);
+        }
+
+        /* Summary Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #cbd5e1;
+        }
+
+        .stat-card.primary::before { background: var(--color-primary); }
+        .stat-card.warning::before { background: var(--color-accent); }
+        .stat-card.danger::before { background: var(--color-danger); }
+        .stat-card.success::before { background: var(--color-success); }
+
+        .stat-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.35rem;
+            display: flex;
+            align-items: baseline;
+            gap: 0.25rem;
+        }
+
+        .stat-label sub {
+            font-size: 0.8em;
+            line-height: 0;
+            vertical-align: -0.2em;
+        }
+
+        .stat-value {
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: #0f172a;
+            font-family: var(--font-mono);
+            letter-spacing: -0.02em;
+        }
+
+        .stat-sub {
+            font-size: 0.78rem;
+            color: var(--color-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Main layout split */
+        .stress-layout {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        @media (max-width: 980px) {
+            .stress-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: #fff;
+        }
+
+        table.stress-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.84rem;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        table.stress-table th,
+        table.stress-table td {
+            padding: 0.5rem 0.65rem;
+            text-align: right;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        table.stress-table th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            font-size: 0.78rem;
+            border-bottom: 1px solid var(--color-border);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        table.stress-table td.text-center,
+        table.stress-table th.text-center {
+            text-align: center;
+        }
+
+        table.stress-table tbody tr {
+            transition: background-color 0.1s ease;
+            cursor: pointer;
+        }
+
+        table.stress-table tbody tr:hover {
+            background-color: #f1f5f9;
+        }
+
+        table.stress-table tbody tr.active-row {
+            background-color: #e0f2fe !important;
+            font-weight: 600;
+        }
+
+        .col-stress {
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+
+        .col-sigmav {
+            color: #1e40af;
+            background: #eff6ff;
+        }
+
+        .col-max-stress {
+            color: #b91c1c;
+            background: #fef2f2;
+            font-weight: 700;
+        }
+
+        /* SVG Viewer & Diagrams */
+        .preview-box {
+            background: #ffffff;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .svg-container {
+            width: 100%;
+            height: 340px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+
+        .svg-container svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .svg-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--color-muted);
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .legend-box {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            display: inline-block;
+        }
+
+        .legend-box.blue { background-color: #2563eb; }
+        .legend-box.red { background-color: #ef4444; border-radius: 50%; }
+
+        /* Formula Card */
+        .formula-card {
+            background: #f8fafc;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            padding: 1rem 1.25rem;
+            font-size: 0.85rem;
+            color: #334155;
+            line-height: 1.6;
+            margin-top: 1.5rem;
+        }
+
+        .formula-card h3 {
+            font-size: 0.92rem;
+            margin: 0 0 0.5rem;
+            color: #0f172a;
+        }
+
+        .formula-code {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            background: #fff;
+            padding: 0.15rem 0.4rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+        }
+
+        /* Property list table */
+        table.prop-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.84rem;
+            margin-top: 0.8rem;
+        }
+
+        table.prop-table th,
+        table.prop-table td {
+            padding: 0.3rem 0.4rem;
+            text-align: left;
+        }
+
+        table.prop-table th {
+            color: var(--color-muted);
+            font-weight: 500;
+            width: 45%;
+        }
+
+        table.prop-table td {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        /* Stress point tooltip in SVG */
+        .stress-point {
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+
+        .stress-point:hover rect {
+            fill: #f97316;
+            stroke: #fff;
+        }
+
+        .stress-point.active rect {
+            fill: #ea580c;
+            stroke: #fff;
+            stroke-width: 2.5;
+        }
+    </style>
+</head>
+
+<body>
+    <a class="back" href="../index.html">← Zur Übersicht</a>
+    <header>
+        <h1>Spannungsberechnung (&sigma;, &tau;, &sigma;<sub>v</sub>)</h1>
+        <p class="intro">
+            Berechnung der Normalspannungen <em>&sigma;</em>, Schubspannungen <em>&tau;</em> und von Mises Vergleichsspannungen <em>&sigma;<sub>v</sub></em> an allen Spannungspunkten für ein geschweißtes I-Profil (dünnwandig) unter Beanspruchung durch Schnittgrößen <em>N</em>, <em>V<sub>z</sub></em>, <em>M<sub>y</sub></em> (sowie <em>V<sub>y</sub></em>, <em>M<sub>z</sub></em>).
+        </p>
+    </header>
+
+    <!-- Eingabebereich -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Querschnitts- und Schnittgrößeneingabe</h2>
+            <span class="section-badge" id="section-title-badge">I geschweisst 200 x 100 x 5,6 x 8,5 — thin-walled</span>
+        </div>
+
+        <div id="validation-warning" style="display: none; background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; border-radius: 6px; padding: 0.6rem 0.85rem; font-size: 0.84rem; margin-bottom: 1rem; font-weight: 500;"></div>
+
+        <form id="calc-form" onsubmit="event.preventDefault();">
+            <div class="form-grid">
+                <!-- Querschnittsabmessungen -->
+                <div>
+                    <div class="form-section-title">Querschnittsabmessungen [mm]</div>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label for="inp-h"><span class="lbl-name">Höhe<i>h</i></span><span class="lbl-unit">[mm]</span></label>
+                            <input type="number" id="inp-h" value="200" step="0.1" min="1" required />
+                        </div>
+                        <div class="input-group">
+                            <label for="inp-b"><span class="lbl-name">Breite<i>b</i></span><span class="lbl-unit">[mm]</span></label>
+                            <input type="number" id="inp-b" value="100" step="0.1" min="1" required />
+                        </div>
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label for="inp-tw"><span class="lbl-name">Stegdicke<i>t</i><sub>w</sub></span><span class="lbl-unit">[mm]</span></label>
+                            <input type="number" id="inp-tw" value="5.6" step="0.1" min="0.1" required />
+                        </div>
+                        <div class="input-group">
+                            <label for="inp-tf"><span class="lbl-name">Gurtdicke<i>t</i><sub>f</sub></span><span class="lbl-unit">[mm]</span></label>
+                            <input type="number" id="inp-tf" value="8.5" step="0.1" min="0.1" required />
+                        </div>
+                    </div>
+                    <div style="font-size: 0.78rem; color: var(--color-muted); margin-top: 0.5rem; background: #f8fafc; padding: 0.4rem 0.6rem; border-radius: 4px; border: 1px solid #e2e8f0;">
+                        Idealisierung: <strong>thin-walled (Wandmodell)</strong>
+                    </div>
+                </div>
+
+                <!-- Schnittgrößen -->
+                <div>
+                    <div class="form-section-title">Schnittgrößen (Bemessungswerte)</div>
+                    
+                    <!-- Hauptbeanspruchung (Starke Achse) -->
+                    <div class="forces-row-3">
+                        <div class="input-group">
+                            <label for="inp-n"><span class="lbl-name"><i>N</i></span><span class="lbl-unit">[kN]</span></label>
+                            <input type="number" id="inp-n" value="50" step="1" title="Normalkraft N [kN]" />
+                        </div>
+                        <div class="input-group">
+                            <label for="inp-vz"><span class="lbl-name"><i>V</i><sub>z</sub></span><span class="lbl-unit">[kN]</span></label>
+                            <input type="number" id="inp-vz" value="35" step="1" title="Querkraft Vz [kN]" />
+                        </div>
+                        <div class="input-group">
+                            <label for="inp-my"><span class="lbl-name"><i>M</i><sub>y</sub></span><span class="lbl-unit">[kNm]</span></label>
+                            <input type="number" id="inp-my" value="20" step="0.5" title="Biegemoment My [kNm]" />
+                        </div>
+                    </div>
+
+                    <!-- Nebenbeanspruchung (Schwache Achse) -->
+                    <div style="font-size: 0.74rem; font-weight: 600; color: var(--color-muted); margin: 0.5rem 0 0.25rem;">
+                        Nebenachsen (optional):
+                    </div>
+                    <div class="forces-row-2">
+                        <div class="input-group">
+                            <label for="inp-vy"><span class="lbl-name"><i>V</i><sub>y</sub></span><span class="lbl-unit">[kN]</span></label>
+                            <input type="number" id="inp-vy" value="0" step="1" title="Querkraft Vy [kN]" />
+                        </div>
+                        <div class="input-group">
+                            <label for="inp-mz"><span class="lbl-name"><i>M</i><sub>z</sub></span><span class="lbl-unit">[kNm]</span></label>
+                            <input type="number" id="inp-mz" value="0" step="0.5" title="Biegemoment Mz [kNm]" />
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btn-calculate" class="btn-calc">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                        Spannungen berechnen
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Extremwert-Karten -->
+    <div class="stats-grid" id="stats-container">
+        <!-- Dynamisch befüllt -->
+    </div>
+
+    <!-- Hauptbereich: Tabelle + SVG Querschnitt -->
+    <div class="stress-layout">
+        <!-- Tabelle mit Spannungspunkten -->
+        <div>
+            <div class="card" style="padding: 1rem 1.25rem;">
+                <div class="card-header" style="margin-bottom: 0.75rem;">
+                    <h2>Ergebnisse an den Spannungspunkten</h2>
+                    <span id="points-count-badge" class="section-badge">13 Punkte</span>
+                </div>
+                <div class="table-container">
+                    <table class="stress-table" id="stress-table">
+                        <thead>
+                            <tr>
+                                <th class="text-center">Nr</th>
+                                <th>y<br><span style="font-weight:400">[mm]</span></th>
+                                <th>z<br><span style="font-weight:400">[mm]</span></th>
+                                <th>t<br><span style="font-weight:400">[mm]</span></th>
+                                <th>S<sub>y</sub><br><span style="font-weight:400">[cm³]</span></th>
+                                <th>S<sub>z</sub><br><span style="font-weight:400">[cm³]</span></th>
+                                <th>&sigma;<br><span style="font-weight:400">[N/mm²]</span></th>
+                                <th>&tau;<br><span style="font-weight:400">[N/mm²]</span></th>
+                                <th class="col-sigmav">&sigma;<sub>v</sub><br><span style="font-weight:400">[N/mm²]</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="stress-table-body">
+                            <!-- Dynamisch befüllt -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Querschnittswerte Details -->
+            <div class="card" style="padding: 1rem 1.25rem;">
+                <div class="card-header" style="margin-bottom: 0.5rem;">
+                    <h2>Querschnittswerte</h2>
+                </div>
+                <div id="section-props-container">
+                    <!-- Dynamisch befüllt -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Rechte Spalte: Querschnittsvorschau (SVG) -->
+        <div class="preview-box">
+            <h2 style="font-size: 0.95rem;">Querschnitt & Spannungspunkte</h2>
+            <div class="svg-container" id="svg-host">
+                <!-- SVG wird hier injiziert -->
+            </div>
+            <div class="svg-legend">
+                <span class="legend-item"><span class="legend-box blue"></span> Spannungspunkte (1–13)</span>
+                <span class="legend-item"><span class="legend-box red"></span> Schwerpunkt S (0,0)</span>
+                <span class="legend-item"><span style="color:#f97316;font-weight:bold;">---</span> Mittellinie</span>
+            </div>
+
+            <div id="selected-point-details" style="font-size: 0.8rem; color: #475569; background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0; min-height: 85px;">
+                <div style="font-weight: 600; margin-bottom: 0.25rem; color: #0f172a;">Punkt-Inspektor</div>
+                <div>Bewege den Mauszeiger über einen Spannungspunkt oder eine Tabellenzeile für Details.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formelübersicht & Normenbezug -->
+    <div class="formula-card">
+        <h3>Berechnungsgrundlagen & Formeln</h3>
+        <p style="margin: 0 0 0.5rem;">
+            <strong>Normalspannung:</strong> <code class="formula-code">&sigma;(y, z) = N / A + (M<sub>y</sub> &middot; z) / I<sub>y</sub> &minus; (M<sub>z</sub> &middot; y) / I<sub>z</sub></code>
+        </p>
+        <p style="margin: 0 0 0.5rem;">
+            <strong>Schubspannung:</strong> <code class="formula-code">&tau;<sub>z</sub> = |V<sub>z</sub> &middot; S<sub>y</sub>| / (I<sub>y</sub> &middot; t)</code>, <code class="formula-code">&tau;<sub>y</sub> = |V<sub>y</sub> &middot; S<sub>z</sub>| / (I<sub>z</sub> &middot; t)</code>, <code class="formula-code">&tau; = &radic;(&tau;<sub>z</sub>&sup2; + &tau;<sub>y</sub>&sup2;)</code>
+        </p>
+        <p style="margin: 0;">
+            <strong>Vergleichsspannung (von Mises):</strong> <code class="formula-code">&sigma;<sub>v</sub> = &radic;(&sigma;&sup2; + 3 &middot; &tau;&sup2;)</code> (DIN EN 1993-1-1 &sect;6.2.1 / Gestaltänderungsenergiehypothese)
+        </p>
+    </div>
+</body>
+
+</html>

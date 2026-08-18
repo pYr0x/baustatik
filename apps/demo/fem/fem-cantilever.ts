@@ -78,15 +78,15 @@ const loadCase: LoadCase = {
  * ohne dass eine Signatur bricht.
  */
 
-// RSTAB Holz 100/100mm; L=1m; P = 10kN
+// Referenz Holz 100/100mm; L=1m; P = 10kN
 // Kappe=5/6
 const E = convert(1100).from('kN/cm^2').to('kN/m^2');
 const G = convert(69).from('kN/cm^2').to('kN/m^2');
 const A = convert(100).from('cm^2').to('m^2');
 const I = convert(833.33).from('cm^4').to('m^4');
 const Az = A * 5 / 6;
-// -> Schubweich = uz: 0.03810291225354625 | RSTAB: 38,1
-// -> Schubsteif = uz: 0.036363781818763645 | RSTAB: 36,4
+// -> Schubweich = uz: 0.03810291225354625 | Referenz: 38,1
+// -> Schubsteif = uz: 0.036363781818763645 | Referenz: 36,4
 
 const SECTION: SectionStiffness = { EA: E * A, EI: E * I, GAs: G * Az };
 

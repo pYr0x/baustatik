@@ -21,7 +21,7 @@ import type { SteelResistance } from './types';
  *
  * The sentence matters: without it, 80769 reads like a typo and someone
  * "corrects" it back to 81000, changing every shear deformation by 0.3 %.
- * RSTAB uses the exact quotient for the same reason.
+ * Standard analysis software uses the exact quotient for the same reason.
  */
 export const STEEL_SHEAR_MODULUS: MPa = 80769;
 

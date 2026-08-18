@@ -7,8 +7,7 @@
  * DREHSINN von `phiY`: das globale y zeigt AUS der Zeichenebene heraus — bei
  * x rechts und z abwaerts die einzige rechtshaendige Wahl (z x x = y). Eine
  * positive Verdrehung `phiY` dreht damit nach der Rechte-Hand-Regel im Bild
- * GEGEN den Uhrzeigersinn, also von +z nach +x. So zeigt es RSTAB
- * (apps/demo/Knotenlast1.png).
+ * GEGEN den Uhrzeigersinn, also von +z nach +x.
  *
  * Das ist NICHT der Drehsinn von `theta` in @baustatik/fem-element (dort
  * `theta = dw/dx`, positiv von +x nach +z). Es gilt `phiY = -theta`; die

@@ -128,23 +128,34 @@ const boxSolidPaths = (b: number, h: number, t: number) => ({
  * Halber Umlauf im geschlossenen Kasten, vom Symmetrieschnitt aus. Die drei
  * Abschnitte haengen aneinander, das Orakel integriert kumulativ — und am
  * zweiten Symmetrieschnitt muss `S` wieder null sein.
+ *
+ * DIE WAENDE PARKETTIEREN DIE UMRISSFIGUR (ADR 0051): die Querwand laeuft bis
+ * zur AUSSENKANTE (`crossOuterHalf`), die Laengswand ueber die LICHTE Weite
+ * (`alongClear`). Der Hebelarm bleibt die Mittellinie. Die Umlauflaenge ist
+ * dieselbe wie im reinen Mittellinienmodell — es verschiebt sich nur die
+ * Trennstelle, um `t/2`.
  */
-function boxHalf(across: number, along: number, t: number): OracleBranch {
-  const arm = along / 2;
+function boxHalf(
+  crossOuterHalf: number,
+  alongClear: number,
+  arm: number,
+  t: number,
+): OracleBranch {
   return {
     S0: 0,
     pieces: [
-      acrossPiece(-arm, across / 2, t),
-      alongPiece(-arm, along, t),
-      acrossPiece(arm, across / 2, t),
+      acrossPiece(-arm, crossOuterHalf, t),
+      alongPiece(-alongClear / 2, alongClear, t),
+      acrossPiece(arm, crossOuterHalf, t),
     ],
   };
 }
 
-const boxThinPaths = (b: number, h: number, t: number) => ({
-  z: [boxHalf(b - t, h - t, t), boxHalf(b - t, h - t, t)],
-  y: [boxHalf(h - t, b - t, t), boxHalf(h - t, b - t, t)],
-});
+const boxThinPaths = (b: number, h: number, t: number) => {
+  const z = () => boxHalf(b / 2, h - 2 * t, (h - t) / 2, t);
+  const y = () => boxHalf(h / 2, b - 2 * t, (b - t) / 2, t);
+  return { z: [z(), z()], y: [y(), y()] };
+};
 
 const tSolidPaths = (
   bf: number,
@@ -379,7 +390,7 @@ describe('kappa: die Idealisierung ist wirksam und einseitig', () => {
 
 describe('kappa gegen den ganzen Katalog', () => {
   // Kein Toleranztest, sondern der Nachweis, dass wir DIESELBE Definition
-  // rechnen wie RSTAB und die Restluecke die Ausrundung ist: das fehlende
+  // rechnen wie die Katalogdefinition und die Restluecke die Ausrundung ist: das fehlende
   // Material sitzt am Steg-Gurt-Uebergang und traegt fuer Vz viel, fuer Vy
   // fast nichts. Genau dieses Muster steht in den Zahlen, ueber alle 42
   // Profile gleichgerichtet.

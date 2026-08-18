@@ -1,0 +1,59 @@
+{
+  "_source": "Querschnittsreferenz, Dialoge zu TO 300/200/10 und TO 400/200/10 (Screenshots vom 18.08.2026). VON HAND ABGESCHRIEBEN.",
+  "_shape": "TO h/b/t: geschlossener Kasten mit b, h, t in mm.",
+  "_units": "y, z, t in mm; Sy, Sz in cm3; omega in cm2; Somega in cm4; Astar in cm2. Koordinaten relativ zum Schwerpunkt, z nach unten.",
+  "_signs": "Das Vorzeichen des Referenzmodells kodiert die UMLAUFRICHTUNG des Schubflusses: `Sy` kippt zwischen linkem und rechtem Steg, `Sz` zwischen oberem und unterem Gurt. Unsere Vorlage fuehrt die Konvention der parametrischen Formen (durchweg <= 0). Verglichen werden deshalb BETRAEGE.",
+  "_notComputed": "omega (Woelbordinate), Somega (Woelbflaechenmoment) und Astar rechnet dieses Package NICHT. Sie stehen hier, weil sie im selben Dialog stehen und die Abschrift sonst unvollstaendig waere. Astar ist die von der MITTELLINIE umschlossene Flaeche (b-t)(h-t) — 190*290 = 551,00 cm2 bzw. 190*390 = 741,00 cm2 —, der Nenner der Torsionsschubspannung tau_t = Mt / (2 * Astar * t) nach Bredt. Dieselbe Groesse steckt im It-Ausdruck von `hollowRectangle` und in `Am` von `wall-path/torsion.ts`; sie ist kein Ergebnis der Spannungspunkt-Vorlage.",
+  "_why2": "ZWEI Querschnitte, nicht einer: eine Vorlage, die nur an ihrem eigenen Referenzfall stimmt, ist angepasst und nicht gerechnet. Die beiden unterscheiden sich allein in der Hoehe (300 gegen 400), was Gurt- und Steganteil im Umlauf gegeneinander verschiebt.",
+  "_accuracy": "Seit ADR 0051 ist unser S an den zwoelf Wandpunkten EXAKT. An den Wandmitten (P4/P12 Sz, P8/P16 Sy) trifft es die Zahl der Referenz; an den Gurtstationen (P3/P5/P11/P13) trifft es den geschlossen hinschreibbaren Wert — dort ist der abgetrennte Teil reiner Gurt, ein Rechteck mal seinem Schwerpunktsabstand, ohne Ecke dazwischen. Die Referenz druckt dort 0,02 bis 0,03 % anderes; welches Modell dahintersteht, ist aus dem Ausdruck NICHT ablesbar (seine Abweichungen spiegeln sich sauber zwischen Sy und Sz, sein Eckzuwachs P3->P1 ist 19,43 statt 19,50). Verglichen wird deshalb mit Toleranz, und die Behauptung lautet nicht \"die Referenz rechnet falsch\", sondern \"unser Wert ist fuer unsere Definition exakt\". Die vier Aussenecken sind eine Gehrung und haben in keiner Rechnung einen eindeutigen Schnitt.",
+  "sections": {
+    "TO 300/200/10": {
+      "b": 200,
+      "h": 300,
+      "t": 10,
+      "Astar": 551,
+      "points": [
+        { "nr":  1, "y":  100, "z": -140, "Sy":  -144.98, "Sz":  -133.03, "t": 10, "omega":  -27.71, "Somega":   -33.73 },
+        { "nr":  2, "y":  100, "z": -150, "Sy":  -137.82, "Sz":  -137.82, "t": 10, "omega":  -28.70, "Somega":   -47.83 },
+        { "nr":  3, "y":   90, "z": -150, "Sy":  -130.53, "Sz":  -142.48, "t": 10, "omega":  -27.19, "Somega":   -61.80 },
+        { "nr":  4, "y":    0, "z": -150, "Sy":     0.00, "Sz":  -183.00, "t": 10, "omega":    0.00, "Somega":  -184.14 },
+        { "nr":  5, "y":  -90, "z": -150, "Sy":   130.53, "Sz":  -142.48, "t": 10, "omega":   27.19, "Somega":   -61.80 },
+        { "nr":  6, "y": -100, "z": -150, "Sy":   137.82, "Sz":  -137.82, "t": 10, "omega":   28.70, "Somega":   -47.83 },
+        { "nr":  7, "y": -100, "z": -140, "Sy":   144.98, "Sz":  -133.03, "t": 10, "omega":   27.71, "Somega":   -33.73 },
+        { "nr":  8, "y": -100, "z":    0, "Sy":   243.00, "Sz":     0.00, "t": 10, "omega":    0.00, "Somega":   160.23 },
+        { "nr":  9, "y": -100, "z":  140, "Sy":   144.98, "Sz":   133.03, "t": 10, "omega":  -27.71, "Somega":   -33.73 },
+        { "nr": 10, "y": -100, "z":  150, "Sy":   137.82, "Sz":   137.82, "t": 10, "omega":  -28.70, "Somega":   -47.83 },
+        { "nr": 11, "y":  -90, "z":  150, "Sy":   130.53, "Sz":   142.48, "t": 10, "omega":  -27.19, "Somega":   -61.80 },
+        { "nr": 12, "y":    0, "z":  150, "Sy":     0.00, "Sz":   183.00, "t": 10, "omega":    0.00, "Somega":  -184.14 },
+        { "nr": 13, "y":   90, "z":  150, "Sy":  -130.53, "Sz":   142.48, "t": 10, "omega":   27.19, "Somega":   -61.80 },
+        { "nr": 14, "y":  100, "z":  150, "Sy":  -137.82, "Sz":   137.82, "t": 10, "omega":   28.70, "Somega":   -47.83 },
+        { "nr": 15, "y":  100, "z":  140, "Sy":  -144.98, "Sz":   133.03, "t": 10, "omega":   27.71, "Somega":   -33.73 },
+        { "nr": 16, "y":  100, "z":    0, "Sy":  -243.00, "Sz":     0.00, "t": 10, "omega":    0.00, "Somega":   160.23 }
+      ]
+    },
+    "TO 400/200/10": {
+      "b": 200,
+      "h": 400,
+      "t": 10,
+      "Astar": 741,
+      "points": [
+        { "nr":  1, "y":  100, "z": -190, "Sy":  -194.97, "Sz":  -180.54, "t": 10, "omega":  -62.24, "Somega":  -181.40 },
+        { "nr":  2, "y":  100, "z": -200, "Sy":  -185.32, "Sz":  -185.32, "t": 10, "omega":  -63.88, "Somega":  -212.93 },
+        { "nr":  3, "y":   90, "z": -200, "Sy":  -175.54, "Sz":  -189.97, "t": 10, "omega":  -60.52, "Somega":  -244.03 },
+        { "nr":  4, "y":    0, "z": -200, "Sy":     0.00, "Sz":  -230.50, "t": 10, "omega":    0.00, "Somega":  -516.36 },
+        { "nr":  5, "y":  -90, "z": -200, "Sy":   175.54, "Sz":  -189.97, "t": 10, "omega":   60.52, "Somega":  -244.03 },
+        { "nr":  6, "y": -100, "z": -200, "Sy":   185.32, "Sz":  -185.32, "t": 10, "omega":   63.88, "Somega":  -212.93 },
+        { "nr":  7, "y": -100, "z": -190, "Sy":   194.97, "Sz":  -180.54, "t": 10, "omega":   62.24, "Somega":  -181.40 },
+        { "nr":  8, "y": -100, "z":    0, "Sy":   375.50, "Sz":     0.00, "t": 10, "omega":    0.00, "Somega":   409.89 },
+        { "nr":  9, "y": -100, "z":  190, "Sy":   194.97, "Sz":   180.54, "t": 10, "omega":  -62.24, "Somega":  -181.40 },
+        { "nr": 10, "y": -100, "z":  200, "Sy":   185.32, "Sz":   185.32, "t": 10, "omega":  -63.88, "Somega":  -212.93 },
+        { "nr": 11, "y":  -90, "z":  200, "Sy":   175.54, "Sz":   189.97, "t": 10, "omega":  -60.52, "Somega":  -244.03 },
+        { "nr": 12, "y":    0, "z":  200, "Sy":     0.00, "Sz":   230.50, "t": 10, "omega":    0.00, "Somega":  -516.36 },
+        { "nr": 13, "y":   90, "z":  200, "Sy":  -175.54, "Sz":   189.97, "t": 10, "omega":   60.52, "Somega":  -244.03 },
+        { "nr": 14, "y":  100, "z":  200, "Sy":  -185.32, "Sz":   185.32, "t": 10, "omega":   63.88, "Somega":  -212.93 },
+        { "nr": 15, "y":  100, "z":  190, "Sy":  -194.97, "Sz":   180.54, "t": 10, "omega":   62.24, "Somega":  -181.40 },
+        { "nr": 16, "y":  100, "z":    0, "Sy":  -375.50, "Sz":     0.00, "t": 10, "omega":    0.00, "Somega":   409.89 }
+      ]
+    }
+  }
+}

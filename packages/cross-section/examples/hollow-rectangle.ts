@@ -4,11 +4,18 @@ import { report } from './report.ts';
 /**
  * Geschlossener Kasten mit umlaufend gleicher Wandstaerke.
  *
- * Die einzige Form, fuer die `stressPoints` heute `undefined` liefert: ihr
- * fehlen die REFERENZDATEN, nicht die Theorie. Den umlaufenden Weg hat
- * `closedBoxPath` bereits, und kappa faellt daraus — die Querschnittswerte
- * stehen also vollstaendig da, nur die Vorlage der Spannungspunkte fehlt, bis
- * es QRO-Daten gibt, gegen die sie zu pruefen waere.
+ * Die einzige parametrische Form, deren Spannungspunkte NICHT auf ihrem
+ * Schwerpunkt liegen koennen — der liegt im Loch. An seine Stelle treten die
+ * vier Wandmitten, und der Umlauf traegt 16 Punkte.
+ *
+ * `S` ist an den zwoelf Wandpunkten EXAKT: die Waende parkettieren die
+ * Umrissfigur, statt auf der Mittellinie zu liegen (ADR 0051). Die vier
+ * Aussenecken tragen den Gehrungswert.
+ *
+ * Was der Ausdruck NICHT zeigt: die Kernflaeche `A*` = `(b-t)(h-t)`, den
+ * Nenner der Torsionsschubspannung nach Bredt. Sie steckt heute nur im
+ * `It`-Ausdruck von `hollowRectangle` und ist keine Groesse des
+ * `StressPoint`.
  */
 export function hollowRectangleExample(): void {
   const cs: CrossSection = {

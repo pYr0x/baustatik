@@ -49,7 +49,7 @@ readable in the dialog, not in the picture.
 `verticalProjection` on a horizontal beam, `horizontalProjection` on a vertical
 one: the beam has no extent along the measured axis, so the load puts nothing on
 it at all. This is not a scaling question the picture may skip — it is the
-difference between *a little* and *none*, and RSTAB draws nothing here too. The
+difference between *a little* and *none*, and drawing nothing here is consistent. The
 per-load normalisation makes it worse than a silent omission would be: a load
 spanning several beams is scaled to its own peak, so on the member that carries
 nothing the figure would stand at *full* height. The threshold is the exact 0 and

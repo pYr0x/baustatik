@@ -105,7 +105,7 @@ the result changed is not repaired by anything.
 
 - **The direction is one rule for all three.** A value is laid off multiplied by
   `ez`, exactly as `fem-element/src/internal-forces.ts` pins it ("a positive
-  value is laid off on the local +z side"). This covers the RSTAB behaviour:
+  value is laid off on the local +z side"). This covers the standard behaviour:
   `V > 0` on `+z`, compression (`N < 0`) on `−z`, `M > 0` on the tension side.
   `ez` follows from `Line.frame` and therefore **from the node order alone** —
   there is no mirror flag. A pure drawing flag would put `M = +20 kNm` above one

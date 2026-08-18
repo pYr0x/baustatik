@@ -290,21 +290,103 @@ waechst, je duenner die Wand wird). Kompakt bleibt `It` **`undefined`**: dort
 ist es die Loesung eines Randwertproblems, und eine der beiden Formeln zu raten
 waere schlimmer als die Auskunft „nicht ermittelt".
 
-Ein Sonderfall, der beim Lesen der Formeln auffaellt: beim **unsymmetrischen**
-T-Querschnitt rechnet der duennwandige Weg `S` um den Schwerpunkt des
-**Wandmodells**, nicht um den der Umrissfigur. Sonst schloesse der Weg am freien
-Stegende nicht auf null, und `S` waere zweideutig — je nachdem, von welcher Seite
-man schneidet. Bei den doppeltsymmetrischen Formen fallen beide Schwerpunkte
-zusammen, dort faellt es nicht auf.
+### Die Waende der Spannungspunkte kacheln die Umrissfigur
 
-Der **Versatz `zs − zsWall`** ist damit die Naeherung dieser Form: die
-Koordinaten liegen um `zs` (σ braucht dieselbe Achse wie `A` und `Iy`), `S` um
-`zsWall`. Er ist klein — 0,30 mm bei einem 200 mm hohen geschweissten T — und
-kostet, weil `S` an seinem Maximum flach ist, 3·10⁻⁶ von `S`. Er kann das
-Vorzeichen wechseln (beim breiten Gurt liegt der Umrissschwerpunkt *ueber* dem
-Wandschwerpunkt); deshalb bekommt die Vorlage `zs` und `zsWall` **getrennt** und
-nicht eine Differenz mit angenommenem Vorzeichen. Ein Charakterisierungstest
-haelt ihn mit Zahl fest.
+Die duennwandigen Vorlagen zerlegen die Form in Rechtecke, die die Umrissfigur
+**lueckenlos und ueberschneidungsfrei** ueberdecken — beim T Gurt `bf × hf` und
+Steg `bw × (h − hf)`, beim I Steg ueber die LICHTE Hoehe
+([ADR 0053](../../docs/adr/0053-the-stress-point-walls-tile-the-outline.md)).
+Der Hebelarm bleibt die Mittellinie; nur die Wandgrenze verschiebt sich um
+`t/2`. Dasselbe hat ADR 0051 fuer den Kasten getan.
+
+**Der Schwerpunkt ist dabei kein freier Parameter.** Der Schubfluss muss am
+freien Rand auf null schliessen, und das heisst `∫ z t ds = 0` ueber das
+integrierte Modell — die Bezugsachse ist also der Schwerpunkt GENAU DIESER
+Flaechenverteilung. Man waehlt nicht den Schwerpunkt, sondern die **Flaeche**;
+und die muss dieselbe sein, aus der `A`, `Iy`, `W` und σ kommen. Kachelt die
+Wandfigur, ist ihr Schwerpunkt `zs` per Konstruktion, und die Frage entfaellt.
+Bis ADR 0053 lief `S` um `zsWall`, den Schwerpunkt des Mittellinienmodells; der
+Versatz von 0,88 mm beim T 200/15/10/300 kostete an jedem Punkt 1,2 %.
+
+**Was es kostet:** die Resultierende der Schubspannungen ist 0,967·Vz statt Vz.
+Die fehlenden 3,3 % sind `τ_xz` im Gurt, das ein Wandmodell definitionsgemaess
+nicht fuehrt — 2,10 N/mm² an der Gurtunterseite gegen 13,99 N/mm² `τ_xy` an
+derselben Stelle, und an der Aussenfaser exakt null, weil die freie Oberflaeche
+`τ_zx` verbietet. Der alte Zustand kam auf 1,006·Vz, aber ohne Deutung: `S` um
+die eine Achse, `Iy` um die andere.
+
+**κ behaelt die Mittellinie.** Die Schubflaeche ist ein Energieintegral ueber die
+ganze Wand, und die `Az` des Profilkatalogs sind auf der Mittellinienabwicklung
+definiert. Gekachelt liegt `Az` ueber alle 42 IPE- und HEA-Profile um +1,0 bis
++7,0 % ueber der Tabelle — ein geschweisstes I kann keine groessere Schubflaeche
+haben als das gewalzte mit denselben Aussenmassen. Mit der Mittellinie sind es
+−6,2 bis −3,5 %, immer zu klein, wie die fehlende Ausrundung es verlangt.
+`tSectionWall` lebt deshalb weiter, mit einem Aufrufer statt zwei; `It` und `zM`
+bleiben aus demselben Grund unberuehrt.
+
+### Welcher Wert kommt aus welcher Figur — die Uebersicht
+
+Bei `idealisation: 'thin-walled'` sind **drei** Figuren im Spiel. Jeder Abschnitt
+oben begruendet ein Stueck davon; hier stehen sie nebeneinander, damit man es
+nachschlagen kann, statt es sich zusammenzusuchen.
+
+| | was sie ist | `A` und `zs` | Hebelarm einer Wand |
+| --- | --- | --- | --- |
+| **① Umriss** | das echte Polygon | exakt | — |
+| **② gekachelte Wandfigur** | Rechtecke, die ① lueckenlos und ueberschneidungsfrei ueberdecken | **identisch mit ①** | Mittellinie der Wand |
+| **③ Mittellinien-Wandfigur** | Linien von Wandmitte zu Wandmitte | ≠ ①, Ueberlappung am Knoten | Mittellinie der Wand |
+
+② und ③ haben **dieselben Hebelarme** und unterscheiden sich nur in der
+**Wandlaenge**: beim T ist der Steg 285 mm lang (②) oder 292,5 mm (③). Daran
+haengt alles Weitere. Beim geschlossenen Kasten faellt der Unterschied fast weg,
+weil dort die Umlauflaenge gleich bleibt und sich nur die Trennstelle um `t/2`
+verschiebt — auf κ wirkt das mit 0,07 bis 0,17 %.
+
+**Querschnittswerte:**
+
+| Wert | aus Figur | braucht |
+| --- | --- | --- |
+| `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` | **①** | nur die Abmessungen |
+| `yM`, `zM` | **③** — Schnittpunkt der Mittellinien | I und Kasten `h/2` (= Schwerpunkt), T `hf/2` (Gurtmittellinie) |
+| `It` offen (I, T) | **③** — `⅓·Σ l·t³` ueber die Mittellinienabwicklung | I: `2b·tf³ + (h−tf)·tw³`; T: `bf·hf³ + (h−hf/2)·bw³` |
+| `It` Kasten | Bredt, `A_m` aus **③** | `4A_m²/∮(ds/t)` mit `A_m = (b−t)(h−t)` |
+| `kappaY`, `kappaZ` | `I` und `A` aus **①**, Weg aus **③** (Kasten: ②) | `A_s = I²/∫(S²/t)ds`; beim T zusaetzlich `zsWall` aus `tSectionWall` |
+
+**Spannungspunkte:**
+
+| Groesse | aus Figur | Bezugsachse | braucht |
+| --- | --- | --- | --- |
+| `y`, `z` | **①** | Schwerpunkt von ① | `zs`; Aussenfaser-Regel nach ADR 0052 |
+| `t` | Wanddicke (② = ③) | — | I `tf`/`tw`, T `hf`/`bw`, Kasten `t` |
+| `Sy`, `Sz` | **②** | **Schwerpunkt von ①** | `zs`; Hebelarm = Mittellinie der Wand |
+
+Und daraus:
+
+```
+sigma = N/A + My·z/Iy + Mz·y/Iz      A, Iy, Iz aus ①
+tau   = V·S/(Iy·t)                   S aus ②, Iy aus ①, t die Wanddicke
+```
+
+**MERKSATZ: Hebelarm immer Mittellinie. Wandlaenge ② fuer `S`, ③ fuer κ und
+`It`.** Dass κ und die Spannungspunkte verschiedene Wandlaengen lesen, ist kein
+Versehen — `S` an einem Punkt ist ein SCHNITT und muss das erste Flaechenmoment
+der wirklichen Flaeche um die wirkliche Achse sein, κ ist ein ENERGIEintegral
+ueber die ganze Wand und gegen einen Katalog geprueft, der auf ③ beruht. Die
+Zahlen dazu stehen zwei Absaetze weiter oben und in
+[ADR 0053](../../docs/adr/0053-the-stress-point-walls-tile-the-outline.md).
+
+**Abhaengigkeitskette:**
+
+```
+Abmessungen
+  ├─ tSectionCentroid / h/2           → zs  ──┬─→ A, Iy, Iz, Punktkoordinaten, sigma
+  │                                           └─→ S der Spannungspunkte      (Figur ②)
+  ├─ tSectionWall → zsWall, webLength ───────→ thinPaths → kappaY, kappaZ    (Figur ③)
+  └─ direkt                           ───────→ It, zM                        (Figur ③)
+```
+
+`zsWall` hat damit genau **einen** Verbraucher, das κ des T, und kommt in den
+Spannungspunkten nicht mehr vor.
 
 ## Parametrische Formen liefern Werte, keine Geometrie
 
@@ -423,7 +505,7 @@ die Trennung da.
 
 | Groesse | `S` aus | `I` aus | warum |
 | --- | --- | --- | --- |
-| κ | Wandmodell | **Umrissfigur** | nach aussen gebunden: so rechnet RSTAB, daran haengt die IPE-Reihe (ADR 0021) — es ist die bestehende Mischung aus `shapes/t-section.ts` |
+| κ | Wandmodell | **Umrissfigur** | nach aussen gebunden: so rechnet die Referenz, daran haengt die IPE-Reihe (ADR 0021) — es ist die bestehende Mischung aus `shapes/t-section.ts` |
 | `yM`/`zM` | Wandmodell | **Wandmodell** | nach innen gebunden: `∫S·u_z ds = −I` gilt nur fuer EINE Figur; gemischt waere die Resultierende `V·I_wand/I_umriss` (IPE 300: rund 2 %) |
 
 ### Eine Zelle ja, zwei nein
@@ -758,15 +840,41 @@ Figur, und der Unterschied stuende still in κ.
 
 ## Spannungspunkte: Regel statt Liste
 
-> **Jede Vorlage enthaelt mindestens alle Ecken der Umrissfigur und den
-> Schwerpunkt.**
+> **Jede Vorlage enthaelt jede Stelle, an der `S` oder `t` springt oder ein
+> Maximum hat — und legt die Koordinate dort in die RANDFASER.**
+
+Die aeltere Fassung lautete „alle Ecken der Umrissfigur plus Schwerpunkt". Sie
+beantwortete die falsche Frage, und zwar in beide Richtungen (ADR 0052):
+
+- **`S` und `t` gehoeren zum SCHNITT.** Ein Schnitt durch den Gurt ist die
+  senkrechte Linie durch die volle Gurtdicke. Ob man den Punkt an ihrem oberen
+  oder unteren Ende benennt, aendert daran nichts.
+- **Die KOORDINATE gehoert zu sigma**, und sigma ist ueber die Hoehe linear.
+  Von zwei Punkten auf demselben Schnitt ist der mit dem groesseren `|z|` also
+  immer der massgebende.
+
+Daraus faellt beides: die Verschneidungsschnitte gehoeren auf die AUSSENfaser
+des Gurts, und die Ecken an der Gurtunterseite koennen weg — gleiches `y`,
+kleineres `|z|` als die Gurtspitze darueber. Dazu kommt der Punkt im STEG
+unter dem Gurt, wo `tau` um `tf/tw` springt.
 
 | Form | Punkte | |
 | --- | --- | --- |
 | `rectangle` | **5** | 4 Ecken + Schwerpunkt |
-| `t-section` | **9** | 8 Ecken + Schwerpunkt |
-| `i-symmetric` (geschweisst) | **15** | 12 Ecken + Schwerpunkt + 2 auf der Stegachse `(0, ±h/2)` |
-| Walzprofil (IPE/HEA) | **13** | RSTAB: 5 + 5 Gurt, 2 Steganfang, 1 Schwerpunkt |
+| `t-section` | **9** | 5 Gurt (Aussenfaser), 1 Steg unter dem Gurt, Schwerpunkt, 2 freies Stegende |
+| `i-symmetric` (geschweisst) | **13** | 5 + 5 Gurt (Aussenfaser), 2 Steg unter den Gurten, Schwerpunkt |
+| `hollow-rectangle` | **16** | 4 Aussenecken + 8 Projektionen der inneren Ecken + **4 Wandmitten** |
+| Walzprofil (IPE/HEA) | **13** | Referenz: 5 + 5 Gurt, 2 Steganfang, 1 Schwerpunkt |
+
+**Geschweisstes und gewalztes I sind Stelle fuer Stelle gleich numeriert**, und
+bei `r = 0` tragen die Punkte 1 bis 12 dieselben Zahlen bis aufs letzte Bit.
+Nur Punkt 13 trennt sie, gewollt: der Schwerpunktwert kommt im Wandmodell aus
+dem Steg von Gurtmitte zu Gurtmitte (ADR 0029). Vorher hatte das geschweisste I
+fuenfzehn Punkte in eigener Zaehlung, und der Vergleich brauchte eine Tabelle.
+
+Wo die Stellen stehen: `stress-points/open-stations.ts` (I und T),
+`stress-points/hollow-stations.ts` (Kasten). **Beide Idealisierungen lesen
+dieselbe Liste** — die gemeinsame Nummerierung ist Bauart, keine Absprache.
 
 Die Punkte **liegen**, wo die Regel sie hinsetzt; **welche Werte** sie tragen,
 entscheidet die Idealisierung — dieselbe Angabe, die auch κ steuert:
@@ -776,7 +884,7 @@ entscheidet die Idealisierung — dieselbe Angabe, die auch κ steuert:
 | `rectangle` | Umrissmodell | — (traegt kein `idealisation`) |
 | `i-symmetric` | Umrissmodell | **Wandmodell** |
 | `t-section` | Umrissmodell | **Wandmodell** |
-| `hollow-rectangle` | `undefined` | `undefined` |
+| `hollow-rectangle` | Umrissmodell | **Wandmodell** |
 
 `solid` behaelt das Umrissmodell, und das ist keine Uebergangsloesung: der
 Schnitt geht quer durch die volle Figur, und die Rechteckparabel faellt genau
@@ -796,6 +904,13 @@ Ziffer fuer Ziffer dieselben. Am Gurt heisst das `t = tf` statt `t = b`: der
 Schubfluss laeuft **laengs** der Wand, die senkrechte Komponente durch den ganzen
 Gurt bedeutet dort nichts.
 
+Der Punkt im Steg unter dem Gurt traegt im Wandmodell **genau den Gurt** — nicht
+mehr. Den Stegweg bis dorthin zu verfolgen zaehlte das Stueck zwischen
+Gurtmittellinie und Gurtunterkante ein zweites Mal; das ist dieselbe Ecklücke,
+die beim Kasten `t³/8` heisst (ADR 0051). Im Umrissmodell faellt derselbe Punkt
+anders, aber ebenso richtig: `widthAt` liefert an der Sprungstelle die
+KLEINERE Breite.
+
 Was die Regel erledigt: beim **T-Querschnitt mit breitem Gurt** kann die
 Nulllinie *im Gurt* liegen (`bf=2,0 / hf=0,2 / bw=0,25 / h=0,5` → `zs = 0,1395`
 bei `hf = 0,2`). „Schwerpunkt" trifft das ohne Sonderfall und liefert dort
@@ -806,13 +921,13 @@ immer, solange es unter dem Gurt einen Steg gibt — der Fall braucht auch dort
 keinen Sonderfall.) Und beim **Rechteck** haben die vier Ecken allein ueberall
 `S = 0`; das Maximum `b·h²/8` sitzt auf halber Hoehe.
 
-Dass das Walzprofil bei RSTABs 13 bleibt und die Gurtunterseiten-Ecken auslaesst,
+Dass das Walzprofil bei den 13 Punkten bleibt und die Gurtunterseiten-Ecken auslaesst,
 ist eine **begruendete Ausnahme**: bei homogenem Querschnitt koennen sie nie
 massgebend werden (gleiches `y`, kleineres `|z|` als die Gurtspitze darueber),
 und die Nummerierung ist gedruckt. Geschweisstes I (15) und gewalztes IPE (13)
 lesen sich damit bewusst verschieden — es sind zwei Formen.
 
-**Die Nummerierung ist ein veroeffentlichter Vertrag.** RSTAB druckt „S-Punkt
+**Die Nummerierung ist ein veroeffentlichter Vertrag.** Der gedruckte Ausdruck fuehrt „S-Punkt
 Nr. 1…13" (1–5 oberer Gurt von links, 6–10 unterer, 11/12 Steganfang, 13
 Schwerpunkt). Wir uebernehmen sie; ein Test haelt fest, welche Nummer wo sitzt,
 bevor der erste Bericht sie druckt.
@@ -824,7 +939,7 @@ geht.
 
 Zwei Vorzeichenkonventionen, und das ist Absicht: bei den parametrischen Formen
 sind `Sy`/`Sz` das erste Flaechenmoment des Teils **oberhalb** bzw. **links**
-vom Punkt, also durchweg ≤ 0. Beim Walzprofil uebernehmen wir RSTABs Zaehlweise,
+vom Punkt, also durchweg ≤ 0. Beim Walzprofil uebernehmen wir die gedruckte Zaehlweise,
 in der das Vorzeichen die **Umlaufrichtung** des Schubflusses kodiert. Fuer
 `|tau|` ist die Richtung gleichgueltig.
 
@@ -848,40 +963,161 @@ Unterschied ist weder ein fester Anteil der Ausrundung noch eine Funktion von
 spaeterer Erklaerungsversuch merkt, wenn er sie aendert.
 
 Dass die Toleranz gegen die Fixture bei 0,7 % und nicht bei 0,3 % liegt, ist
-kein Zugestaendnis an unsere Rechnung: RSTAB widerspricht **sich selbst** um bis
+kein Zugestaendnis an unsere Rechnung: die Referenz widerspricht **sich selbst** um bis
 zu 0,56 % (Spannungspunkt 13 gegen das eigene `Sy,max`, HEA 260) und druckt
 spiegelbildliche Punkte verschieden (IPE 220: 119,44 gegen 119,73).
 
-Fuer den **geschlossenen Kasten** gibt es noch keine Vorlage: `stressPoints`
-liefert `undefined`. Ihm fehlen die **Referenzdaten, nicht die Theorie** — den
-umlaufenden Weg hat `closedBoxPath` in `shapes/hollow-rectangle.ts` bereits, und
-κ faellt daraus. Eine Vorlage ohne Referenz, gegen die sie zu pruefen waere, ist
-geraten und nicht gerechnet; er kommt mit den QRO-Daten, die ausserdem
-Bogentangenten mitbringen.
+### Der geschlossene Kasten: die Ausnahme von „und der Schwerpunkt"
+
+Er stand lange auf `undefined`, und der Grund waren die **Referenzdaten, nicht
+die Theorie** — den umlaufenden Weg hat `closedBoxPath` in
+`shapes/hollow-rectangle.ts` seit jeher, und κ faellt daraus. Die Referenz ist
+jetzt da: die Dialoge zu **TO 300/200/10** und **TO 400/200/10**, abgeschrieben nach
+`tests/fixtures/hollow-rectangle-stress-points.json`. **Zwei** Querschnitte, weil eine
+Vorlage, die nur an ihrem eigenen Referenzfall stimmt, angepasst und nicht
+gerechnet ist.
+
+**Sein Schwerpunkt liegt im Loch**, dort gibt es kein Material und damit keine
+Spannung. An seine Stelle treten die **vier Wandmitten** — genau die Stellen, an
+denen `S` sein Maximum hat, aus demselben Grund, aus dem es beim Vollrechteck
+auf halber Hoehe sitzt. Von den acht Ecken der Umrissfigur stehen die vier
+**aeusseren** als Punkt; die vier inneren stehen als ihre je zwei Projektionen
+auf die Aussenflaechen. Das ist keine Auslassung: die innere Ecke traegt in
+keinem der beiden Modelle einen eigenen Wert (im Umrissmodell liest sie `Sy`
+aus ihrer Hoehe und `Sz` aus ihrer Breite — beide stehen an den Projektionen
+schon; im Wandmodell liegt sie ueberhaupt nicht auf einer Wandflaeche). Der Umlauf steht einmal, in
+`stress-points/hollow-stations.ts`, und beide Vorlagen lesen ihn.
+
+**Der Startschnitt kommt aus der Symmetrie, und er ist je Richtung ein
+anderer.** Ein geschlossener Querschnitt hat keinen freien Rand, an dem `S = 0`
+waere: fuer `Vz` steht der Schubfluss in **Gurtmitte** still, fuer `Vy` in
+**Stegmitte**. Punkt 4 hat also `Sy = 0`, Punkt 8 `Sz = 0`, und keiner der
+sechzehn hat beides — die Selbstpruefung des Weges, so wie beim T das freie
+Stegende.
+
+**Die Laufkoordinate ist die Projektion auf die Wandmittellinie, und sie endet
+am Knoten.** Punkt 2 liegt bei `y = b/2`, die Gurtmittellinie endet aber bei
+`(b−t)/2`; der Punkt sitzt im **Eckblock**, in dem sich die beiden Waende
+ueberlagern. Genau deshalb ist die Ecke eindeutig: vom Gurt aus ist ihr Wert
+`zm·t·ym`, vom Steg aus `ym·t·zm` — dieselbe Zahl.
+
+**Die Waende parkettieren die Umrissfigur, sie liegen nicht auf der
+Mittellinie** ([ADR 0051](../../docs/adr/0051-the-closed-box-tiles-the-outline-figure.md)).
+Je Schubrichtung eine Zerlegung, beide lueckenlos und ueberschneidungsfrei:
+
+| | Wand QUER zur Schubrichtung | Wand LAENGS dazu |
+| --- | --- | --- |
+| `Sy` | Gurt, bis zur **Aussenkante** `b/2` | Steg, **lichte** Hoehe `h/2 − t` |
+| `Sz` | Steg, bis zur **Aussenkante** `h/2` | Gurt, **lichte** Breite `b/2 − t` |
+
+Der Hebelarm bleibt die Mittellinie, und die Umlauflaenge aendert sich nicht:
+`b/2 + (h/2 − t)` ist dasselbe wie `(b−t)/2 + (h−t)/2`. Es verschiebt sich nur
+die Trennstelle, um `t/2`.
+
+**Damit ist `S` an allen zwoelf Wandpunkten exakt**, nicht genaehert. Das reine
+Mittellinienmodell war es nicht: es zaehlt an jeder Ecke das innere
+Viertelquadrat `t/2 × t/2` doppelt und laesst das aeussere weg. Die Flaeche
+geht dabei auf — deshalb stimmte `A` exakt und nichts sah falsch aus —, das
+erste Flaechenmoment nicht: pro passierter Ecke fehlten `t³/8`, bei `t = 10`
+also 0,125 cm³, und immer in dieselbe Richtung.
+
+Gegen die Ausdrucke heisst das: an den Wandmitten treffen wir die Referenzzahl
+(375,50 / 230,50), und an den Gurtstationen treffen wir den geschlossen
+hinschreibbaren Wert. Der ist dort besonders hart: zwischen der Null bei
+`y = 0` und dem Schnitt bei `y = 90` liegt **reiner Gurt**, ein Rechteck
+90 × 10 mit Schwerpunkt `z = −195`. Es wird keine Ecke passiert, also kann die
+einzige Modellentscheidung des Verfahrens — wo der Gurt endet, irgendwo in
+`90 < y < 100` — diesen Wert gar nicht erreichen. Beide Modelle drucken hier
+175,500, und taten das immer.
+
+**Was der abweichende Referenzwert 175,54 ist, wissen wir nicht.** Seine Abweichungen spiegeln sich
+sauber zwischen `Sy` und `Sz` (+0,04 / −0,013 / −0,03 / 0,00 laengs des
+Umlaufs), sind also systematisch und kein Abschreibfehler; sein Eckzuwachs
+P3 → P1 ist 19,43 statt der exakten `10 × 10 × 195 = 19,50`. Ob dahinter eine
+andere Eckkonvention steht, eine diskretisierte Wandkette oder ein aus einer
+2D-Schubloesung zurueckgerechnetes `S = τ·I·t/V` — dann waere es nicht einmal
+dieselbe Groesse —, ist aus vier Zahlen nicht zu entscheiden. Behauptet wird
+hier nur das Enge: **unser Wert ist fuer unsere Definition exakt.** Ein
+Charakterisierungstest haelt die Groesse der Luecke fest.
+
+**Die Aussenecke ist kein Wandschnitt**, sondern eine GEHRUNG: dort stossen zwei
+freie Flaechen zusammen, und der kuerzeste Weg durchs Material geht zur
+Innenecke. Der Ausdruck `S = t·(a·c − a·t/2 − c·t/2 + t²/3)` ist in `a = b/2`
+und `c = h/2` symmetrisch — von der Gurt- und von der Stegseite kommt dieselbe
+Zahl, und `Sy = Sz` bleibt an der Ecke erhalten. `t` bleibt dort die
+Wandstaerke, obwohl der Gehrungsschnitt `t·√2` lang ist: die kleinere Breite
+ist die massgebende, und an der konvexen Aussenecke ist der wahre Schubfluss
+ohnehin null.
+
+**OFFENE LUECKE: der GEZEICHNETE Kasten folgt nicht.** `calculation/wall-path/`
+rechnet weiter Mittellinie, derselbe Kasten auf zwei Wegen eingegeben
+unterscheidet sich deshalb:
+
+```text
+100 × 200 × 8:   kappaZ = 0,6238 (Wandgraph)  gegen  0,6226 (Form)  — 0,19 %
+```
+
+`tests/wall-path.test.ts` hat hier Gleichheit behauptet und haelt die Luecke
+jetzt mit Zahl fest. Die Uebertragung scheitert nicht am Prinzip, sondern an
+den beliebigen Winkeln und Dickenspruengen des Graphen: dort ist der Eckblock
+kein Quadrat, und die Korrektur haengt vom Gehrungswinkel ab. Die Geometrie
+dazu hat `geometry/outline/miter-joints.ts` (ADR 0038); der Schubweg liest sie
+heute nicht.
+
+**Wer die beiden Tabellen uebereinanderlegt, sieht ab Punkt 5 andere
+Vorzeichen** — und das ist keine Abweichung. Das Vorzeichen eines Umlaufmodells kodiert die
+**Umlaufrichtung**: `Sy` kippt zwischen linkem und rechtem Steg, `Sz` zwischen
+oberem und unterem Gurt, weil der Umlauf sie in entgegengesetzter Richtung
+durchlaeuft. Wir fuehren die Konvention der parametrischen Formen (Teil oberhalb
+bzw. links, durchweg ≤ 0). Verglichen werden deshalb **Betraege**; ein Test
+haelt fest, an welchen sieben Nummern je Richtung das Referenzmodell spiegelt.
+
+In **Stegmitte fallen die beiden Modelle zusammen**, wo es darauf ankommt: das
+Umrissmodell schneidet beide Stege (`S` doppelt, `t = 2t`), das Wandmodell
+einen (`S` einfach, `t`) — `S/t` und damit τ ist dieselbe Zahl, seit ADR 0051
+sogar exakt dieselbe.
+
+**Was wir nicht rechnen:** Die Referenz fuehrt drei weitere Spalten —
+die Woelbordinate ω, das Woelbflaechenmoment `Sω` und die **Kernflaeche `A*`**.
+`A*` ist die von der Mittellinie umschlossene Flaeche `(b−t)(h−t)` (hier
+551,00 cm²), der Nenner der Torsionsschubspannung `τ_t = M_t/(2·A*·t)` nach
+Bredt. Wir bilden dieselbe Groesse zweimal — im `It`-Ausdruck von
+`hollowRectangle` und als `Am` in `wall-path/torsion.ts` —, geben sie aber
+nirgends heraus: `StressPoint` fuehrt sie nicht. Die Abschrift der Fixture
+enthaelt alle drei Spalten trotzdem, damit die Referenz vollstaendig ist.
 
 ### Das Orakel der duennwandigen Vorlagen: `r = 0`
 
 Ein geschweisstes I ohne Ausrundung **ist** das gewalzte Profil mit `r = 0`. Die
 duennwandige I-Vorlage erbt damit die Gueltigkeit der 546 validierten Punkte,
-ohne eine neue Fixture zu kosten — an den **14 Gurtstationen**, und dort auf
-Gleitkommarauschen genau.
+ohne eine neue Fixture zu kosten — und seit ADR 0053 an **allen dreizehn
+Punkten**, auf Gleitkommarauschen genau, ohne Umrechnungstabelle.
 
-Am **Steg** gilt das Orakel nicht, und diese Grenze ist die Aussage: `rolled-i.ts`
-fuehrt den Gurt bereits als Wand (`t = tf`, Hebelarm auf der Mittellinie), den
-Steg aber als Umrissfigur ueber die **lichte** Hoehe `h/2 − tf`, waehrend das
-Wandmodell von Gurtmitte zu Gurtmitte laeuft (`±zf`). Bei IPE-80-Massen sind das
-11,25 gegen 11,60 cm³. Keine der beiden Zahlen ist falsch; sie gehoeren zwei
-Idealisierungen. Der Schwerpunkt hat deshalb seine **eigene** Referenz, `Sy,max`
-des Katalogs: 11,60 gegen 11,61. Ueber den ganzen Katalog liegt das Wandmodell
-**immer** unter der Tabelle, um 0,05 % (IPE 80) bis 4,6 % (HEA 260) — dieselbe
-Signatur wie bei κ, wo `Az` ebenfalls immer zu klein ist.
+Bis dahin galt es nur an zwoelfen: `rolled-i.ts` fuehrt seinen Steg ueber die
+**lichte** Hoehe `h/2 − tf`, das Wandmodell lief von Gurtmitte zu Gurtmitte
+(`±zf`) — 11,25 gegen 11,60 cm³ bei IPE-80-Massen. Das war kein Unterschied
+zweier Idealisierungen, sondern eine doppelt gezaehlte Gurthaelfte; die Naehe
+der 11,60 zum Katalogwert 11,61 war Zufall (die Ausrundungen des **gewalzten**
+Profils tragen 0,361 cm³, die Doppelzaehlung 0,357). Jetzt kacheln beide
+Vorlagen, und der Schwerpunkt braucht keine eigene Referenz mehr.
+
+Ueber den ganzen Katalog liegt die Vorlage **immer** unter der Tabelle, um 2,7 %
+(HEA 1000) bis 5,8 % (HEA 260) — dieselbe Signatur wie bei κ, wo `Az` ebenfalls
+immer zu klein ist. Das ist das fehlende Ausrundungsmaterial, und es fehlt
+gleichgerichtet.
 
 ## Fixture aus dem Nachbarpackage
 
-`tests/fixtures/rstab-stress-points.json` wird von
+`tests/fixtures/rolled-i-stress-points.json` wird von
 `packages/steel-profiles/scripts/extract.ts` erzeugt — einmalig, kein
 Build-Schritt. Sie liegt hier, weil sie das **Orakel** fuer die Rechnung dieses
 Packages ist und nicht Teil des Katalogs.
+
+`tests/fixtures/hollow-rectangle-stress-points.json` ist der geschlossene Kasten, und sie
+ist **von Hand abgeschrieben** — aus einer Querschnittsreferenz, nicht aus der
+Katalogdatenbank. Der Unterschied gehoert dazu: kein Skript erzeugt sie neu,
+also ist die Abschrift selbst die Fehlerquelle. Sie fuehrt deshalb alle Spalten
+der Referenz, auch die drei, die dieses Package nicht rechnet.
 
 ## Beispiele statt Prosa fuer die Aufrufseite
 

@@ -133,7 +133,7 @@ export type AnalysisPolicy = {
    * Bei `false` ersetzt `solve()` das `GAs` aus `getSectionStiffness` durch
    * `'rigid'`. Der QUERSCHNITT bleibt unangetastet: eine vorhandene
    * Schubsteifigkeit zu vernachlässigen ist eine Entscheidung über die
-   * ANALYSE (RSTAB-Konvention, vorweggenommen in `fem-element/src/types.ts`).
+   * ANALYSE (vorweggenommen in `fem-element/src/types.ts`).
    *
    * DER SCHALTER WIRKT NUR IN EINE RICHTUNG. „Jeder Querschnitt HAT eine
    * Schubsteifigkeit" stand hier bis P2 und ist seither FALSCH: der

@@ -1,4 +1,4 @@
-// Quelle: RSTAB 8.29.01 Querschnittsdatenbank (Dlubal), Ausdruck vom 29.07.2026,
+// Quelle: Querschnittsdatenbank, Ausdruck vom 29.07.2026,
 //         extrahiert mit scripts/extract.ts.
 // Tabellenwerte — NICHT nachgerechnet. Abweichungen gegen einen
 // Integrator sind erwartet (Ausrundungsradien, Rundung der Norm).

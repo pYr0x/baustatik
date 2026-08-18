@@ -10,7 +10,11 @@ import { report } from './report.ts';
  * und die Nummern bleiben dabei Ziffer fuer Ziffer dieselben, es wechseln nur
  * `t` und `S`. Am Gurt heisst das `t = tf` statt `t = b`.
  *
- * 15 Punkte: 12 Ecken + Schwerpunkt + 2 auf der Stegachse `(0, +/-h/2)`.
+ * 13 Punkte, Stelle fuer Stelle wie beim GEWALZTEN Profil: 1-5 oberer Gurt
+ * von links, 6-10 unterer, 11/12 Steg unter den Gurten, 13 Schwerpunkt. Alle
+ * zehn Gurtpunkte liegen auf der AUSSENfaser — `S` und `t` gehoeren zum
+ * Schnitt, die Koordinate gehoert zu sigma, und sigma ist aussen groesser
+ * (ADR 0052).
  */
 function iSymmetric(idealisation: Idealisation): CrossSection {
   return {

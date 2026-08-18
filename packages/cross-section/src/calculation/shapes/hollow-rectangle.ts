@@ -46,8 +46,11 @@ export function hollowRectangle(
           ]).intervals,
         }
       : {
-          pathZ: closedBoxPath(b - t, h - t, t),
-          pathY: closedBoxPath(h - t, b - t, t),
+          // Die Querwand laeuft bis zur AUSSENKANTE, die Laengswand ueber die
+          // LICHTE Weite — die exakte Parkettierung der Umrissfigur, siehe
+          // `closedBoxPath`. Der Hebelarm bleibt die Mittellinie.
+          pathZ: closedBoxPath(b / 2, h - 2 * t, (h - t) / 2, t),
+          pathY: closedBoxPath(h / 2, b - 2 * t, (b - t) / 2, t),
         };
 
   // Doppeltsymmetrisch: Schubmittelpunkt = Schwerpunkt.
@@ -77,32 +80,45 @@ export function hollowRectangle(
  *
  * Ein geschlossener Querschnitt hat keinen freien Rand, an dem `S = 0` waere —
  * der Startschnitt kommt aus der Symmetrie: in der Mitte der beiden Waende, die
- * quer zur Schubrichtung liegen, ist der Schubfluss null. Belegt am
- * RSTAB-Dialog zu QRO 60x6,3: `Sy = 0` genau in Gurtmitte, `Sz = 0` genau in
+ * quer zur Schubrichtung liegen, ist der Schubfluss null: `Sy = 0` genau in Gurtmitte, `Sz = 0` genau in
  * Stegmitte — je Richtung ein anderer Schnitt.
  *
- * `along` ist die Mittellinien-Ausdehnung IN Schubrichtung, `across` quer dazu.
+ * DIE WAENDE PARKETTIEREN DIE UMRISSFIGUR, sie liegen nicht auf der
+ * Mittellinie ([ADR 0051](../../../../docs/adr/0051-the-closed-box-tiles-the-outline-figure.md)).
+ * Die QUERWAND laeuft bis zur Aussenkante (`crossOuterHalf`), die LAENGSWAND
+ * ueber die lichte Weite (`alongClear`) — zusammen decken sie die Figur
+ * lueckenlos und ueberschneidungsfrei ab. Das reine Mittellinienmodell tut das
+ * nicht: es zaehlt an jeder Ecke ein Viertelquadrat `t/2 x t/2` doppelt und
+ * laesst das gegenueberliegende weg. Die Flaeche geht dabei auf, das erste
+ * Flaechenmoment nicht — pro Ecke fehlen `t³/8`.
+ *
+ * DIE UMLAUFLAENGE AENDERT SICH NICHT: `b/2 + (h/2 − t)` ist dasselbe wie
+ * `(b−t)/2 + (h−t)/2`. Es verschiebt sich nur die Trennstelle, um `t/2`.
+ *
+ * Der HEBELARM `arm` bleibt die Mittellinie der Laengswand — er ist der
+ * Schwerpunktabstand der Querwand, und der liegt auf halber Wanddicke.
+ *
  * Vom Symmetrieschnitt laufen zwei spiegelbildliche Haelften los; sie sind
  * gleich lang und tragen dasselbe `S^2`, deshalb wird der halbe Weg zweimal
  * gezaehlt statt zweimal hingeschrieben.
  */
 function closedBoxPath(
-  across: number,
-  along: number,
+  crossOuterHalf: number,
+  alongClear: number,
+  arm: number,
   t: number,
 ): ShearFlowInterval[] {
-  const arm = along / 2;
-
-  // Vom Symmetrieschnitt bis zur Ecke: quer zur Schubrichtung, Hebelarm fest.
-  const first = crossWallInterval(-arm, t, across / 2);
-  // Die Wand laengs der Schubrichtung.
+  // Vom Symmetrieschnitt bis zur Aussenkante: quer zur Schubrichtung,
+  // Hebelarm fest.
+  const first = crossWallInterval(-arm, t, crossOuterHalf);
+  // Die Wand laengs der Schubrichtung, ueber die lichte Weite.
   const side = partIntervals(
-    -arm,
-    [{ extent: along, width: t }],
+    -alongClear / 2,
+    [{ extent: alongClear, width: t }],
     endMoment(first),
   ).intervals[0];
-  // Von der gegenueberliegenden Ecke zurueck zum zweiten Symmetrieschnitt.
-  const last = crossWallInterval(arm, t, across / 2, endMoment(side));
+  // Von der gegenueberliegenden Seite zurueck zum zweiten Symmetrieschnitt.
+  const last = crossWallInterval(arm, t, crossOuterHalf, endMoment(side));
 
   const half = [first, side, last];
   return [...half, ...half];

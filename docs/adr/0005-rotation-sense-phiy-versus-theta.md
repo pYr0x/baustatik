@@ -23,9 +23,7 @@ an element, and the global vector's rotation entries are already `phiY`-conjugat
 Because the axis choice forces the split. With x to the right and z downward —
 the German structural convention this repo uses throughout — right-handedness
 requires `y = z × x`, which points *out of* the screen. A positive rotation about
-`+y` then carries `+z` toward `+x`, i.e. counter-clockwise. That is what RSTAB
-shows (`apps/demo/Knotenlast1.png`, `apps/demo/stabachsen.png`), and matching
-RSTAB is a standing goal of the load model.
+`+y` then carries `+z` toward `+x`, i.e. counter-clockwise.
 
 Meanwhile `theta = dw/dx` is the German *Neigung* definition. With `w` positive
 downward it is positive from `+x` to `+z` — clockwise. There is no assignment of

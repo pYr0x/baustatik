@@ -16,8 +16,7 @@
  * DREHSINN: das globale y zeigt AUS der Zeichenebene heraus — das ist bei
  * x nach rechts und z nach unten die einzige rechtshaendige Wahl (z x x = y).
  * Ein positives Moment dreht deshalb nach der Rechte-Hand-Regel im Bild
- * GEGEN den Uhrzeigersinn, also von +z nach +x. So zeigt es RSTAB
- * (apps/demo/Knotenlast1.png, apps/demo/stabachsen.png).
+ * GEGEN den Uhrzeigersinn, also von +z nach +x.
  *
  * ACHTUNG, das ist NICHT der Drehsinn von `theta` in @baustatik/fem-element:
  * dort ist `theta = dw/dx` positiv von +x nach +z, also im Bild MIT dem

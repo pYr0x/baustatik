@@ -1,26 +1,33 @@
 import type { mm } from '@baustatik/units';
+import { hollowStations } from './hollow-stations';
+import { iSymmetricStations, tSectionStations } from './open-stations';
 import { momentBefore, type OutlinePart, widthAt } from './outline';
 import { type StressPoint, stressPoint } from './types';
 
 /**
- * DIE REGEL, aus der jede Vorlage einer parametrischen Form faellt:
+ * WO DIE PUNKTE LIEGEN, entscheidet diese Vorlage nicht mehr selbst: die
+ * Stellen der offenen Profile stehen in `open-stations.ts`, die des Kastens in
+ * `hollow-stations.ts`, und beide Idealisierungen lesen dieselbe Liste. Dort
+ * steht auch die Regel, nach der sie entsteht.
  *
- * > Jede Vorlage enthaelt mindestens ALLE ECKEN der Umrissfigur und den
- * > SCHWERPUNKT.
+ * FUER DIESES MODELL ist an der Liste nur wichtig, dass jede z-STELLE und jede
+ * y-STELLE vorkommt: hier haengen `Sy` und `t` allein an `z`, `Sz` allein an
+ * `y`. Welche der beiden Fasern eines Schnitts benannt wird, ist dem
+ * Umrissmodell gleichgueltig — das entscheidet sigma, nicht tau.
  *
- * Was die Regel erledigt, sieht man am T-Querschnitt mit breitem Gurt: die
+ * Was die Liste erledigt, sieht man am T-Querschnitt mit breitem Gurt: die
  * Nulllinie kann IM GURT liegen (`bf=2000 / hf=200 / bw=250 / h=500` ergibt
- * `zs = 139,5 mm` bei `hf = 200`). „Schwerpunkt" trifft das ohne Sonderfall und
- * liefert dort `t = bf`; „Mitte Steg" haette den Punkt an die falsche Stelle
- * gesetzt. Und beim Rechteck haben die vier Ecken allein ueberall `S = 0` — das
- * Maximum `b*h^2/8` sitzt auf halber Hoehe.
+ * `zs = 139,5 mm` bei `hf = 200`). Der Schwerpunktpunkt trifft das ohne
+ * Sonderfall und liefert dort `t = bf`; „Mitte Steg" haette ihn an die falsche
+ * Stelle gesetzt. Und beim Rechteck haben die vier Ecken allein ueberall
+ * `S = 0` — das Maximum `b*h^2/8` sitzt auf halber Hoehe, also am Schwerpunkt.
  *
  * ALLE ABMESSUNGEN IN MILLIMETERN, wie sie aus `ShapeSpec` hereinkommen. `S`
  * faellt damit in mm³ an; `stressPoint` macht cm³ daraus.
  *
  * `Sy` und `Sz` sind das erste Flaechenmoment des Teils OBERHALB bzw. LINKS vom
  * Punkt, beide also <= 0. Das ist eine andere Vorzeichenkonvention als beim
- * gewalzten Profil, wo wir RSTABs veroeffentlichte Zaehlweise uebernehmen — dort
+ * gewalzten Profil, wo wir die veroeffentlichte Zaehlweise uebernehmen — dort
  * kodiert das Vorzeichen die Umlaufrichtung des Schubflusses. Hier gibt es
  * keinen Umlauf, also auch keine Richtung, die ein Vorzeichen tragen muesste.
  */
@@ -62,10 +69,17 @@ export function rectanglePoints(b: mm, h: mm): StressPoint[] {
 }
 
 /**
- * T-Querschnitt: 8 Ecken + Schwerpunkt.
+ * T-Querschnitt — 9 Punkte, Stellen und Nummern aus `tSectionStations`.
  *
  * `zs` ist der Abstand des Schwerpunkts von der GURTOBERKANTE; die Punkte
  * liegen wie ueberall SCHWERPUNKTSBEZOGEN. Alles in mm.
+ *
+ * Die z-Stellen sind Gurtoberkante (`S = 0`), Gurtunterkante (voller Gurt,
+ * und `widthAt` liefert dort `bw` — der Sprung von tau), Schwerpunkt
+ * (Maximum) und freies Stegende (`S = 0`); die y-Stellen `±bf/2` (`Sz = 0`),
+ * `±bw/2` und `0` (Maximum). Alle vier und alle drei kommen in den neun
+ * Punkten vor — mehr braucht dieses Modell nicht, denn `Sy` haengt nur an
+ * `z` und `Sz` nur an `y`.
  */
 export function tSectionPoints(
   bf: mm,
@@ -89,32 +103,22 @@ export function tSectionPoints(
   ];
 
   return compactStressPoints(
-    [
-      { y: -bf / 2, z: top },
-      { y: bf / 2, z: top },
-      { y: -bf / 2, z: flangeBottom },
-      { y: -bw / 2, z: flangeBottom },
-      { y: bw / 2, z: flangeBottom },
-      { y: bf / 2, z: flangeBottom },
-      { y: -bw / 2, z: bottom },
-      { y: bw / 2, z: bottom },
-      { y: 0, z: 0 },
-    ],
+    tSectionStations(bf, hf, bw, h, zs),
     zParts,
     yParts,
   );
 }
 
 /**
- * Geschweisstes doppeltsymmetrisches I: 12 Ecken + Schwerpunkt + 2 Punkte auf
- * der Stegachse `(0, ±h/2)`.
+ * Geschweisstes doppeltsymmetrisches I — 13 Punkte, Stellen und Nummern aus
+ * `iSymmetricStations` und damit dieselben wie beim GEWALZTEN Profil.
  *
- * Die beiden Zusatzpunkte sind der Unterschied zu RSTABs 13 Punkten fuer das
- * GEWALZTE Profil. Dort faellt die Gurtunterseite weg, weil sie bei homogenem
- * Querschnitt nie massgebend werden kann (gleiches `y`, kleineres `|z|` als die
- * Gurtspitze darueber) und die Nummerierung gedruckt ist. Geschweisstes I (15)
- * und gewalztes IPE (13) lesen sich damit bewusst verschieden — es sind zwei
- * Formen.
+ * Frueher waren es 15: die vier Ecken an der Gurtunterseite waren mit dabei.
+ * Das Argument gegen sie stand schon hier — gleiches `y`, kleineres `|z|` als
+ * die Gurtspitze darueber, also bei homogenem Querschnitt nie massgebend —,
+ * angewandt wurde es aber nur auf das gewalzte Profil. Ihre z-Stelle traegt
+ * jetzt der Stegpunkt `(0, ±(h/2 - tf))`, ihre y-Stelle die Gurtspitze
+ * darueber; verloren geht in diesem Modell also nichts.
  */
 export function iSymmetricPoints(h: mm, b: mm, tw: mm, tf: mm): StressPoint[] {
   const top = -h / 2;
@@ -136,25 +140,40 @@ export function iSymmetricPoints(h: mm, b: mm, tw: mm, tf: mm): StressPoint[] {
     { from: tw / 2, to: b / 2, width: 2 * tf },
   ];
 
-  return compactStressPoints(
-    [
-      { y: -b / 2, z: top },
-      { y: 0, z: top },
-      { y: b / 2, z: top },
-      { y: -b / 2, z: topInner },
-      { y: -tw / 2, z: topInner },
-      { y: tw / 2, z: topInner },
-      { y: b / 2, z: topInner },
-      { y: -b / 2, z: bottomInner },
-      { y: -tw / 2, z: bottomInner },
-      { y: tw / 2, z: bottomInner },
-      { y: b / 2, z: bottomInner },
-      { y: -b / 2, z: bottom },
-      { y: 0, z: bottom },
-      { y: b / 2, z: bottom },
-      { y: 0, z: 0 },
-    ],
-    zParts,
-    yParts,
-  );
+  return compactStressPoints(iSymmetricStations(h, b, tw, tf), zParts, yParts);
+}
+
+/**
+ * Geschlossener Kasten, kompakt — 16 Punkte, dieselben Stellen und Nummern wie
+ * die duennwandige Vorlage.
+ *
+ * ZWEI WAENDE IM SCHNITT, und das ist der ganze Unterschied zu den offenen
+ * Formen: zwischen den Gurten trifft der waagerechte Schnitt BEIDE Stege, also
+ * `2t`, und der senkrechte zwischen den Stegen beide Gurte. Es sind dieselben
+ * `OutlinePart`s, aus denen `hollowRectangle` in
+ * `calculation/shapes/hollow-rectangle.ts` seinen `solid`-Schubweg baut — die
+ * Idealisierung soll fuer kappa und fuer die Spannungspunkte dieselbe Figur
+ * schneiden ([ADR 0029](../../../../docs/adr/0029-stress-points-follow-the-idealisation.md)).
+ *
+ * DASS DIE STELLEN DIESELBEN SIND, HEISST NICHT, DASS DIE WERTE ES SIND. Das
+ * Umrissmodell liest `Sy` allein aus der HOEHE: die fuenf Punkte der
+ * Gurtaussenseite (`2` bis `6`) liegen am oberen Rand und haben damit alle
+ * `Sy = 0`, waehrend das Wandmodell dort laengs des Gurts von 0 auf `zm·t·ym`
+ * anwaechst. In STEGMITTE fallen die beiden dagegen zusammen, wo es darauf
+ * ankommt: das Umrissmodell schneidet beide Stege (`S` doppelt, `t = 2t`), das
+ * Wandmodell einen (`S` einfach, `t`) — `S/t` und damit `tau` ist dieselbe Zahl.
+ */
+export function hollowRectanglePoints(b: mm, h: mm, t: mm): StressPoint[] {
+  const zParts: OutlinePart[] = [
+    { from: -h / 2, to: -h / 2 + t, width: b },
+    { from: -h / 2 + t, to: h / 2 - t, width: 2 * t },
+    { from: h / 2 - t, to: h / 2, width: b },
+  ];
+  const yParts: OutlinePart[] = [
+    { from: -b / 2, to: -b / 2 + t, width: h },
+    { from: -b / 2 + t, to: b / 2 - t, width: 2 * t },
+    { from: b / 2 - t, to: b / 2, width: h },
+  ];
+
+  return compactStressPoints(hollowStations(b, h, t), zParts, yParts);
 }

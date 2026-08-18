@@ -48,14 +48,13 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, '..');
 const repoRoot = resolve(pkgRoot, '..', '..');
 
-const SOURCE_NOTE =
-  'RSTAB 8.29.01 Querschnittsdatenbank (Dlubal), Ausdruck vom 29.07.2026';
+const SOURCE_NOTE = 'Querschnittsdatenbank, Ausdruck vom 29.07.2026';
 
 type Series = 'IPE' | 'HEA';
 
 const EXPECTED_COUNT: Record<Series, number> = { IPE: 18, HEA: 24 };
 
-/** Erwartete Anzahl Spannungspunkte je gewalztem I-Profil (RSTAB-Vertrag). */
+/** Erwartete Anzahl Spannungspunkte je gewalztem I-Profil (gedruckter Vertrag). */
 const STRESS_POINTS_PER_PROFILE = 13;
 
 // ---------------------------------------------------------------------------
@@ -470,7 +469,7 @@ writeFileSync(
     'cross-section',
     'tests',
     'fixtures',
-    'rstab-stress-points.json',
+    'rolled-i-stress-points.json',
   ),
   `${JSON.stringify(
     {

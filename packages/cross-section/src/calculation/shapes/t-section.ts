@@ -154,10 +154,15 @@ function solidPaths(
  * nicht auf null — `S` waere zweideutig, je nachdem, von welcher Seite man
  * schneidet.
  *
- * Eigene Funktion aus demselben Grund wie `tSectionCentroid`: kappa und die
- * duennwandige Spannungspunkt-Vorlage brauchen DENSELBEN Wert, und zwei
- * Rechnungen fuer eine Zahl waeren zwei Gelegenheiten, sie verschieden zu
- * bekommen. EINHEITENFREI, weil kappa in cm und die Vorlage in mm ruft.
+ * NUR NOCH KAPPA RUFT DIESE FUNKTION. Die duennwandige Spannungspunkt-Vorlage
+ * hat sie mit
+ * [ADR 0053](../../../../../docs/adr/0053-the-stress-point-walls-tile-the-outline.md)
+ * verlassen: dort kacheln Gurt und Steg die Umrissfigur, ihr Schwerpunkt IST
+ * `zs`, und der Versatz von 0,88 mm (T 200/15/10/300) ist damit weg. Kappa
+ * behaelt die Mittellinienabwicklung, weil es ein ENERGIEintegral ueber die
+ * ganze Wand ist und die Schubflaechen des Profilkatalogs auf ihr definiert
+ * sind — die Begruendung mit Zahlen steht in ADR 0053 und bei `thinPaths` in
+ * `i-symmetric.ts`.
  */
 export function tSectionWall(bf: number, hf: number, bw: number, h: number) {
   const webLength = h - hf / 2; // Gurtmitte bis Stegunterkante

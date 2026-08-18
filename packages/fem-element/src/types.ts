@@ -90,7 +90,7 @@ export type Matrix6 = readonly [
  * (endlich/Infinity = 0 in IEEE-754) und verhindert Infinity - Infinity = NaN.
  *
  * Ob Schub ueberhaupt beruecksichtigt wird, ist eine GLOBALE Analyse-Einstellung
- * (RSTAB-Konvention) und lebt spaeter im Adapter/fem-solver. Dieses Package
+ * und lebt spaeter im Adapter/fem-solver. Dieses Package
  * weiss davon nichts; es sieht nur das fertige `GAs` pro Element.
  */
 export type SectionStiffness = {

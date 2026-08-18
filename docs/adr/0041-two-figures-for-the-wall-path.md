@@ -33,7 +33,7 @@ centroids coincide; for a T they do not even coincide.
 
 Because κ is **checked against the world**. The whole κ machinery of this
 package exists to reproduce the IPE and HEA series
-([ADR 0021](0021-section-values-separate-from-tabulated-profiles.md)), and RSTAB
+([ADR 0021](0021-section-values-separate-from-tabulated-profiles.md)), and the reference
 computes `A_s = I²/∫(S/t)² dA` with `I` of the **outline** figure while running
 `S` along the centrelines. That mixture is not an accident of ours: it is what
 the tabulated `Az` was produced with, and it is what

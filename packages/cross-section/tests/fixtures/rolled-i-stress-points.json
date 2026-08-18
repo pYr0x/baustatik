@@ -1,5 +1,5 @@
 {
-  "_source": "RSTAB 8.29.01 Querschnittsdatenbank (Dlubal), Ausdruck vom 29.07.2026; erzeugt von packages/steel-profiles/scripts/extract.ts.",
+  "_source": "Querschnittsdatenbank, Ausdruck vom 29.07.2026; erzeugt von packages/steel-profiles/scripts/extract.ts.",
   "_units": "y, z, t in mm; Sy, Sz in cm3. Koordinaten relativ zum Schwerpunkt.",
   "profiles": {
     "IPE 80": [

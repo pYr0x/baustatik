@@ -287,7 +287,7 @@ function ipe300(): Pick<OutlinePreset, 'rings' | 'reference'> {
       },
     ],
     reference: {
-      label: 'Katalogzeile IPE 300 (RSTAB-Querschnittsdatenbank)',
+      label: 'Katalogzeile IPE 300 (Querschnittsdatenbank)',
       A: row.A,
       Iy: row.Iy,
       Iz: row.Iz,

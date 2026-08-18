@@ -68,7 +68,7 @@ external measurement whose only route into the program is a lookup. The string
 `'IPE 300'` is therefore not input; it is a pointer to input that lives
 somewhere else. The same holds for `Es = 210000`.
 
-This is also what the established programs do. RSTAB/RFEM copies the section and
+This is also what the established programs do. Commercial frame software copies the section and
 material values into the model on selection, keeps the designation next to them
 as provenance, marks an edited set as user-defined, and offers re-import as an
 explicit action. SOFiSTiK reaches the same place by a different route: the code
@@ -122,7 +122,7 @@ stiffness path. Both move to the builder — `model.crossSection({ kind:
 **The DSL surface does not change.** `CrossSectionInput` and `MaterialInput` keep
 naming the catalogue entry, exactly as `femScriptDeclarations` already declares
 them; the copy is what `finish()` writes, not what the author types. This is
-RSTAB's split precisely: choose by name in the dialog, store numbers in the file.
+the canonical split: choose by name in the dialog, store numbers in the file.
 
 Building a model therefore needs **no National Annex**. `material` gains an
 Annex-free `lookupMaterial(kind, grade)` beside `createMaterials`, reading the

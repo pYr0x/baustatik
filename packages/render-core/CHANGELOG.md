@@ -84,7 +84,7 @@
     gemessen laengs der Lastrichtung.
   - **Die eine Ausnahme davon:** misst die Bezugslaenge am Stab EXAKT 0 —
     `verticalProjection` am waagrechten, `horizontalProjection` am senkrechten —,
-    wird dort gar nichts gezeichnet, so wie RSTAB es haelt. Das Bild skaliert nicht
+    wird dort gar nichts gezeichnet. Das Bild skaliert nicht
     mit dem Faktor, aber „nichts" ist keine Skalierung: die Last traegt an diesem
     Stab nichts ein, und weil die Ordinate je Last normiert ist, stuende die Figur
     sonst ausgerechnet dort in voller Hoehe. Entschieden wird JE STAB, am exakten 0

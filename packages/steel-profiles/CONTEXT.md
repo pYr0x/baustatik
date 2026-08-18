@@ -42,7 +42,7 @@ Wer daraus `A`, `Iy` und κ in SI-Einheiten braucht, geht ueber
 
 ## Domaenensprache: drei Schubflaechen, drei Bedeutungen
 
-Der RSTAB-Ausdruck druckt fuer IPE 80 **drei** Schubflaechen nebeneinander, und
+Der gedruckte Ausdruck fuehrt fuer IPE 80 **drei** Schubflaechen nebeneinander, und
 sie sind nicht austauschbar:
 
 | Groesse | IPE 80 | Bedeutung | Wofuer |
@@ -68,7 +68,7 @@ diffen, `8.356e-5` nicht. Die Umrechnung nach SI passiert an **genau einer**
 Stelle, im Profil-Mapping in `@baustatik/cross-section`.
 
 Eine Ausnahme, weil die Quelle uneinheitlich ist: die Traegheitsradien druckt
-RSTAB in **mm**, der Datensatz fuehrt sie in **cm** (IPE 80: `iy = 3,24`). Das
+die Quelle in **mm**, der Datensatz fuehrt sie in **cm** (IPE 80: `iy = 3,24`). Das
 Skript rechnet um.
 
 `Wpl` reist mit, obwohl dieser Rechenstand es nicht benutzt: es ist
@@ -81,7 +81,7 @@ Namen sind bewusst verschieden.
 
 ## Der Weg von `.md` nach `.ts`
 
-`data-source/{IPE,HEA}.md` sind PDF-Exporte des RSTAB-Ausdrucks.
+`data-source/{IPE,HEA}.md` sind PDF-Exporte des Querschnittsausdrucks.
 `scripts/extract.ts` liest sie und schreibt `src/data/{ipe,hea}.ts`. Die
 erzeugten Dateien sind **eingecheckt** — der Sinn des Katalogs ist, dass man die
 Zahlen im Diff sieht.
@@ -133,7 +133,7 @@ das Skript laenger nicht gelaufen ist.
 ### Ein Schreibzugriff ueber die Paketgrenze
 
 Derselbe Lauf schreibt
-`packages/cross-section/tests/fixtures/rstab-stress-points.json` — 42 Profile ×
+`packages/cross-section/tests/fixtures/rolled-i-stress-points.json` — 42 Profile ×
 13 Spannungspunkte. Die Fixture ist das **Orakel** fuer die dortige Rechnung und
 nicht Teil des Katalogs, deshalb liegt sie drueben. Dass ein Skript ueber die
 Paketgrenze schreibt, ist vertretbar, weil es einmalig laeuft und kein

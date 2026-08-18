@@ -1,4 +1,10 @@
 import type { mm } from '@baustatik/units';
+import { type HollowStation, hollowStations } from './hollow-stations';
+import {
+  iSymmetricStations,
+  type OpenStation,
+  tSectionStations,
+} from './open-stations';
 import { type StressPoint, stressPoint } from './types';
 
 /**
@@ -21,7 +27,7 @@ import { type StressPoint, stressPoint } from './types';
  * es ist ein Energieakkumulator ohne Startpunkt und Richtung, und `pathZ`
  * benutzt dasselbe Gurtobjekt viermal. Aus ihm die Stelle eines Punktes
  * abzulesen, ginge nicht. Was die beiden zusammenhält, sind die Tests: die Gurtgrößen
- * gegen 546 RSTAB-Punkte (`r = 0`), der Schwerpunkt des I gegen `Sy,max` des
+ * gegen die Punkte des Profilkatalogs (`r = 0`), der Schwerpunkt des I gegen `Sy,max` des
  * Katalogs, das freie Stegende des T gegen null.
  *
  * ALLE ABMESSUNGEN IN MILLIMETERN, wie sie aus `ShapeSpec` hereinkommen. `S`
@@ -29,7 +35,7 @@ import { type StressPoint, stressPoint } from './types';
  *
  * VORZEICHEN: wie bei allen parametrischen Formen ist `Sy`/`Sz` das erste
  * Flächenmoment des Teils OBERHALB bzw. LINKS vom Punkt, also durchweg <= 0.
- * Das gewalzte Profil führt daneben RSTABs Umlaufkonvention; für `|tau|` ist
+ * Das gewalzte Profil führt daneben eine Umlaufkonvention; für `|tau|` ist
  * die Richtung gleichgültig.
  */
 
@@ -53,8 +59,10 @@ function alongFlange(arm: number, t: number, halfWidth: number, y: number) {
  *
  * `S0` ist, was der Steg von den Gurten erbt; ab da wächst es quadratisch,
  * weil der Hebelarm mit der Laufkoordinate wächst. `start` ist die Stelle, an
- * der der Steg beginnt — die GURTMITTELLINIE, nicht die Gurtunterkante. Genau
- * daran hängt der Unterschied zum Umrissmodell.
+ * der der Steg beginnt — die GURTUNTERKANTE, nicht die Gurtmittellinie
+ * ([ADR 0053](../../../../docs/adr/0053-the-stress-point-walls-tile-the-outline.md)).
+ * Der Gurt ist schon eine volle Wand; ließe man den Steg an der Mittellinie
+ * beginnen, zählte er das Stück dazwischen ein zweites Mal.
  */
 function alongWeb(S0: number, t: number, start: number, zeta: number): number {
   return S0 + (t * (zeta * zeta - start * start)) / 2;
@@ -74,16 +82,23 @@ function acrossFlange(t: number, halfWidth: number, y: number) {
 }
 
 /**
- * Geschweißtes doppeltsymmetrisches I, dünnwandig — 15 Punkte.
+ * Geschweißtes doppeltsymmetrisches I, dünnwandig — 13 Punkte.
  *
- * KOORDINATEN UND NUMMERN SIND DIE DER KOMPAKTEN VORLAGE (`iSymmetricPoints`),
- * unverändert. Nur `t` und `S` wechseln aufs Wandmodell: `tf` an allen
- * Gurtpunkten statt `b`, `tw` am Schwerpunkt.
+ * KOORDINATEN UND NUMMERN SIND DIE DER KOMPAKTEN VORLAGE, weil beide dieselbe
+ * Liste lesen (`iSymmetricStations`). Nur `t` und `S` wechseln aufs
+ * Wandmodell: `tf` an allen Gurtpunkten statt `b`, `tw` an den dreien auf der
+ * Stegachse.
+ *
+ * DIESELBE NUMMERIERUNG WIE DAS GEWALZTE PROFIL, und bei `r = 0` auch
+ * DIESELBEN ZAHLEN AN ALLEN DREIZEHN PUNKTEN — bis aufs letzte Bit. Seit
+ * ADR 0053 gilt das auch am Schwerpunkt: der Steg läuft hier wie dort über die
+ * LICHTE Höhe. `rolled-i.ts` hat das immer so gerechnet; die
+ * Mittellinienfassung war die Abweichlerin.
  *
  * Der Gurt ist im Wandmodell eine LINIE bei `z = ±zf`; Ober- und Unterseite
- * fallen auf dieselbe Wandstelle. Deshalb bekommen die vier Punkte einer
- * Gurtkante paarweise dieselben Werte — und deshalb druckt das gewalzte Profil
- * die Gurtunterseiten-Ecken gar nicht erst.
+ * fallen auf dieselbe Wandstelle. Genau deshalb liegen die
+ * Verschneidungsschnitte auf der AUSSENfaser: `S` und `t` sind auf beiden
+ * Fasern dieselben, sigma ist außen größer.
  */
 export function iSymmetricThinPoints(
   h: mm,
@@ -91,13 +106,10 @@ export function iSymmetricThinPoints(
   tw: mm,
   tf: mm,
 ): StressPoint[] {
-  const top = -h / 2;
-  const topInner = -h / 2 + tf;
-  const bottomInner = h / 2 - tf;
-  const bottom = h / 2;
-
   /** Gurtmittellinie — der Hebelarm des Gurts, wie in `rolled-i.ts`. */
   const zf = (h - tf) / 2;
+  /** Gurtunterkante — dort beginnt der Steg (ADR 0053). */
+  const zw = h / 2 - tf;
 
   /**
    * `S` an einem Gurtpunkt, für BEIDE Gurte dieselbe Zahl.
@@ -105,7 +117,7 @@ export function iSymmetricThinPoints(
    * Am unteren Gurt ist der Teil oberhalb alles AUSSER dem Überstand
    * darunter; weil das erste Flächenmoment des ganzen Querschnitts
    * verschwindet, ist das genau das Negative des Überstands — und damit
-   * derselbe Wert wie oben. RSTAB druckt an den gespiegelten Punkten dasselbe
+   * derselbe Wert wie oben. An den gespiegelten Punkten ergibt sich dasselbe
    * `Sy`, aus demselben Grund.
    */
   const flange = (nr: number, y: mm, z: mm): StressPoint =>
@@ -121,47 +133,55 @@ export function iSymmetricThinPoints(
   /** Was der Steg von den beiden oberen Gurthälften erbt. */
   const fromFlange = 2 * alongFlange(-zf, tf, b / 2, 0);
 
-  return [
-    flange(1, -b / 2, top),
-    flange(2, 0, top),
-    flange(3, b / 2, top),
-    flange(4, -b / 2, topInner),
-    flange(5, -tw / 2, topInner),
-    flange(6, tw / 2, topInner),
-    flange(7, b / 2, topInner),
-    flange(8, -b / 2, bottomInner),
-    flange(9, -tw / 2, bottomInner),
-    flange(10, tw / 2, bottomInner),
-    flange(11, b / 2, bottomInner),
-    flange(12, -b / 2, bottom),
-    flange(13, 0, bottom),
-    flange(14, b / 2, bottom),
-    // Der Schwerpunkt sitzt am STEG, und hier trennen sich Wandmodell und
-    // Umrissmodell: der Steg läuft von Gurtmitte zu Gurtmitte (`±zf`), nicht
-    // über die lichte Höhe. Bei IPE-80-Massen sind das 11,60 statt 11,25 cm³
-    // — und der Katalog sagt 11,61.
-    stressPoint(15, 0, 0, tw, alongWeb(fromFlange, tw, -zf, 0), 0),
-  ];
+  const point = (nr: number, { y, z, wall }: OpenStation): StressPoint => {
+    switch (wall) {
+      case 'flange':
+        return flange(nr, y, z);
+      case 'junction':
+        // ABGETRENNT IST GENAU DER GURT, gefuehrt wird schon `tw`. Hier den
+        // Stegweg zu benutzen hiesse, das Stueck zwischen Gurtmittellinie und
+        // Gurtunterkante ein zweites Mal zu zaehlen — dieselbe Ecklücke, die
+        // beim Kasten `t³/8` hiess (ADR 0051). Das gewalzte Profil rechnet an
+        // seinen Punkten 11/12 dasselbe, dort `aboveWebStart`.
+        return stressPoint(nr, y, z, tw, fromFlange, 0);
+      case 'web':
+        // Der Schwerpunkt. Der Steg läuft über die LICHTE Höhe (`±zw`), weil
+        // die Wände die Umrissfigur kacheln — der Gurt ist bereits ganz
+        // gezählt. Bei IPE-80-Massen sind das 11,25 cm³, genau das, was
+        // `rolled-i.ts` bei `r = 0` liefert.
+        return stressPoint(nr, y, z, tw, alongWeb(fromFlange, tw, -zw, z), 0);
+    }
+  };
+
+  return iSymmetricStations(h, b, tw, tf).map((station, index) =>
+    point(index + 1, station),
+  );
 }
 
 /**
  * Geschweißtes T-Profil, dünnwandig — 9 Punkte.
  *
- * ZWEI SCHWERPUNKTE, und das ist der Sonderfall dieser Form. Die KOORDINATEN
- * liegen um `zs`, den Schwerpunkt der Umrissfigur — so, wie sigma sie braucht,
- * denn `A` und `Iy` kommen ebenfalls aus der Umrissfigur. `S` dagegen läuft um
- * `zsWall`, den Schwerpunkt des WANDMODELLS: sonst schlösse der Weg am freien
- * Stegende nicht auf null und `S` wäre zweideutig, je nachdem, von welcher
- * Seite man schneidet.
+ * Die Stellen kommen aus `tSectionStations`, dieselbe Liste, die auch das
+ * Umrissmodell liest. Die fünf Gurtpunkte liegen auf der AUSSENfaser, weil
+ * `S` und `t` zum SCHNITT gehören und nicht zur Faser; Punkt 6 ist die
+ * Stegoberkante mit dem Sprung von tau.
  *
- * DER VERSATZ `zs - zsWall` IST DIE NÄHERUNG DIESER FORM. Punkt 9 liegt damit
- * nicht ganz im Maximum von `S`. Bei den doppeltsymmetrischen Formen ist der
- * Versatz exakt null; ein Charakterisierungstest hält ihn hier mit Zahl fest.
+ * EIN SCHWERPUNKT, und das war bis
+ * [ADR 0053](../../../../docs/adr/0053-the-stress-point-walls-tile-the-outline.md)
+ * anders. `S` läuft um `zs`, den Schwerpunkt der UMRISSFIGUR — dieselbe Achse,
+ * um die sigma rechnet, weil `A` und `Iy` ebenfalls von dort kommen.
  *
- * Beide Schwerpunkte kommen von außen herein, weil sie schon gerechnet sind —
- * `tSectionCentroid` und `tSectionWall` in `shapes/t-section.ts`. Zwei
- * Rechnungen für eine Zahl wären zwei Gelegenheiten, sie verschieden zu
- * bekommen.
+ * DASS DER WEG DAMIT ÜBERHAUPT AUF NULL SCHLIESST, hängt am Kacheln: Gurt
+ * (`bf × hf`) und Steg (`bw × (h − hf)`) überdecken die Umrissfigur
+ * lückenlos und überschneidungsfrei, ihr gemeinsamer Schwerpunkt IST `zs`.
+ * Ein Steg ab der Gurtmittellinie wäre eine andere Figur mit einem anderen
+ * Schwerpunkt (`zsWall`), und dann müsste `S` um DEN laufen — mit einem
+ * Versatz zu den Koordinaten, den man nur benennen, nicht wegrechnen kann.
+ *
+ * `zsWall` LEBT WEITER, aber nur für kappa: der Schubenergie-Weg behält die
+ * Mittellinienabwicklung, weil die Schubflächen des Profilkatalogs auf ihr
+ * definiert sind. Warum dieselbe Idealisierung an zwei Stellen zwei
+ * Wandlängen führt, steht in ADR 0053.
  */
 export function tSectionThinPoints(
   bf: mm,
@@ -169,16 +189,11 @@ export function tSectionThinPoints(
   bw: mm,
   h: mm,
   zs: mm,
-  zsWall: mm,
 ): StressPoint[] {
-  const top = -zs;
-  const flangeBottom = -zs + hf;
-  const bottom = h - zs;
-
-  /** Gurtmittellinie, relativ zum Schwerpunkt des Wandmodells. */
-  const armF = hf / 2 - zsWall;
-  /** Von den Koordinaten der Umrissfigur auf die des Wandmodells. */
-  const toWall = (z: mm) => z + zs - zsWall;
+  /** Gurtmittellinie, relativ zum Schwerpunkt der Umrissfigur. */
+  const armF = hf / 2 - zs;
+  /** Gurtunterkante — dort beginnt der Steg. */
+  const armW = hf - zs;
 
   const flange = (nr: number, y: mm, z: mm): StressPoint =>
     stressPoint(
@@ -195,25 +210,140 @@ export function tSectionThinPoints(
 
   // `Sz = 0` an allen Stegpunkten: für `Vy` ist der Steg eine Linie auf der
   // Symmetrieachse und trägt nichts.
-  const web = (nr: number, y: mm, z: mm): StressPoint =>
-    stressPoint(nr, y, z, bw, alongWeb(fromFlange, bw, armF, toWall(z)), 0);
+  const point = (nr: number, { y, z, wall }: OpenStation): StressPoint => {
+    switch (wall) {
+      case 'flange':
+        return flange(nr, y, z);
+      case 'junction':
+        // Abgetrennt ist genau der Gurt, gefuehrt wird schon `bw`. Den
+        // Stegweg zu nehmen zaehlte das Stueck zwischen Gurtmittellinie und
+        // Gurtunterkante doppelt.
+        return stressPoint(nr, y, z, bw, fromFlange, 0);
+      case 'web':
+        // Schwerpunkt und freies Stegende. Dass am Stegende null
+        // herauskommt, ist nicht gesetzt, sondern GERECHNET — die
+        // Selbstprüfung des Weges und der Beleg, dass die beiden Kacheln die
+        // Umrissfigur wirklich treffen.
+        //
+        // `t = bw` auch am Schwerpunkt, ohne Sonderfall: beim breiten Gurt
+        // kann er im Gurt liegen, aber der Schubfluss läuft um diese Höhe
+        // herum im Steg. Die kompakte Vorlage liefert dort `t = bf`.
+        return stressPoint(nr, y, z, bw, alongWeb(fromFlange, bw, armW, z), 0);
+    }
+  };
 
-  return [
-    flange(1, -bf / 2, top),
-    flange(2, bf / 2, top),
-    flange(3, -bf / 2, flangeBottom),
-    flange(4, -bw / 2, flangeBottom),
-    flange(5, bw / 2, flangeBottom),
-    flange(6, bf / 2, flangeBottom),
-    // Das freie Stegende. Dass hier null herauskommt, ist nicht gesetzt,
-    // sondern GERECHNET — die Selbstprüfung des Weges und der Grund, warum
-    // `S` um `zsWall` läuft.
-    web(7, -bw / 2, bottom),
-    web(8, bw / 2, bottom),
-    // Der Schwerpunkt der Umrissfigur liegt IMMER am Steg: `zs > hf/2` gilt,
-    // solange es unter dem Gurt überhaupt einen Steg gibt. Deshalb `t = bw`
-    // ohne Sonderfall — anders als bei der kompakten Vorlage, wo der breite
-    // Gurt dort `t = bf` liefert.
-    web(9, 0, 0),
-  ];
+  return tSectionStations(bf, hf, bw, h, zs).map((station, index) =>
+    point(index + 1, station),
+  );
+}
+
+/**
+ * Geschlossener Kasten, duennwandig — 16 Punkte.
+ *
+ * DER GESCHLOSSENE QUERSCHNITT HAT KEINEN FREIEN RAND, an dem `S = 0` waere.
+ * Der Startschnitt kommt aus der Symmetrie, und er ist fuer die beiden
+ * Richtungen ein ANDERER: fuer `Vz` liegt der Schubfluss in GURTMITTE still,
+ * fuer `Vy` in STEGMITTE. Deshalb hat Punkt 4 `Sy = 0` und Punkt 8 `Sz = 0`,
+ * und keiner der sechzehn Punkte hat beides.
+ *
+ * JEDER PUNKT IST EIN SCHNITT, und `S` ist das erste Flaechenmoment dessen,
+ * was zwischen dem Symmetrieschnitt und ihm liegt — genommen an der
+ * UMRISSFIGUR, nicht an der Mittellinie
+ * ([ADR 0051](../../../../docs/adr/0051-the-closed-box-tiles-the-outline-figure.md)).
+ * Damit ist `S` an allen zwoelf Wandpunkten EXAKT und nicht genaehert; das
+ * reine Mittellinienmodell lag pro passierter Ecke um `t³/8` daneben.
+ *
+ * DIE ZERLEGUNG IST JE RICHTUNG EINE ANDERE, und beide parkettieren die Figur
+ * lueckenlos:
+ *
+ * | | Wand QUER zur Schubrichtung | Wand LAENGS dazu |
+ * | --- | --- | --- |
+ * | `Sy` | Gurt, bis zur Aussenkante `b/2` | Steg, lichte Hoehe `h/2 − t` |
+ * | `Sz` | Steg, bis zur Aussenkante `h/2` | Gurt, lichte Breite `b/2 − t` |
+ *
+ * Der Hebelarm bleibt in beiden Faellen die Mittellinie — er ist der
+ * Schwerpunktabstand der Wand. Es sind dieselben Groessen, aus denen
+ * `closedBoxPath` in `shapes/hollow-rectangle.ts` kappa bildet; sie stehen
+ * hier ein zweites Mal, aus demselben Grund wie beim I und beim T (siehe Kopf
+ * dieser Datei): ein `ShearFlowInterval` ist lagelos.
+ *
+ * DIE AUSSENECKE IST KEIN WANDSCHNITT. Dort stossen zwei freie Flaechen
+ * zusammen; der kuerzeste Weg durchs Material geht zur INNENECKE, also
+ * diagonal — die GEHRUNG. Der abgeschnittene Teil ist dann der Gurtstreifen
+ * bis zur lichten Breite plus das halbe Eckquadrat, und das Ergebnis
+ *
+ *     S = t·(a·c − a·t/2 − c·t/2 + t²/3),   a = b/2, c = h/2
+ *
+ * ist in `a` und `c` SYMMETRISCH: von der Gurtseite und von der Stegseite
+ * kommt dieselbe Zahl, und `Sy = Sz` an der Ecke. Beides ist gerechnet, nicht
+ * gesetzt — ein Test haelt es fest.
+ *
+ * `t` bleibt an allen sechzehn Punkten die Wandstaerke, auch an der Ecke, wo
+ * der Gehrungsschnitt `t·√2` lang ist. Das ist die Regel des Packages („an
+ * einer Sprungstelle gilt die kleinere Breite") und die sichere Seite: an der
+ * konvexen Aussenecke ist der wahre Schubfluss ohnehin null, weil beide
+ * angrenzenden Flaechen schubfrei sind.
+ *
+ * VORZEICHEN: die Konvention der parametrischen Formen, also durchweg <= 0.
+ * Ein Umlaufmodell druckt hier stattdessen die UMLAUFRICHTUNG — sein `Sy` kippt zwischen
+ * linkem und rechtem Steg, weil der Umlauf sie entgegengesetzt durchlaeuft.
+ * Fuer `|tau|` ist das gleichgueltig.
+ */
+export function hollowRectangleThinPoints(b: mm, h: mm, t: mm): StressPoint[] {
+  /** Halbe Aussenmasse. */
+  const a = b / 2;
+  const c = h / 2;
+  /** Halbe LICHTE Masse — dort endet die Wand laengs der Schubrichtung. */
+  const yi = a - t;
+  const zi = c - t;
+  /** Die Mittellinien, und damit die Hebelarme. */
+  const ym = a - t / 2;
+  const zm = c - t / 2;
+
+  /**
+   * `S` einer Wand QUER zur Schubrichtung: fester Hebelarm, `S` waechst
+   * linear — `crossWallInterval(arm, t, s)` aus `calculation/shear.ts`, hier
+   * an einer Stelle ausgewertet statt integriert.
+   */
+  const across = (arm: number, s: number) => arm * t * s;
+  /**
+   * `S` einer Wand LAENGS der Schubrichtung, `s` vom Symmetrieschnitt aus.
+   * Der Hebelarm waechst mit der Laufkoordinate, `S` also quadratisch; `S0`
+   * ist, was die Wand von der Querwand erbt.
+   */
+  const along = (S0: number, half: number, s: number) =>
+    S0 + (t * (half * half - s * s)) / 2;
+
+  /** Die Gehrung an der Aussenecke — in `a` und `c` symmetrisch. */
+  const mitre = t * (a * c - (a * t) / 2 - (c * t) / 2 + (t * t) / 3);
+
+  const point = (nr: number, { y, z, wall }: HollowStation): StressPoint => {
+    switch (wall) {
+      case 'corner':
+        return stressPoint(nr, y, z, t, -mitre, -mitre);
+      case 'flange':
+        // Fuer `Sy` liegt der Punkt VOR der Ecke, fuer `Sz` dahinter.
+        return stressPoint(
+          nr,
+          y,
+          z,
+          t,
+          -across(zm, Math.abs(y)),
+          -along(across(ym, c), yi, Math.abs(y)),
+        );
+      case 'web':
+        return stressPoint(
+          nr,
+          y,
+          z,
+          t,
+          -along(across(zm, a), zi, Math.abs(z)),
+          -across(ym, Math.abs(z)),
+        );
+    }
+  };
+
+  return hollowStations(b, h, t).map((station, index) =>
+    point(index + 1, station),
+  );
 }
