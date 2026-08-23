@@ -109,9 +109,13 @@ Die Grundlagen sind vollständig umgesetzt:
 3. **Spannungen für Vollquerschnitte:** Seit
    [ADR 0057](../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md)
    liefert `stressPoints` für JEDEN Vollquerschnitt `undefined` — gezeichnet wie
-   parametrisch (`idealisation: 'solid'`). Bis die FE-Spannungsauswertung steht
-   (`packages/cross-section-fe/HANDOFF.md`), hat er gar keine Spannungsausgabe.
-   Das ist Absicht und keine Lücke, die eine Zwischenvorlage füllen soll.
+   parametrisch (`idealisation: 'solid'`). Für die **gezeichnete** Figur ist das
+   erledigt: `recoverStresses` in `@baustatik/cross-section-fe` gibt σ, τ und σv
+   am Netz heraus ([ADR 0061](../docs/adr/0061-the-fe-stress-is-a-vector-at-a-node.md)).
+   Der **parametrische** Vollquerschnitt hat weiterhin gar keine
+   Spannungsausgabe — das ist Absicht und keine Lücke, die eine Zwischenvorlage
+   füllen soll; der Ausweg ist Punkt 6. Offen bleiben außerdem die Anzeige im
+   `cross-section-viewer` und die Auswahl der Nachweispunkte (ADR 0056).
 4. **Mehrzellige Wandgraphen (P6):** Bei ≥ 2 Zellen entsteht ein Gleichungssystem
    gekoppelter Unbekannter. Bis dahin bleiben κ, `yM`/`zM` und `It` dort `undefined`
    und das Gate meldet `MultipleCellsWarning`. Dasselbe gilt für unverbundene Graphen

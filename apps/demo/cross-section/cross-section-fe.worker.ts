@@ -44,15 +44,15 @@ async function compute(request: CrossSectionFERequest): Promise<void> {
     // Das Netz wird UEBERTRAGEN und nicht kopiert: es sind fuenf typisierte
     // Felder mit sechsstelligen Laengen, und der Hauptfaden zeichnet damit.
     const transfer =
-      result.mesh === undefined
-        ? []
-        : [
+      result.kind === 'solved'
+        ? [
             result.mesh.points.buffer as ArrayBuffer,
             result.mesh.elements.buffer as ArrayBuffer,
             result.mesh.pointMarkers.buffer as ArrayBuffer,
             result.mesh.boundarySegments.buffer as ArrayBuffer,
             result.mesh.boundaryMarkers.buffer as ArrayBuffer,
-          ];
+          ]
+        : [];
     workerScope.postMessage(
       { kind: 'computed', id: request.id, result },
       transfer,

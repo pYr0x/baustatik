@@ -47,10 +47,13 @@ describe('computeFESectionValues', () => {
       { kind: 'outline', rings: [rectangle(200, 300)] },
       DEFAULT_SECTION_POLICY,
     );
-    const { state, mesh } = await computeFESectionValues(
+    const computation = await computeFESectionValues(
       geometry,
       DEFAULT_SECTION_POLICY,
     );
+    expect(computation.kind).toBe('solved');
+    if (computation.kind !== 'solved') return;
+    const { state, mesh } = computation;
     expect(state.status).toBe('computed');
     if (state.status !== 'computed') return;
 
@@ -73,7 +76,7 @@ describe('computeFESectionValues', () => {
     expect(state.values.inverseKappaY[0]).toBeCloseTo(1.2, 9);
 
     expect(state.fingerprint.A).toBeCloseTo(0.06, 9);
-    expect(mesh?.kind).toBe('tri6');
+    expect(mesh.kind).toBe('tri6');
   });
 
   it('haengt die Werte an die Geometrie und traegt sie durch sectionProperties', async () => {
@@ -121,16 +124,17 @@ describe('computeFESectionValues', () => {
       },
       DEFAULT_SECTION_POLICY,
     );
-    const { state, mesh } = await computeFESectionValues(
+    const computation = await computeFESectionValues(
       geometry,
       DEFAULT_SECTION_POLICY,
     );
-    expect(state).toEqual({
+    // Vor dem Vernetzen verweigert — es gibt kein Netz zum Zeichnen und keine
+    // Felder zum Rueckrechnen, und der `kind` sagt das jetzt im Typ.
+    expect(computation.kind).toBe('refused');
+    expect(computation.state).toEqual({
       status: 'unsupported',
       reason: 'disconnected-areas',
     });
-    // Vor dem Vernetzen verweigert — es gibt kein Netz zum Zeichnen.
-    expect(mesh).toBeUndefined();
   });
 
   it('rechnet ein Loch NEBEN der Biegeachse durch', async () => {
@@ -147,10 +151,13 @@ describe('computeFESectionValues', () => {
       },
       DEFAULT_SECTION_POLICY,
     );
-    const { state, diagnostics } = await computeFESectionValues(
+    const computation = await computeFESectionValues(
       geometry,
       DEFAULT_SECTION_POLICY,
     );
+    expect(computation.kind).toBe('solved');
+    if (computation.kind !== 'solved') return;
+    const { state, diagnostics } = computation;
     expect(state.status).toBe('computed');
     if (state.status !== 'computed') return;
     expect(state.values.It).toBeGreaterThan(0);
@@ -159,7 +166,7 @@ describe('computeFESectionValues', () => {
     // Der Schubmittelpunkt liegt auf der Symmetrieachse `y = 100 mm`; das Loch
     // ist nur in `z` ausmittig, also verschiebt es allein `zM`.
     expect(state.values.yM).toBeCloseTo(0.1, 5);
-    expect(diagnostics?.holeCount).toBe(1);
+    expect(diagnostics.holeCount).toBe(1);
   });
 
   it('laesst FEElements die Netzdichte steuern, ohne die Zahl zu bewegen', async () => {
@@ -175,8 +182,10 @@ describe('computeFESectionValues', () => {
       geometry,
       createSectionPolicy({ FEElements: 6000 }),
     );
-    const coarseCount = (coarse.mesh?.elements.length ?? 0) / 6;
-    const fineCount = (fine.mesh?.elements.length ?? 0) / 6;
+    if (coarse.kind !== 'solved') throw new Error('grob verweigert');
+    if (fine.kind !== 'solved') throw new Error('fein verweigert');
+    const coarseCount = coarse.mesh.elements.length / 6;
+    const fineCount = fine.mesh.elements.length / 6;
     expect(fineCount).toBeGreaterThan(coarseCount * 5);
 
     // DAS IST DER BELEG STATT EINES KONVERGENZLAUFS: hochdrehen, und die Zahl

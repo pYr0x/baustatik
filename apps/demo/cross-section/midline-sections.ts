@@ -438,8 +438,11 @@ async function runFE(): Promise<void> {
     try {
         const computation = await computeFESection(store.geometry, store.sectionPolicy);
         store.setFEValues(computation.state);
-        mesh = toSceneMesh(computation.mesh);
-        feStatus.textContent = feSummary(computation.state, computation.mesh);
+        // NARROWT AUF `kind`: der `'refused'`-Arm traegt weder Netz noch
+        // Felder, und das steht seit ADR 0061 im Typ statt in einem `?`.
+        const computed = computation.kind === 'solved' ? computation.mesh : undefined;
+        mesh = toSceneMesh(computed);
+        feStatus.textContent = feSummary(computation.state, computed);
     } catch (error) {
         mesh = undefined;
         feStatus.textContent = `Fehlgeschlagen: ${

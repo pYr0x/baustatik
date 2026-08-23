@@ -159,6 +159,14 @@ The package is called `stress` and not `design` for that reason.
   `@baustatik/cross-section-fe` depends on it for those types and gains a second
   door for the FE recovery, returning per node alongside the mesh, transient like
   everything else there.
+
+  > **Amended by [ADR 0061](0061-the-fe-stress-is-a-vector-at-a-node.md) — this
+  > bullet only.** The second door exists and returns per node, transient. What
+  > is withdrawn is the borrowed type: τ at a mesh node is a **vector** with no
+  > distinguished direction, so the FE owns `StressAtNode` and takes **no**
+  > dependency on `cross-section-stress`. The two share σv as a formula, not as
+  > a type. The rest of this ADR — above all "the idealisation is not a package
+  > boundary, the capability is" — stands unchanged.
 - `@baustatik/cross-section` gains nothing and loses nothing. Its rule stays
   greppable, and that is the point of the whole decision.
 - `cross-section-viewer` can pull a stress field later through a fourth optional

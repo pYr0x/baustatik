@@ -374,9 +374,10 @@ async function resolveFESections(): Promise<void> {
   for (const cs of store.crossSections) {
     if (cs.kind !== "section-geometry") continue; // nur die gezeichneten
     if (cs.geometry.feValues !== undefined) continue; // schon gerechnet
-    const { state, mesh: computed } = await computeFESection(cs.geometry, store.sectionPolicy);
-    store.setFEValues(cs.id, state);
-    mesh = computed; // transient, nur zum Zeichnen
+    const computation = await computeFESection(cs.geometry, store.sectionPolicy);
+    store.setFEValues(cs.id, computation.state);
+    // NARROWT AUF `kind` (ADR 0061): ohne Netz gibt es nichts zu zeichnen.
+    if (computation.kind === "solved") mesh = computation.mesh; // transient
   }
 }
 

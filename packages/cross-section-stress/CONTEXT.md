@@ -30,10 +30,21 @@ Does not own:
   verification and belongs to the design step (ADR 0056).
 - **Plastic resistances.** Those fall out of `cross-section-response`
   (ADR 0055).
-- **FE stresses.** `@baustatik/cross-section-fe` imports `StressAtPoint` and
-  answers in the same words, but calls no function here. The FE produces no
-  `StressPoint`: in an FE field there is neither a cut width `t` nor a
-  truncated `S` (ADR 0054).
+- **FE stresses.** `@baustatik/cross-section-fe` recovers them itself, from the
+  warping fields it already solved. **It imports nothing from here and does not
+  depend on this package**
+  ([ADR 0061](../../docs/adr/0061-the-fe-stress-is-a-vector-at-a-node.md),
+  amending the one bullet of ADR 0054 that said otherwise): τ at a mesh node is
+  a **vector** at a place with no distinguished direction, while `tau` here is a
+  signed flow along a known wall tangent. A shared record would have to carry
+  `wall`, `ty`, `tz`, `tauY` and `tauZ`, half of them undefined on each side.
+  **Shared is σv as a formula, not as a type** — four operations, written twice,
+  with one term in the bracket here and two there. And the FE produces no
+  `StressPoint`: in an FE field there is neither a cut width `t` nor a truncated
+  `S` (ADR 0054).
+- **Torsion.** `Mt` throws here (`TorsionNotSupportedError`) and is **answered**
+  in `cross-section-fe`, which has ω. That is not an inconsistency but the
+  capability difference the two packages are cut along (ADR 0054/0061).
 - **A viewer or a demo page.** ADR 0054 foresees that as a separate step.
 
 ## The two doors
