@@ -38,6 +38,9 @@ importers:
       '@baustatik/cross-section-fe':
         specifier: workspace:*
         version: link:../../packages/cross-section-fe
+      '@baustatik/cross-section-stress':
+        specifier: workspace:*
+        version: link:../../packages/cross-section-stress
       '@baustatik/cross-section-viewer':
         specifier: workspace:*
         version: link:../../packages/cross-section-viewer
@@ -80,6 +83,9 @@ importers:
       '@baustatik/script':
         specifier: workspace:*
         version: link:../../packages/script
+      '@baustatik/section-forces':
+        specifier: workspace:*
+        version: link:../../packages/section-forces
       '@baustatik/section-geometry':
         specifier: workspace:*
         version: link:../../packages/section-geometry

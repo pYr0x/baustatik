@@ -6,23 +6,19 @@ import {
   sectionProperties,
   stressPoints,
 } from '@baustatik/cross-section';
+import {
+  type StressAtPoint,
+  stressesAtPoints,
+} from '@baustatik/cross-section-stress';
+import type { SectionForces } from '@baustatik/section-forces';
 import { convert } from '@baustatik/units';
 
 // Einheitenumrechnungsfaktoren
 const M2_TO_CM2 = convert(1).from('m^2').toExact('cm^2');
 const M4_TO_CM4 = convert(1).from('m^4').toExact('cm^4');
-const M_TO_MM = convert(1).from('m').toExact('mm');
 
-type PointStressResult = {
+type PointStressResult = StressAtPoint & {
   readonly point: StressPoint;
-  readonly sigmaN: number;
-  readonly sigmaMy: number;
-  readonly sigmaMz: number;
-  readonly sigma: number;
-  readonly tauZ: number;
-  readonly tauY: number;
-  readonly tau: number;
-  readonly sigmaV: number;
 };
 
 type StressCalculationResult = {
@@ -173,56 +169,12 @@ function calculate(): void {
   hideWarning();
   sectionTitleBadge.textContent = `I geschweisst ${h} x ${b} x ${tw} x ${tf} — ${idealisation}`;
 
-  // Schnittgrößen in N, Nmm
-  const N_N = N * 1_000;
-  const Vz_N = Vz * 1_000;
-  const Vy_N = Vy * 1_000;
-  const My_Nmm = My * 1_000_000;
-  const Mz_Nmm = Mz * 1_000_000;
-
-  // Querschnittswerte in mm², mm⁴
-  const A_mm2 = props.A * 1_000_000;
-  const Iy_mm4 = props.Iy * 1_000_000_000_000;
-  const Iz_mm4 = props.Iz * 1_000_000_000_000;
-
-  const results: PointStressResult[] = rawPoints.map((pt) => {
-    // Normalspannung sigma = N/A + (My * z) / Iy - (Mz * y) / Iz
-    const sigmaN = A_mm2 > 0 ? N_N / A_mm2 : 0;
-    const sigmaMy = Iy_mm4 > 0 ? (My_Nmm * pt.z) / Iy_mm4 : 0;
-    const sigmaMz = Iz_mm4 > 0 ? (-Mz_Nmm * pt.y) / Iz_mm4 : 0;
-    const sigma = sigmaN + sigmaMy + sigmaMz;
-
-    // Statische Momente in mm³ — VORZEICHENBEHAFTET (pt.Sy und pt.Sz sind in
-    // cm³, gerechnet gegen die Elementtangente des Punktes).
-    const Sy_mm3 = pt.Sy * 1_000;
-    const Sz_mm3 = pt.Sz * 1_000;
-
-    // Der Schubfluss q läuft LÄNGS der Wand: beide Querkraftanteile liegen auf
-    // derselben Tangente und addieren sich vorzeichenrichtig als Skalare.
-    // Die frühere Wurzel aus den Quadraten behandelte zwei Komponenten
-    // DERSSELBEN Richtung als orthogonal und war bis Faktor √2 unkonservativ
-    // (ADR 0058): q = -(Vz·Sy/Iy + Vy·Sz/Iz), τ = |q|/t.
-    const tauZ =
-      Iy_mm4 > 0 && pt.t > 0 ? (-Vz_N * Sy_mm3) / (Iy_mm4 * pt.t) : 0;
-    const tauY =
-      Iz_mm4 > 0 && pt.t > 0 ? (-Vy_N * Sz_mm3) / (Iz_mm4 * pt.t) : 0;
-    const tau = Math.abs(tauZ + tauY);
-
-    // Vergleichsspannung nach von Mises: sigmaV = sqrt(sigma² + 3 * tau²)
-    const sigmaV = Math.sqrt(sigma * sigma + 3 * tau * tau);
-
-    return {
-      point: pt,
-      sigmaN,
-      sigmaMy,
-      sigmaMz,
-      sigma,
-      tauZ,
-      tauY,
-      tau,
-      sigmaV,
-    };
-  });
+  const forces: SectionForces = { N, Vz, My, Vy, Mz };
+  const stresses = stressesAtPoints(props, rawPoints, forces);
+  const results: PointStressResult[] = rawPoints.map((point, index) => ({
+    ...stresses[index],
+    point,
+  }));
 
   let maxSigmaV = 0;
   let maxSigmaPoint = results[0];
@@ -236,8 +188,8 @@ function calculate(): void {
       maxSigmaV = r.sigmaV;
       maxSigmaPoint = r;
     }
-    if (r.tau > maxTau) {
-      maxTau = r.tau;
+    if (Math.abs(r.tau) > maxTau) {
+      maxTau = Math.abs(r.tau);
       maxTauPoint = r;
     }
     if (r.sigma > maxSigmaPos) {
@@ -321,7 +273,7 @@ function renderUI(): void {
         <td>${r.point.Sy.toFixed(2)}</td>
         <td>${r.point.Sz.toFixed(2)}</td>
         <td class="col-stress">${r.sigma >= 0 ? '+' : ''}${r.sigma.toFixed(2)}</td>
-        <td class="col-stress ${isMaxTau ? 'col-max-stress' : ''}">${r.tau.toFixed(2)}</td>
+        <td class="col-stress ${isMaxTau ? 'col-max-stress' : ''}">${Math.abs(r.tau).toFixed(2)}</td>
         <td class="col-stress col-sigmav ${isMaxSigmaV ? 'col-max-stress' : ''}">${r.sigmaV.toFixed(2)}</td>
       </tr>
     `;
@@ -371,8 +323,6 @@ function updateInspector(pointNr: number | null): void {
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.78rem;">
         <div>Ort: y = ${maxPt.point.y.toFixed(1)} mm, z = ${maxPt.point.z.toFixed(1)} mm</div>
         <div>Wanddicke: t = ${maxPt.point.t.toFixed(1)} mm</div>
-        <div>&sigma;<sub>N</sub> = ${maxPt.sigmaN.toFixed(2)} N/mm²</div>
-        <div>&sigma;<sub>My</sub> = ${maxPt.sigmaMy.toFixed(2)} N/mm²</div>
         <div>&sigma;<sub>ges</sub> = ${maxPt.sigma.toFixed(2)} N/mm²</div>
         <div>&tau; = ${maxPt.tau.toFixed(2)} N/mm²</div>
       </div>
@@ -388,17 +338,12 @@ function updateInspector(pointNr: number | null): void {
       Spannungspunkt Nr. ${res.point.nr} (y = ${res.point.y.toFixed(1)} mm, z = ${res.point.z.toFixed(1)} mm, t = ${res.point.t.toFixed(1)} mm)
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.78rem;">
-      <div>&sigma;<sub>N</sub> (aus N): <strong>${res.sigmaN.toFixed(2)} N/mm²</strong></div>
-      <div>&sigma;<sub>My</sub> (aus M<sub>y</sub>): <strong>${res.sigmaMy.toFixed(2)} N/mm²</strong></div>
-      <div>&sigma;<sub>Mz</sub> (aus M<sub>z</sub>): <strong>${res.sigmaMz.toFixed(2)} N/mm²</strong></div>
-      <div>&sigma;<sub>ges</sub>: <strong style="color:${res.sigma >= 0 ? '#16a34a' : '#dc2626'}">${res.sigma.toFixed(2)} N/mm²</strong></div>
-      <div>S<sub>y</sub>: <strong>${res.point.Sy.toFixed(2)} cm³</strong></div>
-      <div>&tau;<sub>z</sub> (aus V<sub>z</sub>, entlang Wandtangente): <strong>${res.tauZ.toFixed(2)} N/mm²</strong></div>
-      <div>S<sub>z</sub>: <strong>${res.point.Sz.toFixed(2)} cm³</strong></div>
-      <div>&tau;<sub>y</sub> (aus V<sub>y</sub>, entlang Wandtangente): <strong>${res.tauY.toFixed(2)} N/mm²</strong></div>
-      <div style="grid-column: span 2;">&tau;<sub>ges</sub> = |&tau;<sub>z</sub> + &tau;<sub>y</sub>| (vorzeichenrichtig am Schubfluss, ADR 0058): <strong>${res.tau.toFixed(2)} N/mm²</strong></div>
-      <div style="grid-column: span 2; background: #dbeafe; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 700; color: #1e3a8a;">
-        Vergleichsspannung &sigma;<sub>v</sub> = &radic;(${res.sigma.toFixed(2)}&sup2; + 3&middot;${res.tau.toFixed(2)}&sup2;) = ${res.sigmaV.toFixed(2)} N/mm²
+        <div>S<sub>y</sub>: <strong>${res.point.Sy.toFixed(2)} cm³</strong></div>
+        <div>S<sub>z</sub>: <strong>${res.point.Sz.toFixed(2)} cm³</strong></div>
+        <div>&sigma;<sub>ges</sub>: <strong style="color:${res.sigma >= 0 ? '#16a34a' : '#dc2626'}">${res.sigma.toFixed(2)} N/mm²</strong></div>
+        <div>&tau; entlang (${res.ty.toFixed(2)}, ${res.tz.toFixed(2)}): <strong>${res.tau.toFixed(2)} N/mm²</strong></div>
+        <div style="grid-column: span 2; background: #dbeafe; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 700; color: #1e3a8a;">
+          Vergleichsspannung &sigma;<sub>v</sub> = &radic;(${res.sigma.toFixed(2)}&sup2; + 3&middot;${Math.abs(res.tau).toFixed(2)}&sup2;) = ${res.sigmaV.toFixed(2)} N/mm²
       </div>
     </div>
   `;

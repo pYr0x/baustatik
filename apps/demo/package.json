@@ -15,6 +15,7 @@
   "dependencies": {
     "@baustatik/cross-section": "workspace:*",
     "@baustatik/cross-section-fe": "workspace:*",
+    "@baustatik/cross-section-stress": "workspace:*",
     "@baustatik/cross-section-viewer": "workspace:*",
     "@baustatik/fem": "workspace:*",
     "@baustatik/fem-element": "workspace:*",
@@ -28,6 +29,7 @@
     "@baustatik/material": "workspace:*",
     "@baustatik/mesh-2d-wasm": "workspace:*",
     "@baustatik/script": "workspace:*",
+    "@baustatik/section-forces": "workspace:*",
     "@baustatik/section-geometry": "workspace:*",
     "@baustatik/sparse-solver-wasm": "workspace:*",
     "@baustatik/steel-profiles": "workspace:*",
