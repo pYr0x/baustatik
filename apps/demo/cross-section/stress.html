@@ -684,7 +684,8 @@
             <strong>Normalspannung:</strong> <code class="formula-code">&sigma;(y, z) = N / A + (M<sub>y</sub> &middot; z) / I<sub>y</sub> &minus; (M<sub>z</sub> &middot; y) / I<sub>z</sub></code>
         </p>
         <p style="margin: 0 0 0.5rem;">
-            <strong>Schubspannung:</strong> <code class="formula-code">&tau;<sub>z</sub> = |V<sub>z</sub> &middot; S<sub>y</sub>| / (I<sub>y</sub> &middot; t)</code>, <code class="formula-code">&tau;<sub>y</sub> = |V<sub>y</sub> &middot; S<sub>z</sub>| / (I<sub>z</sub> &middot; t)</code>, <code class="formula-code">&tau; = &radic;(&tau;<sub>z</sub>&sup2; + &tau;<sub>y</sub>&sup2;)</code>
+            <strong>Schubspannung (Schubfluss l&auml;ngs der Wand):</strong> <code class="formula-code">q = &minus;(V<sub>z</sub> &middot; S<sub>y</sub> / I<sub>y</sub> + V<sub>y</sub> &middot; S<sub>z</sub> / I<sub>z</sub>)</code>, <code class="formula-code">&tau; = |q| / t</code><br>
+            <span style="font-size: 0.78rem;">S<sub>y</sub>, S<sub>z</sub> vorzeichenbehaftet gegen die Wandtangente des Punktes; beide Querkraftanteile liegen auf derselben Tangente und addieren sich skalare, nicht quadratisch.</span>
         </p>
         <p style="margin: 0;">
             <strong>Vergleichsspannung (von Mises):</strong> <code class="formula-code">&sigma;<sub>v</sub> = &radic;(&sigma;&sup2; + 3 &middot; &tau;&sup2;)</code> (DIN EN 1993-1-1 &sect;6.2.1 / Gestaltänderungsenergiehypothese)

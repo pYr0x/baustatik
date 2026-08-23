@@ -192,16 +192,21 @@ function calculate(): void {
     const sigmaMz = Iz_mm4 > 0 ? (-Mz_Nmm * pt.y) / Iz_mm4 : 0;
     const sigma = sigmaN + sigmaMy + sigmaMz;
 
-    // Statische Momente in mm³ (pt.Sy und pt.Sz sind in cm³)
-    const Sy_mm3 = Math.abs(pt.Sy) * 1_000;
-    const Sz_mm3 = Math.abs(pt.Sz) * 1_000;
+    // Statische Momente in mm³ — VORZEICHENBEHAFTET (pt.Sy und pt.Sz sind in
+    // cm³, gerechnet gegen die Elementtangente des Punktes).
+    const Sy_mm3 = pt.Sy * 1_000;
+    const Sz_mm3 = pt.Sz * 1_000;
 
-    // Schubspannung tau = (V * S) / (I * t)
+    // Der Schubfluss q läuft LÄNGS der Wand: beide Querkraftanteile liegen auf
+    // derselben Tangente und addieren sich vorzeichenrichtig als Skalare.
+    // Die frühere Wurzel aus den Quadraten behandelte zwei Komponenten
+    // DERSSELBEN Richtung als orthogonal und war bis Faktor √2 unkonservativ
+    // (ADR 0058): q = -(Vz·Sy/Iy + Vy·Sz/Iz), τ = |q|/t.
     const tauZ =
-      Iy_mm4 > 0 && pt.t > 0 ? (Math.abs(Vz_N) * Sy_mm3) / (Iy_mm4 * pt.t) : 0;
+      Iy_mm4 > 0 && pt.t > 0 ? (-Vz_N * Sy_mm3) / (Iy_mm4 * pt.t) : 0;
     const tauY =
-      Iz_mm4 > 0 && pt.t > 0 ? (Math.abs(Vy_N) * Sz_mm3) / (Iz_mm4 * pt.t) : 0;
-    const tau = Math.sqrt(tauZ * tauZ + tauY * tauY);
+      Iz_mm4 > 0 && pt.t > 0 ? (-Vy_N * Sz_mm3) / (Iz_mm4 * pt.t) : 0;
+    const tau = Math.abs(tauZ + tauY);
 
     // Vergleichsspannung nach von Mises: sigmaV = sqrt(sigma² + 3 * tau²)
     const sigmaV = Math.sqrt(sigma * sigma + 3 * tau * tau);
@@ -387,9 +392,10 @@ function updateInspector(pointNr: number | null): void {
       <div>&sigma;<sub>Mz</sub> (aus M<sub>z</sub>): <strong>${res.sigmaMz.toFixed(2)} N/mm²</strong></div>
       <div>&sigma;<sub>ges</sub>: <strong style="color:${res.sigma >= 0 ? '#16a34a' : '#dc2626'}">${res.sigma.toFixed(2)} N/mm²</strong></div>
       <div>S<sub>y</sub>: <strong>${res.point.Sy.toFixed(2)} cm³</strong></div>
-      <div>&tau;<sub>z</sub> (aus V<sub>z</sub>): <strong>${res.tauZ.toFixed(2)} N/mm²</strong></div>
+      <div>&tau;<sub>z</sub> (aus V<sub>z</sub>, entlang Wandtangente): <strong>${res.tauZ.toFixed(2)} N/mm²</strong></div>
       <div>S<sub>z</sub>: <strong>${res.point.Sz.toFixed(2)} cm³</strong></div>
-      <div>&tau;<sub>ges</sub>: <strong>${res.tau.toFixed(2)} N/mm²</strong></div>
+      <div>&tau;<sub>y</sub> (aus V<sub>y</sub>, entlang Wandtangente): <strong>${res.tauY.toFixed(2)} N/mm²</strong></div>
+      <div style="grid-column: span 2;">&tau;<sub>ges</sub> = |&tau;<sub>z</sub> + &tau;<sub>y</sub>| (vorzeichenrichtig am Schubfluss, ADR 0058): <strong>${res.tau.toFixed(2)} N/mm²</strong></div>
       <div style="grid-column: span 2; background: #dbeafe; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 700; color: #1e3a8a;">
         Vergleichsspannung &sigma;<sub>v</sub> = &radic;(${res.sigma.toFixed(2)}&sup2; + 3&middot;${res.tau.toFixed(2)}&sup2;) = ${res.sigmaV.toFixed(2)} N/mm²
       </div>
