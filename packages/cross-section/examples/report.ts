@@ -75,14 +75,20 @@ export function report(title: string, cs: CrossSection): void {
 
   const points = stressPoints(cs);
   if (points === undefined) {
-    console.log('Spannungspunkte -> undefined (fuer diese Form keine Vorlage)');
+    console.log(
+      'Spannungspunkte -> undefined (kein Schnittmodell, siehe ADR 0057)',
+    );
     return;
   }
 
   console.log(`Spannungspunkte (${points.length}) — y/z/t in mm, S in cm3:`);
+  // Die Spalte „Wand" ist seit ADR 0059 die einzige, an der sich zwei Zeilen
+  // mit derselben Koordinate unterscheiden: am Verzweigungsknoten steht je
+  // Wandelement ein Punkt.
   console.table(
     points.map((sp) => ({
       Nr: sp.nr,
+      Wand: sp.wall,
       'y [mm]': +sp.y.toFixed(2),
       'z [mm]': +sp.z.toFixed(2),
       't [mm]': +sp.t.toFixed(2),

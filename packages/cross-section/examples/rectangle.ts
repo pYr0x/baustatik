@@ -8,8 +8,11 @@ import { report } from './report.ts';
  * nicht. kappa faellt hier als exakt 5/6 heraus — der Wert steht nirgends im
  * Code, er kommt aus `A_s = I^2 / integral (S/t)^2 dA`.
  *
- * Die vier Ecken tragen alle `S = 0`; das Maximum `b*h^2/8` sitzt im
- * Schwerpunkt, und genau deshalb gehoert er zu den Spannungspunkten.
+ * SPANNUNGSPUNKTE GIBT ES HIER KEINE, und das ist die Aussage des Beispiels:
+ * `t` und `S` sind der Nenner eines SCHNITTMODELLS, und ein Vollquerschnitt
+ * hat keins. Er bekommt seine Spannungen aus der FE, sobald der Weg dorthin
+ * steht; bis dahin ist `undefined` die ehrliche Antwort (ADR 0057).
+ * `sectionProperties` liefert dagegen alles, kappa eingeschlossen.
  */
 export function rectangleExample(): void {
   const cs: CrossSection = {

@@ -309,6 +309,7 @@ function renderUI(): void {
       return `
       <tr class="${isActive ? 'active-row' : ''}" data-nr="${r.point.nr}">
         <td class="text-center font-bold"><strong>${r.point.nr}</strong></td>
+        <td>${r.point.wall}</td>
         <td>${r.point.y.toFixed(1)}</td>
         <td>${r.point.z.toFixed(1)}</td>
         <td>${r.point.t.toFixed(1)}</td>
@@ -540,8 +541,25 @@ function renderProfileSvg(
   `;
 
   const dist = rectSize * 1.25;
-  const elements = pointResults.map((r) => {
+
+  // EIN MARKER JE ORT. Seit ADR 0059 traegt der Verzweigungsknoten zwei Punkte
+  // — je einen fuer das linke und das rechte Wandelement, mit derselben
+  // Koordinate. Zwei deckungsgleiche Rechtecke und zwei uebereinander
+  // gedruckte Nummern waeren nur unleserlich; gezeichnet wird die Stelle
+  // einmal, beschriftet mit beiden Nummern. Die Tabelle daneben fuehrt die
+  // Zeilen weiter einzeln.
+  const atLocation = new Map<string, PointStressResult[]>();
+  for (const r of pointResults) {
+    const key = `${r.point.y.toFixed(6)}/${r.point.z.toFixed(6)}`;
+    const bucket = atLocation.get(key);
+    if (bucket === undefined) atLocation.set(key, [r]);
+    else bucket.push(r);
+  }
+
+  const elements = [...atLocation.values()].map((group) => {
+    const r = group[0];
     const pt = r.point;
+    const label = group.map((g) => g.point.nr).join('/');
     let textX = pt.y;
     let textY = pt.z;
     let textAnchor = 'middle';
@@ -567,8 +585,8 @@ function renderProfileSvg(
       }
     }
 
-    const isActive = pt.nr === activeNr;
-    const tooltip = `Punkt ${pt.nr}: \nσ = ${r.sigma.toFixed(2)} N/mm²\nτ = ${r.tau.toFixed(2)} N/mm²\nσ_v = ${r.sigmaV.toFixed(2)} N/mm²\n(y = ${pt.y.toFixed(1)} mm, z = ${pt.z.toFixed(1)} mm, t = ${pt.t.toFixed(1)} mm)`;
+    const isActive = group.some((g) => g.point.nr === activeNr);
+    const tooltip = `Punkt ${label}: \nσ = ${r.sigma.toFixed(2)} N/mm²\nτ = ${r.tau.toFixed(2)} N/mm²\nσ_v = ${r.sigmaV.toFixed(2)} N/mm²\n(y = ${pt.y.toFixed(1)} mm, z = ${pt.z.toFixed(1)} mm, t = ${pt.t.toFixed(1)} mm)`;
 
     return `
       <g class="stress-point ${isActive ? 'active' : ''}" data-nr="${pt.nr}">
@@ -596,7 +614,7 @@ function renderProfileSvg(
           stroke-width="${rectSize * 0.35}"
           stroke-linejoin="round"
           paint-order="stroke fill"
-        >${pt.nr}</text>
+        >${label}</text>
       </g>
     `;
   });

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { type CrossSection, type StressPoint, stressPoints } from '../src/index';
-import { hollowRectanglePoints } from '../src/stress-points/compact';
 import { hollowRectangleThinPoints } from '../src/stress-points/thin';
 import fixture from './fixtures/hollow-rectangle-stress-points.json';
 
@@ -42,50 +41,44 @@ function points(cs: CrossSection): readonly StressPoint[] {
 }
 
 describe('Der Umlauf: 16 Stellen, und wo sie liegen', () => {
-  // Die Stellen gehoeren dem KASTEN, nicht der Idealisierung — deshalb steht
-  // dieser Block einmal und prueft beide Zweige.
-  for (const idealisation of ['solid', 'thin-walled'] as const) {
-    describe(idealisation, () => {
-      const pts = points(box(idealisation));
+  // Die Stellen gehoeren dem KASTEN, nicht der Idealisierung — sie standen
+  // deshalb einmal fuer beide Zweige. Seit ADR 0057 hat der kompakte Kasten
+  // gar keine Punkte mehr, geblieben ist der Umlauf des Wandmodells.
+  const pts = points(box('thin-walled'));
 
-      it('liefert 16 Punkte in der Referenz-Nummerierung', () => {
-        expect(pts).toHaveLength(16);
-        expect(pts.map((p) => p.nr)).toEqual(REF.map((r) => r.nr));
-      });
+  it('liefert 16 Punkte in der Referenz-Nummerierung', () => {
+    expect(pts).toHaveLength(16);
+    expect(pts.map((p) => p.nr)).toEqual(REF.map((r) => r.nr));
+  });
 
-      it('trifft die gedruckten Koordinaten exakt', () => {
-        expect(pts.map((p) => p.y)).toEqual(REF.map((r) => r.y));
-        expect(pts.map((p) => p.z)).toEqual(REF.map((r) => r.z));
-      });
+  it('trifft die gedruckten Koordinaten exakt', () => {
+    expect(pts.map((p) => p.y)).toEqual(REF.map((r) => r.y));
+    expect(pts.map((p) => p.z)).toEqual(REF.map((r) => r.z));
+  });
 
-      it('setzt die vier Wandmitten an die Stelle des Schwerpunkts', () => {
-        // DIE ABWANDLUNG DER PACKAGE-REGEL. „Alle Ecken und der Schwerpunkt"
-        // ginge hier ins Leere: der Schwerpunkt des Kastens liegt im LOCH.
-        // Punkt 4/12 sind Gurtmitte, 8/16 Stegmitte — dort sitzt S,max.
-        expect([pts[3], pts[11]].map((p) => [p.y, p.z])).toEqual([
-          [0, -150],
-          [0, 150],
-        ]);
-        expect([pts[7], pts[15]].map((p) => [p.y, p.z])).toEqual([
-          [-100, 0],
-          [100, 0],
-        ]);
-      });
+  it('setzt die vier Wandmitten an die Stelle des Schwerpunkts', () => {
+    // DIE ABWANDLUNG DER PACKAGE-REGEL. „Alle Ecken und der Schwerpunkt"
+    // ginge hier ins Leere: der Schwerpunkt des Kastens liegt im LOCH.
+    // Punkt 4/12 sind Gurtmitte, 8/16 Stegmitte — dort sitzt S,max.
+    expect([pts[3], pts[11]].map((p) => [p.y, p.z])).toEqual([
+      [0, -150],
+      [0, 150],
+    ]);
+    expect([pts[7], pts[15]].map((p) => [p.y, p.z])).toEqual([
+      [-100, 0],
+      [100, 0],
+    ]);
+  });
 
-      it('enthaelt die vier Aussenecken der Umrissfigur', () => {
-        const corners = [pts[1], pts[5], pts[9], pts[13]].map((p) => [
-          p.y,
-          p.z,
-        ]);
-        expect(corners).toEqual([
-          [100, -150],
-          [-100, -150],
-          [-100, 150],
-          [100, 150],
-        ]);
-      });
-    });
-  }
+  it('enthaelt die vier Aussenecken der Umrissfigur', () => {
+    const corners = [pts[1], pts[5], pts[9], pts[13]].map((p) => [p.y, p.z]);
+    expect(corners).toEqual([
+      [100, -150],
+      [-100, -150],
+      [-100, 150],
+      [100, 150],
+    ]);
+  });
 });
 
 describe('Das Wandmodell gegen den gedruckten Ausdruck', () => {
@@ -98,8 +91,11 @@ describe('Das Wandmodell gegen den gedruckten Ausdruck', () => {
       expect([p.y, p.z], `P${r.nr} Koordinate`).toEqual([r.y, r.z]);
       expect(p.t, `P${r.nr}.t`).toBe(r.t);
       for (const key of ['Sy', 'Sz'] as const) {
-        const theirs = Math.abs(r[key]);
-        const mine = Math.abs(p[key]);
+        // MIT VORZEICHEN, seit der Umlauf des Packages so herum laeuft wie der
+        // des Ausdrucks. Vorher stand hier ein Betragsvergleich, und ein
+        // Betragsvergleich haette ein global gekipptes Feld nie gemerkt.
+        const theirs = r[key];
+        const mine = p[key];
         if (theirs === 0) {
           // Kein relativer Vergleich gegen null: der Symmetrieschnitt muss
           // EXAKT aufgehen, nicht nur beinahe.
@@ -107,7 +103,7 @@ describe('Das Wandmodell gegen den gedruckten Ausdruck', () => {
           continue;
         }
         expect(
-          Math.abs(mine - theirs) / theirs,
+          Math.abs(mine - theirs) / Math.abs(theirs),
           `P${r.nr}.${key}: ${mine} gegen ${theirs}`,
         ).toBeLessThan(0.001);
       }
@@ -115,30 +111,33 @@ describe('Das Wandmodell gegen den gedruckten Ausdruck', () => {
   });
 
   it.each(SECTIONS)(
-    'weicht an %s NUR im Vorzeichen ab, und dort nach der Umlaufregel des Referenzmodells',
+    'kippt an %s an denselben Stellen wie der Ausdruck — keine einzige weicht ab',
     (_name, ref) => {
-      // DIE HAEUFIGSTE FEHLLESUNG DES VERGLEICHS. Wer die beiden Tabellen
-      // uebereinanderlegt, sieht ab Punkt 5 andere Vorzeichen und haelt die
-      // Werte fuer verschieden — sie sind es nicht.
+      // BIS ZUR VORZEICHENKONVENTION STAND HIER DAS GEGENTEIL: eine Liste der
+      // Nummern, an denen sich die Vorzeichen unterschieden (5-11 fuer `Sy`,
+      // 9-15 fuer `Sz`), mit der Begruendung, fuer |tau| sei die Richtung
+      // gleichgueltig. Das Package fuehrte durchweg <= 0.
       //
-      // Das Vorzeichen des Referenzmodells kodiert die UMLAUFRICHTUNG des Schubflusses: `Sy`
-      // kippt zwischen linkem und rechtem Steg, `Sz` zwischen oberem und
-      // unterem Gurt, weil der Umlauf sie in entgegengesetzter Richtung
-      // durchlaeuft. Unsere Konvention ist die der parametrischen Formen
-      // (Teil oberhalb bzw. links, durchweg <= 0). Fuer |tau| ist die
-      // Richtung gleichgueltig.
+      // Der Unterschied war ein GLOBALES Vorzeichen — und ein globales
+      // Vorzeichen ist nichts anderes als die Wahl der Laufrichtung. Seit
+      // `hollowStations` sie so legt wie der Ausdruck, ist die Liste leer.
+      // Das ist die eigentliche Nachricht: die Referenz fuehrt fuer den Kasten
+      // eine STIMMIGE Umlaufkonvention, und wir fuehren jetzt dieselbe.
       const all = points(box('thin-walled', ref));
-      // Der Umlauf spiegelt genau dort, wo die Referenz spiegelt: die Nummern mit
-      // gekipptem `Sy` sind die der LINKEN Stegseite plus der Gurthaelften,
-      // die zu ihr laufen.
-      const flippedSy = ref.points
-        .filter((r, i) => r.Sy !== 0 && Math.sign(r.Sy) !== Math.sign(all[i].Sy))
+      const differing = ref.points
+        .filter(
+          (r, i) =>
+            (r.Sy !== 0 && Math.sign(r.Sy) !== Math.sign(all[i].Sy)) ||
+            (r.Sz !== 0 && Math.sign(r.Sz) !== Math.sign(all[i].Sz)),
+        )
         .map((r) => r.nr);
-      expect(flippedSy).toEqual([5, 6, 7, 8, 9, 10, 11]);
-      const flippedSz = ref.points
-        .filter((r, i) => r.Sz !== 0 && Math.sign(r.Sz) !== Math.sign(all[i].Sz))
-        .map((r) => r.nr);
-      expect(flippedSz).toEqual([9, 10, 11, 12, 13, 14, 15]);
+      expect(differing).toEqual([]);
+
+      // Und der Umlauf ist wirklich einer: `Sy` kippt zwischen den beiden
+      // STEGEN, `Sz` zwischen den beiden GURTEN. P8 ist die linke Stegmitte,
+      // P16 die rechte; P4 die Obergurtmitte, P12 die Untergurtmitte.
+      expect(Math.sign(all[7].Sy)).toBe(-Math.sign(all[15].Sy));
+      expect(Math.sign(all[3].Sz)).toBe(-Math.sign(all[11].Sz));
     },
   );
 
@@ -312,65 +311,98 @@ describe('Das Wandmodell gegen den gedruckten Ausdruck', () => {
     },
   );
 
-  it('fuehrt die Vorzeichenkonvention der parametrischen Formen', () => {
-    // Durchweg <= 0. Das Referenzmodell kippt stattdessen zwischen linkem und rechtem Steg
-    // (P8: +243,00 gegen P16: -243,00), weil sein Vorzeichen die
-    // UMLAUFRICHTUNG kodiert. Fuer |tau| ist die Richtung gleichgueltig.
+  it('fuehrt die Vorzeichen des UMLAUFS, nicht ein pauschales Minus', () => {
+    // `Sy` haengt am Nullschnitt in GURTMITTE, `Sz` an dem in STEGMITTE. Die
+    // Seite, auf der man steht, entscheidet das Vorzeichen — deshalb liest es
+    // sich als `-sign(y)` und `sign(z)`.
     for (const p of pts) {
-      expect(p.Sy, `P${p.nr}.Sy`).toBeLessThanOrEqual(0);
-      expect(p.Sz, `P${p.nr}.Sz`).toBeLessThanOrEqual(0);
+      if (p.y !== 0) {
+        expect(Math.sign(p.Sy), `P${p.nr}.Sy`).toBe(-Math.sign(p.y));
+      }
+      if (p.z !== 0) {
+        expect(Math.sign(p.Sz), `P${p.nr}.Sz`).toBe(Math.sign(p.z));
+      }
     }
-    expect(Math.sign(REF[7].Sy)).toBe(-Math.sign(REF[15].Sy));
+    // Die vier Nullschnitte: Gurtmitte traegt kein `Sy`, Stegmitte kein `Sz`.
+    for (const nr of [4, 12]) expect(pts[nr - 1].Sy, `P${nr}.Sy`).toBe(0);
+    for (const nr of [8, 16]) expect(pts[nr - 1].Sz, `P${nr}.Sz`).toBe(0);
+  });
+
+  it('traegt an jedem Punkt eine Tangente der Laenge eins und eine Wand', () => {
+    // Der geschlossene Kasten ist UNVERZWEIGT — ein Weg, keine Aeste. Deshalb
+    // hat ADR 0059 hier nichts geaendert: kein Ort traegt zwei Punkte, jede
+    // Nummer kommt einmal vor, und die Aussenecke ist einwertig. Sie verbindet
+    // ZWEI Waende, sie teilt nichts auf.
+    for (const p of pts) {
+      expect(Math.hypot(p.ty, p.tz), `P${p.nr}`).toBeCloseTo(1, 12);
+    }
+    expect(new Set(pts.map((p) => p.nr)).size).toBe(16);
+    expect(new Set(pts.map((p) => `${p.y}/${p.z}`)).size).toBe(16);
+
+    // Acht Elemente: vier Waende und die vier Gehrungen dazwischen.
+    expect(pts.map((p) => p.wall)).toEqual([
+      'web-right',
+      'corner-top-right',
+      'flange-top',
+      'flange-top',
+      'flange-top',
+      'corner-top-left',
+      'web-left',
+      'web-left',
+      'web-left',
+      'corner-bottom-left',
+      'flange-bottom',
+      'flange-bottom',
+      'flange-bottom',
+      'corner-bottom-right',
+      'web-right',
+      'web-right',
+    ]);
+
+    // P2 ist die obere rechte Aussenecke: der Umlauf laeuft dort vom Obergurt
+    // (nach rechts) in den rechten Steg (nach unten), also nach `(+1,+1)/√2`.
+    expect(pts[1].ty).toBeCloseTo(Math.SQRT1_2, 12);
+    expect(pts[1].tz).toBeCloseTo(Math.SQRT1_2, 12);
   });
 });
 
-describe('Das Umrissmodell des Kastens', () => {
-  const solid = points(box('solid'));
-  const thin = points(box('thin-walled'));
+describe('Die Gleichgewichtsprobe des Kastens', () => {
+  // DIE STELLE, AN DER SICH DER UMLAUF BEWEISEN MUSS. Die beiden Stege tragen
+  // `Vz` gemeinsam nach unten ab — ihre TANGENTEN zeigen dabei in
+  // entgegengesetzte Richtungen (rechts `+z`, links `-z`), ihre Fluesse also
+  // im Vorzeichen ebenfalls. Erst beides zusammen ergibt zweimal dieselbe
+  // Kraft nach unten.
+  //
+  // Genau das kann ein Feld aus Betraegen nicht: es haette in beiden Stegen
+  // dasselbe Vorzeichen und wuerde sich beim Integrieren aufheben statt zu
+  // addieren.
+  //
+  // SEIT ADR 0059 STEHT DIE PROJEKTION IN DER PROBE selbst: der Beitrag einer
+  // Stelle zur globalen z-Richtung ist `q*tz`. Vorher drehte der Test das
+  // Vorzeichen des linken Stegs von Hand um — dieselbe Rechnung, nur mit dem
+  // Wissen ueber die Tangente im Test statt am Punkt.
+  const B = { b: 200, h: 300, t: 10 } as const;
+  const Iy =
+    (B.b * B.h ** 3 - (B.b - 2 * B.t) * (B.h - 2 * B.t) ** 3) / 12;
+  const simpson = (span: number, a: number, m: number, b: number) =>
+    (span / 6) * (a + 4 * m + b);
 
-  it('haelt Nummern und Koordinaten des Wandmodells, Ziffer fuer Ziffer', () => {
-    for (let i = 0; i < 16; i++) {
-      expect(solid[i].nr, `P${i + 1}.nr`).toBe(thin[i].nr);
-      expect(solid[i].y, `P${i + 1}.y`).toBe(thin[i].y);
-      expect(solid[i].z, `P${i + 1}.z`).toBe(thin[i].z);
-    }
-  });
-
-  it('schneidet in Stegmitte BEIDE Stege — und liefert damit dasselbe tau', () => {
-    // DIE STELLE, AN DER DIE BEIDEN MODELLE ZUSAMMENFALLEN. Der waagerechte
-    // Schnitt trifft beide Stege: `S` doppelt, `t = 2t`. Das Wandmodell laesst
-    // den Fluss durch EINEN Steg laufen: `S` einfach, `t`. Der Quotient S/t,
-    // aus dem tau faellt, ist bis auf die Eckkorrektur derselbe.
-    expect(solid[15].t).toBe(2 * TO.t);
-    // Der Bandschnitt kennt keinen Eckblock und trifft die exakten 2*243,00.
-    expect(Math.abs(solid[15].Sy)).toBeCloseTo(486, 9);
-    const tauSolid = Math.abs(solid[15].Sy) / solid[15].t;
-    const tauThin = Math.abs(thin[15].Sy) / thin[15].t;
-    expect(Math.abs(tauSolid - tauThin) / tauSolid).toBeLessThan(0.001);
-  });
-
-  it('liest Sy allein aus der Hoehe — und damit die Gurtaussenseite als null', () => {
-    // DER SICHTBARE UNTERSCHIED ZUM WANDMODELL, und er ist kein Fehler:
-    // oberhalb von z = -h/2 liegt nichts, der abgeschnittene Teil ist leer.
-    // Das Wandmodell laesst dort den Schubfluss laengs des Gurts von null auf
-    // 137,75 cm3 anwachsen.
-    for (const nr of [2, 3, 4, 5, 6]) {
-      expect(solid[nr - 1].Sy, `P${nr}.Sy`).toBeCloseTo(0, 12);
-    }
-    // Der Gehrungswert der Ecke, nicht null.
-    expect(Math.abs(thin[1].Sy)).toBeCloseTo(137.8333333, 6);
-  });
-
-  it('setzt t auf die WAAGERECHTE Schnittbreite: b am Gurt, 2t am Steg', () => {
-    // Dieselbe Regel wie bei allen kompakten Vorlagen — `t` gehoert zum
-    // waagerechten Schnitt, und an der Sprungstelle z = -h/2 + t gilt die
-    // kleinere der beiden Breiten.
-    for (const nr of [2, 3, 4, 5, 6, 10, 11, 12, 13, 14]) {
-      expect(solid[nr - 1].t, `P${nr}.t`).toBe(TO.b);
-    }
-    for (const nr of [1, 7, 8, 9, 15, 16]) {
-      expect(solid[nr - 1].t, `P${nr}.t`).toBe(2 * TO.t);
-    }
+  it('laesst beide Stege gleich viel von Vz abtragen', () => {
+    const pts = hollowRectangleThinPoints(B.b, B.h, B.t);
+    /** Der Anteil an der globalen z-Richtung: `q*tz`. */
+    const g = (nr: number) =>
+      (-(pts[nr - 1].Sy * 1000) / Iy) * pts[nr - 1].tz;
+    const span = 2 * (B.h / 2 - B.t);
+    // Rechter Steg (P1 oben, P16 Mitte, P15 unten), Tangente `(0,+1)`.
+    const right = simpson(span, g(1), g(16), g(15));
+    // Linker Steg (P7, P8, P9), Tangente `(0,-1)` — dieselbe Kraft nach unten,
+    // und die Projektion holt sie sich selbst.
+    const left = simpson(span, g(7), g(8), g(9));
+    expect(right).toBeCloseTo(left, 12);
+    // Zusammen 97,5 % von `Vz`; der Rest ist die senkrechte Komponente in den
+    // Gurten, die das Wandmodell nicht fuehrt.
+    expect(right + left).toBeGreaterThan(0.97);
+    expect(right + left).toBeLessThan(1);
   });
 });
 
@@ -378,20 +410,34 @@ describe('Die Gueltigkeitspruefung gilt auch fuer den Kasten', () => {
   it('meldet eine Wand, die dicker ist als der halbe Querschnitt', () => {
     // EINE Pruefung, nicht zwei: `sectionProperties` steht vor der
     // Verzweigung, also gibt es keine Spannungspunkte ohne Querschnittswerte.
-    for (const idealisation of ['solid', 'thin-walled'] as const) {
-      expect(
-        stressPoints({
-          kind: 'shape',
-          id: 'b',
-          shape: { kind: 'hollow-rectangle', b: 60, h: 60, t: 30, idealisation },
-        }),
-        idealisation,
-      ).toBeUndefined();
-    }
+    expect(
+      stressPoints({
+        kind: 'shape',
+        id: 'b',
+        shape: {
+          kind: 'hollow-rectangle',
+          b: 60,
+          h: 60,
+          t: 30,
+          idealisation: 'thin-walled',
+        },
+      }),
+    ).toBeUndefined();
   });
 });
 
-describe('Beide Vorlagen skalieren mit den Abmessungen', () => {
+describe('Der kompakte Kasten hat keine Spannungspunkte mehr', () => {
+  it('antwortet fuer idealisation solid mit undefined', () => {
+    // ADR 0057: `idealisation: 'solid'` heisst „diese Figur traegt kein
+    // Schnittmodell". Bis dahin stand hier ein Umrissmodell, das `Sy` allein
+    // aus der Hoehe las und an den fuenf Punkten der Gurtaussenseite null
+    // lieferte, wo das Wandmodell laengs des Gurts anwaechst — zwei Zahlen
+    // fuer eine Stelle, von denen nur eine eine Referenz hatte.
+    expect(stressPoints(box('solid'))).toBeUndefined();
+  });
+});
+
+describe('Die Vorlage skaliert mit den Abmessungen', () => {
   // Die Referenz ist EIN Querschnitt. Dass die Vorlage nicht auf ihn
   // zugeschnitten ist, zeigt der geschlossene Ausdruck an einem zweiten: beim
   // QUADRATISCHEN Kasten muessen Gurt und Steg dieselbe Rolle spielen.
@@ -404,13 +450,5 @@ describe('Beide Vorlagen skalieren mit den Abmessungen', () => {
     expect(Math.abs(square[3].Sz)).toBeCloseTo(Math.abs(square[15].Sy), 12);
     expect(square[3].Sy).toBeCloseTo(0, 12);
     expect(square[15].Sz).toBeCloseTo(0, 12);
-  });
-
-  it('haelt beim Umrissmodell S = 0 an allen vier Aussenraendern', () => {
-    const square = hollowRectanglePoints(200, 200, 8);
-    for (const nr of [2, 6, 10, 14]) {
-      expect(square[nr - 1].Sy, `P${nr}.Sy`).toBeCloseTo(0, 12);
-      expect(square[nr - 1].Sz, `P${nr}.Sz`).toBeCloseTo(0, 12);
-    }
   });
 });

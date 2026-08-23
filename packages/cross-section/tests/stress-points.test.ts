@@ -1,6 +1,12 @@
 import { lookupProfile, profileData, profilesIn } from '@baustatik/steel-profiles';
 import { describe, expect, it } from 'vitest';
-import { type CrossSection, type StressPoint, stressPoints } from '../src/index';
+import {
+  type CrossSection,
+  sectionProperties,
+  type ShapeSpec,
+  type StressPoint,
+  stressPoints,
+} from '../src/index';
 import { rolledIGeometry } from '../src/stress-points/rolled-i';
 import fixture from './fixtures/rolled-i-stress-points.json';
 
@@ -20,6 +26,35 @@ const reference = (
 // cm3 — dieselben Einheiten, in denen die Fixture und der gedruckte Ausdruck
 // stehen. Frueher standen hier zwei Faktoren, durch die JEDER Vergleich lief.
 
+/**
+ * DIE ZUORDNUNGSTABELLE — gedruckte Nummer (1…13) auf unsere (1…15).
+ *
+ * Seit [ADR 0059](../../../docs/adr/0059-the-branch-node-carries-two-stress-points.md)
+ * traegt jeder Verzweigungsknoten ZWEI Punkte, einen je Gurtelement. Die
+ * Nummerierung faellt damit aus der Laufreihenfolge und ist kein Vertrag mehr
+ * gegenueber dem Katalogblatt. Die Zuordnung ist es, was von diesem Vertrag
+ * uebrig bleibt, und sie steht deshalb im Test und nicht im `src`.
+ *
+ * An den beiden Knoten (gedruckt 3 und 8) faellt die Wahl auf das LINKE
+ * Element. Das ist keine Konvention, sondern ein Befund: der Ausdruck druckt
+ * dort `Sz = -1,38` bzw. `+1,38`, und das sind genau die Werte des linken
+ * Elements. `Sy` ist an beiden Punkten des Knotens ohnehin gleich.
+ *
+ * KEINE VORZEICHENSPALTE. Die Elementkonvention trifft alle 13 gedruckten
+ * Werte Zeichen fuer Zeichen; es gibt nichts zu drehen.
+ */
+const PRINTED_TO_OURS = [1, 2, 3, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15] as const;
+
+/** Der Punkt, den unsere Liste der gedruckten Nummer `printedNr` zuordnet. */
+function forPrinted(
+  pts: readonly StressPoint[],
+  printedNr: number,
+): StressPoint {
+  const ours = PRINTED_TO_OURS[printedNr - 1];
+  if (ours === undefined) throw new Error(`gedruckte Nr ${printedNr} gibt es nicht`);
+  return pts[ours - 1];
+}
+
 function points(cs: CrossSection): readonly StressPoint[] {
   const result = stressPoints(cs);
   if (result === undefined) throw new Error('stressPoints lieferte undefined');
@@ -35,92 +70,149 @@ const profile = (name: string): CrossSection => {
 describe('IPE 80 gegen den gedruckten Ausdruck', () => {
   const pts = points(profile('IPE 80'));
 
-  it('liefert genau 13 Punkte', () => {
-    expect(pts).toHaveLength(13);
+  it('liefert genau 15 Punkte auf fuenf Elementen', () => {
+    // 13 gedruckte Stellen, aber zwei davon liegen auf einem
+    // Verzweigungsknoten und tragen deshalb je zwei Punkte (ADR 0059).
+    expect(pts).toHaveLength(15);
     expect(pts.map((p) => p.nr)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+    ]);
+    expect(pts.map((p) => p.wall)).toEqual([
+      'flange-top-left',
+      'flange-top-left',
+      'flange-top-left',
+      'flange-top-right',
+      'flange-top-right',
+      'flange-top-right',
+      'flange-bottom-left',
+      'flange-bottom-left',
+      'flange-bottom-left',
+      'flange-bottom-right',
+      'flange-bottom-right',
+      'flange-bottom-right',
+      'web',
+      'web',
+      'web',
     ]);
   });
 
   it('setzt die Koordinaten auf die gedruckten Werte', () => {
-    // y: Gurtspitze +-23 = +-b/2, Ausrundungsende +-6,9 = +-(tw/2 + r), Mitte 0.
+    // y: Gurtspitze +-23 = +-b/2, Ausrundungsende +-6,9 = +-(tw/2 + r), Mitte 0
+    //    — und die Mitte steht zweimal, einmal je Gurtelement.
     // z: Gurtaussenseite +-40 = +-h/2, Steganfang +-29,8 = +-(h/2 - tf - r),
     //    Schwerpunkt 0.
-    expect(pts.map((p) => Number((p.y).toFixed(2)))).toEqual([
-      -23, -6.9, 0, 6.9, 23, -23, -6.9, 0, 6.9, 23, 0, 0, 0,
+    expect(pts.map((p) => Number(p.y.toFixed(2)))).toEqual([
+      -23, -6.9, 0, 0, 6.9, 23, -23, -6.9, 0, 0, 6.9, 23, 0, 0, 0,
     ]);
-    expect(pts.map((p) => Number((p.z).toFixed(2)))).toEqual([
-      -40, -40, -40, -40, -40, 40, 40, 40, 40, 40, -29.8, 29.8, 0,
+    expect(pts.map((p) => Number(p.z.toFixed(2)))).toEqual([
+      -40, -40, -40, -40, -40, -40, 40, 40, 40, 40, 40, 40, -29.8, 29.8, 0,
     ]);
   });
 
   it('setzt die Dicken: Gurt 5,2 / Steg 3,8', () => {
-    expect(pts.map((p) => Number((p.t).toFixed(2)))).toEqual([
-      5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 3.8, 3.8, 3.8,
+    expect(pts.map((p) => Number(p.t.toFixed(2)))).toEqual([
+      5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 5.2, 3.8, 3.8, 3.8,
     ]);
   });
 
   it('liefert S = 0 an den vier Gurtspitzen', () => {
-    // Die Spitze ist der freie Rand: dort ist nichts abgeschnitten.
-    for (const nr of [1, 5, 6, 10]) {
+    // Die Spitze ist der freie Rand: dort ist nichts abgeschnitten. An den
+    // Obergurtspitzen BEGINNT das Element, an den Untergurtspitzen ENDET es —
+    // und beide Male ist `S` dort null.
+    for (const nr of [1, 6, 7, 12]) {
       expect(pts[nr - 1].Sy, `P${nr}.Sy`).toBe(0);
       expect(pts[nr - 1].Sz, `P${nr}.Sz`).toBe(0);
     }
   });
 
-  it('trifft Sy am Steganfang (P11) mit 9,92 cm3', () => {
+  it('trifft Sy am Steganfang (P13) mit 9,92 cm3', () => {
     // Der von Hand nachgerechnete Wert: Gurt (46*5,2 bei z = -37,4), beide
     // Ausrundungen und das Stegstueck bis z = -29,8.
-    expect(Math.abs(pts[10].Sy)).toBeCloseTo(9.92, 2);
+    expect(Math.abs(pts[12].Sy)).toBeCloseTo(9.92, 2);
   });
 
-  it('trifft Sy im Schwerpunkt (P13) mit 11,61 cm3 = SyMax', () => {
-    expect(Math.abs(pts[12].Sy)).toBeCloseTo(11.61, 2);
+  it('trifft Sy im Schwerpunkt (P15) mit 11,61 cm3 = SyMax', () => {
+    expect(Math.abs(pts[14].Sy)).toBeCloseTo(11.61, 2);
+  });
+
+  it('stellt am Knoten zwei Punkte nebeneinander', () => {
+    // DIE AUSSAGE VON ADR 0059, an der kleinsten moeglichen Stelle. Gleicher
+    // Ort, gleiches `t`, gleiches `Sy` — und entgegengesetztes `Sz`, weil die
+    // beiden Gurtelemente in entgegengesetzte Richtungen laufen. Bis dahin
+    // stand hier EIN Punkt mit einem Flag und einem von zwei moeglichen Werten.
+    for (const [left, right] of [
+      [3, 4],
+      [9, 10],
+    ]) {
+      const a = pts[left - 1];
+      const b = pts[right - 1];
+      expect([a.y, a.z], `P${left}/P${right} Ort`).toEqual([b.y, b.z]);
+      expect(a.t).toBe(b.t);
+      expect(a.wall).not.toBe(b.wall);
+      expect(a.Sy, `P${left}/P${right}.Sy`).toBeCloseTo(b.Sy, 12);
+      expect(a.Sz, `P${left}/P${right}.Sz`).toBeCloseTo(-b.Sz, 12);
+      // Entgegengesetzte Tangenten, beide waagerecht. Welches der beiden
+      // Elemente in `+y` laeuft, haengt vom Gurt ab: oben das linke, unten das
+      // rechte — es ist die Richtung des Schubflusses aus `+Vz`.
+      expect(Math.abs(a.ty), `P${left} Tangente`).toBe(1);
+      expect(a.ty, `P${left}/P${right} Tangente`).toBe(-b.ty);
+      expect([a.tz, b.tz]).toEqual([0, 0]);
+    }
   });
 });
 
-describe('Die Nummerierung ist ein Vertrag', () => {
-  // Der gedruckte Ausdruck nummiert „S-Punkt Nr. 1…13". Der Test haelt fest, WELCHE Nummer WO
-  // sitzt — bevor der erste Bericht sie druckt und die Zuordnung damit nach
-  // draussen gegeben ist.
+describe('Die Nummerierung faellt aus der Laufreihenfolge', () => {
+  // Sie ist kein Vertrag mehr gegenueber dem gedruckten Ausdruck (ADR 0059),
+  // aber sie ist weiterhin die IDENTITAET eines Punktes: der Viewer baut seine
+  // Symbol-Id daraus, das Demo sein `data-nr`. Deshalb steht hier, was von ihr
+  // gilt.
   const pts = points(profile('IPE 300'));
 
-  it('legt 1-5 auf den oberen Gurt, von links nach rechts', () => {
-    const top = pts.slice(0, 5);
+  it('vergibt jede Nummer genau einmal', () => {
+    expect(new Set(pts.map((p) => p.nr)).size).toBe(pts.length);
+  });
+
+  it('legt 1-6 auf den oberen Gurt, von links nach rechts', () => {
+    const top = pts.slice(0, 6);
     expect(top.every((p) => p.z < 0)).toBe(true);
-    expect(top.map((p) => p.y)).toEqual([...top.map((p) => p.y)].sort((a, b) => a - b));
+    expect(top.map((p) => p.y)).toEqual(
+      [...top.map((p) => p.y)].sort((a, b) => a - b),
+    );
     expect(top[0].y).toBeLessThan(0);
-    expect(top[4].y).toBeGreaterThan(0);
-    expect(top[2].y).toBe(0);
+    expect(top[5].y).toBeGreaterThan(0);
+    // Die beiden Knotenpunkte in der Mitte, das linke Element zuerst.
+    expect([top[2].y, top[3].y]).toEqual([0, 0]);
+    expect(top[2].wall).toBe('flange-top-left');
+    expect(top[3].wall).toBe('flange-top-right');
   });
 
-  it('legt 6-10 auf den unteren Gurt, ebenso von links nach rechts', () => {
-    const bottom = pts.slice(5, 10);
+  it('legt 7-12 auf den unteren Gurt, ebenso von links nach rechts', () => {
+    const bottom = pts.slice(6, 12);
     expect(bottom.every((p) => p.z > 0)).toBe(true);
-    expect(bottom.map((p) => p.y)).toEqual([
-      ...bottom.map((p) => p.y),
-    ].sort((a, b) => a - b));
+    expect(bottom.map((p) => p.y)).toEqual(
+      [...bottom.map((p) => p.y)].sort((a, b) => a - b),
+    );
   });
 
-  it('legt 11/12 auf den Steganfang und 13 auf den Schwerpunkt', () => {
-    expect(pts[10].z).toBeLessThan(0);
-    expect(pts[11].z).toBeGreaterThan(0);
-    expect(pts[10].z).toBe(-pts[11].z);
-    expect(pts[12].y).toBe(0);
-    expect(pts[12].z).toBe(0);
+  it('legt 13/14 auf den Steganfang und 15 auf den Schwerpunkt', () => {
+    expect(pts[12].z).toBeLessThan(0);
+    expect(pts[13].z).toBeGreaterThan(0);
+    expect(pts[12].z).toBe(-pts[13].z);
+    expect(pts[14].y).toBe(0);
+    expect(pts[14].z).toBe(0);
   });
 
   it('laesst die Gurtunterseiten-Ecken aus — die begruendete Ausnahme', () => {
     // Bei homogenem Querschnitt koennen sie nie massgebend werden: gleiches y,
-    // kleineres |z| als die Gurtspitze darueber. Deshalb 13 Punkte und nicht
-    // 15 wie beim geschweissten I.
+    // kleineres |z| als die Gurtspitze darueber.
     const zValues = new Set(pts.map((p) => Number(p.z.toFixed(6))));
     expect(zValues.size).toBe(5); // +-h/2, +-Steganfang, 0
   });
 });
 
 describe('Die 546 Referenzpunkte', () => {
-  // Alle 13 Punkte von 42 Profilen. Verglichen werden y, z, t, Sy und Sz.
+  // Alle 13 gedruckten Punkte von 42 Profilen, ueber `PRINTED_TO_OURS`
+  // zugeordnet. Verglichen werden y, z, t, Sy und Sz.
   //
   // TOLERANZEN, und warum sie so und nicht enger sind:
   //
@@ -145,16 +237,18 @@ describe('Die 546 Referenzpunkte', () => {
       for (const p of profilesIn(series)) {
         const mine = points(profile(p.id));
         const theirs = reference[p.id];
-        expect(mine, p.id).toHaveLength(theirs.length);
-        for (let i = 0; i < theirs.length; i++) {
+        expect(mine, p.id).toHaveLength(15);
+        expect(theirs, p.id).toHaveLength(13);
+        for (const r of theirs) {
+          const ours = forPrinted(mine, r.nr);
           for (const key of ['y', 'z', 't'] as const) {
             // 0,06 mm und nicht 0,05: die halbe Druckgenauigkeit IST 0,05, und
             // `tw/2 + r` faellt bei ungeradem `tw` genau darauf (IPE 100:
             // 9,05 gedruckt als 9,1). Eine Schwelle exakt auf dem Rand
             // entscheidet der Gleitkommazufall.
             expect(
-              Math.abs(mine[i][key] - theirs[i][key]),
-              `${p.id} P${i + 1}.${key}: ${mine[i][key]} vs ${theirs[i][key]}`,
+              Math.abs(ours[key] - r[key]),
+              `${p.id} P${r.nr}.${key}: ${ours[key]} vs ${r[key]}`,
             ).toBeLessThan(0.06);
           }
         }
@@ -162,21 +256,50 @@ describe('Die 546 Referenzpunkte', () => {
     }
   });
 
-  it('vergleicht Sy und Sz', () => {
-    // Punkt 3 und 8 sind ausgenommen und haben ihren eigenen Test: dort weicht
-    // die Referenz systematisch und unerklaert ab.
+  it('stimmt an allen 13 gedruckten Werten Zeichen fuer Zeichen', () => {
+    // DER TEST, DER DIE KEHRTWENDE TRAEGT. Bis ADR 0059 stand hier das
+    // Gegenteil: eine Liste der drei Punkte (4, 7, 8), an denen wir vom
+    // Ausdruck abwichen, mit der Begruendung, seine Konvention widerspreche
+    // sich selbst.
+    //
+    // Sie tut es nicht. Sie ist je ELEMENT geschrieben, nicht je Querschnitt —
+    // und die drei Abweichler waren exakt die Stellen, deren Element anders
+    // orientiert ist als das globale `+y`, das die alte Fassung fuehrte.
+    // Seit jede Wand ihre eigene Richtung traegt, ist die Liste leer.
     for (const series of ['IPE', 'HEA'] as const) {
       for (const p of profilesIn(series)) {
         const mine = points(profile(p.id));
-        const theirs = reference[p.id];
-        for (let i = 0; i < theirs.length; i++) {
-          if (i === 2 || i === 7) continue;
+        const differing = reference[p.id]
+          .filter((r) => {
+            const ours = forPrinted(mine, r.nr);
+            return (
+              (r.Sy !== 0 && Math.sign(r.Sy) !== Math.sign(ours.Sy)) ||
+              (r.Sz !== 0 && Math.sign(r.Sz) !== Math.sign(ours.Sz))
+            );
+          })
+          .map((r) => r.nr);
+        expect(differing, p.id).toEqual([]);
+      }
+    }
+  });
+
+  it('vergleicht Sy und Sz mit Vorzeichen', () => {
+    // MIT VORZEICHEN, und das ist seit ADR 0059 moeglich: die Elementkonvention
+    // ist die des Ausdrucks, es gibt also nichts mehr wegzubetragen.
+    //
+    // Die gedruckten Punkte 3 und 8 sind ausgenommen und haben ihren eigenen
+    // Test: dort weicht die Referenz im BETRAG systematisch und unerklaert ab
+    // (das Vorzeichen prueft der Test darueber, ohne Ausnahme).
+    for (const series of ['IPE', 'HEA'] as const) {
+      for (const p of profilesIn(series)) {
+        const mine = points(profile(p.id));
+        for (const r of reference[p.id]) {
+          if (r.nr === 3 || r.nr === 8) continue;
+          const ours = forPrinted(mine, r.nr);
           for (const key of ['Sy', 'Sz'] as const) {
-            const a = mine[i][key];
-            const b = theirs[i][key];
             expect(
-              Math.abs(a - b) <= ABSOLUTE + RELATIVE * Math.abs(b),
-              `${p.id} P${i + 1}.${key}: ${a.toFixed(3)} vs ${b}`,
+              Math.abs(ours[key] - r[key]) <= ABSOLUTE + RELATIVE * Math.abs(r[key]),
+              `${p.id} P${r.nr}.${key}: ${ours[key].toFixed(3)} vs ${r[key]}`,
             ).toBe(true);
           }
         }
@@ -184,15 +307,15 @@ describe('Die 546 Referenzpunkte', () => {
     }
   });
 
-  it('haelt die Abweichung an den Punkten 3 und 8 fest', () => {
+  it('haelt die Abweichung an den gedruckten Punkten 3 und 8 fest', () => {
     // EIN BEKANNTER, NICHT ERKLAERTER UNTERSCHIED. Unser Wert ist das erste
     // Flaechenmoment des halben Gurts, `b/2 * tf * (h-tf)/2` — die geschlossene
-    // Formel, die an Punkt 2 und 4 auf 0,45 % genau stimmt und aus derselben
-    // Integration faellt, die `A`, `Iy` und `Sy,max` des ganzen Katalogs
-    // trifft. Die Referenz druckt an genau diesen beiden Punkten etwas anderes, bis
-    // zu 2,8 % daneben, ohne dass sich aus den Daten eine Definition ablesen
-    // liesse (der Unterschied ist weder ein fester Anteil der Ausrundung noch
-    // eine Funktion von r/tf).
+    // Formel, die an den gedruckten Punkten 2 und 4 auf 0,45 % genau stimmt und
+    // aus derselben Integration faellt, die `A`, `Iy` und `Sy,max` des ganzen
+    // Katalogs trifft. Die Referenz druckt an genau diesen beiden Punkten etwas
+    // anderes, bis zu 2,8 % daneben, ohne dass sich aus den Daten eine
+    // Definition ablesen liesse (der Unterschied ist weder ein fester Anteil
+    // der Ausrundung noch eine Funktion von r/tf).
     //
     // Der Test ist eine CHARAKTERISIERUNG, kein Nachweis: er haelt die Spanne
     // fest, damit ein spaeterer Erklaerungsversuch merkt, wenn er sie aendert.
@@ -200,16 +323,15 @@ describe('Die 546 Referenzpunkte', () => {
     for (const series of ['IPE', 'HEA'] as const) {
       for (const p of profilesIn(series)) {
         const mine = points(profile(p.id));
-        const theirs = reference[p.id];
-        for (const i of [2, 7]) {
-          const a = mine[i].Sy;
-          const b = theirs[i].Sy;
-          worst = Math.max(worst, Math.abs(a - b) / Math.abs(b));
+        for (const printedNr of [3, 8]) {
+          const a = Math.abs(forPrinted(mine, printedNr).Sy);
+          const b = Math.abs(reference[p.id][printedNr - 1].Sy);
+          worst = Math.max(worst, Math.abs(a - b) / b);
         }
         // Die geschlossene Formel, unabhaengig nachgerechnet.
         // Die Formel rechnet in mm3, `Sy` steht in cm3.
         const halfFlange = ((p.b / 2) * p.tf * (p.h - p.tf)) / 2 / 1000;
-        expect(Math.abs(mine[2].Sy), p.id).toBeCloseTo(halfFlange, 6);
+        expect(Math.abs(forPrinted(mine, 3).Sy), p.id).toBeCloseTo(halfFlange, 6);
       }
     }
     expect(worst).toBeLessThan(0.03);
@@ -218,7 +340,7 @@ describe('Die 546 Referenzpunkte', () => {
 });
 
 describe('Selbstcheck ueber den ganzen Katalog', () => {
-  it('trifft mit Sy(P13) den Tabellenwert SyMax', () => {
+  it('trifft mit Sy(P15) den Tabellenwert SyMax', () => {
     // Der Prueffstein fuer die Ausrundungs-Integration: `Sy,max` ist keine
     // Groesse, die wir irgendwo abgeschrieben haetten — sie steht in der
     // Tabelle, und `2*Sy,max = Wpl,y` (in `steel-profiles` geprueft) belegt
@@ -226,7 +348,7 @@ describe('Selbstcheck ueber den ganzen Katalog', () => {
     for (const series of ['IPE', 'HEA'] as const) {
       for (const p of profilesIn(series)) {
         const pts = points(profile(p.id));
-        const Sy = Math.abs(pts[12].Sy);
+        const Sy = Math.abs(pts[14].Sy);
         expect(
           Math.abs(Sy - p.SyMax) / p.SyMax,
           `${p.id}: ${Sy.toFixed(3)} vs ${p.SyMax}`,
@@ -235,18 +357,24 @@ describe('Selbstcheck ueber den ganzen Katalog', () => {
     }
   });
 
-  it('trifft mit Sz(P3) den Tabellenwert SzMax', () => {
+  it('trifft mit Sz am Knoten den Tabellenwert SzMax', () => {
     // `Sz,max` sitzt in GURTMITTE, nicht im Schwerpunkt: der Wandschubfluss
     // fuer Vy laeuft durch die Gurte, und in der Mitte ist eine halbe
-    // Gurtflaeche abgeschnitten. Punkt 13 hat `Sz = 0`.
+    // Gurtflaeche abgeschnitten. Die drei Stegpunkte haben `Sz = 0`.
+    //
+    // Die beiden Knotenpunkte tragen denselben BETRAG mit
+    // entgegengesetztem Vorzeichen — `Sz,max` ist damit einwertig, obwohl der
+    // Knoten zweiwertig ist.
     for (const series of ['IPE', 'HEA'] as const) {
       for (const p of profilesIn(series)) {
         const pts = points(profile(p.id));
-        const Sz = Math.abs(pts[2].Sz);
-        expect(
-          Math.abs(Sz - p.SzMax) / p.SzMax,
-          `${p.id}: ${Sz.toFixed(3)} vs ${p.SzMax}`,
-        ).toBeLessThan(0.004);
+        for (const nr of [3, 4]) {
+          const Sz = Math.abs(pts[nr - 1].Sz);
+          expect(
+            Math.abs(Sz - p.SzMax) / p.SzMax,
+            `${p.id} P${nr}: ${Sz.toFixed(3)} vs ${p.SzMax}`,
+          ).toBeLessThan(0.004);
+        }
       }
     }
   });
@@ -287,28 +415,16 @@ describe('Die Integration reproduziert den Katalog', () => {
   });
 });
 
-describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
-  it('gibt dem Rechteck 5 Punkte, mit dem Maximum auf halber Hoehe', () => {
-    const pts = points({
-      kind: 'shape',
-      id: 'r',
-      shape: { kind: 'rectangle', b: 200, h: 500 },
-    });
-    expect(pts).toHaveLength(5);
-    // Vier Ecken allein haetten ueberall S = 0 — deshalb steht der Schwerpunkt
-    // in der Regel.
-    for (const i of [0, 1, 2, 3]) expect(pts[i].Sy).toBeCloseTo(0, 12);
-    // b*h^2/8 in mm3, umgerechnet auf die cm3 von `Sy`.
-    expect(Math.abs(pts[4].Sy)).toBeCloseTo((200 * 500 ** 2) / 8 / 1000, 9);
-    expect(Math.abs(pts[4].Sz)).toBeCloseTo((500 * 200 ** 2) / 8 / 1000, 9);
-    expect(pts[4].t).toBeCloseTo(200, 12);
-  });
-
-  it('gibt dem Plattenbalken 9 Punkte', () => {
-    const pts = points({
-      kind: 'shape',
-      id: 't',
-      shape: {
+describe('Der Vollquerschnitt traegt gar keine Spannungspunkte', () => {
+  // ADR 0057: `t` und `S` sind der Nenner eines SCHNITTMODELLS. Der
+  // Vollquerschnitt hat keins — seine Spannungen kommen aus der FE. Bis dahin
+  // ist `undefined` die ehrliche Antwort, und nicht eine Grashof-Zahl, die
+  // aussieht, als waere sie geprueft.
+  const solidShapes = [
+    ['Vollrechteck', { kind: 'rectangle', b: 200, h: 500 }],
+    [
+      'Plattenbalken',
+      {
         kind: 't-section',
         bf: 500,
         hf: 150,
@@ -316,12 +432,46 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
         h: 600,
         idealisation: 'solid',
       },
+    ],
+    [
+      'geschweisstes I',
+      {
+        kind: 'i-symmetric',
+        h: 300,
+        b: 150,
+        tw: 7.1,
+        tf: 10.7,
+        idealisation: 'solid',
+      },
+    ],
+    [
+      'Kasten',
+      { kind: 'hollow-rectangle', b: 200, h: 400, t: 10, idealisation: 'solid' },
+    ],
+  ] as const satisfies readonly (readonly [string, ShapeSpec])[];
+
+  for (const [name, shape] of solidShapes) {
+    it(`liefert fuer ${name} undefined`, () => {
+      expect(stressPoints({ kind: 'shape', id: 's', shape })).toBeUndefined();
     });
-    expect(pts).toHaveLength(9);
+  }
+
+  it('laesst die Querschnittswerte davon unberuehrt', () => {
+    // Die Idealisierung steuert weiter kappa; nur die Punkte fallen weg. Eine
+    // Schubsteifigkeit MUSS der Balken haben, ein Spannungspunkt muss nicht
+    // existieren.
+    const cs: CrossSection = {
+      kind: 'shape',
+      id: 'r',
+      shape: { kind: 'rectangle', b: 200, h: 500 },
+    };
+    const props = sectionProperties(cs);
+    expect(props?.kappaZ).toBeCloseTo(5 / 6, 12);
   });
 
-  it('gibt dem geschweissten I 13 Punkte, wie dem gewalzten', () => {
-    const pts = points({
+  it('haelt den duennwandigen Zweig offen', () => {
+    // Die Gegenprobe zum Satz oben: dieselbe Form, andere Idealisierung.
+    const pts = stressPoints({
       kind: 'shape',
       id: 'i',
       shape: {
@@ -330,82 +480,24 @@ describe('Die Vorlage-Regel: alle Ecken und der Schwerpunkt', () => {
         b: 150,
         tw: 7.1,
         tf: 10.7,
-        idealisation: 'solid',
+        idealisation: 'thin-walled',
       },
     });
-    expect(pts).toHaveLength(13);
-    // Zehn Gurtpunkte auf den beiden AUSSENfasern, dazu drei auf der
-    // Stegachse: die beiden Gurtunterkanten und der Schwerpunkt. Die vier
-    // Ecken an der Gurtunterseite sind seit ADR 0052 weg — gleiches y,
-    // kleineres |z| als die Gurtspitze darueber, also nie massgebend.
-    expect(pts.filter((p) => p.y === 0)).toHaveLength(5);
-    expect(pts.filter((p) => Math.abs(p.z) === 150)).toHaveLength(10);
-  });
-
-  it('setzt beim breiten Gurt t = bf am Schwerpunkt', () => {
-    // DER TEST, DER „MITTE STEG" VON „SCHWERPUNKT" TRENNT: bei
-    // bf=2000 / hf=200 / bw=250 / h=500 mm liegt zs = 139,5 mm und damit IM GURT.
-    // Der Schwerpunktpunkt sieht dort die Gurtbreite, nicht die Stegbreite.
-    const pts = points({
-      kind: 'shape',
-      id: 't',
-      shape: {
-        kind: 't-section',
-        bf: 2000,
-        hf: 200,
-        bw: 250,
-        h: 500,
-        idealisation: 'solid',
-      },
-    });
-    const centroid = pts[6];
-    expect(centroid.y).toBe(0);
-    expect(centroid.z).toBe(0);
-    expect(centroid.t).toBeCloseTo(2000, 12);
-    // Und die Gurtunterkante, wo die Breite auf bw springt: dort gilt die
-    // KLEINERE Breite, weil die Schubspannung dort nach oben springt.
-    expect(pts[5].t).toBeCloseTo(250, 12);
-  });
-
-  it('liefert an jedem freien Rand S = 0', () => {
-    // Selbstpruefung des Umrissmodells: am oberen Rand ist nichts abgeschnitten,
-    // am unteren alles — und das erste Flaechenmoment des GANZEN Querschnitts
-    // um seinen Schwerpunkt ist null.
-    const pts = points({
-      kind: 'shape',
-      id: 't',
-      shape: {
-        kind: 't-section',
-        bf: 500,
-        hf: 150,
-        bw: 250,
-        h: 600,
-        idealisation: 'solid',
-      },
-    });
-    expect(pts[0].Sy).toBeCloseTo(0, 12); // Gurtoberkante
-    expect(pts[7].Sy).toBeCloseTo(0, 12); // Stegunterkante
-    expect(pts[0].Sz).toBeCloseTo(0, 12); // linker Rand
-    expect(pts[4].Sz).toBeCloseTo(0, 12); // rechter Rand
+    expect(pts).toHaveLength(15);
   });
 });
 
 describe('Was undefined heisst', () => {
   // „Der geschlossene Kasten" stand hier, solange ihm die Referenzdaten
-  // fehlten. Er hat sie jetzt (TO 300/200/10) und damit beide Vorlagen —
-  // siehe `stress-points-hollow.test.ts`.
+  // fehlten. Er hat sie jetzt (TO 300/200/10) — siehe
+  // `stress-points-hollow.test.ts`.
 
   // „Unbekanntes Profil" steht hier nicht mehr: seit ADR 0027 traegt der Satz
   // die Zeile, der Profilzweig ist also total. Der Tippfehler wird beim
   // ANLEGEN gemeldet — siehe `@baustatik/script`, `builder.test.ts`.
   it('meldet unsinnige Masse', () => {
-    expect(
-      stressPoints({
-        kind: 'shape',
-        id: 'r',
-        shape: { kind: 'rectangle', b: 0, h: 500 },
-      }),
-    ).toBeUndefined();
+    // Die Gueltigkeitspruefung steht VOR der Weiche auf die Idealisierung,
+    // also traegt sie auch der duennwandige Zweig.
     expect(
       stressPoints({
         kind: 'shape',
@@ -416,7 +508,7 @@ describe('Was undefined heisst', () => {
           b: 150,
           tw: 7,
           tf: 20,
-          idealisation: 'solid',
+          idealisation: 'thin-walled',
         },
       }),
     ).toBeUndefined();
@@ -430,7 +522,7 @@ describe('Was undefined heisst', () => {
           hf: 50,
           bw: 300,
           h: 500,
-          idealisation: 'solid',
+          idealisation: 'thin-walled',
         },
       }),
     ).toBeUndefined();
