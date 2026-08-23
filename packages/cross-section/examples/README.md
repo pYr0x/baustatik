@@ -11,10 +11,10 @@ pnpm --filter @baustatik/cross-section example
 
 | File | What it shows |
 | --- | --- |
-| `rectangle.ts` | The only shape without `idealisation`; κ comes out as exactly 5/6. |
-| `i-symmetric.ts` | The same welded I twice — `solid` vs. `thin-walled`. Same coordinates and numbers, different `t`, `S` and κ. |
-| `t-section.ts` | Reinforced-concrete T-beam (`solid`, centroid inside the flange) and welded steel tee (`thin-walled`). |
-| `hollow-rectangle.ts` | Full section properties, but `stressPoints` returns `undefined` — the box has no template yet. |
+| `rectangle.ts` | The only shape without `idealisation`; κ comes out as exactly 5/6, and `stressPoints` returns `undefined` — a solid section carries no cut model (ADR 0057). |
+| `i-symmetric.ts` | The same welded I twice — `solid` vs. `thin-walled`. Same κ machinery, but only the thin-walled branch has stress points. |
+| `t-section.ts` | Reinforced-concrete T-beam (`solid`, centroid inside the flange, no stress points) and welded steel tee (`thin-walled`, 9 points). |
+| `hollow-rectangle.ts` | The closed box, thin-walled: 16 points around the circumference, and the centroid is in the hole. |
 | `rolled-profile.ts` | Catalogue profile: `lookupProfile` once when the section is created, the table row travelling in `data`. |
 | `undefined-cases.ts` | What `undefined` means: `sectionProperties` does not throw. |
 

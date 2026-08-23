@@ -1,5 +1,83 @@
 # @baustatik/cross-section
 
+## 0.0.9
+
+### Patch Changes
+
+- 6c215da: Der parametrische Vollquerschnitt hat keine Spannungspunkte mehr.
+
+  **Breaking:** `stressPoints` liefert `undefined` für jede parametrische Form mit
+  `idealisation: 'solid'` und für `rectangle`, das gar kein `idealisation` trägt,
+  weil es der Vollquerschnitt IST. Bisher kam von dort das Umrissmodell (Grashof).
+  Der dünnwandige Zweig und das gewalzte Katalogprofil sind unverändert; die
+  Querschnittswerte — `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs`, κ, `It` — ebenfalls, für
+  jede Form.
+
+  `t` und `S` sind der Nenner eines SCHNITTMODELLS (`tau = V*S/(I*t)`), und ein
+  Vollquerschnitt hat keins. Die parametrische Eingabe ist nur eine bequemere
+  Schreibweise für eine gezeichnete Figur, und die gezeichnete Vollfigur antwortet
+  mit der FE — zwei Wege zu derselben Figur dürfen nicht zwei Zahlen liefern
+  ([ADR 0057](../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md)).
+
+  Entfallen sind `stress-points/compact.ts` und `stress-points/outline.ts`; beide
+  waren package-intern. Kein Schema wechselt, `idealisation: 'solid'` bleibt
+  gültiges Pflichtfeld mit unveränderter Bedeutung für κ und `It`.
+
+- 6c215da: Spannungspunkte tragen eine Wandtangente, und `Sy`/`Sz` haben echte Vorzeichen.
+
+  `StressPoint` bekommt `ty`, `tz` (Einheitstangente der Wand).
+  `Sy` und `Sz` sind jetzt das erste Flächenmoment des in `+s` **bereits
+  durchlaufenen** Teils; das Vorzeichen ist gerechnet statt gesetzt. Damit zeigen
+  die Anteile aus `Vz` und `Vy` in dieselbe Richtung und addieren sich
+  vorzeichenrichtig — vorher liefen `Sy` und `Sz` an demselben Punkt in
+  verschiedene Bezugsrichtungen und trugen ein pauschales Minus, was jede
+  Überlagerung zweier Querkräfte unmöglich machte (und `Mt` erst recht).
+
+  **Breaking für Leser, die auf das Vorzeichen bauen** (die Beträge sind
+  unverändert, die Nummerierung ebenfalls):
+
+  - offenes I/T und gewalztes Profil: die Vorzeichen folgen der Wandtangente. Wie
+    sie im Einzelnen fallen, steht im Changeset zu ADR 0059 daneben — es setzt
+    hier auf und macht die Tangente je Wandelement fest.
+  - Kasten: die Vorzeichen folgen jetzt dem Umlauf und stimmen dadurch Zeichen für
+    Zeichen mit dem gedruckten Ausdruck überein.
+
+  Neu: Gleichgewichtsproben (Integration des Schubflusses gegen die eingesetzte
+  Querkraft) und Vorzeichentests. Siehe ADR 0058.
+
+- 6c215da: Spannungspunkte liegen auf Wandelementen; der Verzweigungsknoten trägt zwei.
+
+  Jede Wand ist ein Element, orientiert in Richtung des Schubflusses aus einem
+  positiven `Vz`. `Sy` und `Sz` sind das erste Flächenmoment des auf DIESEM
+  Element bereits durchlaufenen Teils. Am Gurtpunkt auf der Stegachse stehen
+  deshalb ZWEI Punkte: gleicher Ort, gleiches `t`, verschiedenes Element, gleiches
+  `Sy`, entgegengesetztes `Sz`. Siehe
+  [ADR 0059](../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md).
+
+  **Breaking:**
+
+  - `StressPoint.branched` **entfällt**. Es war exakt nur bei Spiegelsymmetrie zur
+    `z`-Achse — bei ungleichen Ästen konnte `|Vz*Sy/Iy| + |Vy*Sz/Iz|` den anderen
+    Ast unterschätzen. Statt des Flags nimmt ein Nachweis jetzt das Maximum über
+    die beiden Punkte des Knotens. `WallDirection.branched` und `BRANCH_ALONG_Y`
+    gehen mit; neu sind `AGAINST_Y` und `AGAINST_Z`.
+  - `StressPoint.wall: string` ist **neu** und pflicht: die Id des Elements
+    (`flange-top-left`, `web`, `corner-top-right`, …). Zwei Punkte am selben Ort
+    unterscheiden sich genau hierin.
+  - **Punktzahl:** geschweisstes I und Walzprofil 13 → **15**, T 9 → **10**.
+    Kasten unverändert 16 — er hat keinen Verzweigungsknoten.
+  - **Nummerierung:** fällt aus der Laufreihenfolge und ist kein Vertrag mehr
+    gegenüber dem gedruckten Katalogblatt. `nr` bleibt eindeutig je Liste und
+    bleibt die Identität eines Punktes.
+  - **Vorzeichen:** `Sy` ist an allen Gurtpunkten negativ und kippt nicht mehr an
+    der Stegachse; `Sz` kippt jetzt dort. Beim Walzprofil kippen die gedruckten
+    Punkte 4, 7 und 8 damit auf die Werte des Ausdrucks zurück — er stimmt jetzt
+    an allen 13 Werten Zeichen für Zeichen. Die BETRÄGE sind unverändert, alle 546
+    Referenzwerte ebenso.
+
+  `@baustatik/cross-section-viewer` zeichnet je Ort einen Marker statt zweier
+  deckungsgleicher.
+
 ## 0.0.8
 
 ### Patch Changes

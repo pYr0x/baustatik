@@ -11,8 +11,8 @@ const SHEAR_CENTRE = 'cross-section:symbol:shear-centre';
 
 /** Zwei Punkte, absichtlich verkehrt herum eingereicht. */
 const STRESS_POINTS: readonly StressPoint[] = [
-  { nr: 2, y: 10, z: -20, t: 8, Sy: 0, Sz: 0 },
-  { nr: 1, y: -10, z: 20, t: 8, Sy: 0, Sz: 0 },
+  { nr: 2, wall: 'flange-top-right', y: 10, z: -20, t: 8, Sy: 0, Sz: 0, ty: -1, tz: 0 },
+  { nr: 1, wall: 'flange-top-left', y: -10, z: 20, t: 8, Sy: 0, Sz: 0, ty: 1, tz: 0 },
 ];
 
 function group(
@@ -87,6 +87,24 @@ describe('Die Millimeterlage stimmt auf die Nachkommastelle', () => {
     // Kantenlaenge davor.
     expect(spec.topLeft.u).toBeCloseTo(6.9 - 10 - half, 9);
     expect(spec.topLeft.v).toBeCloseTo(139.5 + 20 - half, 9);
+  });
+
+  it('zeichnet den Verzweigungsknoten einmal, nicht zweimal', () => {
+    // SEIT ADR 0059 tragen zwei Punkte denselben Ort — je einer fuer das linke
+    // und das rechte Wandelement. Fuer den Betrachter ist es EINE Stelle;
+    // zwei deckungsgleiche Rechtecke waeren ein zweites Spec ohne zweites
+    // Bild. Gezeichnet wird der mit der kleineren Nummer.
+    const node: readonly StressPoint[] = [
+      { nr: 3, wall: 'flange-top-left', y: 0, z: -20, t: 8, Sy: -1, Sz: -2, ty: 1, tz: 0 },
+      { nr: 4, wall: 'flange-top-right', y: 0, z: -20, t: 8, Sy: -1, Sz: 2, ty: -1, tz: 0 },
+    ];
+    const specs = (group(PROPERTIES, node) as GroupSpec).children.filter((c) =>
+      c.id.startsWith('cross-section:symbol:stress-point:'),
+    );
+
+    expect(specs.map((c) => c.id)).toEqual([
+      'cross-section:symbol:stress-point:3',
+    ]);
   });
 });
 

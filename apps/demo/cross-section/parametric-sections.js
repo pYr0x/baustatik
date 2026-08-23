@@ -18,7 +18,7 @@ const groups = [
     sections: [
       {
         title: 'Rechteck b = 200 mm, h = 500 mm',
-        spec: 'Die einzige Form ohne idealisation — ein duennwandiges Vollrechteck gibt es nicht. kappa faellt als exakt 5/6 heraus.',
+        spec: 'Die einzige Form ohne idealisation — ein duennwandiges Vollrechteck gibt es nicht. kappa faellt als exakt 5/6 heraus. Spannungspunkte hat der Vollquerschnitt seit ADR 0057 keine.',
         cs: {
           kind: 'shape',
           id: 'rechteck-200x500',
@@ -27,7 +27,7 @@ const groups = [
       },
       {
         title: 'I geschweisst 400 x 200 x 10 x 10 — solid',
-        spec: 'Umrissmodell (Grashof): waagerechte Schnitte durch die volle Umrissfigur. 15 Spannungspunkte.',
+        spec: 'Vollquerschnitt: kappa nach Grashof, aber KEINE Spannungspunkte — t und S sind der Nenner eines Schnittmodells, und ein Vollquerschnitt hat keins (ADR 0057).',
         cs: {
           kind: 'shape',
           id: 'i-400-solid',
@@ -75,7 +75,7 @@ const groups = [
       },
       {
         title: 'Plattenbalken 2000/200/250/500 — solid',
-        spec: 'Stahlbeton-Plattenbalken, kompakt. Der Fall, der Steiner prueft: zs = 139,5 mm liegt IM Gurt (hf = 200 mm).',
+        spec: 'Stahlbeton-Plattenbalken, kompakt. Der Fall, der Steiner prueft: zs = 139,5 mm liegt IM Gurt (hf = 200 mm). Als Vollquerschnitt ohne Spannungspunkte (ADR 0057).',
         cs: {
           kind: 'shape',
           id: 'plattenbalken',
@@ -181,7 +181,7 @@ function render(cs) {
 
   if (points === undefined) {
     leftParts.push(
-      '<p class="muted">stressPoints &rarr; undefined — fuer diese Form gibt es keine Vorlage</p>',
+      '<p class="muted">stressPoints &rarr; undefined — kein Schnittmodell fuer diesen Querschnitt (ADR 0057)</p>',
     );
   } else {
     leftParts.push(`<div class="points-wrapper">${stressTable(points)}</div>`);
@@ -356,7 +356,22 @@ function profileSvg(cs, points, p) {
   let stressPointsMarkup = '';
   if (points && points.length > 0) {
     const dist = rectSize * 1.15;
-    const elements = points.map((pt) => {
+
+    // EIN MARKER JE ORT. Der Verzweigungsknoten traegt seit ADR 0059 zwei
+    // Punkte mit derselben Koordinate — je einen fuer das linke und das
+    // rechte Wandelement. Gezeichnet wird die Stelle einmal, beschriftet mit
+    // beiden Nummern; die Tabelle darunter fuehrt die Zeilen einzeln.
+    const atLocation = new Map();
+    for (const pt of points) {
+      const key = `${pt.y.toFixed(6)}/${pt.z.toFixed(6)}`;
+      const bucket = atLocation.get(key);
+      if (bucket === undefined) atLocation.set(key, [pt]);
+      else bucket.push(pt);
+    }
+
+    const elements = [...atLocation.values()].map((group) => {
+      const pt = group[0];
+      const label = group.map((p) => p.nr).join('/');
       let textX = pt.y;
       let textY = pt.z;
       let textAnchor = 'middle';
@@ -382,7 +397,7 @@ function profileSvg(cs, points, p) {
         }
       }
 
-      const tooltip = `Punkt ${pt.nr}: y = ${pt.y.toFixed(2)} mm, z = ${pt.z.toFixed(2)} mm, t = ${pt.t.toFixed(2)} mm, Sy = ${pt.Sy.toFixed(3)} cm³, Sz = ${pt.Sz.toFixed(3)} cm³`;
+      const tooltip = `Punkt ${label}: y = ${pt.y.toFixed(2)} mm, z = ${pt.z.toFixed(2)} mm, t = ${pt.t.toFixed(2)} mm, Sy = ${pt.Sy.toFixed(3)} cm³, Sz = ${pt.Sz.toFixed(3)} cm³`;
 
       return `
         <g class="stress-point" data-nr="${pt.nr}">
@@ -410,7 +425,7 @@ function profileSvg(cs, points, p) {
             stroke-width="${rectSize * 0.35}"
             stroke-linejoin="round"
             paint-order="stroke fill"
-          >${pt.nr}</text>
+          >${label}</text>
         </g>
       `;
     });
@@ -461,6 +476,7 @@ function stressTable(points) {
     .map(
       (sp) => `<tr>
         <td>${sp.nr}</td>
+        <td>${sp.wall}</td>
         <td>${sp.y.toFixed(2)}</td>
         <td>${sp.z.toFixed(2)}</td>
         <td>${sp.t.toFixed(2)}</td>
@@ -476,6 +492,7 @@ function stressTable(points) {
   <thead>
     <tr>
       <th>Nr</th>
+      <th>Wand</th>
       <th>y [mm]</th>
       <th>z [mm]</th>
       <th>t [mm]</th>

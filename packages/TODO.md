@@ -106,8 +106,12 @@ Die Grundlagen sind vollständig umgesetzt:
 2. **Kastenprofil-Spannungspunkte:** Dem geschlossenen Hohlprofil fehlt noch die
    Spannungspunkt-Vorlage (Theorie mit `closedBoxPath` vorhanden, wartet auf
    Referenzdaten / QRO-Katalog mit Bogentangenten).
-3. **Spannungspunkte für gezeichnete Freiformen:** Sollen künftig aus dem FE-Feld
-   (bzw. Wandmodell) bezogen werden statt aus einer Näherungsformel.
+3. **Spannungen für Vollquerschnitte:** Seit
+   [ADR 0057](../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md)
+   liefert `stressPoints` für JEDEN Vollquerschnitt `undefined` — gezeichnet wie
+   parametrisch (`idealisation: 'solid'`). Bis die FE-Spannungsauswertung steht
+   (`packages/cross-section-fe/HANDOFF.md`), hat er gar keine Spannungsausgabe.
+   Das ist Absicht und keine Lücke, die eine Zwischenvorlage füllen soll.
 4. **Mehrzellige Wandgraphen (P6):** Bei ≥ 2 Zellen entsteht ein Gleichungssystem
    gekoppelter Unbekannter. Bis dahin bleiben κ, `yM`/`zM` und `It` dort `undefined`
    und das Gate meldet `MultipleCellsWarning`. Dasselbe gilt für unverbundene Graphen
@@ -115,9 +119,13 @@ Die Grundlagen sind vollständig umgesetzt:
 5. **`i-shape` mit unabhängigen Gurten:** Formänderung im Modellsatz zur Subsumierung
    von I- und T-Profilen (`tf,unten = 0`).
 6. **Parametrischer Vollquerschnitt vs. FE:** Der parametrische Vollquerschnitt nutzt
-   Grashof-Näherungen (`shear.ts`), während Freiformen über FE gelöst werden
-   (`docs/messungen/t-querschnitt-grashof-gegen-fe.md`). Offen: Parametrische
-   Formen optional als Polygonzug ausschreiben, um durch dieselbe FE zu laufen.
+   für κ weiter Grashof-Näherungen (`shear.ts`), während Freiformen über FE gelöst
+   werden (`docs/messungen/t-querschnitt-grashof-gegen-fe.md`): κ liegt dort +11 %
+   bis +134 % zu steif. **Die Richtung steht fest** — die parametrische Eingabe ist
+   nur eine bequemere Schreibweise für eine gezeichnete Figur, also soll sie als
+   Polygonzug ausgeschrieben durch dieselbe FE laufen (ADR 0057). Bei den
+   Spannungspunkten ist dieser Schritt schon vollzogen, indem die Näherung dort
+   gar nichts mehr liefert; für κ steht er aus.
 7. **Clipping-Bibliotheken in `geometry-2d`:** Zurzeit koexistieren Martinez (Boolesche Ops)
    und Clipper2 (Offset/Inflate). Eine vollständige Ablösung von Martinez durch Clipper2
    setzt Mehrring-Polygone in `geometry-2d` voraus.

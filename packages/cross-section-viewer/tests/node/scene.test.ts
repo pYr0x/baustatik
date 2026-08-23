@@ -29,7 +29,9 @@ const MESH: CrossSectionFEMesh = {
   elements: new Uint32Array([0, 1, 2]),
 };
 
-const STRESS_POINTS = [{ nr: 1, y: -10, z: 20, t: 8, Sy: 0, Sz: 0 }];
+const STRESS_POINTS = [
+  { nr: 1, wall: 'flange-top-left', y: -10, z: 20, t: 8, Sy: 0, Sz: 0, ty: 1, tz: 0 },
+];
 
 /** Eine Szene, in der jede Lage genau einmal vorkommt. */
 function fullScene(rest: Record<string, unknown> = {}) {
