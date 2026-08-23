@@ -12,6 +12,12 @@ import {
 } from '@baustatik/cross-section-stress';
 import type { SectionForces } from '@baustatik/section-forces';
 import { convert } from '@baustatik/units';
+import {
+  createStressViewer3d,
+  type IShapeDims,
+  type StressViewer3d,
+  type Viewer3dQuantity,
+} from './stress-viewer-3d';
 
 // Einheitenumrechnungsfaktoren
 const M2_TO_CM2 = convert(1).from('m^2').toExact('cm^2');
@@ -69,8 +75,40 @@ const validationWarning = document.getElementById(
   'validation-warning',
 ) as HTMLElement;
 
+// 3D-Spannungsview
+const threeHost = document.getElementById('three-host') as HTMLElement;
+const legend3dBar = document.getElementById('legend3d-bar') as HTMLElement;
+const legend3dMin = document.getElementById('legend3d-min') as HTMLElement;
+const legend3dMid = document.getElementById('legend3d-mid') as HTMLElement;
+const legend3dMax = document.getElementById('legend3d-max') as HTMLElement;
+const qty3dToggle = document.getElementById('qty3d-toggle') as HTMLElement;
+
 let currentResult: StressCalculationResult | null = null;
 let activePointNr: number | null = null;
+
+let viewer3d: StressViewer3d | null = null;
+let viewer3dQuantity: Viewer3dQuantity = 'sigma';
+
+function shapeDims(cs: CrossSection): IShapeDims | null {
+  if (cs.kind !== 'shape' || cs.shape.kind !== 'i-symmetric') return null;
+  const { h, b, tw, tf } = cs.shape;
+  return { h, b, tw, tf };
+}
+
+function ensureViewer3d(): StressViewer3d | null {
+  if (viewer3d !== null) return viewer3d;
+  viewer3d = createStressViewer3d({
+    host: threeHost,
+    legendBar: legend3dBar,
+    legendMin: legend3dMin,
+    legendMid: legend3dMid,
+    legendMax: legend3dMax,
+    // Werte erscheinen als Tooltip IM 3D-Modell; die Tabellenauswahl bleibt
+    // unberuehrt, damit das Drehen keinen Sprung im Seitenlayout ausloest.
+    tooltipHost: threeHost,
+  });
+  return viewer3d;
+}
 
 function showWarning(msg: string): void {
   if (validationWarning) {
@@ -307,6 +345,13 @@ function renderUI(): void {
     </table>
   `;
 
+  // 5. 3D-View aktualisieren (zusaetzliche Ausgabe zur SVG-Ansicht)
+  const dims = shapeDims(cs);
+  if (dims !== null) {
+    ensureViewer3d()?.update(dims, points, viewer3dQuantity);
+    viewer3d?.setActive(activePointNr);
+  }
+
   attachEventHandlers();
   updateInspector(activePointNr);
 }
@@ -405,6 +450,9 @@ function setActivePoint(nr: number): void {
       elem.classList.remove('active');
     }
   });
+
+  // 3D-Marker updaten
+  viewer3d?.setActive(nr);
 
   updateInspector(nr);
 }
@@ -619,6 +667,25 @@ for (const input of allInputs) {
   });
   input.addEventListener('change', () => {
     scheduleCalculation(50);
+  });
+}
+
+// 3D: Groessenauswahl σ / |τ| / σv — faerbt das bereits gebaute Modell um
+for (const button of qty3dToggle.querySelectorAll('button')) {
+  button.addEventListener('click', () => {
+    const q = button.getAttribute('data-q');
+    if (q !== 'sigma' && q !== 'tau' && q !== 'sigmav') return;
+    viewer3dQuantity = q;
+    for (const other of qty3dToggle.querySelectorAll('button')) {
+      other.classList.toggle('active', other === button);
+    }
+    if (currentResult !== null) {
+      const dims = shapeDims(currentResult.cs);
+      if (dims !== null) {
+        ensureViewer3d()?.update(dims, currentResult.points, viewer3dQuantity);
+        viewer3d?.setActive(activePointNr);
+      }
+    }
   });
 }
 

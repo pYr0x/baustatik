@@ -516,6 +516,94 @@
             stroke: #fff;
             stroke-width: 2.5;
         }
+
+        /* 3D-Spannungsview */
+        .qty-toggle {
+            display: inline-flex;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .qty-toggle button {
+            appearance: none;
+            border: none;
+            background: #fff;
+            padding: 0.35rem 0.85rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--color-muted);
+            cursor: pointer;
+            border-right: 1px solid var(--color-border);
+            font-family: var(--font-sans);
+            transition: background 0.15s ease;
+        }
+
+        .qty-toggle button:last-child {
+            border-right: none;
+        }
+
+        .qty-toggle button.active {
+            background: var(--color-primary);
+            color: #fff;
+        }
+
+        .viewer3d-layout {
+            display: grid;
+            grid-template-columns: 1fr 250px;
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        @media (max-width: 900px) {
+            .viewer3d-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .canvas3d-container {
+            position: relative;
+            width: 100%;
+            height: 460px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: #eef2f7;
+            overflow: hidden;
+        }
+
+        .canvas3d-container canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .legend3d {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            font-size: 0.78rem;
+            color: var(--color-muted);
+            justify-content: center;
+        }
+
+        .legend3d-bar {
+            height: 14px;
+            border-radius: 7px;
+            border: 1px solid var(--color-border);
+        }
+
+        .legend3d-labels {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .legend3d-hint {
+            line-height: 1.45;
+            margin-top: 0.4rem;
+        }
     </style>
 </head>
 
@@ -675,6 +763,39 @@
                 <div style="font-weight: 600; margin-bottom: 0.25rem; color: #0f172a;">Punkt-Inspektor</div>
                 <div>Bewege den Mauszeiger über einen Spannungspunkt oder eine Tabellenzeile für Details.</div>
             </div>
+        </div>
+    </div>
+
+    <!-- 3D-Spannungsvisualisierung (zusaetzlich zur SVG-Ansicht) -->
+    <div class="card" id="card-stress-3d">
+        <div class="card-header">
+            <h2>Spannungen im 3D-Modell</h2>
+            <div class="qty-toggle" id="qty3d-toggle">
+                <button type="button" data-q="sigma" class="active">&sigma; Normalspannung</button>
+                <button type="button" data-q="tau">|&tau;| Schubspannung</button>
+                <button type="button" data-q="sigmav">&sigma;<sub>v</sub> Vergleichsspannung</button>
+            </div>
+        </div>
+        <div class="viewer3d-layout">
+            <div class="canvas3d-container" id="three-host"></div>
+            <aside class="legend3d">
+                <div class="legend3d-bar" id="legend3d-bar"></div>
+                <div class="legend3d-labels">
+                    <span id="legend3d-min"></span>
+                    <span id="legend3d-mid"></span>
+                    <span id="legend3d-max"></span>
+                </div>
+                <p class="legend3d-hint">
+                    Die Farbe ist über die Wanddicke <em>t</em> konstant. Längs der Wand wird &sigma; linear
+                    interpoliert, &tau; als Parabel durch die je drei Spannungspunkte — der Schubfluss
+                    <em>S</em>(<em>s</em>) ist im Wandmodell auf jedem Wandelement quadratisch —, &sigma;<sub>v</sub>
+                    aus beiden Feldern komponiert.
+                </p>
+                <p class="legend3d-hint">
+                    Ziehen: drehen &middot; Scrollen: Zoomen &middot; Rechte Taste: verschieben &middot; Hover über
+                    eine Wand oder einen Punkt zeigt die Spannungen als Tooltip im Modell.
+                </p>
+            </aside>
         </div>
     </div>
 

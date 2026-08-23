@@ -28,6 +28,7 @@
     "@baustatik/linear-solver-wasm": "workspace:*",
     "@baustatik/material": "workspace:*",
     "@baustatik/mesh-2d-wasm": "workspace:*",
+    "@baustatik/round": "workspace:*",
     "@baustatik/script": "workspace:*",
     "@baustatik/section-forces": "workspace:*",
     "@baustatik/section-geometry": "workspace:*",
@@ -35,10 +36,11 @@
     "@baustatik/steel-profiles": "workspace:*",
     "@baustatik/units": "workspace:*",
     "@baustatik/viewport-2d": "workspace:*",
-    "@baustatik/round": "workspace:*",
+    "@types/three": "^0.185.4",
     "konva": "^10.3.0",
     "monaco-editor": "^0.56.0",
     "pinia": "^3.0.4",
+    "three": "^0.185.1",
     "vite": "^8.1.5"
   }
 }
