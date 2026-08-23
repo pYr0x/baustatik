@@ -35,7 +35,9 @@ export function undefinedCasesExample(): void {
       hf: 20,
       bw: 150,
       h: 300,
-      idealisation: 'solid',
+      // Duennwandig, damit der Ausdruck wirklich die Gueltigkeitspruefung
+      // zeigt: 'solid' liefert seit ADR 0057 ohnehin keine Spannungspunkte.
+      idealisation: 'thin-walled',
     },
   };
 

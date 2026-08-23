@@ -184,10 +184,12 @@ pnpm --filter @baustatik/cross-section-viewer build
 
 - The `fit` view intent is not implemented; `createCrossSectionViewer` accepts it
   and does nothing. A bounding box over the outline would be the natural basis.
-- **Stress points for a free `SectionGeometry` do not exist yet.**
-  `stressPoints()` returns `undefined` for `kind: 'section-geometry'`, so the blue
-  rectangles only appear for a parametric shape or a catalogue profile. The viewer
-  side is complete and waits for the template.
+- **Stress points exist only for a cut model.** `stressPoints()` returns
+  `undefined` for `kind: 'section-geometry'` and, since
+  [ADR 0057](../../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md),
+  for every parametric shape with `idealisation: 'solid'` — so the blue rectangles
+  appear for a thin-walled shape or a catalogue profile. The viewer side is
+  complete and waits for the FE stress recovery.
 - **No worker is wired to the viewer.** `apps/demo/cross-section/mesh-2d.ts`
   stays an isolated SVG test bench. Once a real cross-section FE calculation holds
   its mesh as a result, its application composition hands it over via `getFEMesh`.

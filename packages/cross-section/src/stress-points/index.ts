@@ -1,12 +1,6 @@
 import { sectionProperties } from '../calculation/section-properties';
 import { tSectionCentroid } from '../calculation/shapes/t-section';
 import type { CrossSection } from '../model/cross-section';
-import {
-  hollowRectanglePoints,
-  iSymmetricPoints,
-  rectanglePoints,
-  tSectionPoints,
-} from './compact';
 import { rolledIStressPoints } from './rolled-i';
 import {
   hollowRectangleThinPoints,
@@ -18,39 +12,43 @@ import type { StressPoint } from './types';
 /**
  * Die Spannungspunkte eines Querschnitts.
  *
- * DIE VERZWEIGUNG GEHT UEBER FORM UND IDEALISIERUNG, nicht ueber die Form
- * allein. `idealisation` beantwortet die Frage „wie fliesst der Schub", und
- * dieselbe Frage darf nicht zwei Maschinen haben: sie steuert kappa UND die
- * Spannungspunkte, oder keines von beiden
- * ([ADR 0029](../../../../docs/adr/0029-stress-points-follow-the-idealisation.md)).
+ * EIN SPANNUNGSPUNKT IST EIN SCHNITTMODELL, und ein Schnittmodell hat nur der
+ * dünnwandige Querschnitt. `t` und `S` sind der Nenner von `tau = V*S/(I*t)`,
+ * und diese Formel setzt voraus, dass der Schubfluss längs einer Wand läuft
+ * und über die Schnittbreite konstant ist. Wo das nicht gilt, gibt es nicht
+ * etwa einen ungenauen Punkt — es gibt gar keinen
+ * ([ADR 0057](../../../../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md)).
  *
  * | Form | `solid` | `thin-walled` |
  * | --- | --- | --- |
- * | `rectangle` | Umrissmodell | — (traegt kein `idealisation`) |
- * | `i-symmetric` | Umrissmodell | Wandmodell |
- * | `t-section` | Umrissmodell | Wandmodell |
- * | `hollow-rectangle` | Umrissmodell | Wandmodell |
+ * | `rectangle` | `undefined` | — (trägt kein `idealisation`) |
+ * | `i-symmetric` | `undefined` | Wandmodell |
+ * | `t-section` | `undefined` | Wandmodell |
+ * | `hollow-rectangle` | `undefined` | Wandmodell |
  *
- * `solid` behaelt das Umrissmodell, und das ist keine Uebergangsloesung:
- * Grashof IST fuer Vollquerschnitte richtig, die Rechteckparabel faellt genau
- * daraus.
+ * BIS ADR 0057 TRUG `solid` DAS UMRISSMODELL — waagerechte Schnitte quer durch
+ * die volle Figur, Grashof. Die parametrische Eingabe ist aber nur die bequeme
+ * Schreibweise für eine gezeichnete Figur, und die gezeichnete Vollfigur
+ * antwortet mit der FE (`@baustatik/cross-section-fe`), nicht mit einem
+ * Schnitt. Zwei Wege zu derselben Figur, die verschiedene Zahlen liefern,
+ * wären zwei Maschinen für eine Frage — dasselbe Argument, mit dem ADR 0029
+ * die Idealisierung zur einen Weiche gemacht hat.
+ *
+ * `idealisation` STEUERT WEITER kappa. Dass `solid` dort Grashof behält und
+ * hier gar nichts liefert, ist kein Widerspruch: eine Schubsteifigkeit MUSS
+ * der Balken haben, ein Spannungspunkt muss nicht existieren. `undefined` ist
+ * keine zweite Maschine, sondern die Abwesenheit einer Antwort.
  *
  * WO DIE PUNKTE LIEGEN, entscheidet keine der Vorlagen selbst: die Stellen
- * stehen in `open-stations.ts` (I und T) und `hollow-stations.ts` (Kasten),
- * und beide Idealisierungen lesen dieselbe Liste. Die Regel dahinter — jede
- * Stelle, an der `S` oder `t` springt oder ein Maximum hat, und die
- * Koordinate dort in der RANDFASER — steht bei `OpenStation`
+ * stehen in `open-stations.ts` (I und T) und `hollow-stations.ts` (Kasten).
+ * Die Regel dahinter — jede Stelle, an der `S` oder `t` springt oder ein
+ * Maximum hat, und die Koordinate dort in der RANDFASER — steht bei
+ * `OpenStation`
  * ([ADR 0052](../../../../docs/adr/0052-stress-points-sit-on-the-extreme-fibre.md)).
  *
- * `undefined` heisst „fuer diese Form gibt es keine Vorlage" — heute nur noch
- * die GEZEICHNETE Geometrie, fuer die im Voraus gar keine Form feststeht.
- *
- * Der geschlossene Kasten hatte bisher keine
- * REFERENZDATEN — die Theorie fehlte ihm nie, den umlaufenden Weg hat
- * `closedBoxPath` in `shapes/hollow-rectangle.ts` laengst und kappa faellt
- * daraus. Mit der Referenz stehen jetzt beide Vorlagen, und der Kasten ist die
- * einzige Form, deren Punkte NICHT auf ihrem Schwerpunkt liegen koennen: der
- * liegt im Loch.
+ * `undefined` heißt „für diesen Querschnitt gibt es kein Schnittmodell": die
+ * gezeichnete Geometrie, für die im Voraus gar keine Form feststeht, und seit
+ * ADR 0057 jede parametrische Vollfigur.
  *
  * WARUM UEBERHAUPT GERECHNET, wo nebenan „tabelliert, nicht nachgerechnet"
  * gilt: die Spannungspunkte fallen aus DENSELBEN Abmessungen wie alles andere,
@@ -64,13 +62,13 @@ export function stressPoints(
 ): readonly StressPoint[] | undefined {
   // Keine Umrechnung: die Tabelle fuehrt mm, die Vorlage rechnet in mm. Und
   // kein Nachschlagen mehr: die Zeile steht seit ADR 0027 im Satz, der Zweig
-  // ist damit total.
+  // ist damit total. Das GEWALZTE Profil bleibt ein Schnittmodell: es hat eine
+  // Ausrundung, aber Gurt und Steg sind Wände (ADR 0057).
   if (cs.kind === 'profile') return rolledIStressPoints(cs.data);
 
   // Die freie Geometrie hat keine VORLAGE — sie ist ja gerade der Fall, fuer
-  // den keine Form im Voraus feststeht. Ihre Spannungspunkte fallen spaeter aus
-  // dem Umriss selbst (Ecken plus Schwerpunkt, dieselbe Regel wie ueberall),
-  // und das setzt die Green-Rechnung aus P2 voraus.
+  // den keine Form im Voraus feststeht. Der gezeichnete Vollquerschnitt bekommt
+  // seine Spannungen aus der FE (ADR 0054), nicht aus einem Schnitt.
   if (cs.kind === 'section-geometry') return undefined;
 
   // EINE Gueltigkeitspruefung, nicht zwei. Die Abmessungen hier noch einmal
@@ -80,34 +78,31 @@ export function stressPoints(
   if (sectionProperties(cs) === undefined) return undefined;
 
   const shape = cs.shape;
+  // DIE EINE WEICHE, und sie steht vor der Form: ein Vollquerschnitt trägt kein
+  // Schnittmodell (ADR 0057). Das Vollrechteck trägt gar kein `idealisation` —
+  // es IST der Vollquerschnitt.
+  if (shape.kind === 'rectangle' || shape.idealisation === 'solid') {
+    return undefined;
+  }
+
   switch (shape.kind) {
-    case 'rectangle':
-      // Ein duennwandiges Vollrechteck gibt es nicht, also traegt die Form
-      // kein `idealisation` — und hier gibt es nichts zu verzweigen.
-      return rectanglePoints(shape.b, shape.h);
     case 'i-symmetric':
-      return shape.idealisation === 'solid'
-        ? iSymmetricPoints(shape.h, shape.b, shape.tw, shape.tf)
-        : iSymmetricThinPoints(shape.h, shape.b, shape.tw, shape.tf);
+      return iSymmetricThinPoints(shape.h, shape.b, shape.tw, shape.tf);
     case 't-section': {
       const { bf, hf, bw, h } = shape;
       // `sectionProperties` hat die Masse eben erst durchgelassen; der
-      // Schwerpunkt ist damit bestimmt.
+      // Schwerpunkt ist damit bestimmt. EIN Schwerpunkt fuer die Koordinaten
+      // und fuer `S`, seit ADR 0053: die duennwandigen Waende kacheln die
+      // Umrissfigur, ihr Schwerpunkt IST `zs`. `tSectionWall` bleibt fuer kappa
+      // zustaendig.
       const zs = tSectionCentroid(bf, hf, bw, h) as number;
-      return shape.idealisation === 'solid'
-        ? tSectionPoints(bf, hf, bw, h, zs)
-        : // EIN Schwerpunkt fuer beide Idealisierungen, seit ADR 0053: die
-          // duennwandigen Waende kacheln die Umrissfigur, ihr Schwerpunkt IST
-          // `zs`. `tSectionWall` bleibt fuer kappa zustaendig.
-          tSectionThinPoints(bf, hf, bw, h, zs);
+      return tSectionThinPoints(bf, hf, bw, h, zs);
     }
     case 'hollow-rectangle':
       // Der Schwerpunkt liegt im LOCH; an seine Stelle treten die vier
       // Wandmitten. Warum die sechzehn Stellen so und nicht anders liegen,
       // steht bei `hollowStations`.
-      return shape.idealisation === 'solid'
-        ? hollowRectanglePoints(shape.b, shape.h, shape.t)
-        : hollowRectangleThinPoints(shape.b, shape.h, shape.t);
+      return hollowRectangleThinPoints(shape.b, shape.h, shape.t);
   }
 }
 

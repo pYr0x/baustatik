@@ -1,5 +1,15 @@
 # Stress points follow the idealisation
 
+> **Amended:** [ADR 0057](0057-the-parametric-solid-section-has-no-stress-points.md)
+> withdrew the `solid` column of the table below. A parametric solid section now
+> returns **no stress points at all** — `undefined` — because `t` and `S` are the
+> denominator of a *cut model*, and a solid figure has none; its stresses come
+> from the FE. Two claims made here are withdrawn with it: that the band machine
+> is "not a stopgap" for `solid`, and the table rows that name it. What survives,
+> and is the reason this ADR is amended rather than replaced, is the decision
+> itself: **`idealisation` remains the one switch for κ and the stress points
+> together.** It simply has nothing left to choose on the `solid` side.
+
 > **Later:** [ADR 0052](0052-stress-points-sit-on-the-extreme-fibre.md) changed
 > *where* the points of the welded I and T sit — onto the flange's outer fibre,
 > plus a point in the web under each flange. It did not change this decision:

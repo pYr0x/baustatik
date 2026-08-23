@@ -1,27 +1,41 @@
 import type { mm } from '@baustatik/units';
-import { type StressPoint, stressPoint } from './types';
+import {
+  AGAINST_Y,
+  ALONG_Y,
+  ALONG_Z,
+  type StressPoint,
+  stressPoint,
+} from './types';
 
 /**
- * Die Vorlage des GEWALZTEN I-Profils — 13 Punkte, und die Nummerierung ist ein
- * VEROEFFENTLICHTER VERTRAG.
+ * Die Vorlage des GEWALZTEN I-Profils — 15 Punkte auf fuenf Elementen.
  *
- * Der gedruckte Ausdruck fuehrt „S-Punkt Nr. 1…13": 1–5 oberer Flansch von links nach rechts,
- * 6–10 unterer ebenso, 11/12 Steganfang oben/unten, 13 Schwerpunkt. Wir
- * uebernehmen sie unveraendert; ein Test haelt sie fest, bevor der erste Bericht
- * sie druckt.
+ * Der gedruckte Ausdruck fuehrt "S-Punkt Nr. 1…13": 1–5 oberer Flansch von
+ * links nach rechts, 6–10 unterer ebenso, 11/12 Steganfang oben/unten, 13
+ * Schwerpunkt. Bis
+ * [ADR 0059](../../../../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md)
+ * war diese Nummerierung ein VEROEFFENTLICHTER VERTRAG. Sie ist es nicht mehr:
+ * jeder der beiden Verzweigungsknoten traegt jetzt zwei Punkte, einen je
+ * Gurtelement. Die Zuordnung `gedruckte Nr -> unsere Nr` steht als Tabelle im
+ * Test, und die dreizehn gedruckten Werte kommen dort Zeichen fuer Zeichen
+ * heraus.
  *
- * Die Gurtunterseiten-Ecken fehlen — anders als beim geschweissten I mit seinen
- * 15 Punkten. Das ist eine BEGRUENDETE AUSNAHME von der Regel „alle Ecken":
- * bei homogenem Querschnitt koennen sie nie massgebend werden (gleiches `y`,
- * kleineres `|z|` als die Gurtspitze darueber), und die Nummerierung ist
- * gedruckt.
+ * Die Gurtunterseiten-Ecken fehlen weiter. Das ist eine BEGRUENDETE AUSNAHME
+ * von der Regel "alle Ecken": bei homogenem Querschnitt koennen sie nie
+ * massgebend werden (gleiches `y`, kleineres `|z|` als die Gurtspitze
+ * darueber).
  *
- * VORZEICHEN: `Sy` ist durchweg negativ, `Sz` spiegelt zwischen oberem und
- * unterem Gurt. Das ist keine Willkuer, sondern die Buchfuehrung ueber die
- * UMLAUFRICHTUNG des Schubflusses: am Gurt zaehlt der Teil bis zur NAECHSTEN
- * freien Spitze, und der untere Gurt wird gegenlaeufig durchlaufen. Fuer den
- * Betrag — und nur der geht in `|tau|` ein — ist die Richtung gleichgueltig;
- * uebernommen wird sie, weil die Zahlen so gedruckt sind.
+ * VORZEICHEN: DAS KATALOGBLATT IST STIMMIG, es ist nur je ELEMENT geschrieben.
+ * ADR 0058 hatte ihm noch vorgeworfen, `Sy` von der naechsten freien Spitze und
+ * `Sz` durchgehend von links zu zaehlen, also zwei Richtungen an einer Stelle
+ * zu fuehren. Das stimmt nicht. Orientiert man jede Wand in Richtung des
+ * Schubflusses aus einem positiven `Vz` — Obergurt von den Spitzen zum Knoten,
+ * Steg nach unten, Untergurt vom Knoten zu den Spitzen —, dann fallen alle 13
+ * gedruckten Werte aus EINER Regel, Vorzeichen inklusive.
+ *
+ * Der Beleg stand schon im Repository: die alte Fassung lief global in `+y` und
+ * wich an genau den Punkten 4, 7 und 8 ab. Das sind exakt die drei Stellen,
+ * deren Element ANDERS orientiert ist als `+y`. Die Betraege stimmten immer.
  */
 
 /**
@@ -121,9 +135,9 @@ export function rolledIStressPoints(d: RolledIDimensions): StressPoint[] {
   const bb = b / 2;
   /** Gurtmittellinie — der Hebelarm des Gurts. */
   const zf = (h - tf) / 2;
-  /** Wo der GERADE Stegteil beginnt: Punkt 11/12. */
+  /** Wo der GERADE Stegteil beginnt: Punkt 13/14. */
   const zWeb = hh - tf - r;
-  /** Wo die Ausrundung an den Gurt stoesst: Punkt 2/4/7/9. */
+  /** Wo die Ausrundung an den Gurt stoesst: Punkt 2/5/8/11. */
   const yFillet = tw / 2 + r;
 
   const f = fillet(d);
@@ -147,31 +161,101 @@ export function rolledIStressPoints(d: RolledIDimensions): StressPoint[] {
   /** Alles oberhalb des Schwerpunkts. */
   const aboveCentroid = flangeMoment + filletMoment - (tw * (hh - tf) ** 2) / 2;
 
+  /**
+   * Eine Gurtstelle auf dem Element `wall`. Die Tangente faellt aus der Wand,
+   * genau wie in `open-stations.ts`: die beiden oberen Elemente laufen auf den
+   * Knoten zu, die beiden unteren von ihm weg.
+   */
   const flange = (
     nr: number,
+    wall: string,
     y: mm,
     z: mm,
     Sy: number,
     Sz: number,
-  ): StressPoint => stressPoint(nr, y, z, tf, Sy, Sz);
+  ): StressPoint =>
+    stressPoint(
+      nr,
+      wall,
+      y,
+      z,
+      tf,
+      Sy,
+      Sz,
+      wall === 'flange-top-left' || wall === 'flange-bottom-right'
+        ? ALONG_Y
+        : AGAINST_Y,
+    );
 
-  // Ausgeschrieben statt ueber eine Symmetrieregel gebaut: die 13 Zeilen SIND
-  // der Vertrag, und beim Lesen soll neben jeder Nummer stehen, was dort steht.
-  // `Sy` ist an allen vier gleichwertigen Gurtstellen dasselbe, `Sz` spiegelt
-  // — links/rechts am oberen Gurt, und am unteren noch einmal.
+  // Ausgeschrieben statt ueber eine Symmetrieregel gebaut: beim Lesen soll
+  // neben jeder Nummer stehen, was dort steht.
+  //
+  // `Sy` IST AN ALLEN ZWOELF GURTSTELLEN NEGATIV, und das ist kein pauschales
+  // Minus, sondern gerechnet. Am OBERGURT ist durchlaufen der nahe Ueberstand,
+  // und der liegt bei `-zf`. Am UNTERGURT laeuft das Element vom Knoten weg,
+  // durchlaufen ist also alles ANDERE — und das erste Flaechenmoment eines
+  // Komplements ist das Negative des Teils, hier also wieder `-zf`.
+  //
+  // `Sz` KIPPT MIT DER ELEMENTTANGENTE. Am Knoten stehen deshalb zwei Punkte
+  // mit gleichem `Sy` und entgegengesetztem `Sz`; genau dorthin ist die
+  // Zweiwertigkeit gewandert, die bis ADR 0059 an `Sy` hing (ADR 0059).
   return [
-    flange(1, -bb, -hh, 0, 0),
-    flange(2, -yFillet, -hh, outstandMoment, outstandMomentZ),
-    flange(3, 0, -hh, halfFlangeMoment, halfFlangeMomentZ),
-    flange(4, yFillet, -hh, outstandMoment, -outstandMomentZ),
-    flange(5, bb, -hh, 0, 0),
-    flange(6, -bb, hh, 0, 0),
-    flange(7, -yFillet, hh, outstandMoment, -outstandMomentZ),
-    flange(8, 0, hh, halfFlangeMoment, -halfFlangeMomentZ),
-    flange(9, yFillet, hh, outstandMoment, outstandMomentZ),
-    flange(10, bb, hh, 0, 0),
-    stressPoint(11, 0, -zWeb, tw, aboveWebStart, 0),
-    stressPoint(12, 0, zWeb, tw, aboveWebStart, 0),
-    stressPoint(13, 0, 0, tw, aboveCentroid, 0),
+    flange(1, 'flange-top-left', -bb, -hh, 0, 0),
+    flange(
+      2,
+      'flange-top-left',
+      -yFillet,
+      -hh,
+      outstandMoment,
+      outstandMomentZ,
+    ),
+    flange(3, 'flange-top-left', 0, -hh, halfFlangeMoment, halfFlangeMomentZ),
+    flange(4, 'flange-top-right', 0, -hh, halfFlangeMoment, -halfFlangeMomentZ),
+    flange(
+      5,
+      'flange-top-right',
+      yFillet,
+      -hh,
+      outstandMoment,
+      -outstandMomentZ,
+    ),
+    flange(6, 'flange-top-right', bb, -hh, 0, 0),
+    flange(7, 'flange-bottom-left', -bb, hh, 0, 0),
+    flange(
+      8,
+      'flange-bottom-left',
+      -yFillet,
+      hh,
+      outstandMoment,
+      -outstandMomentZ,
+    ),
+    flange(
+      9,
+      'flange-bottom-left',
+      0,
+      hh,
+      halfFlangeMoment,
+      -halfFlangeMomentZ,
+    ),
+    flange(
+      10,
+      'flange-bottom-right',
+      0,
+      hh,
+      halfFlangeMoment,
+      halfFlangeMomentZ,
+    ),
+    flange(
+      11,
+      'flange-bottom-right',
+      yFillet,
+      hh,
+      outstandMoment,
+      outstandMomentZ,
+    ),
+    flange(12, 'flange-bottom-right', bb, hh, 0, 0),
+    stressPoint(13, 'web', 0, -zWeb, tw, aboveWebStart, 0, ALONG_Z),
+    stressPoint(14, 'web', 0, zWeb, tw, aboveWebStart, 0, ALONG_Z),
+    stressPoint(15, 'web', 0, 0, tw, aboveCentroid, 0, ALONG_Z),
   ];
 }

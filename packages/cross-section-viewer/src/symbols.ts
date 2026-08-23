@@ -122,6 +122,15 @@ function stressPointSpecs(
       // Nach `nr` und nicht nach Arrayreihenfolge: die Ordnungsnummer ist die
       // fachliche Identitaet, aus der auch die ID faellt.
       .sort((a, b) => a.nr - b.nr)
+      // JE ORT EIN MARKER. Seit ADR 0059 traegt der Verzweigungsknoten ZWEI
+      // Punkte — dieselbe Koordinate, verschiedene Wand. Zwei Rechtecke
+      // uebereinander zu zeichnen ergibt kein zweites Bild, nur ein zweites
+      // Spec mit derselben Flaeche. Gezeichnet wird der Punkt mit der
+      // KLEINSTEN Nummer; er gewinnt durch die Sortierung darueber.
+      .filter(
+        (point, index, sorted) =>
+          sorted.findIndex((p) => p.y === point.y && p.z === point.z) === index,
+      )
       .map((point) => ({
         kind: 'rectangle',
         id: `cross-section:symbol:stress-point:${point.nr}`,

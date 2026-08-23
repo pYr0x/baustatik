@@ -37,5 +37,6 @@ packages/steel-profiles/data-source/*
 
 packages/plan*.md
 packages/*.png
+*.xlsx
 
 .idea

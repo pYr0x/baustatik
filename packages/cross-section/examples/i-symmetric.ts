@@ -4,17 +4,18 @@ import { report } from './report.ts';
 /**
  * Geschweisstes, doppeltsymmetrisches I — OHNE Ausrundung.
  *
- * Dieselben vier Zahlen, zwei Idealisierungen, zwei Antworten: `solid` rechnet
- * im Umrissmodell (Grashof, waagerechte Schnitte durch die volle Umrissfigur),
- * `thin-walled` im Wandmodell. Betroffen sind kappa UND die Spannungspunkte — die Koordinaten
- * und die Nummern bleiben dabei Ziffer fuer Ziffer dieselben, es wechseln nur
- * `t` und `S`. Am Gurt heisst das `t = tf` statt `t = b`.
+ * Dieselben vier Zahlen, zwei Idealisierungen, zwei Antworten — und die eine
+ * davon ist seit ADR 0057 „gar keine": `solid` liefert kappa aus Grashof, aber
+ * KEINE Spannungspunkte, weil ein Vollquerschnitt kein Schnittmodell ist.
+ * `thin-walled` rechnet im Wandmodell und liefert beides.
  *
- * 13 Punkte, Stelle fuer Stelle wie beim GEWALZTEN Profil: 1-5 oberer Gurt
- * von links, 6-10 unterer, 11/12 Steg unter den Gurten, 13 Schwerpunkt. Alle
- * zehn Gurtpunkte liegen auf der AUSSENfaser — `S` und `t` gehoeren zum
- * Schnitt, die Koordinate gehoert zu sigma, und sigma ist aussen groesser
- * (ADR 0052).
+ * 15 Punkte auf fuenf Wandelementen, Stelle fuer Stelle wie beim GEWALZTEN
+ * Profil: 1-6 oberer Gurt von links, 7-12 unterer, 13/14 Steg unter den
+ * Gurten, 15 Schwerpunkt. Die Gurtmitte steht ZWEIMAL — dort treffen sich das
+ * linke und das rechte Gurtelement, und jedes traegt seinen eigenen Punkt
+ * (ADR 0059). Alle zwoelf Gurtpunkte liegen auf der AUSSENfaser — `S` und `t`
+ * gehoeren zum Schnitt, die Koordinate gehoert zu sigma, und sigma ist aussen
+ * groesser (ADR 0052).
  */
 function iSymmetric(idealisation: Idealisation): CrossSection {
   return {

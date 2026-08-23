@@ -9,13 +9,15 @@ import { report } from './report.ts';
  * von `idealisation`.
  *
  * Der Plattenbalken unten ist der Fall, der Steiner prueft: `zs = 139,5 mm`
- * liegt IM GURT (`hf = 200 mm`). Der Spannungspunkt „Schwerpunkt" trifft das
- * ohne Sonderfall und traegt dort kompakt `t = bf`; „Mitte Steg" haette ihn an
- * die falsche Stelle gesetzt.
+ * liegt IM GURT (`hf = 200 mm`). SPANNUNGSPUNKTE HAT ER KEINE — er ist
+ * `solid`, und ein Vollquerschnitt traegt kein Schnittmodell (ADR 0057). Seine
+ * Querschnittswerte stehen vollstaendig da.
  *
- * 9 Punkte: fuenf im Gurt auf der AUSSENfaser (Spitzen, Stegflanken,
- * Stegachse), einer im STEG unter dem Gurt — dort springt tau um `hf/bw` —,
- * der Schwerpunkt und die beiden Ecken am freien Stegende (ADR 0052).
+ * Der Stahl-T darunter ist duennwandig und traegt deshalb 10 Punkte: sechs im
+ * Gurt auf der AUSSENfaser (Spitzen, Stegflanken und die Stegachse ZWEIMAL, je
+ * einmal fuer das linke und das rechte Gurtelement — ADR 0059), einer an der
+ * Stegoberkante — dort springt tau um `hf/bw` —, der Schwerpunkt und die
+ * beiden Ecken am freien Stegende (ADR 0052).
  */
 export function tSectionExample(): void {
   // Stahlbeton-Plattenbalken — kompakt.

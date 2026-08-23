@@ -53,9 +53,7 @@ export type ShearFlowInterval = {
  *
  * Sie hat keine feste Gestalt — der Gurt eines I ist flach und breit, der Steg
  * hoch und schmal, und `width` darf eine SUMME ueber getrennte Bereiche sein
- * (`2*tf`, wenn ein senkrechter Schnitt beide Gurte trifft). Das Gegenstueck
- * fuer Flaechenschnitte ist `OutlinePart` in `stress-points/outline.ts`, das
- * dasselbe mit `from`/`to` statt mit `extent` beschreibt.
+ * (`2*tf`, wenn ein senkrechter Schnitt beide Gurte trifft).
  */
 export type Part = {
   readonly extent: number;

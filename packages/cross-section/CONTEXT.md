@@ -36,9 +36,12 @@ frei von WASM. κ steht dort als ν-freie FORMEL statt als Zahl —
 Fuer den **Mehrzeller** bleiben sie weiter `undefined`: dort braucht es ein
 Gleichungssystem, und das ist offen (`packages/TODO.md`). Wo sie fehlen, heisst das fuer den Loeser `GAs: 'rigid'`,
 und `check()` in `@baustatik/fem-solver` sagt es, wenn jemand Schubverformung
-verlangt hat. `stressPoints` bleibt fuer die gezeichnete Geometrie `undefined` —
-sie kommen spaeter aus dem FE-Feld und ausdruecklich nicht aus einer zweiten
-Naeherung (`packages/TODO.md`).
+verlangt hat. `stressPoints` bleibt fuer **jeden Vollquerschnitt** `undefined` —
+fuer die gezeichnete Geometrie und seit
+[ADR 0057](../../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md)
+auch fuer die parametrische Form mit `idealisation: 'solid'`. Seine Spannungen
+kommen aus dem FE-Feld und ausdruecklich nicht aus einer zweiten Naeherung
+(`packages/TODO.md`).
 
 **Beide Zweige sind seit P3 ableitbar**, und zwar hinter EINER Tuer:
 `deriveOutline(geometry, policy)` verzweigt ueber `kind`
@@ -141,7 +144,8 @@ Die Profil-Variante traegt seit
 **Tabellenzeile als Kopie** (`data`); `profile` ist nur noch die Herkunft.
 Damit schlaegt dieses Package **nichts mehr nach** — `sectionProperties` und
 `stressPoints` sind im Profilzweig total, und `undefined` heisst nur noch
-„unsinnige Abmessungen" bzw. „fuer diese Form gibt es keine Vorlage".
+„unsinnige Abmessungen" bzw. „fuer diesen Querschnitt gibt es kein
+Schnittmodell".
 
 Fuenf Abhaengigkeiten: `@baustatik/steel-profiles` (nur noch der **Typ**
 `SteelProfileData`, kein `lookupProfile` mehr im `src`), `@baustatik/units`
@@ -277,6 +281,14 @@ dahin steuerte sie nur κ; die Spannungspunkte verzweigten ausschliesslich ueber
 `shape.kind`, und ein `thin-walled`-I bekam sein κ aus dem Wandweg (`Sy,max`
 11,60 cm³) und seinen Schwerpunktpunkt aus dem Umrissmodell (11,25 cm³) — zwei
 Antworten auf eine Zahl.
+
+**Seit [ADR 0057](../../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md)
+liefert `solid` keine Spannungspunkte mehr**, sondern `undefined`. Das nimmt
+ADR 0029 nichts: `idealisation` ist weiter die eine Weiche, sie hat auf der
+`solid`-Seite nur nichts mehr zu waehlen. κ bleibt dort Grashof, und dass die
+eine Groesse eine Naeherung behaelt und die andere ganz verschwindet, ist keine
+Unstimmigkeit — eine Schubsteifigkeit MUSS der Balken haben, ein
+Spannungspunkt muss nicht existieren.
 
 **Bekannte Luecke:** `A`, `Iy`, `Iz`, `Iyz`, `ys` und `zs` werden weiterhin in
 beiden Faellen exakt aus der Umrissfigur gerechnet — die klassische duennwandige
@@ -860,88 +872,179 @@ unter dem Gurt, wo `tau` um `tf/tw` springt.
 
 | Form | Punkte | |
 | --- | --- | --- |
-| `rectangle` | **5** | 4 Ecken + Schwerpunkt |
-| `t-section` | **9** | 5 Gurt (Aussenfaser), 1 Steg unter dem Gurt, Schwerpunkt, 2 freies Stegende |
-| `i-symmetric` (geschweisst) | **13** | 5 + 5 Gurt (Aussenfaser), 2 Steg unter den Gurten, Schwerpunkt |
-| `hollow-rectangle` | **16** | 4 Aussenecken + 8 Projektionen der inneren Ecken + **4 Wandmitten** |
-| Walzprofil (IPE/HEA) | **13** | Referenz: 5 + 5 Gurt, 2 Steganfang, 1 Schwerpunkt |
+| `rectangle` | **—** | Vollquerschnitt, kein Schnittmodell (ADR 0057) |
+| `t-section` (`thin-walled`) | **10** | 3 + 3 Gurt (Aussenfaser, zwei Elemente), 1 Stegoberkante, Schwerpunkt, 2 freies Stegende |
+| `i-symmetric` (geschweisst, `thin-walled`) | **15** | 3 + 3 je Gurt (Aussenfaser, zwei Elemente), 2 Steganfang, Schwerpunkt |
+| `hollow-rectangle` (`thin-walled`) | **16** | 4 Aussenecken + 8 Projektionen der inneren Ecken + **4 Wandmitten** |
+| Walzprofil (IPE/HEA) | **15** | dieselbe Elementliste wie das geschweisste I |
+| jede Form mit `idealisation: 'solid'` | **—** | `undefined` |
 
-**Geschweisstes und gewalztes I sind Stelle fuer Stelle gleich numeriert**, und
-bei `r = 0` tragen die Punkte 1 bis 12 dieselben Zahlen bis aufs letzte Bit.
-Nur Punkt 13 trennt sie, gewollt: der Schwerpunktwert kommt im Wandmodell aus
-dem Steg von Gurtmitte zu Gurtmitte (ADR 0029). Vorher hatte das geschweisste I
-fuenfzehn Punkte in eigener Zaehlung, und der Vergleich brauchte eine Tabelle.
+**Der Verzweigungsknoten traegt ZWEI Punkte** — gleicher Ort, gleiches `t`,
+verschiedenes Wandelement
+([ADR 0059](../../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md)).
+Deshalb sind es beim I fuenfzehn und beim T zehn. Ein Punkt weiss, auf welchem
+Element er liegt (`wall`), und traegt genau EINEN Wert je Groesse; das Flag
+`branched` ist damit ersatzlos entfallen.
+
+**Geschweisstes und gewalztes I lesen dieselbe Elementliste**, und bei `r = 0`
+tragen alle fuenfzehn Punkte dieselben Zahlen bis aufs letzte Bit — seit
+ADR 0053 auch der Schwerpunkt.
 
 Wo die Stellen stehen: `stress-points/open-stations.ts` (I und T),
-`stress-points/hollow-stations.ts` (Kasten). **Beide Idealisierungen lesen
-dieselbe Liste** — die gemeinsame Nummerierung ist Bauart, keine Absprache.
+`stress-points/hollow-stations.ts` (Kasten). Sie standen einmal fuer **beide**
+Idealisierungen; seit ADR 0057 hat die Liste nur noch einen Leser.
 
-Die Punkte **liegen**, wo die Regel sie hinsetzt; **welche Werte** sie tragen,
+Die Punkte **liegen**, wo die Regel sie hinsetzt; **ob** es sie gibt,
 entscheidet die Idealisierung — dieselbe Angabe, die auch κ steuert:
 
 | Form | `solid` | `thin-walled` |
 | --- | --- | --- |
-| `rectangle` | Umrissmodell | — (traegt kein `idealisation`) |
-| `i-symmetric` | Umrissmodell | **Wandmodell** |
-| `t-section` | Umrissmodell | **Wandmodell** |
-| `hollow-rectangle` | Umrissmodell | **Wandmodell** |
+| `rectangle` | `undefined` | — (traegt kein `idealisation`) |
+| `i-symmetric` | `undefined` | **Wandmodell** |
+| `t-section` | `undefined` | **Wandmodell** |
+| `hollow-rectangle` | `undefined` | **Wandmodell** |
 
-`solid` behaelt das Umrissmodell, und das ist keine Uebergangsloesung: der
-Schnitt geht quer durch die volle Figur, und die Rechteckparabel faellt genau
-daraus.
+**`solid` hat keine Spannungspunkte, und das ist keine Luecke, sondern die
+Aussage** ([ADR 0057](../../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md)):
+`t` und `S` sind der Nenner eines SCHNITTMODELLS, und ein Vollquerschnitt hat
+keins. Bis dahin stand hier das **Umrissmodell** — waagerechte Schnitte quer
+durch die volle Figur, Grashof —, und es rechnete richtig im Rahmen seiner
+Annahmen. Die Annahmen sind das Problem: die parametrische Eingabe ist nur eine
+bequemere Schreibweise fuer eine gezeichnete Figur, und die gezeichnete
+Vollfigur antwortet mit der FE. Zwei Wege zu derselben Figur, die verschiedene
+Zahlen liefern, waeren zwei Maschinen fuer eine Frage.
 
-**Grashof traegt dabei ZWEI Naeherungen, nicht eine**, und das gehoert an diese
-Stelle, seit es daneben eine exakte Maschine gibt (ADR 0045/0047): er ist
+**Grashof traegt dabei ZWEI Naeherungen, nicht eine** (ADR 0045/0047): er ist
 ν-blind, UND er setzt die Schubspannung ueber die Schnittbreite konstant
-(`τ = Q·S/(I·t)`). Beim Rechteck ist das fast wahr — FE und Grashof liegen 0,08 %
-auseinander. Am Uebergang Gurt/Steg eines T springt `t` um `bf/bw`, und dort ist
-es das Hundertfache: **+11 % bis +134 %**, gemessen in
+(`τ = Q·S/(I·t)`). Am Uebergang Gurt/Steg eines T springt `t` um `bf/bw`, und
+dort schlaegt das durch: **κ liegt +11 % bis +134 % ueber der FE**, gemessen an
+vier T-Figuren in
 [`docs/messungen/t-querschnitt-grashof-gegen-fe.md`](../../docs/messungen/t-querschnitt-grashof-gegen-fe.md),
-und immer auf der steifen Seite. Die zweite Naeherung ist die groessere.
+und immer auf der steifen Seite. Beim Rechteck sind es 0,08 %.
 
-Im Wandmodell wechseln nur `t` und `S` — die Koordinaten und die Nummern bleiben
-Ziffer fuer Ziffer dieselben. Am Gurt heisst das `t = tf` statt `t = b`: der
-Schubfluss laeuft **laengs** der Wand, die senkrechte Komponente durch den ganzen
-Gurt bedeutet dort nichts.
+**κ bleibt trotzdem bei Grashof**, und die Luecke bleibt offen
+(`packages/TODO.md`). Die beiden Groessen laufen hier auseinander, weil sie
+verschieden dringend sind: eine Schubsteifigkeit MUSS der Balken haben — sie
+wegzulassen hiesse schubstarr, also ein anderes Modell —, ein Spannungspunkt
+muss nicht existieren, und `undefined` ist eine Antwort, die die Aufrufseite
+seit jeher traegt. Dazu ist κ ein Energiemittel ueber den ganzen Querschnitt,
+der Spannungspunkt dagegen eine ORTLICHE Behauptung, und zwar genau dort, wo die
+Annahme „τ konstant ueber die Breite" am haertesten scheitert.
+
+Im Wandmodell tragen die Punkte `t` und `S` aus der Wandabwicklung. Am Gurt
+heisst das `t = tf` statt `t = b`: der Schubfluss laeuft **laengs** der Wand,
+die senkrechte Komponente durch den ganzen Gurt bedeutet dort nichts.
 
 Der Punkt im Steg unter dem Gurt traegt im Wandmodell **genau den Gurt** — nicht
 mehr. Den Stegweg bis dorthin zu verfolgen zaehlte das Stueck zwischen
 Gurtmittellinie und Gurtunterkante ein zweites Mal; das ist dieselbe Ecklücke,
-die beim Kasten `t³/8` heisst (ADR 0051). Im Umrissmodell faellt derselbe Punkt
-anders, aber ebenso richtig: `widthAt` liefert an der Sprungstelle die
-KLEINERE Breite.
+die beim Kasten `t³/8` heisst (ADR 0051).
 
 Was die Regel erledigt: beim **T-Querschnitt mit breitem Gurt** kann die
 Nulllinie *im Gurt* liegen (`bf=2,0 / hf=0,2 / bw=0,25 / h=0,5` → `zs = 0,1395`
-bei `hf = 0,2`). „Schwerpunkt" trifft das ohne Sonderfall und liefert dort
-kompakt `t = bf`; „Mitte Steg" haette den Punkt an die falsche Stelle gesetzt.
-(Im Wandmodell ist der Gurt eine Linie, es gibt dort also keinen waagerechten
-Schnitt durch ihn: der Punkt sitzt am Steg und traegt `t = bw`. `zs > hf/2` gilt
-immer, solange es unter dem Gurt einen Steg gibt — der Fall braucht auch dort
-keinen Sonderfall.) Und beim **Rechteck** haben die vier Ecken allein ueberall
-`S = 0`; das Maximum `b·h²/8` sitzt auf halber Hoehe.
+bei `hf = 0,2`). „Schwerpunkt" trifft das ohne Sonderfall; „Mitte Steg" haette
+den Punkt an die falsche Stelle gesetzt. Der Punkt sitzt dort am Steg und
+traegt `t = bw`, denn im Wandmodell ist der Gurt eine Linie — einen waagerechten
+Schnitt durch ihn gibt es nicht. `zs > hf/2` gilt immer, solange es unter dem
+Gurt ueberhaupt einen Steg gibt.
 
-Dass das Walzprofil bei den 13 Punkten bleibt und die Gurtunterseiten-Ecken auslaesst,
-ist eine **begruendete Ausnahme**: bei homogenem Querschnitt koennen sie nie
-massgebend werden (gleiches `y`, kleineres `|z|` als die Gurtspitze darueber),
-und die Nummerierung ist gedruckt. Geschweisstes I (15) und gewalztes IPE (13)
-lesen sich damit bewusst verschieden — es sind zwei Formen.
+Dass beide I-Vorlagen die Gurtunterseiten-Ecken auslassen, ist eine
+**begruendete Ausnahme**: bei homogenem Querschnitt koennen sie nie massgebend
+werden (gleiches `y`, kleineres `|z|` als die Gurtspitze darueber).
 
-**Die Nummerierung ist ein veroeffentlichter Vertrag.** Der gedruckte Ausdruck fuehrt „S-Punkt
-Nr. 1…13" (1–5 oberer Gurt von links, 6–10 unterer, 11/12 Steganfang, 13
-Schwerpunkt). Wir uebernehmen sie; ein Test haelt fest, welche Nummer wo sitzt,
-bevor der erste Bericht sie druckt.
+**Die Nummerierung faellt aus der Laufreihenfolge, und sie ist kein Vertrag
+mehr** (ADR 0059). Bis dahin war sie einer: der gedruckte Ausdruck fuehrt
+„S-Punkt Nr. 1…13" (1–5 oberer Gurt von links, 6–10 unterer, 11/12 Steganfang,
+13 Schwerpunkt), und beide I-Vorlagen uebernahmen sie unveraendert. Seit der
+Knoten zwei Punkte traegt, geht das nicht mehr; die Zuordnung
+`gedruckte Nr -> unsere Nr` steht als 13-zeilige Tabelle im Test.
+
+`nr` bleibt die **Identitaet** eines Punktes — eindeutig je Liste, Grundlage
+der Symbol-Id im Viewer und des `data-nr` im Demo. Was sie nicht mehr ist: eine
+Absprache mit einem Dokument ausserhalb des Repositories.
 
 `t` ist die **massgebende** Breite: an einer Sprungstelle (Gurtunterkante) gilt
 die **kleinere** der beiden, weil die Schubspannung dort nach oben springt. Die
 groessere zu nehmen hiesse, die Spitze wegzurechnen, um die es an diesem Punkt
 geht.
 
-Zwei Vorzeichenkonventionen, und das ist Absicht: bei den parametrischen Formen
-sind `Sy`/`Sz` das erste Flaechenmoment des Teils **oberhalb** bzw. **links**
-vom Punkt, also durchweg ≤ 0. Beim Walzprofil uebernehmen wir die gedruckte Zaehlweise,
-in der das Vorzeichen die **Umlaufrichtung** des Schubflusses kodiert. Fuer
-`|tau|` ist die Richtung gleichgueltig.
+### Die Vorzeichen: jede Wand ein Element
+
+> **`Sy` und `Sz` sind das erste Flaechenmoment des in `+s` BEREITS
+> DURCHLAUFENEN Teils, und `+s` ist die Tangente, die der Punkt selbst traegt
+> (`ty`, `tz`). Das Vorzeichen ist gerechnet, nicht gesetzt.**
+>
+> **Jede Wand ist ein ELEMENT mit einer eigenen Laufrichtung, und die Richtung
+> ist die des Schubflusses aus einem positiven `Vz`** (ADR 0059). Ein Punkt
+> nennt sein Element (`wall`) und traegt genau einen Wert je Groesse.
+
+Der Grund ist nicht Ordnungsliebe: die Schubspannung im duennwandigen
+Querschnitt ist ein **Schubfluss `q = tau*t` LAENGS der Wand**, also ein Skalar
+bezueglich einer Laufkoordinate. Beide Querkraefte erzeugen einen Fluss laengs
+DERSELBEN Tangente, und deshalb ist ihre Ueberlagerung eine gewoehnliche
+vorzeichenrichtige Addition:
+
+```
+q = -(Vz*Sy/Iy + Vy*Sz/Iz),   tau = q/t,   Richtung = (ty, tz)
+```
+
+Ohne Richtung gaebe es nur zwei Auswege, und beide taugen nicht:
+`sqrt(tau_Vz² + tau_Vy²)` behandelt zwei Komponenten DERSELBEN Richtung als
+orthogonal, `|tau_Vz| + |tau_Vy|` ist eine Schranke statt einer Spannung. Und
+spaetestens mit `Mt` geht es gar nicht mehr: Bredt liefert einen UMLAUFENDEN
+Fluss `q_T = Mt/(2*Am)`, und ob er sich auf einer Wand addiert oder aufhebt,
+steckt ausschliesslich im relativen Vorzeichen
+([ADR 0058](../../docs/adr/0058-the-stress-point-carries-a-wall-tangent.md)).
+
+Die Laufrichtungen stehen in den **Stellenlisten**, nicht in den Vorlagen:
+
+| Element | `+s` |
+| --- | --- |
+| Obergurt links / rechts | `(+1, 0)` / `(-1, 0)` — von der Spitze zum Knoten |
+| Steg | `(0, +1)` |
+| Untergurt links / rechts | `(-1, 0)` / `(+1, 0)` — vom Knoten zur Spitze |
+| Kasten | ein Umlauf; die Reihenfolge der Liste **ist** er (Tangente entgegen der Nummerierung) |
+| Kasten, Aussenecke | die **Winkelhalbierende** — der Umlauf laeuft ueber die Gehrung glatt durch |
+
+Daraus faellt das bekannte Bild: `q = -Vz*Sy/Iy` ergibt beim I Obergurt von
+beiden Spitzen zum Steg, Steg nach unten, Untergurt vom Steg zu den Spitzen;
+beim Kasten Obergurtmitte nach aussen, beide Stege hinunter, Untergurt von den
+Ecken zur Mitte. Zwei **Gleichgewichtsproben** halten es fest: der Steg des I
+traegt 96,9 % von `Vz`, die beiden Gurte 99,9 % von `Vy`, die beiden Stege des
+Kastens zusammen 97,5 % von `Vz`. Der Rest auf 100 % ist der Modellfehler des
+Wandmodells (keine Schubkomponente QUER zur Wand), nicht die Vorzeichenfrage.
+Ein Feld aus Betraegen besteht diese Probe nie.
+
+**Der Verzweigungsknoten.** Am Gurtpunkt auf der Stegachse (I: 3/4 und 9/10,
+T: 3/4) laufen die beiden Gurtfluesse aus `Vz` aufeinander zu. Dort stehen
+deshalb **zwei Punkte**, je einer auf dem linken und dem rechten Gurtelement:
+gleiches `Sy`, entgegengesetztes `Sz`, entgegengesetzte Tangenten (ADR 0059).
+
+Bis dahin stand dort EIN Punkt mit einem Flag (`branched`) und der Anweisung,
+`|q| = |Vz*Sy/Iy| + |Vy*Sz/Iz|` zu bilden. Das ist exakt, solange die beiden
+Aeste `+S` und `-S` sind — also nur bei Spiegelsymmetrie zur `z`-Achse. Bei
+ungleichen Aesten sind es zwei unabhaengige Zahlen mit `S1 + S2 = S_ab`, und
+die Betragsformel am gespeicherten Ast kann den anderen **unterschaetzen**. Die
+drei Vorlagen sind symmetrisch, das Flag war dort also nicht falsch — es trug
+seine Gueltigkeit nur in einer Voraussetzung, die es nicht aussprach. Zwei
+Punkte je Knoten haben dieses Problem in keiner Topologie.
+
+Ein Nachweis nimmt jetzt das **Maximum ueber die beiden Punkte**, und das ist
+ein gewoehnliches Maximum ueber eine Liste ohne Sonderfall.
+
+**Und der gedruckte Ausdruck?** Er ist in beiden Faellen stimmig, und wir
+folgen ihm in beiden. Beim **Kasten** fuehrt er einen einzigen Umlauf; unser
+Feld war bis auf ein GLOBALES Vorzeichen dasselbe, und ein globales Vorzeichen
+ist die Wahl der Laufrichtung. `hollowStations` legt sie so, dass die Referenz
+Zeichen fuer Zeichen stimmt. Beim **gewalzten I** ist die Konvention je
+ELEMENT geschrieben — und mit der Elementorientierung stimmen auch dessen
+dreizehn gedruckte Werte Zeichen fuer Zeichen (ADR 0059).
+
+ADR 0058 hatte dem Katalogblatt noch vorgeworfen, sich zu widersprechen (`Sy`
+von der naechsten freien Spitze, `Sz` durchgehend von links), und wich an drei
+Punkten (**4, 7, 8**) davon ab. Das waren exakt die drei Stellen, deren Element
+anders orientiert ist als das globale `+y`, das die damalige Fassung fuehrte.
+Die BETRAEGE stimmten immer.
 
 ### Was geprueft ist, und eine bekannte Abweichung
 
@@ -955,9 +1058,10 @@ des Packages. Belege:
   Tabelle sich selbst treu ist.
 - Alle 546 Referenzpunkte stimmen auf **0,7 %** — bis auf zwei.
 
-**Punkt 3 und 8** (Gurtmitte) weichen um bis zu **2,8 %** ab, und der Grund ist
-nicht gefunden. Unser Wert ist das erste Flaechenmoment des halben Gurts,
-`b/2 · tf · (h−tf)/2`; dieselbe Formel stimmt an Punkt 2 und 4 auf 0,45 %. Der
+**Die gedruckten Punkte 3 und 8** (Gurtmitte, bei uns 3 und 9) weichen um bis
+zu **2,8 %** ab, und der Grund ist nicht gefunden. Unser Wert ist das erste
+Flaechenmoment des halben Gurts, `b/2 · tf · (h−tf)/2`; dieselbe Formel stimmt
+an den gedruckten Punkten 2 und 4 auf 0,45 %. Der
 Unterschied ist weder ein fester Anteil der Ausrundung noch eine Funktion von
 `r/tf`. Ein Test haelt die Spanne als **Charakterisierung** fest, damit ein
 spaeterer Erklaerungsversuch merkt, wenn er sie aendert.
@@ -982,11 +1086,10 @@ Spannung. An seine Stelle treten die **vier Wandmitten** — genau die Stellen, 
 denen `S` sein Maximum hat, aus demselben Grund, aus dem es beim Vollrechteck
 auf halber Hoehe sitzt. Von den acht Ecken der Umrissfigur stehen die vier
 **aeusseren** als Punkt; die vier inneren stehen als ihre je zwei Projektionen
-auf die Aussenflaechen. Das ist keine Auslassung: die innere Ecke traegt in
-keinem der beiden Modelle einen eigenen Wert (im Umrissmodell liest sie `Sy`
-aus ihrer Hoehe und `Sz` aus ihrer Breite — beide stehen an den Projektionen
-schon; im Wandmodell liegt sie ueberhaupt nicht auf einer Wandflaeche). Der Umlauf steht einmal, in
-`stress-points/hollow-stations.ts`, und beide Vorlagen lesen ihn.
+auf die Aussenflaechen. Das ist keine Auslassung: die innere Ecke liegt
+ueberhaupt nicht auf einer Wandflaeche, und ihre `y`- und `z`-Stelle stehen an
+den Projektionen schon. Der Umlauf steht einmal, in
+`stress-points/hollow-stations.ts`.
 
 **Der Startschnitt kommt aus der Symmetrie, und er ist je Richtung ein
 anderer.** Ein geschlossener Querschnitt hat keinen freien Rand, an dem `S = 0`
@@ -1072,10 +1175,12 @@ durchlaeuft. Wir fuehren die Konvention der parametrischen Formen (Teil oberhalb
 bzw. links, durchweg ≤ 0). Verglichen werden deshalb **Betraege**; ein Test
 haelt fest, an welchen sieben Nummern je Richtung das Referenzmodell spiegelt.
 
-In **Stegmitte fallen die beiden Modelle zusammen**, wo es darauf ankommt: das
-Umrissmodell schneidet beide Stege (`S` doppelt, `t = 2t`), das Wandmodell
-einen (`S` einfach, `t`) — `S/t` und damit τ ist dieselbe Zahl, seit ADR 0051
-sogar exakt dieselbe.
+In **Stegmitte fielen die beiden Modelle zusammen**, wo es darauf ankam: der
+waagerechte Schnitt trifft beide Stege (`S` doppelt, `t = 2t`), das Wandmodell
+fuehrt den Fluss durch einen (`S` einfach, `t`) — `S/t` und damit τ war
+dieselbe Zahl, seit ADR 0051 sogar exakt dieselbe. Der kompakte Zweig ist mit
+ADR 0057 weg; der Befund bleibt als Beleg dafuer stehen, dass die Vorlage die
+Figur richtig getroffen hat.
 
 **Was wir nicht rechnen:** Die Referenz fuehrt drei weitere Spalten —
 die Woelbordinate ω, das Woelbflaechenmoment `Sω` und die **Kernflaeche `A*`**.
@@ -1090,7 +1195,7 @@ enthaelt alle drei Spalten trotzdem, damit die Referenz vollstaendig ist.
 
 Ein geschweisstes I ohne Ausrundung **ist** das gewalzte Profil mit `r = 0`. Die
 duennwandige I-Vorlage erbt damit die Gueltigkeit der 546 validierten Punkte,
-ohne eine neue Fixture zu kosten — und seit ADR 0053 an **allen dreizehn
+ohne eine neue Fixture zu kosten — und seit ADR 0053 an **allen fuenfzehn
 Punkten**, auf Gleitkommarauschen genau, ohne Umrechnungstabelle.
 
 Bis dahin galt es nur an zwoelfen: `rolled-i.ts` fuehrt seinen Steg ueber die
@@ -1138,8 +1243,9 @@ ein Beispiel nicht unbemerkt veraltet. Details in
 ## Domaenensprache
 
 - **Teilflaeche** ist das Stueck konstanter Breite, aus dem die kompakten
-  Schubwege und die kompakten Spannungspunkt-Vorlagen zusammengesetzt sind — im
-  Code `OutlinePart` (`from`/`to`) und `Part` (`extent`). Der Begriff steht so in
+  Schubwege zusammengesetzt sind — im Code `Part` (`extent`). Bis ADR 0057 stand
+  daneben `OutlinePart` (`from`/`to`) fuer die kompakten
+  Spannungspunkt-Vorlagen; die gibt es nicht mehr. Der Begriff steht so in
   der Literatur: „das statische Moment der Teilflaeche mal Abstand
   Teilschwerpunkt bis Gesamtschwerpunkt". Er behauptet **keine Gestalt**, und das
   ist der Punkt — der Gurt eines I ist flach und breit, der Steg hoch und schmal
@@ -1173,17 +1279,19 @@ ein Beispiel nicht unbemerkt veraltet. Details in
   Name ist der der Bredtschen Formel.
 - **Umrissmodell** und **Wandmodell** sind die beiden Antworten auf „wie fliesst
   der Schub", und `idealisation` waehlt zwischen ihnen. Sie unterscheiden sich in
-  der **Figur**, die den Schub traegt: das **Umrissmodell**
-  (`stress-points/outline.ts`) schneidet quer durch die volle Umrissfigur, das
-  **Wandmodell** (`stress-points/thin.ts`) laesst den Schubfluss laengs der
-  Wandmittellinien laufen. Beide sind **Modelle**, keine Verfahrensnamen und
-  keine Maschinen.
+  der **Figur**, die den Schub traegt: das **Umrissmodell** schneidet quer durch
+  die volle Umrissfigur, das **Wandmodell** (`stress-points/thin.ts`) laesst den
+  Schubfluss laengs der Wandmittellinien laufen. Beide sind **Modelle**, keine
+  Verfahrensnamen und keine Maschinen.
 
-  **Neu ist, dass das Umrissmodell ZWEI MASCHINEN hat**: Grashof als Naeherung
-  (`calculation/shear.ts`, fuer die parametrische Form) und die FE als exakte Rechnung
-  (`@baustatik/cross-section-fe`, fuer die gezeichnete Figur). Dieselbe Frage,
-  zwei Antworten — eine bekannte, offene Luecke, gemessen und in
-  `packages/TODO.md` verzeichnet (ADR 0045/0047).
+  **Das Umrissmodell hat ZWEI MASCHINEN**: Grashof als Naeherung
+  (`calculation/shear.ts`, fuer die parametrische Form) und die FE als exakte
+  Rechnung (`@baustatik/cross-section-fe`, fuer die gezeichnete Figur). Dieselbe
+  Frage, zwei Antworten — eine bekannte, offene Luecke, gemessen und in
+  `packages/TODO.md` verzeichnet (ADR 0045/0047). **Bei den Spannungspunkten ist
+  sie seit ADR 0057 geschlossen**, indem die Naeherung dort gar nichts mehr
+  liefert; fuer κ steht sie weiter offen. Ein `stress-points/outline.ts` gibt es
+  deshalb nicht mehr.
 - **`FESectionValues`** ist der FE-Anteil des Satzes: `It`, der Schubmittelpunkt
   und κ als Koeffizientenpaar. **KEINE Materialzahl, KEIN ν** —
   `1/κ = d0 + d2·m²` mit `m = ν/(1+ν)`, und ν setzt allein
