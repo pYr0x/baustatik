@@ -10,7 +10,7 @@ positiven `Vz`. `Sy` und `Sz` sind das erste Flächenmoment des auf DIESEM
 Element bereits durchlaufenen Teils. Am Gurtpunkt auf der Stegachse stehen
 deshalb ZWEI Punkte: gleicher Ort, gleiches `t`, verschiedenes Element, gleiches
 `Sy`, entgegengesetztes `Sz`. Siehe
-[ADR 0059](../docs/adr/0059-the-branch-node-carries-two-stress-points.md).
+[ADR 0059](../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md).
 
 **Breaking:**
 

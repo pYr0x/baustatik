@@ -36,7 +36,7 @@ import { type StressPoint, stressPoint } from './types';
  * fällt in mm³ an; `stressPoint` macht cm³ daraus.
  *
  * VORZEICHEN: JEDE WAND IST EIN ELEMENT
- * ([ADR 0059](../../../../docs/adr/0059-the-branch-node-carries-two-stress-points.md)),
+ * ([ADR 0059](../../../../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md)),
  * orientiert in Richtung des Schubflusses aus einem positiven `Vz`. `Sy` und
  * `Sz` sind das erste Flächenmoment des auf DIESEM Element bereits
  * durchlaufenen Teils. Das Vorzeichen ist damit gerechnet und nicht gesetzt —

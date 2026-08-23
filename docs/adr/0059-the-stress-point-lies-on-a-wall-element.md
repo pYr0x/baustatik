@@ -1,15 +1,17 @@
-# The branch node carries two stress points
+# The stress point lies on a wall element
 
 You look this one up when the I-section suddenly has 15 points instead of 13,
-when a stress point number no longer lines up with the printed catalogue sheet,
-or when you go looking for the `branched` flag and cannot find it.
+when two points come back with the same coordinate, when a stress point number
+no longer lines up with the printed catalogue sheet, or when you go looking for
+the `branched` flag and cannot find it.
 
 > **A stress point lies on a WALL ELEMENT, not on a cross-section. The point
-> carries the id of its element (`wall`), and every point carries exactly ONE
-> value of `Sy` and one of `Sz`. Where two elements meet at a branch node, the
-> node carries TWO points — same coordinate, same `t`, different element,
-> opposite tangents. The flag `branched` is gone; there is nothing left for it
-> to say.**
+> carries the id of its element (`wall`), it carries that element's tangent, and
+> it carries exactly ONE value of `Sy` and one of `Sz`. A location therefore
+> carries **one point per element that reaches it** — one along a wall, two at
+> the branch node of the I and the T, one at the box's outer corner where the
+> mitre joins two walls into a single circuit. The flag `branched` is gone;
+> there is nothing left for it to say.**
 
 Amends [ADR 0058](0058-the-stress-point-carries-a-wall-tangent.md) in two
 places. Its central statement — the point carries a tangent, and the sign is
@@ -67,7 +69,9 @@ then UNDERSTATE the other one.
 
 The three templates are symmetric, so the flag is not wrong today. But it
 carries its validity in a precondition it never states and no reader can check.
-Two points per node have that problem in no topology at all.
+One point per element has that problem in no topology at all — not at a
+three-armed node, not with unequal branches, not on a figure nobody has drawn
+yet.
 
 ## Where the two-valuedness went
 
@@ -105,8 +109,11 @@ a special case that had already stopped being one.
 - The magnitudes. All 546 reference values are untouched.
 - The tangent, and everything ADR 0058 built on it: `q = −(Vz·Sy/Iy +
   Vy·Sz/Iz)`, `τ = q/t`, direction `(ty, tz)`, and the place `Mt` will go.
-- The box. It has no branch node — its outer corner joins TWO walls and is
-  single-valued, the mitre being one more element in a closed circuit.
+- The box, and it is the rule's own test case rather than an exception to it.
+  Its outer corner joins two walls, so one might expect two points there — but
+  the mitre is itself an element, it is the only one that reaches that
+  coordinate, and the circuit runs through it smoothly. One element, one point.
+  Sixteen points, unchanged.
 - The equilibrium checks. They now project onto the global axes (`q·ty`, `q·tz`)
   instead of summing wall by wall, which is more general and covers the mixed
   directions; the known bounds are unchanged (96,9 % of `Vz` through the I web,
@@ -119,7 +126,7 @@ a special case that had already stopped being one.
 - `StressPoint` gains `wall: string` and loses `branched`. `WallDirection.branched`
   and `BRANCH_ALONG_Y` go with it; `AGAINST_Y` and `AGAINST_Z` come in.
 - `stressPoint()` takes the wall id as its second argument.
-- Readers that draw the points get two markers at one location and should draw
-  the location once — the viewer deduplicates by coordinate.
+- Readers that draw the points can now get more than one marker at a location
+  and should draw the location once — the viewer deduplicates by coordinate.
 - `@baustatik/cross-section-stress` (ADR 0054) needs no `branched` in
   `StressAtPoint`, and its `tau` may carry an honest sign.

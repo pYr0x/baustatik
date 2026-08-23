@@ -881,7 +881,7 @@ unter dem Gurt, wo `tau` um `tf/tw` springt.
 
 **Der Verzweigungsknoten traegt ZWEI Punkte** — gleicher Ort, gleiches `t`,
 verschiedenes Wandelement
-([ADR 0059](../../docs/adr/0059-the-branch-node-carries-two-stress-points.md)).
+([ADR 0059](../../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md)).
 Deshalb sind es beim I fuenfzehn und beim T zehn. Ein Punkt weiss, auf welchem
 Element er liegt (`wall`), und traegt genau EINEN Wert je Groesse; das Flag
 `branched` ist damit ersatzlos entfallen.

@@ -1,9 +1,11 @@
 # The stress point carries a wall tangent
 
-> **Amended by [ADR 0059](0059-the-branch-node-carries-two-stress-points.md) in
-> two places.** The tangent — this ADR's central statement — stands. What does
-> not: the `branched` flag is gone (the branch node carries two points, one per
-> wall element), and the claim below that the rolled profile's printed sheet
+> **Amended by [ADR 0059](0059-the-stress-point-lies-on-a-wall-element.md) in
+> two places.** The tangent — this ADR's central statement — stands, and that
+> ADR gives it an owner: the point lies on a wall element and carries THAT
+> element's tangent. What does not stand: the `branched` flag is gone (a
+> location carries one point per element reaching it, so the flange node carries
+> two), and the claim below that the rolled profile's printed sheet
 > contradicts itself is **wrong**. It is coherent; it is written per element
 > rather than per cross-section, and the package now follows it sign for sign
 > at all 13 printed values, including points 4, 7 and 8. Read that ADR first if

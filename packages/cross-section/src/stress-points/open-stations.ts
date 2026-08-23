@@ -9,7 +9,7 @@ import { AGAINST_Y, ALONG_Y, ALONG_Z, type WallDirection } from './types';
  * seither gar keine Spannungspunkte mehr, und die Liste hat nur noch einen
  * Leser.
  *
- * SEIT [ADR 0059](../../../../docs/adr/0059-the-branch-node-carries-two-stress-points.md)
+ * SEIT [ADR 0059](../../../../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md)
  * IST SIE EINE ELEMENTLISTE. Jede Wand ist ein Element mit einer eigenen
  * Laufrichtung, und der Verzweigungsknoten steht ZWEIMAL darin: einmal je
  * Element, gleicher Ort, entgegengesetzte Tangente. Die Nummerierung faellt

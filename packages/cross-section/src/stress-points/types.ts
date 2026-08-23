@@ -16,7 +16,7 @@ import { MM3_TO_CM3 } from '../calculation/units';
  * ([ADR 0057](../../../../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md)).
  *
  * EIN PUNKT LIEGT AUF EINEM WANDELEMENT, nicht auf einem Querschnitt
- * ([ADR 0059](../../../../docs/adr/0059-the-branch-node-carries-two-stress-points.md)).
+ * ([ADR 0059](../../../../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md)).
  * Am Verzweigungsknoten stehen deshalb ZWEI Punkte mit derselben Koordinate und
  * verschiedener Wand — jeder mit genau EINEM Wert je Groesse. Bis dahin trug
  * ein einzelner Punkt dort ein Flag `branched` und einen von zwei moeglichen

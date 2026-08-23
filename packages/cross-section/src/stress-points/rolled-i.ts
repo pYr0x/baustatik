@@ -13,7 +13,7 @@ import {
  * Der gedruckte Ausdruck fuehrt "S-Punkt Nr. 1…13": 1–5 oberer Flansch von
  * links nach rechts, 6–10 unterer ebenso, 11/12 Steganfang oben/unten, 13
  * Schwerpunkt. Bis
- * [ADR 0059](../../../../docs/adr/0059-the-branch-node-carries-two-stress-points.md)
+ * [ADR 0059](../../../../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md)
  * war diese Nummerierung ein VEROEFFENTLICHTER VERTRAG. Sie ist es nicht mehr:
  * jeder der beiden Verzweigungsknoten traegt jetzt zwei Punkte, einen je
  * Gurtelement. Die Zuordnung `gedruckte Nr -> unsere Nr` steht als Tabelle im

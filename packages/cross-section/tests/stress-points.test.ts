@@ -29,7 +29,7 @@ const reference = (
 /**
  * DIE ZUORDNUNGSTABELLE — gedruckte Nummer (1…13) auf unsere (1…15).
  *
- * Seit [ADR 0059](../../../docs/adr/0059-the-branch-node-carries-two-stress-points.md)
+ * Seit [ADR 0059](../../../docs/adr/0059-the-stress-point-lies-on-a-wall-element.md)
  * traegt jeder Verzweigungsknoten ZWEI Punkte, einen je Gurtelement. Die
  * Nummerierung faellt damit aus der Laufreihenfolge und ist kein Vertrag mehr
  * gegenueber dem Katalogblatt. Die Zuordnung ist es, was von diesem Vertrag
