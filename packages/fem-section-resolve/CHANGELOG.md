@@ -1,5 +1,14 @@
 # @baustatik/fem-section-resolve
 
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies [6c215da]
+- Updated dependencies [6c215da]
+- Updated dependencies [6c215da]
+  - @baustatik/cross-section@0.0.9
+
 ## 0.0.8
 
 ### Patch Changes
