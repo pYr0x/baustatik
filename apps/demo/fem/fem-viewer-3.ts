@@ -364,7 +364,10 @@ const solver = buildSolver();
 //     nicht je Stab. Der Waechter ist `feValues` im Satz selbst — kein
 //     Schluessel, kein Zwischenspeicher.
 //   - Geschrieben wird durch eine Store-Aktion, und sie ERSETZT.
-//   - Das Netz geht NICHT in den Store. Es liegt daneben.
+//   - Das Netz geht NICHT in den Store. Es liegt daneben — und seit ADR 0061
+//     liegen die geloesten Felder mit ihm da. Diese Seite ruehrt sie nicht an:
+//     eine Spannung braucht eine Schnittgroesse, und die kommt erst aus dem
+//     Solver.
 //   - Der Schritt kennt KEIN Material. Derselbe Querschnitt darf an einem
 //     Stahl- und einem Betonstab haengen — die Frage „unter welchem ν wurde das
 //     gerechnet" kann gar nicht gestellt werden.
@@ -376,8 +379,9 @@ async function resolveFESections(): Promise<void> {
     if (cs.geometry.feValues !== undefined) continue; // schon gerechnet
     const computation = await computeFESection(cs.geometry, store.sectionPolicy);
     store.setFEValues(cs.id, computation.state);
-    // NARROWT AUF `kind` (ADR 0061): ohne Netz gibt es nichts zu zeichnen.
-    if (computation.kind === "solved") mesh = computation.mesh; // transient
+    // NARROWT AUF `kind` (ADR 0061): der `'refused'`-Arm traegt kein Netz, und
+    // dann steht hier auch keines — transient, nur zum Zeichnen.
+    mesh = computation.kind === "solved" ? computation.mesh : undefined;
   }
 }
 
