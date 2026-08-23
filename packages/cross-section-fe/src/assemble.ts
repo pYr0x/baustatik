@@ -50,8 +50,14 @@ export type StiffnessSystem = {
   readonly values: Float64Array;
 };
 
-/** Ein gedrehtes Bezugssystem samt beider rechten Seiten des Schubproblems. */
-export type Frame = {
+/**
+ * Ein gedrehtes Bezugssystem — Koordinaten und `∫z²dA`, sonst nichts.
+ *
+ * DAS IST DER ANTEIL, DEN DIE SPANNUNGSRUECKRECHNUNG BRAUCHT (ADR 0061). Sie
+ * wertet die geloesten Felder in DEREN Rahmen aus und hat mit den Randintegralen
+ * nichts zu tun.
+ */
+export type RotatedFrame = {
   /** Drehwinkel gegen das Eingabesystem [rad]. */
   readonly theta: number;
   /** Gedrehte, schwerpunktsbezogene Knotenkoordinaten. */
@@ -59,6 +65,10 @@ export type Frame = {
   readonly z: Float64Array;
   /** `∫z²dA` IN DIESEM System. */
   readonly Iy: number;
+};
+
+/** Ein gedrehtes Bezugssystem samt beider rechten Seiten des Schubproblems. */
+export type Frame = RotatedFrame & {
   /** `∮ −z²/(2·Iy)·N_i dy` — die rechte Seite des `m⁰`-Feldes. */
   readonly rhsPsi0: Float64Array;
   /** `∮ +y²/(2·Iy)·N_i dy` — die rechte Seite des `m¹`-Feldes. */
@@ -165,15 +175,16 @@ export function principalRotation(Iy: number, Iz: number, Iyz: number): number {
 }
 
 /**
- * Ein gedrehtes Bezugssystem mit beiden rechten Seiten.
+ * Gedrehte, schwerpunktsbezogene Koordinaten und `∫z²dA` in diesem System.
  *
  * `theta` dreht das SYSTEM: `y' = y·cosθ + z·sinθ`, `z' = −y·sinθ + z·cosθ`.
+ *
+ * EIN ROTATIONSCODE, ZWEI AUFRUFER (ADR 0061): `createFrame` fuer die
+ * Assemblierung, `recoverStresses` fuer die Auswertung der geloesten Felder.
+ * Staende die Drehung an zwei Stellen, duerfte sie an genau einer davon falsch
+ * sein — und die Spannung saehe deswegen nur schief aus, nicht falsch.
  */
-export function createFrame(
-  section: FESection,
-  system: StiffnessSystem,
-  theta: number,
-): Frame {
+export function rotateFrame(section: FESection, theta: number): RotatedFrame {
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
   const y = new Float64Array(section.nodeCount);
@@ -194,6 +205,17 @@ export function createFrame(
   if (!(Number.isFinite(Iy) && Iy > 0)) {
     throw new Error('Das Traegheitsmoment der Lastrichtung ist nicht positiv.');
   }
+
+  return { theta, y, z, Iy };
+}
+
+/** Ein gedrehtes Bezugssystem mit beiden rechten Seiten. */
+export function createFrame(
+  section: FESection,
+  system: StiffnessSystem,
+  theta: number,
+): Frame {
+  const { y, z, Iy } = rotateFrame(section, theta);
 
   const psi0 = shearLoad(
     section,

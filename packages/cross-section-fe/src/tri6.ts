@@ -20,6 +20,11 @@
  *   `It` und die Trefftz-Projektion. Die Schubenergie traegt ueber `z²/(2·Iy)`
  *   einen Integranden vom Grad 4 — das ist die schaerfste Forderung.
  *
+ * DANEBEN STEHEN ZWEI ABTASTREGELN UND KEINE QUADRATUREN: `TRIANGLE_NODES` und
+ * `TRIANGLE_CENTROID` sind Orte, an denen die Spannungsrueckrechnung das
+ * geloeste Feld abliest (ADR 0061). Ihre Gewichte tragen den Vertrag „Summe 1"
+ * beziehungsweise die Elementflaeche — integriert wird mit ihnen nicht.
+ *
  * ISOPARAMETRISCH GERECHNET, obwohl die Jacobi-Matrix bei geraden Kanten
  * konstant ist: der Mehraufwand ist ein 2x2-Inverses je Quadraturpunkt, und
  * dafuer haengt keine Zahl an der Annahme, dass Triangle seine Mittelknoten
@@ -66,6 +71,44 @@ export const TRIANGLE_6: readonly TrianglePoint[] = (() => {
     { L: [b2, b2, a2] as const, w: w2 },
   ]);
 })();
+
+/**
+ * Die SECHS KNOTEN des Elements als Abtastregel — keine Quadratur (ADR 0061).
+ *
+ * Die Reihenfolge ist die des Elements, `[v0, v1, v2, m01, m12, m20]`, damit
+ * `elementPoints(TRIANGLE_NODES, …)[i]` zum `i`-ten Knoten aus `elementNodes`
+ * gehoert. Genau diese Zuordnung ist der Grund fuer die Regel: die Knotenwerte
+ * der Spannung entstehen als flaechengewichtetes Mittel der ELEMENTWERTE AN
+ * DIESEM KNOTEN, und der groesste Abstand dazwischen ist die Sprungdiagnose.
+ *
+ * DIE GEWICHTE STEHEN NUR DA, DAMIT DER VERTRAG „SUMME 1" HAELT; benutzt werden
+ * sie nicht. Als Quadratur waere die Regel unbrauchbar — sie taeuscht Grad 1
+ * vor, und der Integrand eines Randknotens liegt genau dort, wo `∇ψ` am
+ * schlechtesten ist.
+ */
+export const TRIANGLE_NODES: readonly TrianglePoint[] = Object.freeze([
+  { L: [1, 0, 0], w: 1 / 6 },
+  { L: [0, 1, 0], w: 1 / 6 },
+  { L: [0, 0, 1], w: 1 / 6 },
+  { L: [1 / 2, 1 / 2, 0], w: 1 / 6 },
+  { L: [0, 1 / 2, 1 / 2], w: 1 / 6 },
+  { L: [1 / 2, 0, 1 / 2], w: 1 / 6 },
+] as const);
+
+/**
+ * Der Elementschwerpunkt als einziger Punkt.
+ *
+ * Mit `w = 1` ist sein `weight` genau `detJ/2`, also die ELEMENTFLAECHE — und
+ * das ist zugleich das Gewicht der Knotenmittelung. Ein Ort und ein Gewicht aus
+ * einem Aufruf.
+ *
+ * ALS QUADRATUR IST DAS DIE EINPUNKTREGEL, exakt bis Grad 1. Sie wird hier
+ * nicht integriert, sondern ABGETASTET: ein Wert je Dreieck, ungeglaettet
+ * (ADR 0061).
+ */
+export const TRIANGLE_CENTROID: readonly TrianglePoint[] = Object.freeze([
+  { L: [1 / 3, 1 / 3, 1 / 3], w: 1 },
+] as const);
 
 /**
  * Drei-Punkt-Gauss auf `[-1, 1]`, exakt bis Grad 5.

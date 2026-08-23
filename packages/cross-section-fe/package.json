@@ -29,6 +29,7 @@
     "@baustatik/cross-section": "workspace:*",
     "@baustatik/errors": "workspace:*",
     "@baustatik/mesh-2d-wasm": "workspace:*",
+    "@baustatik/section-forces": "workspace:*",
     "@baustatik/sparse-solver-wasm": "workspace:*",
     "@baustatik/units": "workspace:*"
   },

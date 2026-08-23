@@ -20,6 +20,22 @@
  * fem-section-resolve             setzt ν des Stabmaterials ein → κ → GAs
  * ```
  *
+ * ZWEI TUEREN, UND DIE ZWEITE IST REIN UND SYNCHRON. Neben dem Satz-Anteil
+ * kommen aus dem `'solved'`-Arm das Netz und die geloesten FELDER heraus, beide
+ * transient (ADR 0039); `recoverStresses(fields, forces, nu)` rechnet daraus σ,
+ * τ und σv an Knoten und Elementen
+ * ([ADR 0061](../../../docs/adr/0061-the-fe-stress-is-a-vector-at-a-node.md)).
+ *
+ * ```text
+ * FEComputation { kind: 'solved', state, mesh, fields, diagnostics }
+ *                                              │
+ *                                              ▼
+ *              recoverStresses(fields, forces, nu)   rein, synchron
+ *                                              │
+ *                                              ▼
+ *                                        FEStressField
+ * ```
+ *
  * EINE GEOMETRIE HEREIN, EIN ERGEBNIS HERAUS — KEINE ID. Die Tuer kennt weder
  * `CrossSection.id` noch einen Zwischenspeicher und fuehrt keinen Schluessel:
  * was sie bekommt, rechnet sie. Dass je distinktem Querschnitt genau einmal
@@ -46,42 +62,71 @@ import {
   type SectionPolicy,
 } from '@baustatik/cross-section';
 import type { Mesh2DResult } from '@baustatik/mesh-2d-wasm';
-import { computeFromMesh, type FEDiagnostics } from './compute';
+import { computeFromMesh, type FEDiagnostics, type FEFields } from './compute';
 import { meshPlan } from './mesh';
 import { prepareSection } from './prepare';
 import { getMesher, getSolver } from './runtime';
 
-export type { FEDiagnostics, FEResult, SparseSolve } from './compute';
+export type { FEDiagnostics, FEFields, FEResult, SparseSolve } from './compute';
 export { computeFromMesh } from './compute';
+export { InvalidPoissonRatioError } from './errors';
 export { type MeshPlan, type MeshRefusal, meshPlan } from './mesh';
-export { type BoundaryLoop, type FESection, prepareSection } from './prepare';
+export {
+  type BoundaryEdge,
+  type BoundaryLoop,
+  type FESection,
+  prepareSection,
+} from './prepare';
+export {
+  type FEStressDiagnostics,
+  type FEStressField,
+  recoverStresses,
+  type StressAtElement,
+  type StressAtNode,
+} from './stress';
 
 /**
- * Was die async Tuer zurueckgibt: der Satz-Anteil und das Netz DANEBEN.
+ * Was die async Tuer zurueckgibt: der Satz-Anteil und — wenn gerechnet wurde —
+ * Netz, Felder und Diagnosen DANEBEN.
  *
  * DAS NETZ KOMMT HERAUS, STATT DRINNEN ZU BLEIBEN. Der Alternativentwurf waere,
  * es wegzuwerfen und die Anwendung zum Zeichnen selbst vernetzen zu lassen —
- * dann zeigte das Bild ein anderes Netz als die Zahl.
+ * dann zeigte das Bild ein anderes Netz als die Zahl. Fuer `fields` gilt
+ * dasselbe eine Stufe schaerfer: sie zweimal zu loesen hiesse, dieselbe
+ * Faktorisierung zweimal zu rechnen (ADR 0061).
+ *
+ * NICHT AUF `state.status` DISKRIMINIERT. `fe-section-values.ts` fuehrt im
+ * `unsupported`-Arm ein optionales `It` und begruendet es damit, dass ein
+ * Abbruch NACH dem Vernetzen wieder entstehen kann; eine Union auf `status`
+ * schloesse genau diesen Fall aus. `kind` ist ausserdem die Repo-Konvention und
+ * das Muster, das `MeshPlan` nebenan schon verwendet.
  */
-export type FEComputation = {
-  /** Wandert IN die Geometrie. */
-  readonly state: FESectionState;
-  /**
-   * Das Netz, unter dem gerechnet wurde — TRANSIENT (ADR 0039), gehoert NICHT
-   * in den Satz und wird nicht serialisiert. Es ist da, damit die Anwendung
-   * zeichnen kann, was gerechnet wurde, ohne ein zweites Mal zu vernetzen.
-   * `Mesh2DResult` passt ohne Umformung in `CrossSectionFEMesh` des Viewers.
-   *
-   * Abwesend, wenn vor dem Vernetzen verweigert wurde
-   * (`'disconnected-areas'`).
-   */
-  readonly mesh?: Mesh2DResult;
-  /**
-   * Die Selbstpruefungen des Laufs — Diagnose, kein Vertrag. Abwesend, wenn
-   * nicht gerechnet wurde.
-   */
-  readonly diagnostics?: FEDiagnostics;
-};
+export type FEComputation =
+  | {
+      readonly kind: 'refused';
+      /** Wandert IN die Geometrie. */
+      readonly state: FESectionState;
+    }
+  | {
+      readonly kind: 'solved';
+      /** Wandert IN die Geometrie. */
+      readonly state: FESectionState;
+      /**
+       * Das Netz, unter dem gerechnet wurde — TRANSIENT (ADR 0039), gehoert
+       * NICHT in den Satz und wird nicht serialisiert. Es ist da, damit die
+       * Anwendung zeichnen kann, was gerechnet wurde, ohne ein zweites Mal zu
+       * vernetzen. `Mesh2DResult` passt ohne Umformung in `CrossSectionFEMesh`
+       * des Viewers.
+       */
+      readonly mesh: Mesh2DResult;
+      /**
+       * Die geloesten Felder — TRANSIENT wie das Netz, die Eingabe der zweiten
+       * Tuer `recoverStresses` (ADR 0061).
+       */
+      readonly fields: FEFields;
+      /** Die Selbstpruefungen des Laufs — Diagnose, kein Vertrag. */
+      readonly diagnostics: FEDiagnostics;
+    };
 
 /**
  * Rechnet die FE-Werte einer gezeichneten Geometrie.
@@ -98,7 +143,10 @@ export async function computeFESectionValues(
   const outline = deriveOutline(geometry, policy);
   const plan = meshPlan(outline, policy.FEElements);
   if (plan.kind === 'refused') {
-    return { state: { status: 'unsupported', reason: plan.reason } };
+    return {
+      kind: 'refused',
+      state: { status: 'unsupported', reason: plan.reason },
+    };
   }
 
   const [mesher, solve] = await Promise.all([getMesher(), getSolver()]);
@@ -107,6 +155,7 @@ export async function computeFESectionValues(
   const result = computeFromMesh(section, solve);
 
   return {
+    kind: 'solved',
     state: {
       status: 'computed',
       values: Object.freeze({
@@ -127,6 +176,7 @@ export async function computeFESectionValues(
       fingerprint: Object.freeze({ A: section.A, Iy: section.Iy }),
     },
     mesh,
+    fields: result.fields,
     diagnostics: result.diagnostics,
   };
 }

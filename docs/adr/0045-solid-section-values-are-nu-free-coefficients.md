@@ -270,6 +270,18 @@ formula rather than as a number, and that is the whole trick.
 
 ## ν enters at one place, and only there
 
+> **Amended by [ADR 0061](0061-the-fe-stress-is-a-vector-at-a-node.md) — this
+> section's headline only.** ν now enters at **two** places: here, where
+> geometry meets material, and at the FE stress recovery
+> (`recoverStresses(fields, forces, nu)`), which takes it as a bare number.
+> It has to: τ is affine in `m = ν/(1+ν)` and, unlike κ, is not stored — it is
+> evaluated for a known material and thrown away with the mesh. The claim of
+> this ADR that actually carries survives untouched: **no ν stands in the
+> section values.** `FESectionValues` names no material, no grade and no ν, and
+> `SectionProperties` stays material-free. `recoverStresses` takes no
+> `Material` either — in an elastic recovery on a homogeneous section neither
+> `E` nor `G` appears.
+
 `ElasticModuli` gains `nu?: number`, copied from the catalogue at creation like
 `E` and `G` already are (`STEEL_POISSON`, `CONCRETE_POISSON` exist today).
 `resolveSectionStiffness` evaluates the polynomial:

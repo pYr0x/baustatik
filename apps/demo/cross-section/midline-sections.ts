@@ -16,6 +16,7 @@ import {
     validateSectionProperties,
     type Wall,
 } from '@baustatik/cross-section';
+import type { FEComputation } from '@baustatik/cross-section-fe';
 import {
     createCrossSectionViewer,
     type CrossSectionFEMesh,
@@ -438,8 +439,11 @@ async function runFE(): Promise<void> {
     try {
         const computation = await computeFESection(store.geometry, store.sectionPolicy);
         store.setFEValues(computation.state);
-        mesh = toSceneMesh(computation.mesh);
-        feStatus.textContent = feSummary(computation.state, computation.mesh);
+        // NARROWT AUF `kind` (ADR 0061): der `'refused'`-Arm traegt weder Netz
+        // noch Felder, und das steht seit ADR 0061 im TYP statt in einem `?`.
+        mesh =
+            computation.kind === 'solved' ? toSceneMesh(computation.mesh) : undefined;
+        feStatus.textContent = feSummary(computation);
     } catch (error) {
         mesh = undefined;
         feStatus.textContent = `Fehlgeschlagen: ${
@@ -451,9 +455,19 @@ async function runFE(): Promise<void> {
     }
 }
 
-/** Was der Lauf ergeben hat, in einem Satz. */
-function feSummary(state: FESectionState, computed: CrossSectionFEMesh | undefined): string {
-    const elements = computed === undefined ? 0 : computed.elements.length / 6;
+/**
+ * Was der Lauf ergeben hat, in einem Satz.
+ *
+ * ZWEI ACHSEN, UND SIE FALLEN NICHT ZUSAMMEN: `kind` sagt, ob VERNETZT UND
+ * GELOEST wurde, `state.status`, ob ein SATZ herauskam. Ein Abbruch nach dem
+ * Vernetzen laesst `kind: 'solved'` stehen und traegt trotzdem
+ * `status: 'unsupported'` — genau der Fall, wegen dem die Union nicht auf
+ * `status` diskriminiert (ADR 0061).
+ */
+function feSummary(computation: FEComputation): string {
+    const state = computation.state;
+    const elements =
+        computation.kind === 'solved' ? computation.mesh.elements.length / 6 : 0;
     if (state.status === 'unsupported') {
         // `It` steht hier mit, wie auf der outline-Seite: bei
         // `disconnected-areas` wird vor dem Vernetzen verweigert, also fehlt es
@@ -484,8 +498,7 @@ function feSummary(state: FESectionState, computed: CrossSectionFEMesh | undefin
  * Die Faktoren stehen an der einen Stelle oben (`M_TO_MM`), NICHT als
  * Literal hier.
  */
-function toSceneMesh(mesh: CrossSectionFEMesh | undefined): CrossSectionFEMesh | undefined {
-    if (mesh === undefined) return undefined;
+function toSceneMesh(mesh: CrossSectionFEMesh): CrossSectionFEMesh {
     const points = new Float64Array(mesh.points.length);
     for (let index = 0; index < mesh.points.length; index += 1) {
         points[index] = mesh.points[index]! * M_TO_MM;

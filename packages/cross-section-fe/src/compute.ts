@@ -67,6 +67,57 @@ export type ShearResult = {
   readonly zM: number;
 };
 
+/**
+ * Die geloesten Felder, TRANSIENT — alles, was `recoverStresses` braucht und
+ * sonst niemand (ADR 0061).
+ *
+ * Sie gehoeren so wenig in den Satz wie das Netz (ADR 0039): ein Feld hat die
+ * Groesse des Netzes, und der Satz ist serialisierbar und versioniert
+ * (ADR 0049). Sie fallen heute schon an; `torque` und `torqueSlope` standen bis
+ * hierhin in `ShearEvaluation` und wurden verworfen.
+ *
+ * `FESection` REIST GANZ MIT, obwohl σ und τ `loops` und `isBoundary` nicht
+ * brauchen: die Randdiagnosen brauchen beides, und eine zweite, engere
+ * Sektionsform waere ein zweiter Typ fuer dieselbe Sache. Der Rand ist `O(√n)`.
+ *
+ * DER SCHUBMITTELPUNKT REIST NICHT MIT. Fuer das Momentengleichgewicht ist er
+ * die falsche Zahl — dort zaehlt das rohe WEBER-Moment `torqueZ`/`torqueY` und
+ * nicht die Trefftz-Projektion (ADR 0061).
+ *
+ * `prepareSection` LAEUFT NICHT ZWEIMAL. Nur die fuenf Vektoren
+ * herauszugeben und in der Tuer neu vorzubereiten, gaebe einer reinen,
+ * synchronen Funktion einen werfenden Pfad fuer etwas, das nachweislich schon
+ * durchgelaufen ist.
+ */
+export type FEFields = {
+  /** Das vorbereitete Netz — Koordinaten, `A`, `Iy`, `Iz`, `Iyz` und der Rand. */
+  readonly section: FESection;
+  /**
+   * Drehwinkel in die Hauptachsen [rad] — VERTRAG, nicht Diagnose. Ohne ihn
+   * sind `psi0Z` … `psi1Y` nicht interpretierbar.
+   */
+  readonly theta: number;
+  /** Die Verwoelbung, DREHINVARIANT und im Eingabesystem. */
+  readonly omega: Float64Array;
+  /** Die vier Schubfelder, je Rahmen `ψ₀` und `ψ₁` (ADR 0048). */
+  readonly psi0Z: Float64Array;
+  readonly psi1Z: Float64Array;
+  readonly psi0Y: Float64Array;
+  readonly psi1Y: Float64Array;
+  /** `It` [m4]. */
+  readonly It: number;
+  /**
+   * `[torque, torqueSlope]` je Rahmen — das WEBER-Moment des EINHEITSFELDES,
+   * `∫(y·τ_z − z·τ_y) dA`, affin in `m`.
+   *
+   * NICHT `yM`/`zM`: die tragen die Trefftz-Projektion ab und schliessen das
+   * Momentengleichgewicht der Rueckrechnung um genau diesen Betrag falsch,
+   * ohne dass etwas wirft (ADR 0061).
+   */
+  readonly torqueZ: readonly [number, number];
+  readonly torqueY: readonly [number, number];
+};
+
 /** Was aus der Rechnung faellt, in den Einheiten des Netzes. */
 export type FEResult = {
   /**
@@ -75,6 +126,7 @@ export type FEResult = {
    */
   readonly shear: ShearResult;
   readonly It: number;
+  readonly fields: FEFields;
   readonly diagnostics: FEDiagnostics;
 };
 
@@ -157,8 +209,12 @@ export function computeFromMesh(
     );
 
   const omega = field(0);
-  const resultZ = evaluateShear(section, frameZ, field(1), field(2), omega);
-  const resultY = evaluateShear(section, frameY, field(3), field(4), omega);
+  const psi0Z = field(1);
+  const psi1Z = field(2);
+  const psi0Y = field(3);
+  const psi1Y = field(4);
+  const resultZ = evaluateShear(section, frameZ, psi0Z, psi1Z, omega);
+  const resultY = evaluateShear(section, frameY, psi0Y, psi1Y, omega);
 
   // Der Schubmittelpunkt faellt in den gedrehten Systemen als je EINE
   // Koordinate an und wird hier exakt zurueckgedreht.
@@ -175,6 +231,18 @@ export function computeFromMesh(
       zM: section.zs + (uM * sin + vM * cos),
     },
     It: resultZ.It,
+    fields: {
+      section,
+      theta,
+      omega,
+      psi0Z,
+      psi1Z,
+      psi0Y,
+      psi1Y,
+      It: resultZ.It,
+      torqueZ: [resultZ.torque, resultZ.torqueSlope],
+      torqueY: [resultY.torque, resultY.torqueSlope],
+    },
     diagnostics: {
       theta,
       compatibility: torsion.compatibility,
