@@ -456,17 +456,22 @@ describe('Der Vollquerschnitt traegt gar keine Spannungspunkte', () => {
     });
   }
 
-  it('laesst die Querschnittswerte davon unberuehrt', () => {
-    // Die Idealisierung steuert weiter kappa; nur die Punkte fallen weg. Eine
-    // Schubsteifigkeit MUSS der Balken haben, ein Spannungspunkt muss nicht
-    // existieren.
+  it('laesst die Werte der Umrissfigur davon unberuehrt', () => {
+    // Die Werte der Figur bleiben, was sie waren — sie sind geschlossene
+    // Formel und brauchen keinen Lauf. Was seit
+    // [ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)
+    // NICHT mehr danebensteht, ist kappa: der solide Vollquerschnitt hat
+    // keinen Schubflussweg mehr, und ohne aufgeloesten FE-Block ist er
+    // schubstarr. Bis dahin stand hier 5/6 aus Grashof.
     const cs: CrossSection = {
       kind: 'shape',
       id: 'r',
       shape: { kind: 'rectangle', b: 200, h: 500 },
     };
     const props = sectionProperties(cs);
-    expect(props?.kappaZ).toBeCloseTo(5 / 6, 12);
+    expect(props?.A).toBeCloseTo(0.1, 12);
+    expect(props?.Iy).toBeCloseTo(2.0833333e-3, 9);
+    expect(props?.kappaZ).toBeUndefined();
   });
 
   it('haelt den duennwandigen Zweig offen', () => {

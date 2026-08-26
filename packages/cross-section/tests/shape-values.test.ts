@@ -29,11 +29,16 @@ describe('Rechteck 200 x 500 mm — die Handrechnung', () => {
     expect(rect.zs).toBeCloseTo(0.25, 12);
   });
 
-  it('liefert kappa = 5/6 in beiden Richtungen — GERECHNET, nicht gesetzt', () => {
-    // Der Test, der belegt, dass die Definition stimmt: 5/6 steht nirgends im
-    // Code, es faellt aus `A_s = I^2 / integral (S/t)^2 dA` heraus.
-    expect(rect.kappaY).toBeCloseTo(5 / 6, 10);
-    expect(rect.kappaZ).toBeCloseTo(5 / 6, 10);
+  it('bleibt ohne FE-Block schubstarr — kein Grashof mehr', () => {
+    // Bis [ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)
+    // fiel hier 5/6 aus dem Flaechenschnitt durch die Figur. Das Vollrechteck
+    // ist solid-only, sein kappa kommt jetzt aus derselben FE wie das der
+    // gezeichneten Figur — und ohne aufgeloesten Block gibt es keines.
+    //
+    // DER BEWEIS FUER 5/6 IST NICHT WEG, er steht in `tests/kappa.test.ts` und
+    // prueft `shearArea` unmittelbar.
+    expect(rect.kappaY).toBeUndefined();
+    expect(rect.kappaZ).toBeUndefined();
   });
 });
 
@@ -96,7 +101,9 @@ describe('Plattenbalken — der Fall, der Steiner prueft', () => {
   });
 
   it('haelt die Idealisierung von den Werten fern', () => {
-    // A, Iy, Iz, ys, zs sind IDENTISCH; nur kappa unterscheidet sich.
+    // A, Iy, Iz, ys, zs sind IDENTISCH; nur kappa unterscheidet sich — und
+    // seit ADR 0062 heisst das: der duennwandige Zweig hat eines, der solide
+    // erst mit seinem FE-Block.
     const solid = values({
       kind: 'shape',
       id: 't',
@@ -111,7 +118,8 @@ describe('Plattenbalken — der Fall, der Steiner prueft', () => {
     expect(thin.Iy).toBe(solid.Iy);
     expect(thin.Iz).toBe(solid.Iz);
     expect(thin.zs).toBe(solid.zs);
-    expect(thin.kappaZ).not.toBeCloseTo(solid.kappaZ as number, 2);
+    expect(thin.kappaZ).toBeGreaterThan(0);
+    expect(solid.kappaZ).toBeUndefined();
   });
 
   it('gibt fuer den duennwandigen T praktisch die Stegflaeche als A_s', () => {
@@ -164,6 +172,14 @@ describe('Querprobe Parametrik gegen Katalog', () => {
  *
  * Die Ausdruecke sind zugleich das ORAKEL fuer den gerechneten Wandweg
  * (`tests/wall-path.test.ts`); hier stehen sie gegen die Handrechnung.
+ *
+ * KOMPAKT HEISST `undefined` NICHT MEHR „NIE": seit
+ * [ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)
+ * schreibt die Form sich als Umriss aus, und `It` faellt aus derselben FE wie
+ * bei der gezeichneten Figur. Was diese Saetze pruefen, ist deshalb das
+ * Ergebnis OHNE aufgeloesten FE-Block — der Zustand, in dem eine frisch
+ * eingegebene Form ist. Mit Block steht die Zahl da; das prueft
+ * `cross-section-fe/tests/door.test.ts`, weil es dafuer ein Netz braucht.
  */
 describe('It: geschlossener Ausdruck duennwandig, `undefined` kompakt', () => {
   const It = (cs: CrossSection) => values(cs).It;
@@ -232,6 +248,8 @@ describe('It: geschlossener Ausdruck duennwandig, `undefined` kompakt', () => {
   });
 
   it('das Vollrechteck traegt keins — es ist ein Randwertproblem', () => {
+    // Und ohne FE-Block bleibt es dabei: die Reihe fuer `k(b/h)·h·b³` steht
+    // nirgends im Code, und sie soll dort auch nicht hin (ADR 0062).
     expect(
       It({ kind: 'shape', id: 'r', shape: { kind: 'rectangle', b: 200, h: 500 } }),
     ).toBeUndefined();
@@ -257,7 +275,10 @@ describe('Der Schubmittelpunkt des duennwandigen T liegt in der Gurtmitte', () =
     expect(thin.zM).not.toBeCloseTo(thin.zs, 4);
   });
 
-  it('kompakt bleibt er unermittelt — dort braucht es Grashof', () => {
+  it('kompakt bleibt er ohne FE-Block unermittelt', () => {
+    // Nicht mehr `hf/2`: das war eine Aussage ueber ZWEI LINIEN. Der solide
+    // Vollquerschnitt bekommt seinen Schubmittelpunkt nach Trefftz aus der FE
+    // (ADR 0045/0062) — und bis der Block da ist, steht hier nichts.
     expect(
       values({
         kind: 'shape',

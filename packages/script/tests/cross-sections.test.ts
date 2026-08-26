@@ -53,6 +53,69 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
     expect(parsed.crossSections[0]).toEqual(ipe300);
   });
 
+  it('nimmt den FE-Block der parametrischen Form mit (v14)', () => {
+    // SEIT [ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md):
+    // die Form schreibt sich als Umriss aus und laeuft durch dieselbe FE wie
+    // die gezeichnete Figur. Geprueft wird hier die GESTALT — dass der Block
+    // unveraendert durch den Parser reist —, nicht ob die Zahlen zur Figur
+    // passen. Das sagt das Gate ueber den Fingerabdruck.
+    const feValues = {
+      status: 'computed',
+      values: {
+        It: 1.2e-5,
+        yM: 0,
+        zM: 0.25,
+        inverseKappaY: [1.2, 0.1],
+        inverseKappaZ: [1.2, 0.1],
+      },
+      fingerprint: { A: 0.1, Iy: 2.0833333e-3 },
+    };
+    const section = {
+      kind: 'shape',
+      id: 'cs-fe',
+      shape: { kind: 'rectangle', b: 200, h: 500 },
+      feValues,
+    };
+    const parsed = parseFEMModelSnapshot(snapshot({ crossSections: [section] }));
+    expect(parsed.crossSections[0]).toEqual(section);
+  });
+
+  it('laesst die Form auch OHNE FE-Block durch — das ist der Normalfall', () => {
+    // Abwesend heisst „der Aufloesungsschritt lief noch nicht", der dritte
+    // Zustand neben `computed` und `unsupported`. Ein Snapshot, der frisch aus
+    // dem Builder faellt, hat ihn nie.
+    const section = {
+      kind: 'shape',
+      id: 'cs-1',
+      shape: { kind: 'rectangle', b: 200, h: 500 },
+    };
+    const parsed = parseFEMModelSnapshot(snapshot({ crossSections: [section] }));
+    expect(parsed.crossSections[0]).toEqual(section);
+    expect(parsed.crossSections[0]).not.toHaveProperty('feValues');
+  });
+
+  it('weist einen unbekannten Verweigerungsgrund auch an der Form ab', () => {
+    // Derselbe Parser wie bei der gezeichneten Geometrie, also dieselbe
+    // Strenge: `'hole-off-bending-axis'` gibt es seit ADR 0048 nicht mehr.
+    expect(() =>
+      parseFEMModelSnapshot(
+        snapshot({
+          crossSections: [
+            {
+              kind: 'shape',
+              id: 'cs-1',
+              shape: { kind: 'rectangle', b: 200, h: 500 },
+              feValues: {
+                status: 'unsupported',
+                reason: 'hole-off-bending-axis',
+              },
+            },
+          ],
+        }),
+      ),
+    ).toThrow(SnapshotValidationError);
+  });
+
   it('lehnt schemaVersion 1 ab, statt crossSections zu ergaenzen', () => {
     // Ein v1-Snapshot beschreibt ein Modell, dessen `crossSectionId` ins Leere
     // zeigt. Stillschweigend ein leeres `crossSections` zu ergaenzen taeuschte
@@ -61,7 +124,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
     delete (v1 as Record<string, unknown>).crossSections;
     delete (v1 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v1, schemaVersion: 1 })).toThrow(
-      'Snapshot.schemaVersion muss 13 sein.',
+      'Snapshot.schemaVersion muss 14 sein.',
     );
   });
 
@@ -77,7 +140,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
           crossSections: [{ kind: 'profile', id: 'cs-1', profile: 'IPE 300' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 13 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 14 sein.');
   });
 
   it('lehnt v4 AB, statt `t-beam` in `t-section` umzuschreiben', () => {
@@ -105,7 +168,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
           ],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 13 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 14 sein.');
   });
 
   it('kennt `t-beam` auch in einem v6-Satz nicht mehr', () => {

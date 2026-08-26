@@ -13,7 +13,7 @@
  */
 
 /** Die aktuelle Schemaversion des Snapshots. */
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 /**
  * Die `SectionPolicy` des Rumpfs — die EFFEKTIVEN Werte, wie sie seit ADR 0033

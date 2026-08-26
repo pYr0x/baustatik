@@ -31,20 +31,12 @@ export function hollowRectangle(
 
   const paths =
     idealisation === 'solid'
-      ? {
-          // Kompakt: waagerechte bzw. senkrechte Schnitte durch die Umrissfigur.
-          // In der Mitte schneidet man BEIDE Waende, daher die Breite 2t.
-          pathZ: partIntervals(-h / 2, [
-            { extent: t, width: b },
-            { extent: hi, width: 2 * t },
-            { extent: t, width: b },
-          ]).intervals,
-          pathY: partIntervals(-b / 2, [
-            { extent: t, width: h },
-            { extent: bi, width: 2 * t },
-            { extent: t, width: h },
-          ]).intervals,
-        }
+      ? // KOMPAKT GIBT ES KEINEN WEG MEHR (ADR 0062): hier standen waagerechte
+        // bzw. senkrechte Schnitte durch die Umrissfigur, in der Mitte durch
+        // BEIDE Waende. Der solide Kasten laeuft jetzt als ZWEI Ringe —
+        // Material und Loch — durch die FE, und die kostet ein Loch seit
+        // ADR 0048 nichts.
+        {}
       : {
           // Die Querwand laeuft bis zur AUSSENKANTE, die Laengswand ueber die
           // LICHTE Weite — die exakte Parkettierung der Umrissfigur, siehe

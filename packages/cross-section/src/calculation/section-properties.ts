@@ -2,6 +2,7 @@ import { DEFAULT_SECTION_POLICY, type SectionPolicy } from '../policy';
 import type { CrossSection } from '../model/cross-section';
 import type { SectionProperties } from '../model/section-properties';
 import type { ShapeSpec } from '../model/shape-spec';
+import { feBlock } from './fe-block';
 import { geometryValues } from './geometry-properties';
 import { profileProperties } from './profile-properties';
 import { hollowRectangle } from './shapes/hollow-rectangle';
@@ -31,8 +32,15 @@ export function sectionProperties(
     return geometry === undefined ? undefined : toSI(geometry);
   }
 
+  // DIE PARAMETRISCHE FORM LIEST DENSELBEN FE-BLOCK wie die gezeichnete Figur
+  // ([ADR 0062](../../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)).
+  // Die geschlossene Formel liefert `A`, `Iy`, `Iz`, `Iyz`, `ys`, `zs` — ohne
+  // FE-Lauf, sofort —, der Block ergaenzt `It`, den Schubmittelpunkt und die
+  // κ-Koeffizienten des Vollquerschnitts. Fehlt er, fehlen sie: schubstarr, und
+  // `check()` sagt es (`ShearDeformationUnavailableWarning`).
   const shape = shapeValues(cs.shape);
-  return shape === undefined ? undefined : toProperties(shape);
+  if (shape === undefined) return undefined;
+  return toProperties(shape, feBlock(cs.feValues));
 }
 
 /** Die mm -> cm-Stelle der parametrischen Form. */

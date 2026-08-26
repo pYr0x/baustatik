@@ -97,7 +97,11 @@ Die Grundlagen sind vollständig umgesetzt:
 - Walzprofilkatalog (`@baustatik/steel-profiles`, 18 IPE + 24 HEA),
 - Solver-Anbindung (`@baustatik/fem-section-resolve`),
 - Positioniertes Wandmodell für Einzeller mit κ, `yM`/`zM` und `It` (ADR 0040/0041),
-- 2D-FE-Rechenkern für Freiform-Vollquerschnitte (`@baustatik/cross-section-fe`, ADR 0045/0047/0048).
+- 2D-FE-Rechenkern für Freiform-Vollquerschnitte (`@baustatik/cross-section-fe`, ADR 0045/0047/0048),
+- Der **parametrische** Vollquerschnitt läuft durch dieselbe FE: `shapeOutline` schreibt
+  die Form als Polygonzug aus, κ, `It` und `yM`/`zM` kommen von dort statt aus Grashof
+  ([ADR 0062](../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md);
+  Beleg: `docs/messungen/t-querschnitt-grashof-gegen-fe.md`).
 
 **Offene Punkte im Querschnittsstrang:**
 
@@ -114,23 +118,18 @@ Die Grundlagen sind vollständig umgesetzt:
    am Netz heraus ([ADR 0061](../docs/adr/0061-the-fe-stress-is-a-vector-at-a-node.md)).
    Der **parametrische** Vollquerschnitt hat weiterhin gar keine
    Spannungsausgabe — das ist Absicht und keine Lücke, die eine Zwischenvorlage
-   füllen soll; der Ausweg ist Punkt 6. Offen bleiben außerdem die Anzeige im
-   `cross-section-viewer` und die Auswahl der Nachweispunkte (ADR 0056).
+   füllen soll. Der Weg dorthin ist frei: die Form läuft seit ADR 0062 als Umriss
+   durch dieselbe FE, `recoverStresses` stünde offen — nur sind die `fields`
+   transient (ADR 0039), und sie an eine Ausgabe zu binden ist ein eigener
+   Schritt. Offen bleiben außerdem die Anzeige im `cross-section-viewer` und die
+   Auswahl der Nachweispunkte (ADR 0056).
 4. **Mehrzellige Wandgraphen (P6):** Bei ≥ 2 Zellen entsteht ein Gleichungssystem
    gekoppelter Unbekannter. Bis dahin bleiben κ, `yM`/`zM` und `It` dort `undefined`
    und das Gate meldet `MultipleCellsWarning`. Dasselbe gilt für unverbundene Graphen
    (`DisconnectedWallGraphWarning`).
 5. **`i-shape` mit unabhängigen Gurten:** Formänderung im Modellsatz zur Subsumierung
    von I- und T-Profilen (`tf,unten = 0`).
-6. **Parametrischer Vollquerschnitt vs. FE:** Der parametrische Vollquerschnitt nutzt
-   für κ weiter Grashof-Näherungen (`shear.ts`), während Freiformen über FE gelöst
-   werden (`docs/messungen/t-querschnitt-grashof-gegen-fe.md`): κ liegt dort +11 %
-   bis +134 % zu steif. **Die Richtung steht fest** — die parametrische Eingabe ist
-   nur eine bequemere Schreibweise für eine gezeichnete Figur, also soll sie als
-   Polygonzug ausgeschrieben durch dieselbe FE laufen (ADR 0057). Bei den
-   Spannungspunkten ist dieser Schritt schon vollzogen, indem die Näherung dort
-   gar nichts mehr liefert; für κ steht er aus.
-7. **Clipping-Bibliotheken in `geometry-2d`:** Zurzeit koexistieren Martinez (Boolesche Ops)
+6. **Clipping-Bibliotheken in `geometry-2d`:** Zurzeit koexistieren Martinez (Boolesche Ops)
    und Clipper2 (Offset/Inflate). Eine vollständige Ablösung von Martinez durch Clipper2
    setzt Mehrring-Polygone in `geometry-2d` voraus.
 

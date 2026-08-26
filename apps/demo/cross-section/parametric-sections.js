@@ -1,8 +1,33 @@
 import {
+  createSectionPolicy,
   sectionProperties,
   stressPoints,
 } from '@baustatik/cross-section';
 import { convert } from '@baustatik/units';
+import { computeFESection } from './cross-section-fe-port';
+import { feGeometry } from './section-fe-geometry';
+
+// ---------------------------------------------------------------------------
+// DER VOLLQUERSCHNITT LAEUFT DURCH DIE FE
+// ([ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)).
+//
+// Bis dahin war „Berechnen" auf dieser Seite ein synchroner Aufruf: die Form
+// hinein, die Werte heraus. Fuer `idealisation: 'solid'` steht `It` seither
+// nicht mehr in einer geschlossenen Formel, und `kappa` kommt nicht mehr aus
+// Grashof — beide fallen aus derselben 2D-FE wie bei der gezeichneten Figur.
+// Das kostet einen asynchronen Schritt, und der laeuft im Worker.
+//
+// DER WAECHTER IST DAS FELD `feValues` IM SATZ SELBST, kein Zwischenspeicher:
+// wer schon einen Block hat, wird nicht noch einmal gerechnet. Genau die
+// Deduplizierung, die `fem-viewer-3.ts` fuer das Stabwerk macht.
+//
+// ZWEI DURCHGAENGE STATT EINEM: erst wird alles gezeichnet, was sofort dasteht
+// (A, Iy, Iz, ys, zs — geschlossene Formel, kein Netz), dann traegt jeder
+// FE-Lauf seine Karte nach. Auf ein Sammelergebnis zu warten hiesse, die
+// Seite fuer eine Sekunde je Vollquerschnitt leer zu lassen.
+// ---------------------------------------------------------------------------
+
+const SECTION_POLICY = createSectionPolicy();
 
 // Druckeinheiten wie im Bericht der Beispiele: das Package liefert SI, gezeigt
 // werden die Katalogeinheiten, gegen die man eine Profiltabelle haelt.
@@ -18,7 +43,7 @@ const groups = [
     sections: [
       {
         title: 'Rechteck b = 200 mm, h = 500 mm',
-        spec: 'Die einzige Form ohne idealisation — ein duennwandiges Vollrechteck gibt es nicht. kappa faellt als exakt 5/6 heraus. Spannungspunkte hat der Vollquerschnitt seit ADR 0057 keine.',
+        spec: 'Die einzige Form ohne idealisation — ein duennwandiges Vollrechteck gibt es nicht, sie ist immer Vollquerschnitt. Seit ADR 0062 schreibt sie sich als Umriss aus und laeuft durch dieselbe 2D-FE wie die gezeichnete Figur: It und der Schubmittelpunkt fallen dort an, kappa als ν-freies Koeffizientenpaar. Ohne FE-Lauf ist sie schubstarr. Spannungspunkte hat der Vollquerschnitt seit ADR 0057 keine.',
         cs: {
           kind: 'shape',
           id: 'rechteck-200x500',
@@ -27,7 +52,7 @@ const groups = [
       },
       {
         title: 'I geschweisst 400 x 200 x 10 x 10 — solid',
-        spec: 'Vollquerschnitt: kappa nach Grashof, aber KEINE Spannungspunkte — t und S sind der Nenner eines Schnittmodells, und ein Vollquerschnitt hat keins (ADR 0057).',
+        spec: 'Vollquerschnitt: kappa, It und der Schubmittelpunkt kommen seit ADR 0062 aus der 2D-FE — dieselbe Maschine wie bei der gezeichneten Figur, statt der Grashof-Naeherung. Spannungspunkte hat er trotzdem keine: t und S sind der Nenner eines Schnittmodells, und ein Vollquerschnitt hat keins (ADR 0057).',
         cs: {
           kind: 'shape',
           id: 'i-400-solid',
@@ -75,7 +100,7 @@ const groups = [
       },
       {
         title: 'Plattenbalken 2000/200/250/500 — solid',
-        spec: 'Stahlbeton-Plattenbalken, kompakt. Der Fall, der Steiner prueft: zs = 139,5 mm liegt IM Gurt (hf = 200 mm). Als Vollquerschnitt ohne Spannungspunkte (ADR 0057).',
+        spec: 'Stahlbeton-Plattenbalken, kompakt. Der Fall, der Steiner prueft: zs = 139,5 mm liegt IM Gurt (hf = 200 mm). Die unsymmetrische Form — hier ist zM nicht zs, und die Zahl faellt erst aus der FE (ADR 0062). Als Vollquerschnitt ohne Spannungspunkte (ADR 0057).',
         cs: {
           kind: 'shape',
           id: 'plattenbalken',
@@ -126,12 +151,17 @@ const groups = [
 
 const container = document.getElementById('sections');
 
+// Der Zaehler laeuft ueber ALLE Gruppen — dieselbe Nummer wie in
+// `allSections()`, sonst zeigten zwei Karten auf dieselbe Id.
+let cardIndex = 0;
+
 for (const group of groups) {
   const heading = document.createElement('h2');
   heading.textContent = group.name;
   container.appendChild(heading);
 
-  group.sections.forEach((section, index) => {
+  group.sections.forEach((section) => {
+    const index = cardIndex++;
     const card = document.createElement('section');
     card.className = 'card';
 
@@ -158,17 +188,75 @@ for (const group of groups) {
   });
 }
 
-document.getElementById('calculate').addEventListener('click', () => {
-  let i = 0;
+const calculateButton = document.getElementById('calculate');
+
+calculateButton.addEventListener('click', () => void calculate());
+
+async function calculate() {
+  calculateButton.disabled = true;
+  try {
+    // ERSTER DURCHGANG: alles, was ohne Netz dasteht.
+    for (const { index, section } of allSections()) {
+      document.getElementById(`result-${index}`).innerHTML = render(
+        section.cs,
+        feWanted(section.cs) && section.cs.feValues === undefined,
+      );
+    }
+
+    // ZWEITER DURCHGANG: je Vollquerschnitt ein FE-Lauf, nacheinander. Der
+    // Worker serialisiert ohnehin; hintereinander gerechnet traegt jede Karte
+    // ihr Ergebnis nach, sobald es da ist.
+    for (const { index, section } of allSections()) {
+      if (!feWanted(section.cs) || section.cs.feValues !== undefined) continue;
+      const target = document.getElementById(`result-${index}`);
+      try {
+        const geometry = feGeometry(section.cs, SECTION_POLICY);
+        if (geometry === undefined) continue;
+        const { state } = await computeFESection(geometry, SECTION_POLICY);
+        // DER BLOCK GEHT IN DEN SATZ, nicht in eine Nebenablage — er ist ein
+        // Feld von `CrossSection` (ADR 0062) und zugleich der Waechter gegen
+        // einen zweiten Lauf.
+        section.cs = { ...section.cs, feValues: state };
+        target.innerHTML = render(section.cs, false);
+      } catch (error) {
+        target.innerHTML =
+          render(section.cs, false) +
+          `<p class="error">FE-Rechnung fehlgeschlagen: ${
+            error instanceof Error ? error.message : String(error)
+          }</p>`;
+      }
+    }
+  } finally {
+    calculateButton.disabled = false;
+  }
+}
+
+/** Alle Karten in der Reihenfolge, in der sie angelegt wurden. */
+function* allSections() {
+  let index = 0;
   for (const group of groups) {
     for (const section of group.sections) {
-      document.getElementById(`result-${i}`).innerHTML = render(section.cs);
-      i += 1;
+      yield { index, section };
+      index += 1;
     }
   }
-});
+}
 
-function render(cs) {
+/**
+ * Braucht dieser Satz einen FE-Lauf?
+ *
+ * Nur der VOLLQUERSCHNITT. Der duennwandige Zweig bekommt kappa, `It` und
+ * `yM`/`zM` aus dem Wandweg — ein FE-Lauf daneben waere die zweite Maschine,
+ * die ADR 0062 gerade abschafft.
+ */
+function feWanted(cs) {
+  return (
+    cs.kind === 'shape' &&
+    (cs.shape.kind === 'rectangle' || cs.shape.idealisation === 'solid')
+  );
+}
+
+function render(cs, fePending) {
   const p = sectionProperties(cs);
   if (p === undefined) {
     return '<p class="error">sectionProperties &rarr; undefined — unsinnige Abmessungen</p>';
@@ -177,7 +265,7 @@ function render(cs) {
   const points = stressPoints(cs);
   const svg = profileSvg(cs, points, p);
 
-  const leftParts = [propertyTable(p)];
+  const leftParts = [propertyTable(p), feNote(cs, fePending)];
 
   if (points === undefined) {
     leftParts.push(
@@ -450,6 +538,33 @@ function profileSvg(cs, points, p) {
   `;
 }
 
+/**
+ * Die DREI ZUSTAENDE des FE-Blocks, ausgeschrieben — abwesend, gerechnet,
+ * verweigert (ADR 0045/0062). Beim duennwandigen Zweig steht nichts: dort ist
+ * die Frage gar nicht gestellt.
+ */
+function feNote(cs, fePending) {
+  if (!feWanted(cs)) return '';
+  if (fePending) {
+    return '<p class="muted">FE-Rechnung läuft — vernetzen und faktorisieren. Bis dahin: It und der Schubmittelpunkt unermittelt, kappa schubstarr.</p>';
+  }
+  const state = cs.feValues;
+  if (state === undefined) {
+    return '<p class="muted">feValues &rarr; abwesend — der Auflösungsschritt lief noch nicht.</p>';
+  }
+  if (state.status === 'unsupported') {
+    return `<p class="error">feValues &rarr; verweigert (${state.reason}).</p>`;
+  }
+  return '<p class="muted">feValues &rarr; gerechnet: It, yM/zM und die beiden ν-freien kappa-Koeffizientenpaare kommen aus der 2D-FE derselben Umrissfigur (ADR 0062). kappa selbst steht erst da, wo ein Material sein ν beisteuert.</p>';
+}
+
+/** `1/kappa = d0 + d2·m²` bei ν = 0 — die Zahl, die im Bericht steht. */
+function kappaAtNuZero(coefficients) {
+  if (coefficients === undefined) return '&ndash;';
+  const [d0] = coefficients;
+  return d0 > 0 ? (1 / d0).toFixed(4) : '&ndash;';
+}
+
 function propertyTable(p) {
   return `
 <table class="values">
@@ -467,6 +582,14 @@ function propertyTable(p) {
     ${row('It', maybe(p.It === undefined ? undefined : p.It * M4_TO_CM4, 'cm⁴'))}
     ${row('alpha', `${p.alpha.toFixed(4)} rad`)}
     ${row('kappaY / kappaZ', `${kappa(p.kappaY)} / ${kappa(p.kappaZ)}`)}
+    ${
+      p.inverseKappaY === undefined && p.inverseKappaZ === undefined
+        ? ''
+        : row(
+            'kappaY / kappaZ bei ν = 0',
+            `${kappaAtNuZero(p.inverseKappaY)} / ${kappaAtNuZero(p.inverseKappaZ)}`,
+          )
+    }
   </tbody>
 </table>`;
 }
