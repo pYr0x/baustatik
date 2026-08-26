@@ -26,6 +26,7 @@ import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import TypeScriptWorker from 'monaco-editor/language/typescript/ts.worker.js?worker';
 import { createPinia, defineStore } from 'pinia';
 import { computeFESection } from '../cross-section/cross-section-fe-port';
+import { feGeometry, feState } from '../cross-section/section-fe-geometry';
 import type {
   ExecuteScriptRequest,
   ExecuteScriptResponse,
@@ -153,8 +154,14 @@ const useFEMScriptStore = defineStore('fem-scripting', {
      */
     setFEValues(sectionId: string, state: FESectionState): void {
       const target = this.crossSections.find((section) => section.id === sectionId);
-      if (target === undefined || target.kind !== 'section-geometry') return;
-      target.geometry = { ...target.geometry, feValues: state };
+      if (target === undefined || target.kind === 'profile') return;
+      // ZWEI ORTE, EIN BLOCK (ADR 0062): die gezeichnete Figur traegt ihn in
+      // ihrer Geometrie, die parametrische Form unmittelbar am Satz.
+      if (target.kind === 'shape') {
+        target.feValues = state;
+      } else {
+        target.geometry = { ...target.geometry, feValues: state };
+      }
     },
   },
 });
@@ -325,10 +332,15 @@ async function runScript(): Promise<void> {
 async function resolveFESections(): Promise<string[]> {
   const problems: string[] = [];
   for (const section of store.crossSections) {
-    if (section.kind !== 'section-geometry') continue; // nur die gezeichneten
-    if (section.geometry.feValues !== undefined) continue; // schon gerechnet
+    // GEZEICHNET ODER PARAMETRISCH — seit ADR 0062 dieselbe Schleife: die Form
+    // schreibt sich in `feGeometry` als Umriss aus. Uebersprungen wird, was
+    // hier nichts zu holen hat (Katalogprofil, duennwandiger Zweig) und was
+    // schon gerechnet ist.
+    if (feState(section) !== undefined) continue; // schon gerechnet
+    const geometry = feGeometry(section, store.sectionPolicy);
+    if (geometry === undefined) continue;
     try {
-      const { state } = await computeFESection(section.geometry, store.sectionPolicy);
+      const { state } = await computeFESection(geometry, store.sectionPolicy);
       store.setFEValues(section.id, state);
       if (state.status === 'unsupported') {
         problems.push(`Querschnitt ${section.id}: FE verweigert (${state.reason}).`);

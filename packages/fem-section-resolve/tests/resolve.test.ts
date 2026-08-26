@@ -101,15 +101,48 @@ describe('Parametrische Form durch dieselbe Kette', () => {
     shape: { kind: 'rectangle', b: 200, h: 500 },
   };
 
-  it('nimmt kappa = 5/6 aus der Form und nicht aus einer Tabelle', () => {
+  it('nimmt EA und EI aus der geschlossenen Formel — ohne jeden Lauf', () => {
     const s = resolveSectionStiffness(beam('cs-rect'), model([rect]));
     // A = 0,1 m2, Iy = b*h^3/12 = 0,025/12 m4
     //   EA  = 2,1e8 * 0,1        = 2,1e7 kN
     //   EI  = 2,1e8 * 0,025/12   = 437 500 kNm2  (glatt)
-    //   GAs = 5/6 * 8,0769e7 * 0,1
     expect(s?.EA).toBeCloseTo(2.1e7, 0);
     expect(s?.EI).toBeCloseTo(437500, 3);
-    expect(s?.GAs as number).toBeCloseTo((5 / 6) * 8.0769e7 * 0.1, 3);
+  });
+
+  it('ist ohne FE-Block schubstarr — kein Grashof mehr', () => {
+    // BIS [ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)
+    // stand hier `kappa = 5/6` aus dem Flaechenschnitt durch die Figur, und
+    // der parametrische Vollquerschnitt hatte IMMER eine Schubsteifigkeit.
+    // Jetzt schreibt die Form sich als Umriss aus und laeuft durch dieselbe
+    // FE wie die gezeichnete Figur — und bis der Block da ist, gilt dasselbe
+    // wie dort: schubstarr, und `check()` sagt es.
+    const s = resolveSectionStiffness(beam('cs-rect'), model([rect]));
+    expect(s?.GAs).toBe('rigid');
+  });
+
+  it('rechnet MIT FE-Block wie die gezeichnete Figur', () => {
+    // DER BLOCK STEHT AM SATZ SELBST, nicht in einer Geometrie daneben
+    // (ADR 0062). Der Rest der Kette sieht keinen Unterschied: dieselbe
+    // Auswertung von `1/κ = d0 + d2·m²` mit dem ν des STABMATERIALS.
+    const resolved: CrossSection = {
+      ...rect,
+      feValues: {
+        status: 'computed',
+        values: {
+          It: 1e-4,
+          yM: 0,
+          zM: 0.25,
+          inverseKappaY: [1.2, 0.4],
+          inverseKappaZ: [1.2, 0.4],
+        },
+        fingerprint: { A: 0.1, Iy: 0.025 / 12 },
+      },
+    };
+    const s = resolveSectionStiffness(beam('cs-rect'), model([resolved]));
+    const m = 0.3 / 1.3;
+    const kappa = 1 / (1.2 + 0.4 * m * m);
+    expect(s?.GAs as number).toBeCloseTo(kappa * 8.0769e7 * 0.1, 3);
   });
 });
 
@@ -313,19 +346,48 @@ describe('Drei Familien, drei Moduln', () => {
   it('nimmt fuer Beton Ecm und das daraus gebildete G', () => {
     // C30/37: Ecm = 33 000 MPa, G = 33 000 / 2,4 = 13 750 MPa.
     expect(stiffnessFor(C30)?.EA).toBeCloseTo(33000 * 1000 * A, 0);
-    expect(stiffnessFor(C30)?.GAs as number).toBeCloseTo(
-      (5 / 6) * 13750 * 1000 * A,
-      3,
-    );
+    // `G` steht in `GAs` nur mit einem kappa daneben, und das braucht seit
+    // ADR 0062 einen FE-Block. Dass die Zahl richtig GEBILDET wird, prueft
+    // `EA` hier und der Koeffizientenzweig oben.
+    expect(stiffnessFor(C30)?.GAs).toBe('rigid');
   });
 
   it('nimmt fuer Holz E0,mean und G,mean', () => {
     // C24: E0,mean = 11 000 MPa, Gmean = 690 MPa.
     expect(stiffnessFor(C24)?.EA).toBeCloseTo(11000 * 1000 * A, 0);
-    expect(stiffnessFor(C24)?.GAs as number).toBeCloseTo(
-      (5 / 6) * 690 * 1000 * A,
-      3,
+    expect(stiffnessFor(C24)?.GAs).toBe('rigid');
+  });
+
+  it('bleibt der Holzstab auch MIT FE-Block schubstarr — kein isotropes ν', () => {
+    // DIE BENANNTE KONSEQUENZ von ADR 0062: bis dahin rechnete ein
+    // Holz-Vollquerschnitt sein kappa nach Grashof, weil Grashof ν-blind ist.
+    // Jetzt gilt fuer ihn dasselbe wie fuer die gezeichnete Figur seit
+    // ADR 0045 — orthotrop, also kein isotropes ν, also kein kappa. Kein
+    // `nu ?? 0`, keine Ausnahme.
+    const resolved: CrossSection = {
+      ...rect,
+      feValues: {
+        status: 'computed',
+        values: {
+          It: 1e-4,
+          yM: 0,
+          zM: 0.25,
+          inverseKappaY: [1.2, 0.4],
+          inverseKappaZ: [1.2, 0.4],
+        },
+        fingerprint: { A: 0.1, Iy: 0.025 / 12 },
+      },
+    };
+    const timber = resolveSectionStiffness(
+      beam('cs-rect', C24.id),
+      model([resolved]),
     );
+    const steel = resolveSectionStiffness(
+      beam('cs-rect', S235.id),
+      model([resolved]),
+    );
+    expect(timber?.GAs).toBe('rigid');
+    expect(steel?.GAs).not.toBe('rigid');
   });
 
   it('verwechselt die Familien nicht — Beton ist weicher als Stahl', () => {

@@ -7,6 +7,7 @@ import {
   type SectionGeometry,
   type SectionPolicy,
   type SectionProperties,
+  type ShapeSpec,
   sectionProperties,
 } from "@baustatik/cross-section";
 import {
@@ -32,6 +33,7 @@ import { convert } from "@baustatik/units";
 import { screenPoint, viewport } from "@baustatik/viewport-2d";
 import { createPinia, defineStore } from "pinia";
 import { computeFESection } from "../cross-section/cross-section-fe-port";
+import { feGeometry, feState } from "../cross-section/section-fe-geometry";
 import { solveLinearSystem } from "./linear-solver-port";
 import { solveSparseSystem } from "./sparse-solver-port";
 
@@ -112,16 +114,25 @@ const useStore = defineStore("fem-viewer-3", {
      * Bis hierher kannte sie nur `shape` und `profile` — der gezeichnete
      * Querschnitt kam nie durch diese Tuer, weil er nie gerechnet werden
      * konnte.
+     *
+     * SEIT ADR 0062 STEHT DIE PARAMETRISCHE FORM WIEDER DANEBEN, und diesmal
+     * mit demselben Rechenweg: sie schreibt sich als Umriss aus und laeuft
+     * durch dieselbe FE. Fuer den Aufloesungsschritt sind die beiden Zweige
+     * ununterscheidbar.
      */
-    addCrossSection(section: {
-      kind: "section-geometry";
-      geometry: SectionGeometry;
-    }): Readonly<CrossSection> {
-      const created: CrossSection = {
-        kind: "section-geometry",
-        id: crypto.randomUUID(),
-        geometry: section.geometry,
-      };
+    addCrossSection(
+      section:
+        | { kind: "section-geometry"; geometry: SectionGeometry }
+        | { kind: "shape"; shape: ShapeSpec },
+    ): Readonly<CrossSection> {
+      const created: CrossSection =
+        section.kind === "shape"
+          ? { kind: "shape", id: crypto.randomUUID(), shape: section.shape }
+          : {
+              kind: "section-geometry",
+              id: crypto.randomUUID(),
+              geometry: section.geometry,
+            };
       this.crossSections.push(created);
       return created;
     },
@@ -168,10 +179,17 @@ const useStore = defineStore("fem-viewer-3", {
      */
     setFEValues(sectionId: string, state: FESectionState) {
       const target = this.crossSections.find((section) => section.id === sectionId);
-      if (target === undefined || target.kind !== "section-geometry") {
-        throw new Error(`Kein gezeichneter Querschnitt "${sectionId}" im Modell.`);
+      if (target === undefined || target.kind === "profile") {
+        throw new Error(`Kein rechenbarer Querschnitt "${sectionId}" im Modell.`);
       }
-      target.geometry = { ...target.geometry, feValues: state };
+      // ZWEI ORTE, EIN BLOCK (ADR 0062): die gezeichnete Figur traegt ihn in
+      // ihrer Geometrie, die parametrische Form unmittelbar am Satz. Beide
+      // ERSETZEN, damit die Zuweisung den Pinia-Proxy trifft.
+      if (target.kind === "shape") {
+        target.feValues = state;
+      } else {
+        target.geometry = { ...target.geometry, feValues: state };
+      }
     },
   },
 });
@@ -375,9 +393,14 @@ const solver = buildSolver();
 
 async function resolveFESections(): Promise<void> {
   for (const cs of store.crossSections) {
-    if (cs.kind !== "section-geometry") continue; // nur die gezeichneten
-    if (cs.geometry.feValues !== undefined) continue; // schon gerechnet
-    const computation = await computeFESection(cs.geometry, store.sectionPolicy);
+    // GEZEICHNET ODER PARAMETRISCH — seit ADR 0062 dieselbe Schleife: die Form
+    // schreibt sich in `feGeometry` als Umriss aus, und was danach kommt, ist
+    // unveraendert. Uebersprungen wird, was hier nichts zu holen hat (das
+    // Katalogprofil, der duennwandige Zweig) und was schon gerechnet ist.
+    if (feState(cs) !== undefined) continue; // schon gerechnet
+    const geometry = feGeometry(cs, store.sectionPolicy);
+    if (geometry === undefined) continue;
+    const computation = await computeFESection(geometry, store.sectionPolicy);
     store.setFEValues(cs.id, computation.state);
     // NARROWT AUF `kind` (ADR 0061): der `'refused'`-Arm traegt kein Netz, und
     // dann steht hier auch keines — transient, nur zum Zeichnen.
@@ -412,8 +435,11 @@ function element<T extends HTMLElement>(id: string): T {
 }
 
 function currentGeometry(): SectionGeometry {
+  // DIESELBE FIGUR, DIE IN DIE FE GEHT — auch bei einer parametrischen Form
+  // (ADR 0062). Der Viewer zeichnet damit genau das, was gerechnet wurde, und
+  // nicht eine zweite Beschreibung daneben.
   const cs = store.crossSections[0];
-  return cs !== undefined && cs.kind === "section-geometry" ? cs.geometry : RECHTECK;
+  return (cs === undefined ? undefined : feGeometry(cs, store.sectionPolicy)) ?? RECHTECK;
 }
 
 function currentSection(): CrossSection | undefined {
@@ -522,9 +548,7 @@ function renderPanel(): void {
   computeFEButton.disabled = busy;
   solveButton.disabled = busy;
 
-  const cs = currentSection();
-  const state =
-    cs !== undefined && cs.kind === "section-geometry" ? cs.geometry.feValues : undefined;
+  const state = feState(currentSection());
 
   // DREI ZUSTAENDE, und sie stehen hier ausgeschrieben nebeneinander.
   feStateField.textContent =

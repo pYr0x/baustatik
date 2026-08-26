@@ -78,10 +78,11 @@ export function tSection(
   // Um die z-Achse liegen beide Teile mittig; kein Steiner-Anteil.
   const Iz = (hf * bf * bf * bf) / 12 + (hs * bw * bw * bw) / 12;
 
-  const paths =
-    idealisation === 'solid'
-      ? solidPaths(bf, hf, bw, h, hs, zs)
-      : thinPaths(bf, hf, bw, h);
+  // KOMPAKT GIBT ES KEINEN WEG MEHR (ADR 0062): der solide Vollquerschnitt
+  // laeuft als Umriss durch die FE. Beim T war die Luecke am groessten — an der
+  // Breitensprungstelle Gurt/Steg lag Grashof bis +133,6 % zu schubsteif
+  // (`docs/messungen/t-querschnitt-grashof-gegen-fe.md`).
+  const paths = idealisation === 'solid' ? {} : thinPaths(bf, hf, bw, h);
 
   // NUR EINFACH SYMMETRISCH, und das ist der einzige Fall dieses Standes, in
   // dem der Schubmittelpunkt nicht mit dem Schwerpunkt zusammenfaellt: `yM = 0`
@@ -94,8 +95,10 @@ export function tSection(
   // Schubflusses ist also null. Bis P5 stand hier `undefined`, und der
   // `ShearCentreUnknownWarning` feuerte damit bei JEDEM T.
   //
-  // FUER `solid` BLEIBT ES `undefined`: der Vollquerschnitt hat keinen Wandzug,
-  // durch den das Argument liefe.
+  // FUER `solid` STEHT HIER `undefined`: der Vollquerschnitt hat keinen Wandzug,
+  // durch den das Argument liefe. Die Zahl faellt dort aus der FE, nach Trefftz
+  // (ADR 0045/0062) — und sie liegt NICHT in der Gurtmitte, denn das war eine
+  // Aussage ueber zwei Linien, nicht ueber eine Flaeche.
   const zM = idealisation === 'thin-walled' ? hf / 2 : undefined;
 
   return {
@@ -114,31 +117,6 @@ export function tSection(
         ? (bf * hf ** 3 + (h - hf / 2) * bw ** 3) / 3
         : undefined,
     ...paths,
-  };
-}
-
-function solidPaths(
-  bf: number,
-  hf: number,
-  bw: number,
-  h: number,
-  hs: number,
-  zs: number,
-) {
-  return {
-    // Waagerecht von der Gurtoberkante nach unten: erst der breite Gurt, dann
-    // der schmale Steg.
-    pathZ: partIntervals(-zs, [
-      { extent: hf, width: bf },
-      { extent: hs, width: bw },
-    ]).intervals,
-    // Senkrecht: ausserhalb des Stegs nur der Gurt, ueber dem Steg die volle
-    // Hoehe.
-    pathY: partIntervals(-bf / 2, [
-      { extent: (bf - bw) / 2, width: hf },
-      { extent: bw, width: h },
-      { extent: (bf - bw) / 2, width: hf },
-    ]).intervals,
   };
 }
 

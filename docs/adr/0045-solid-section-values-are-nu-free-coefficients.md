@@ -406,6 +406,16 @@ gyration, and the beam element is what picks between them.
 
 ## The boundary: the parametric solid section stays out
 
+> **~~This boundary is lifted~~ by
+> [ADR 0062](0062-the-parametric-shape-writes-itself-out-as-an-outline.md).**
+> The section below stands as written — it records what was decided here, and
+> its first bullet names exactly the piece that was missing: *"It has no input.
+> The FE needs a polygon."* ADR 0062 supplies that input. `ShapeSpec` gets a
+> `Ring[]` per shape (`geometry/shape-outline.ts`), the four shapes run through
+> the same `computeFESectionValues`, and `It === undefined` plus `t-section`'s
+> `zM === undefined` stop being **permanent** answers. What they become is the
+> answer *before an FE run* — and so does κ, which this ADR left on Grashof.
+
 `It`, `yM` and `zM` are not FE inventions. They are fields of
 `SectionProperties`, filled today from three sources: the closed expression of a
 parametric shape (`shapes/kernel.ts`), the catalogue row, and the wall path

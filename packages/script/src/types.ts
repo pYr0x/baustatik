@@ -301,6 +301,26 @@ export type FEMModelBuilderConfig = {
  * ohne dass jemand etwas gewählt hätte. Ein v12 hat das Feld nicht und wird
  * ABGEWIESEN.
  *
+ * **v14 — die parametrische Form trägt einen FE-Block.** `CrossSection` bekommt
+ * in der `shape`-Variante das optionale Feld `feValues`, denselben
+ * `FESectionState` wie beide `SectionGeometry`-Varianten
+ * ([ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)).
+ * Die Form schreibt sich über `shapeOutline` als Polygonzug aus und läuft durch
+ * dieselbe FE wie die gezeichnete Figur; κ, `It` und `yM`/`zM` des
+ * Vollquerschnitts kommen von dort. `parseFEValues` existiert seit v11 und wird
+ * mitbenutzt — geprüft wird die GESTALT, nicht die Auflösbarkeit.
+ *
+ * DER BRUCH FÄLLT IN DIE ANDERE RICHTUNG als bei v11 oder v13: eine v13-Datei
+ * ist am Satz unverändert gültig — das Feld ist optional, und ein v13 hat es
+ * schlicht nicht. Was sich ändert, ist die BEDEUTUNG seiner Abwesenheit. Bis
+ * v13 rechnete der parametrische Vollquerschnitt sein κ nach Grashof und hatte
+ * immer eine Zahl; ab v14 heißt „kein Block" schubstarr plus
+ * `ShearDeformationUnavailableWarning`. Dieselbe Datei durchzulassen hieße,
+ * sie anders rechnen zu lassen als beim letzten Mal, ohne dass jemand etwas
+ * gewählt hätte. Ein Auflösungslauf füllt das Feld; die Version sagt, dass er
+ * fällig ist. Präzedenz ist v12 — auch dort schrumpfte nur eine Union, und
+ * auch dort war der Grund die stille Bedeutungsänderung.
+ *
  * `schemaVersion` ist eine feste Zahl und kein Bereich: ein älterer Snapshot
  * wird ABGELEHNT. Ein v3 per Lookup zu ergänzen wäre genau die stille
  * Auflösung, die v4 abschafft — einmal ausgeführt im ungünstigsten Moment
@@ -310,7 +330,7 @@ export type FEMModelBuilderConfig = {
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 13;
+  readonly schemaVersion: 14;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];

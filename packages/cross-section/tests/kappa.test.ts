@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SectionProperties } from '../src/index';
 import { type CrossSection, sectionProperties } from '../src/index';
 import { CM2_TO_M2 } from '../src/calculation/units';
+import { partIntervals, shearArea } from '../src/calculation/shear';
 import {
   acrossPiece,
   alongPiece,
@@ -31,14 +32,6 @@ function values(cs: CrossSection): SectionProperties {
  */
 const M = 1e-3;
 
-/**
- * Die EXAKTE Schwerpunktlage des Plattenbalkens 2000/200/250/500 [mm]:
- * `(400000*100 + 75000*350) / 475000`. Gedruckt wird sie als 139,5 — auf
- * 139,5 gerundet weicht kappa aber schon in der vierten Stelle ab, und die
- * Quadratur vergleicht auf 1e-6. Der Bruch bleibt deshalb stehen.
- */
-const T_ZS = 66_250_000 / 475_000;
-
 // ---------------------------------------------------------------------------
 // Die Wege, unabhaengig noch einmal hingeschrieben — Eingabe fuer das Orakel.
 // ---------------------------------------------------------------------------
@@ -58,31 +51,6 @@ function partBranch(
     }),
   };
 }
-
-const rectanglePaths = (b: number, h: number) => ({
-  z: [partBranch(-h / 2, [{ extent: h, width: b }])],
-  y: [partBranch(-b / 2, [{ extent: b, width: h }])],
-});
-
-const iSolidPaths = (h: number, b: number, tw: number, tf: number) => {
-  const hw = h - 2 * tf;
-  return {
-    z: [
-      partBranch(-h / 2, [
-        { extent: tf, width: b },
-        { extent: hw, width: tw },
-        { extent: tf, width: b },
-      ]),
-    ],
-    y: [
-      partBranch(-b / 2, [
-        { extent: (b - tw) / 2, width: 2 * tf },
-        { extent: tw, width: h },
-        { extent: (b - tw) / 2, width: 2 * tf },
-      ]),
-    ],
-  };
-};
 
 const iThinPaths = (h: number, b: number, tw: number, tf: number) => {
   const zf = (h - tf) / 2;
@@ -106,23 +74,6 @@ const iThinPaths = (h: number, b: number, tw: number, tf: number) => {
     ],
   };
 };
-
-const boxSolidPaths = (b: number, h: number, t: number) => ({
-  z: [
-    partBranch(-h / 2, [
-      { extent: t, width: b },
-      { extent: h - 2 * t, width: 2 * t },
-      { extent: t, width: b },
-    ]),
-  ],
-  y: [
-    partBranch(-b / 2, [
-      { extent: t, width: h },
-      { extent: b - 2 * t, width: 2 * t },
-      { extent: t, width: h },
-    ]),
-  ],
-});
 
 /**
  * Halber Umlauf im geschlossenen Kasten, vom Symmetrieschnitt aus. Die drei
@@ -157,28 +108,6 @@ const boxThinPaths = (b: number, h: number, t: number) => {
   return { z: [z(), z()], y: [y(), y()] };
 };
 
-const tSolidPaths = (
-  bf: number,
-  hf: number,
-  bw: number,
-  h: number,
-  zs: number,
-) => ({
-  z: [
-    partBranch(-zs, [
-      { extent: hf, width: bf },
-      { extent: h - hf, width: bw },
-    ]),
-  ],
-  y: [
-    partBranch(-bf / 2, [
-      { extent: (bf - bw) / 2, width: hf },
-      { extent: bw, width: h },
-      { extent: (bf - bw) / 2, width: hf },
-    ]),
-  ],
-});
-
 const tThinPaths = (bf: number, hf: number, bw: number, h: number) => {
   const webLength = h - hf / 2;
   const Af = bf * hf;
@@ -199,35 +128,22 @@ const tThinPaths = (bf: number, hf: number, bw: number, h: number) => {
 // ---------------------------------------------------------------------------
 
 describe('kappa: geschlossene Formel gegen numerische Integration', () => {
-  // Vier Herleitungen mal zwei Idealisierungen haetten sonst nur sich selbst
-  // als Zeugen. Das Orakel rechnet dasselbe Integral, aber ueber eine
-  // Beschreibung des Weges mit dem Hebelarm als FUNKTION statt als
-  // Koeffizienten — kein Schritt kommt in beiden Rechnungen vor.
+  // Die Herleitungen haetten sonst nur sich selbst als Zeugen. Das Orakel
+  // rechnet dasselbe Integral, aber ueber eine Beschreibung des Weges mit dem
+  // Hebelarm als FUNKTION statt als Koeffizienten — kein Schritt kommt in
+  // beiden Rechnungen vor.
+  //
+  // NUR NOCH DUENNWANDIG, seit
+  // [ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md):
+  // die vier soliden Faelle standen fuer Grashof, und den gibt es beim
+  // parametrischen Vollquerschnitt nicht mehr. Sein kappa faellt aus derselben
+  // FE wie das der gezeichneten Figur, und das Orakel dafuer ist die
+  // Netzverfeinerung in `cross-section-fe/tests/`.
   const cases: {
     name: string;
     cs: CrossSection;
     paths: { y: OracleBranch[]; z: OracleBranch[] };
   }[] = [
-    {
-      name: 'rectangle 200 x 500 mm',
-      cs: { kind: 'shape', id: 'r', shape: { kind: 'rectangle', b: 200, h: 500 } },
-      paths: rectanglePaths(200 * M, 500 * M),
-    },
-    {
-      name: 'hollow-rectangle solid 300 x 500 x 20 mm',
-      cs: {
-        kind: 'shape',
-        id: 'b',
-        shape: {
-          kind: 'hollow-rectangle',
-          b: 300,
-          h: 500,
-          t: 20,
-          idealisation: 'solid',
-        },
-      },
-      paths: boxSolidPaths(300 * M, 500 * M, 20 * M),
-    },
     {
       name: 'hollow-rectangle thin-walled 300 x 500 x 20 mm',
       cs: {
@@ -244,22 +160,6 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
       paths: boxThinPaths(300 * M, 500 * M, 20 * M),
     },
     {
-      name: 'i-symmetric solid (IPE-300-Masse)',
-      cs: {
-        kind: 'shape',
-        id: 'i',
-        shape: {
-          kind: 'i-symmetric',
-          h: 300,
-          b: 150,
-          tw: 7.1,
-          tf: 10.7,
-          idealisation: 'solid',
-        },
-      },
-      paths: iSolidPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M),
-    },
-    {
       name: 'i-symmetric thin-walled (IPE-300-Masse)',
       cs: {
         kind: 'shape',
@@ -274,22 +174,6 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
         },
       },
       paths: iThinPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M),
-    },
-    {
-      name: 't-section solid (breiter Gurt)',
-      cs: {
-        kind: 'shape',
-        id: 't',
-        shape: {
-          kind: 't-section',
-          bf: 2000,
-          hf: 200,
-          bw: 250,
-          h: 500,
-          idealisation: 'solid',
-        },
-      },
-      paths: tSolidPaths(2000 * M, 200 * M, 250 * M, 500 * M, T_ZS * M),
     },
     {
       name: 't-section thin-walled (breiter Gurt)',
@@ -328,17 +212,9 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
     // ein Gurtast eines verzweigten Weges endet an der Verzweigung und soll
     // dort gerade NICHT null sein.
     const complete: { name: string; branches: readonly OracleBranch[] }[] = [
-      { name: 'rectangle z', branches: rectanglePaths(200 * M, 500 * M).z },
-      { name: 'rectangle y', branches: rectanglePaths(200 * M, 500 * M).y },
-      { name: 'box solid z', branches: boxSolidPaths(300 * M, 500 * M, 20 * M).z },
-      { name: 'box solid y', branches: boxSolidPaths(300 * M, 500 * M, 20 * M).y },
       { name: 'box thin z', branches: boxThinPaths(300 * M, 500 * M, 20 * M).z },
       { name: 'box thin y', branches: boxThinPaths(300 * M, 500 * M, 20 * M).y },
-      { name: 'i solid z', branches: iSolidPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M).z },
-      { name: 'i solid y', branches: iSolidPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M).y },
       { name: 'i thin y', branches: iThinPaths(300 * M, 150 * M, 7.1 * M, 10.7 * M).y },
-      { name: 't solid z', branches: tSolidPaths(2000 * M, 200 * M, 250 * M, 500 * M, T_ZS * M).z },
-      { name: 't solid y', branches: tSolidPaths(2000 * M, 200 * M, 250 * M, 500 * M, T_ZS * M).y },
       { name: 't thin y', branches: tThinPaths(2000 * M, 200 * M, 250 * M, 500 * M).y },
       // Der Steg des duennwandigen T: er erbt beide Gurthaelften und laeuft
       // bis zum freien Ende. Dass er auf null schliesst, haengt daran, dass
@@ -357,34 +233,86 @@ describe('kappa: geschlossene Formel gegen numerische Integration', () => {
 });
 
 describe('kappa: die Idealisierung ist wirksam und einseitig', () => {
-  // Dieselben vier Abmessungen, zwei kappa. 18 % Unterschied, dem Ergebnis
-  // nicht anzusehen — deshalb ist `idealisation` ein Pflichtfeld ohne Default.
+  // Dieselben vier Abmessungen, zwei Antworten — und seit
+  // [ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)
+  // sind es nicht mehr zwei Zahlen, sondern eine Zahl und eine Abwesenheit.
+  // Der solide Zweig hatte 0,401 aus Grashof, 18 % ueber dem duennwandigen und
+  // dem Ergebnis nicht anzusehen; jetzt steht dort nichts, bis die FE gelaufen
+  // ist. `idealisation` bleibt ein Pflichtfeld ohne Default — es entscheidet
+  // weiterhin, WELCHE Maschine antwortet.
   const dims = { h: 80, b: 46, tw: 3.8, tf: 5.2 } as const;
   const kappaZ = (idealisation: 'solid' | 'thin-walled') =>
     values({
       kind: 'shape',
       id: 'i',
       shape: { kind: 'i-symmetric', ...dims, idealisation },
-    }).kappaZ as number;
+    }).kappaZ;
 
   const CATALOGUE = 2.69 / 7.64; // Az/A von IPE 80 = 0,352
   const EC3 = 3.57 / 7.64; // Av,z/A = 0,467 — der falsche Wert
 
-  it('liefert thin-walled 0,340 und solid 0,401', () => {
+  it('liefert thin-walled 0,340 — und solid ohne FE-Block gar nichts', () => {
     expect(kappaZ('thin-walled')).toBeCloseTo(0.34, 3);
-    expect(kappaZ('solid')).toBeCloseTo(0.401, 3);
+    expect(kappaZ('solid')).toBeUndefined();
   });
 
   it('legt thin-walled UNTER den Katalogwert — die fehlende Ausrundung', () => {
-    expect(kappaZ('thin-walled')).toBeLessThan(CATALOGUE);
-    expect(kappaZ('solid')).toBeGreaterThan(CATALOGUE);
+    expect(kappaZ('thin-walled') as number).toBeLessThan(CATALOGUE);
   });
 
-  it('kommt keiner der beiden in die Naehe von Av,z/A', () => {
-    // Kaeme einer nahe an 0,467, stuende die EC3-Formel im Code.
+  it('kommt der duennwandige Wert nicht in die Naehe von Av,z/A', () => {
+    // Kaeme er nahe an 0,467, stuende die EC3-Formel im Code.
     expect(EC3).toBeCloseTo(0.467, 3);
-    expect(kappaZ('thin-walled')).toBeLessThan(0.44);
-    expect(kappaZ('solid')).toBeLessThan(0.44);
+    expect(kappaZ('thin-walled') as number).toBeLessThan(0.44);
+  });
+});
+
+/**
+ * DAS ORAKEL DES RECHTECKS, an seinem neuen Ort.
+ *
+ * `kappa = 5/6` steht nirgends als Literal im Code — es faellt aus
+ * `A_s = I²/∫(S/t)² dA` heraus, und genau das belegt, dass die Definition in
+ * `calculation/shear.ts` stimmt. Bis
+ * [ADR 0062](../../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)
+ * war `rectangle()` sein Traeger; die Form ist solid-only und hat seither
+ * keinen Weg mehr. DER BEWEIS BLEIBT, er prueft jetzt `shearArea`
+ * unmittelbar und baut den Rechteckweg hier mit `partIntervals`.
+ *
+ * `calculation/shear.ts` LEBT WEITER — der duennwandige Zweig haengt daran,
+ * und dieser Satz ist seine Eichung.
+ */
+describe('Das Vollrechteck eicht die Schubdefinition auf 5/6', () => {
+  const b = 0.2;
+  const h = 0.5;
+
+  it('faellt 5/6 aus dem Energieintegral, in beiden Richtungen', () => {
+    const A = b * h;
+    const Iy = (b * h ** 3) / 12;
+    const Iz = (h * b ** 3) / 12;
+
+    // Eine einzige Teilflaeche ueber die volle Hoehe bzw. Breite — derselbe
+    // Weg, den `rectangle()` bis ADR 0062 hingeschrieben hat.
+    const pathZ = partIntervals(-h / 2, [{ extent: h, width: b }]);
+    const pathY = partIntervals(-b / 2, [{ extent: b, width: h }]);
+
+    expect(shearArea(Iy, pathZ.intervals) / A).toBeCloseTo(5 / 6, 12);
+    expect(shearArea(Iz, pathY.intervals) / A).toBeCloseTo(5 / 6, 12);
+  });
+
+  it('schliesst der Weg auf S = 0 — das erste Flaechenmoment verschwindet', () => {
+    expect(
+      partIntervals(-h / 2, [{ extent: h, width: b }]).closingMoment,
+    ).toBeCloseTo(0, 15);
+  });
+
+  it('bleibt kappa massstabsfrei', () => {
+    // In Millimetern gerechnet muss dieselbe Zahl herauskommen: `I` waechst
+    // mit `L⁴`, `A_s` mit `L²`, der Quotient bleibt.
+    const [bm, hm] = [200, 500];
+    const A = bm * hm;
+    const Iy = (bm * hm ** 3) / 12;
+    const path = partIntervals(-hm / 2, [{ extent: hm, width: bm }]);
+    expect(shearArea(Iy, path.intervals) / A).toBeCloseTo(5 / 6, 12);
   });
 });
 

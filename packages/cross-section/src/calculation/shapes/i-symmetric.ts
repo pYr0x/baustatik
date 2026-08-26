@@ -26,10 +26,11 @@ export function iSymmetric(
   const Iy = (b * h * h * h - (b - tw) * hw * hw * hw) / 12;
   const Iz = (2 * tf * b * b * b + hw * tw * tw * tw) / 12;
 
-  const paths =
-    idealisation === 'solid'
-      ? solidPaths(h, b, tw, tf, hw)
-      : thinPaths(h, b, tw, tf);
+  // KOMPAKT GIBT ES KEINEN WEG MEHR (ADR 0062): der solide Vollquerschnitt
+  // laeuft als Umriss durch die FE, `pathY`/`pathZ` bleiben dort weg, und κ
+  // kommt aus den ν-freien Koeffizienten. Vorher standen hier
+  // Flaechenschnitte durch die volle Umrissfigur — Grashof.
+  const paths = idealisation === 'solid' ? {} : thinPaths(h, b, tw, tf);
 
   // Doppeltsymmetrisch: Schubmittelpunkt = Schwerpunkt.
   return {
@@ -44,31 +45,13 @@ export function iSymmetric(
     // Offenes Profil: `⅓ Σ l·t³` ueber die drei Wandmittellinien — zwei Gurte
     // der Laenge `b`, ein Steg von Gurtmitte zu Gurtmitte (`h − tf`, nicht
     // `h − 2tf`). Dieselbe Wandfigur, aus der `thinPaths` sein kappa zieht.
-    // KOMPAKT GIBT ES IHN NICHT: `It` des Vollquerschnitts ist ein
-    // Randwertproblem und keine Summe.
+    // KOMPAKT GIBT ES IHN HIER NICHT: `It` des Vollquerschnitts ist ein
+    // Randwertproblem und keine Summe — geloest wird es von der FE (ADR 0062).
     It:
       idealisation === 'thin-walled'
         ? (2 * b * tf ** 3 + (h - tf) * tw ** 3) / 3
         : undefined,
     ...paths,
-  };
-}
-
-/** Kompakt: Schnitte quer zur Schubrichtung durch die volle Umrissfigur. */
-function solidPaths(h: number, b: number, tw: number, tf: number, hw: number) {
-  return {
-    pathZ: partIntervals(-h / 2, [
-      { extent: tf, width: b },
-      { extent: hw, width: tw },
-      { extent: tf, width: b },
-    ]).intervals,
-    // Senkrechte Schnitte: ausserhalb des Stegs trifft man beide Gurte
-    // (Hoehe 2*tf), ueber dem Steg zusaetzlich den Steg (Hoehe h).
-    pathY: partIntervals(-b / 2, [
-      { extent: (b - tw) / 2, width: 2 * tf },
-      { extent: tw, width: h },
-      { extent: (b - tw) / 2, width: 2 * tf },
-    ]).intervals,
   };
 }
 

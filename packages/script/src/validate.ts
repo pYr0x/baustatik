@@ -87,8 +87,17 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // fuer den Teilsatz, was hier fuer den ganzen Satz beantwortet wird — „diese
   // Datei ist neuer als das Programm". Zwei Zaehler ueber denselben Bytes
   // koennten einander widersprechen; dieser hier kommt zuerst.
-  if (snapshot.schemaVersion !== 13) {
-    fail('Snapshot.schemaVersion muss 13 sein.');
+  //
+  // Bei v13 kann ein `kind: 'shape'` KEINEN `feValues`-Block tragen — das Feld
+  // gab es dort nicht (ADR 0062). Der Bruch faellt in die andere Richtung als
+  // sonst: eine v13-Datei ist am Satz UNVERAENDERT gueltig, aber ihre
+  // parametrischen Vollquerschnitte sind unaufgeloest, und das heisst seit
+  // ADR 0062 schubstarr statt Grashof. Sie stillschweigend durchzulassen
+  // hiesse, dieselbe Datei anders rechnen zu lassen als beim letzten Mal, ohne
+  // dass jemand etwas gewaehlt haette. Ein Lauf loest sie auf; die Version
+  // sagt, dass er faellig ist.
+  if (snapshot.schemaVersion !== 14) {
+    fail('Snapshot.schemaVersion muss 14 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -238,7 +247,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 13,
+    schemaVersion: 14,
     nodes,
     beams,
     crossSections,
@@ -356,8 +365,20 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
     };
   }
 
-  exactKeys(value, path, ['kind', 'id', 'shape']);
-  return { kind, id, shape: parseShape(value.shape, `${path}.shape`) };
+  // DIE PARAMETRISCHE FORM TRAEGT SEIT v14 EINEN FE-BLOCK (ADR 0062) — denselben
+  // Typ und denselben Parser wie beide `SectionGeometry`-Varianten. Geprueft
+  // wird die GESTALT, nicht die Aufloesbarkeit: ob die Figur zu den Werten
+  // passt, sagt das Gate ueber den Fingerabdruck, nicht dieser Parser.
+  exactKeys(value, path, ['kind', 'id', 'shape', 'feValues']);
+  const shape = parseShape(value.shape, `${path}.shape`);
+  return value.feValues === undefined
+    ? { kind, id, shape }
+    : {
+        kind,
+        id,
+        shape,
+        feValues: parseFEValues(value.feValues, `${path}.feValues`),
+      };
 }
 
 /**

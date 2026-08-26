@@ -157,12 +157,18 @@ Nachweispunkt ist, hängt am Nachweis und gehört in die Bemessungsstelle.
 
 ## Was hier NICHT ist
 
-- **Der parametrische Vollquerschnitt** (`kind: 'shape'` + `idealisation:
-  'solid'`). Er behält sein Grashof-κ aus `cross-section/src/shear.ts` — ihm
-  fehlt der Polygonzug, den die FE braucht. Das ist eine **bekannte, offene
-  Lücke**, kein erledigter Zustand; gemessen in
-  [`docs/messungen/t-querschnitt-grashof-gegen-fe.md`](../../docs/messungen/t-querschnitt-grashof-gegen-fe.md),
-  Besitzer `packages/TODO.md`.
+- **Die Übersetzung `ShapeSpec` → Polygonzug.** Der parametrische
+  Vollquerschnitt (`kind: 'shape'` + `idealisation: 'solid'`) läuft seit
+  [ADR 0062](../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)
+  durch **diese** FE — aber der Schreiber, der ihn dafür ausschreibt, sitzt
+  nebenan: `shapeOutline` in `@baustatik/cross-section`. **An diesem Package hat
+  sich dafür nichts geändert**, und das war der Prüfstein der Entscheidung: die
+  async Tür nimmt eine `SectionGeometry`, und `{ kind: 'outline', rings,
+  outline }` ist eine. Hätte hier etwas angefasst werden müssen, säße der
+  Schreiber falsch. Der Beleg für den geschlossenen Zustand — beide
+  Eingabearten bitgleich — steht in
+  [`docs/messungen/t-querschnitt-grashof-gegen-fe.md`](../../docs/messungen/t-querschnitt-grashof-gegen-fe.md);
+  die vier Formen laufen in `tests/door.test.ts` durch die Tür.
 - **Der dünnwandige Weg.** Der läuft über `wall-path.ts` in
   `@baustatik/cross-section` (ADR 0040/0041).
 - **Spannungspunkte** für die gezeichnete Figur. Die zweite Tür liefert ein

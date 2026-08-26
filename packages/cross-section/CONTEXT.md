@@ -33,6 +33,15 @@ frei von WASM. κ steht dort als ν-freie FORMEL statt als Zahl —
 `1/κ = d0 + d2·m²` mit `m = ν/(1+ν)` —, und ν setzt allein
 `@baustatik/fem-section-resolve` ein.
 
+**SEIT [ADR 0062](../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)
+GILT DAS AUCH FUER DIE PARAMETRISCHE FORM.** `shapeOutline(spec)` schreibt jede
+der vier Formen als `Ring[]` aus; `idealisation: 'solid'` laeuft damit durch
+DIESELBE FE wie die gezeichnete Figur, und `feValues` steht neben `shape` am
+`CrossSection` selbst. Der Vollquerschnitt hat damit **eine** Maschine, nicht
+mehr zwei — vorher rechnete die Form κ nach Grashof (+11 % bis +134 % zu
+schubsteif) und antwortete bei `It` mit `undefined`. Der Preis ist der dritte
+Zustand: **ohne aufgeloesten FE-Block ist sie schubstarr.**
+
 Fuer den **Mehrzeller** bleiben sie weiter `undefined`: dort braucht es ein
 Gleichungssystem, und das ist offen (`packages/TODO.md`). Wo sie fehlen, heisst das fuer den Loeser `GAs: 'rigid'`,
 und `check()` in `@baustatik/fem-solver` sagt es, wenn jemand Schubverformung
@@ -285,10 +294,16 @@ Antworten auf eine Zahl.
 **Seit [ADR 0057](../../docs/adr/0057-the-parametric-solid-section-has-no-stress-points.md)
 liefert `solid` keine Spannungspunkte mehr**, sondern `undefined`. Das nimmt
 ADR 0029 nichts: `idealisation` ist weiter die eine Weiche, sie hat auf der
-`solid`-Seite nur nichts mehr zu waehlen. κ bleibt dort Grashof, und dass die
-eine Groesse eine Naeherung behaelt und die andere ganz verschwindet, ist keine
-Unstimmigkeit — eine Schubsteifigkeit MUSS der Balken haben, ein
-Spannungspunkt muss nicht existieren.
+`solid`-Seite nur nichts mehr zu waehlen.
+
+**Und seit [ADR 0062](../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)
+kommt κ dort nicht mehr aus Grashof, sondern aus der FE** — der zweite
+Halbschritt desselben Gedankens. Was ADR 0057 fuer die Spannungspunkte tat (die
+Naeherung liefert gar nichts mehr), tut ADR 0062 fuer κ: die Form schreibt sich
+als Umriss aus und laeuft durch dieselbe Maschine wie die gezeichnete Figur.
+Der Preis steht daneben — ohne aufgeloesten FE-Block ist der parametrische
+Vollquerschnitt **schubstarr**, und `check()` sagt es
+(`ShearDeformationUnavailableWarning`).
 
 **Bekannte Luecke:** `A`, `Iy`, `Iz`, `Iyz`, `ys` und `zs` werden weiterhin in
 beiden Faellen exakt aus der Umrissfigur gerechnet — die klassische duennwandige
@@ -400,11 +415,45 @@ Abmessungen
 `zsWall` hat damit genau **einen** Verbraucher, das κ des T, und kommt in den
 Spannungspunkten nicht mehr vor.
 
-## Parametrische Formen liefern Werte, keine Geometrie
+## Parametrische Formen liefern Werte — und seit ADR 0062 auch einen Umriss
 
-`ShapeSpec` ist eine Bemassung, kein Umriss. Sollen die Formen spaeter
-gezeichnet werden, kommt je Form ein `geometry()` dazu; die **Werte** bleiben aus
-der Formel, sonst gaebe es zwei Rechenwege fuer dieselbe Zahl.
+`ShapeSpec` ist eine Bemassung, kein Umriss. Der Satz oben stand hier mit einem
+Nachsatz: „sollen die Formen spaeter gezeichnet werden, kommt je Form ein
+`geometry()` dazu; die **Werte** bleiben aus der Formel, sonst gaebe es zwei
+Rechenwege fuer dieselbe Zahl."
+
+**Das ist eingeloest**
+([ADR 0062](../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)),
+und der Nachsatz stimmt weiter — nur andersherum, als er gemeint war:
+
+> `shapeOutline(spec): Ring[] | undefined` in `src/geometry/shape-outline.ts`
+> schreibt jede der vier Formen als Polygonzug aus. `A`, `Iy`, `Iz`, `Iyz`,
+> `ys`, `zs`, `alpha`, `Iu`, `Iv` bleiben geschlossene Formel; `It`, `yM`/`zM`
+> und κ des **Vollquerschnitts** kommen aus derselben 2D-FE wie bei der
+> gezeichneten Figur.
+
+Zwei Rechenwege fuer dieselbe Zahl gibt es damit **weniger** als vorher, nicht
+mehr: der Umriss ersetzt keinen der bestehenden Werte, er beliefert die FE. Und
+die Formel wird vom zweiten Rechenweg zum **Orakel** des ersten — Green ueber
+`shapeOutline(spec)` gegen `shapeValues(spec)` auf `1e-12`
+(`tests/shape-outline.test.ts`), und der FE-Fingerabdruck `A` gegen denselben
+Formelwert (`cross-section-fe/tests/door.test.ts`, weil es dafuer ein Netz
+braucht).
+
+Drei Eigenschaften des Schreibers sind Vertrag:
+
+- **Achsparallel, kein `bulge`.** Rechteck 4 Punkte, T 8, geschweisstes I 12,
+  Kasten **zwei Ringe** — Material `signedArea > 0`, Loch `(b−2t)×(h−2t)` mit
+  `signedArea < 0` (ADR 0034).
+- **Eingabesystem der Form**, siehe unten: `y = 0` Symmetrieachse, `z = 0`
+  Oberkante. Anders gelegt wanderten `ys`/`zs` gegen die Formelwerte.
+- **Gueltigkeit geerbt.** Dieselbe eine Pruefstelle je Form wie `shapeValues`
+  (`allPositive`, `tSectionCentroid`) — keine zweite Grenze.
+
+`@baustatik/cross-section-fe` wird davon **nicht angefasst**: seine Tuer nimmt
+eine `SectionGeometry`, und `{ kind: 'outline', rings, outline }` ist eine. Das
+ist der Pruefstein — muesste das FE-Package sich aendern, saesse der Schreiber
+falsch.
 
 ## Eingabesystem
 
@@ -922,14 +971,16 @@ vier T-Figuren in
 [`docs/messungen/t-querschnitt-grashof-gegen-fe.md`](../../docs/messungen/t-querschnitt-grashof-gegen-fe.md),
 und immer auf der steifen Seite. Beim Rechteck sind es 0,08 %.
 
-**κ bleibt trotzdem bei Grashof**, und die Luecke bleibt offen
-(`packages/TODO.md`). Die beiden Groessen laufen hier auseinander, weil sie
-verschieden dringend sind: eine Schubsteifigkeit MUSS der Balken haben — sie
-wegzulassen hiesse schubstarr, also ein anderes Modell —, ein Spannungspunkt
-muss nicht existieren, und `undefined` ist eine Antwort, die die Aufrufseite
-seit jeher traegt. Dazu ist κ ein Energiemittel ueber den ganzen Querschnitt,
-der Spannungspunkt dagegen eine ORTLICHE Behauptung, und zwar genau dort, wo die
-Annahme „τ konstant ueber die Breite" am haertesten scheitert.
+**Die Luecke ist geschlossen**
+([ADR 0062](../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)):
+κ des parametrischen Vollquerschnitts kommt aus derselben FE. Bis dahin lief das
+Argument auseinander — eine Schubsteifigkeit MUSS der Balken haben, sonst ist es
+ein anderes Modell, waehrend ein Spannungspunkt nicht existieren muss —, und
+genau dieser Unterschied hielt Grashof am Leben, waehrend die Punkte schon weg
+waren. Mit dem Umriss-Schreiber steht die dritte Moeglichkeit zur Verfuegung,
+die es vorher nicht gab: **beides richtig rechnen**. Der Preis ist der dritte
+Zustand — ohne FE-Lauf schubstarr statt naeherungsweise steif; der Beleg fuer
+den geschlossenen Zustand steht in derselben Messung.
 
 Im Wandmodell tragen die Punkte `t` und `S` aus der Wandabwicklung. Am Gurt
 heisst das `t = tf` statt `t = b`: der Schubfluss laeuft **laengs** der Wand,
@@ -1284,14 +1335,17 @@ ein Beispiel nicht unbemerkt veraltet. Details in
   Schubfluss laengs der Wandmittellinien laufen. Beide sind **Modelle**, keine
   Verfahrensnamen und keine Maschinen.
 
-  **Das Umrissmodell hat ZWEI MASCHINEN**: Grashof als Naeherung
+  **Das Umrissmodell hatte ZWEI MASCHINEN**: Grashof als Naeherung
   (`calculation/shear.ts`, fuer die parametrische Form) und die FE als exakte
   Rechnung (`@baustatik/cross-section-fe`, fuer die gezeichnete Figur). Dieselbe
-  Frage, zwei Antworten — eine bekannte, offene Luecke, gemessen und in
-  `packages/TODO.md` verzeichnet (ADR 0045/0047). **Bei den Spannungspunkten ist
-  sie seit ADR 0057 geschlossen**, indem die Naeherung dort gar nichts mehr
-  liefert; fuer κ steht sie weiter offen. Ein `stress-points/outline.ts` gibt es
-  deshalb nicht mehr.
+  Frage, zwei Antworten — eine gemessene Luecke (ADR 0045/0047). **Bei den
+  Spannungspunkten wurde sie mit ADR 0057 geschlossen**, indem die Naeherung
+  dort gar nichts mehr liefert (ein `stress-points/outline.ts` gibt es deshalb
+  nicht mehr); **fuer κ, `It` und `yM`/`zM` mit
+  [ADR 0062](../../docs/adr/0062-the-parametric-shape-writes-itself-out-as-an-outline.md)**,
+  indem die Form sich als Umriss ausschreibt und durch dieselbe FE laeuft.
+  **Es ist jetzt EINE Maschine.** `calculation/shear.ts` bleibt vollstaendig —
+  aber nur noch fuer das WANDMODELL.
 - **`FESectionValues`** ist der FE-Anteil des Satzes: `It`, der Schubmittelpunkt
   und κ als Koeffizientenpaar. **KEINE Materialzahl, KEIN ν** —
   `1/κ = d0 + d2·m²` mit `m = ν/(1+ν)`, und ν setzt allein

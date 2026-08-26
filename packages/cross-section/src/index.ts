@@ -12,6 +12,7 @@ export {
 export { deriveOutline } from './geometry/outline/derive-outline';
 export { deriveOutlineFromRings } from './geometry/outline/derive-outline-from-rings';
 export { deriveOutlineFromWalls } from './geometry/outline/derive-outline-from-walls';
+export { shapeOutline } from './geometry/shape-outline';
 export { type Branch, branches } from './geometry/wall-graph/branches';
 export type { CrossSection } from './model/cross-section';
 export {
