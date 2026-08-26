@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@baustatik/core": "workspace:*",
     "@baustatik/cross-section": "workspace:*",
     "@baustatik/cross-section-fe": "workspace:*",
     "@baustatik/cross-section-stress": "workspace:*",

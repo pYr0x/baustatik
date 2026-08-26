@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FE-Spannungen im Vollquerschnitt — baustatik</title>
+    <script src="./stress-fe.ts" type="module"></script>
+    <style>
+        :root {
+            --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --color-bg: #f8fafc;
+            --color-surface: #ffffff;
+            --color-border: #e2e8f0;
+            --color-text: #0f172a;
+            --color-muted: #64748b;
+            --color-primary: #2563eb;
+            --color-primary-dark: #1d4ed8;
+            --color-accent: #f97316;
+            --color-success: #16a34a;
+            font-family: var(--font-sans);
+            color: var(--color-text);
+            background: var(--color-bg);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            max-width: 1160px;
+            margin: 0 auto;
+            padding: 1.5rem 1.25rem 3.5rem;
+            line-height: 1.5;
+        }
+
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin: 0 0 1rem;
+            color: var(--color-muted);
+            font-size: 0.85rem;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.15s ease;
+        }
+
+        .back:hover {
+            color: var(--color-primary);
+            text-decoration: underline;
+        }
+
+        header {
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin: 0 0 0.4rem;
+            color: #0f172a;
+            letter-spacing: -0.02em;
+        }
+
+        .intro {
+            color: var(--color-muted);
+            font-size: 0.95rem;
+            margin: 0;
+            max-width: 800px;
+        }
+
+        .card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 0.6rem;
+            border-bottom: 1px solid var(--color-border);
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        h2 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin: 0;
+            color: #1e293b;
+        }
+
+        .section-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            background: #eff6ff;
+            color: var(--color-primary);
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+
+        /* Formular */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 900px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+        }
+
+        .form-section-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.35rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .forces-row-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.65rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .forces-row-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.65rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            min-width: 0;
+            width: 100%;
+        }
+
+        .input-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #475569;
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+
+        .input-group label i {
+            font-style: italic;
+            margin-left: 0.15rem;
+        }
+
+        .input-group label sub {
+            font-size: 0.75em;
+            line-height: 0;
+            vertical-align: -0.2em;
+        }
+
+        .input-group label .lbl-unit {
+            color: var(--color-muted);
+            font-weight: 400;
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            flex-shrink: 0;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 0.45rem 0.6rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            background: #fff;
+            color: #0f172a;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .input-group select {
+            cursor: pointer;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .btn-calc {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: var(--color-primary);
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.6rem 1.3rem;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.05s ease;
+            box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .btn-calc:hover:not(:disabled) {
+            background: var(--color-primary-dark);
+        }
+
+        .btn-calc:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .btn-calc:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .profile-note {
+            font-size: 0.78rem;
+            color: var(--color-muted);
+            margin-top: 0.5rem;
+            background: #f8fafc;
+            padding: 0.4rem 0.6rem;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Netzdichte-Slider */
+        input[type='range'] {
+            width: 100%;
+            accent-color: var(--color-primary);
+            margin: 0.35rem 0 0.15rem;
+        }
+
+        /* Umschalter Knoten/Element */
+        .qty-toggle {
+            display: inline-flex;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .mesh-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .mesh-toggle input {
+            accent-color: var(--color-primary);
+            cursor: pointer;
+        }
+
+        /* 3D-Spannungsrelief */
+        #relief-host {
+            position: relative;
+            width: 100%;
+            height: 680px;
+            background: #eef2f7;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        #relief-host canvas {
+            display: block;
+        }
+
+        .qty-toggle button {
+            appearance: none;
+            border: none;
+            background: #fff;
+            padding: 0.35rem 0.85rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--color-muted);
+            cursor: pointer;
+            border-right: 1px solid var(--color-border);
+            font-family: var(--font-sans);
+            transition: background 0.15s ease;
+        }
+
+        .qty-toggle button:last-child {
+            border-right: none;
+        }
+
+        .qty-toggle button.active {
+            background: var(--color-primary);
+            color: #fff;
+        }
+
+        /* Statuszeile der FE-Rechnung */
+        .fe-status {
+            display: none;
+            align-items: center;
+            gap: 0.6rem;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+            border-radius: 6px;
+            padding: 0.6rem 0.85rem;
+            font-size: 0.84rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .fe-status.visible {
+            display: flex;
+        }
+
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #bfdbfe;
+            border-top-color: var(--color-primary);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #validation-warning {
+            display: none;
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            color: #be123c;
+            border-radius: 6px;
+            padding: 0.6rem 0.85rem;
+            font-size: 0.84rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        /* Extremwert-Karten */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #cbd5e1;
+        }
+
+        .stat-card.primary::before {
+            background: var(--color-primary);
+        }
+
+        .stat-card.warning::before {
+            background: var(--color-accent);
+        }
+
+        .stat-card.success::before {
+            background: var(--color-success);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.35rem;
+        }
+
+        .stat-label sub {
+            font-size: 0.8em;
+            line-height: 0;
+            vertical-align: -0.2em;
+        }
+
+        .stat-value {
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: #0f172a;
+            font-family: var(--font-mono);
+            letter-spacing: -0.02em;
+        }
+
+        .stat-sub {
+            font-size: 0.78rem;
+            color: var(--color-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Die drei Farbfelder */
+        .field-svg {
+            width: 100%;
+            height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+
+        .field-svg svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .legend-row {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            margin-top: 0.75rem;
+            font-size: 0.78rem;
+            color: #475569;
+        }
+
+        .legend-bar {
+            flex: 1;
+            height: 14px;
+            border-radius: 7px;
+            border: 1px solid var(--color-border);
+        }
+
+        .legend-labels {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* Netz & Diagnose */
+        table.diag-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.84rem;
+        }
+
+        table.diag-table th,
+        table.diag-table td {
+            padding: 0.3rem 0.4rem;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        table.diag-table th {
+            color: var(--color-muted);
+            font-weight: 500;
+            width: 45%;
+        }
+
+        table.diag-table td {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .diag-hint {
+            font-size: 0.76rem;
+            color: var(--color-muted);
+            margin-top: 0.6rem;
+            line-height: 1.5;
+        }
+
+        /* Formelkarte */
+        .formula-card {
+            background: #f8fafc;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            padding: 1rem 1.25rem;
+            font-size: 0.85rem;
+            color: #334155;
+            line-height: 1.6;
+            margin-top: 1.5rem;
+        }
+
+        .formula-card h3 {
+            font-size: 0.92rem;
+            margin: 0 0 0.5rem;
+            color: #0f172a;
+        }
+
+        .formula-code {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            background: #fff;
+            padding: 0.15rem 0.4rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <a class="back" href="../index.html">&larr; Zur &Uuml;bersicht</a>
+    <header>
+        <h1>FE-Spannungen im Vollquerschnitt (&sigma;, &tau;, &sigma;<sub>v</sub>)</h1>
+        <p class="intro">
+            Die Umriss-Presets aus &bdquo;Umriss-Querschnitte&ldquo; (oben w&auml;hlbar) unter der
+            2D-Finite-Elemente-Rechnung des gezeichneten Vollquerschnitts: Vernetzen und L&ouml;sen laufen
+            asynchron im Worker (Tri6, eine Faktorisierung, f&uuml;nf rechte Seiten), danach liefert
+            <code>recoverStresses</code> &sigma;, &tau; und &sigma;<sub>v</sub> an jedem Netzknoten —
+            synchron, aus den gel&ouml;sten Feldern. Es gibt keine Spannungspunkte und keine Tabelle
+            (ADR 0057/0061); stattdessen das ganze Feld als Farbe.
+        </p>
+    </header>
+
+    <!-- Eingabebereich -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Schnittgr&ouml;&szlig;eneingabe</h2>
+            <span class="section-badge" id="section-title-badge">I geschweisst 200 x 100 x 5.6 x 8.5</span>
+        </div>
+
+        <div id="validation-warning"></div>
+        <div class="fe-status" id="fe-status">
+            <span class="spinner"></span>
+            <span id="fe-status-text">FE-Rechnung l&auml;uft — vernetzen und faktorisieren im Worker&hellip;</span>
+        </div>
+
+        <form id="calc-form" onsubmit="event.preventDefault();">
+            <div class="form-grid">
+                <div>
+                    <div class="form-section-title">Profil (Umriss-Presets)</div>
+                    <div class="input-group" style="margin-bottom: 0.6rem;">
+                        <label for="sel-preset"><span>Voreinstellung</span></label>
+                        <select id="sel-preset"></select>
+                    </div>
+                    <div class="profile-note" id="preset-note"></div>
+
+                    <div class="form-section-title" style="margin-top: 1.25rem;">Netzdichte (FE-Elemente)</div>
+                    <input type="range" id="inp-feelements" min="0" max="10" step="1" value="6"
+                        title="Angestrebte Elementzahl der FE-Vernetzung" />
+                    <div class="profile-note">
+                        Angestrebt: <strong id="feelements-value">4.000</strong> Elemente —
+                        jede &Auml;nderung vernetzt und faktorisiert neu im Worker. Das ist die einzige
+                        Stellschraube der FE-Rechnung; es gibt keinen automatischen Konvergenzlauf (ADR 0045).
+                    </div>
+                </div>
+
+                <div>
+                    <div class="form-section-title">Schnittgr&ouml;&szlig;en (Bemessungswerte)</div>
+                    <div class="forces-row-3">
+                        <div class="input-group">
+                            <label for="inp-n"><span><i>N</i></span><span class="lbl-unit">[kN]</span></label>
+                            <input type="number" id="inp-n" value="50" step="1" title="Normalkraft N [kN]" />
+                        </div>
+                        <div class="input-group">
+                            <label for="inp-vz"><span><i>V</i><sub>z</sub></span><span
+                                    class="lbl-unit">[kN]</span></label>
+                            <input type="number" id="inp-vz" value="35" step="1" title="Querkraft Vz [kN]" />
+                        </div>
+                        <div class="input-group">
+                            <label for="inp-my"><span><i>M</i><sub>y</sub></span><span
+                                    class="lbl-unit">[kNm]</span></label>
+                            <input type="number" id="inp-my" value="20" step="0.5" title="Biegemoment My [kNm]" />
+                        </div>
+                    </div>
+                    <div class="forces-row-2">
+                        <div class="input-group">
+                            <label for="inp-vy"><span><i>V</i><sub>y</sub></span><span
+                                    class="lbl-unit">[kN]</span></label>
+                            <input type="number" id="inp-vy" value="0" step="1" title="Querkraft Vy [kN]" />
+                        </div>
+                        <div class="input-group">
+                            <label for="inp-mz"><span><i>M</i><sub>z</sub></span><span
+                                    class="lbl-unit">[kNm]</span></label>
+                            <input type="number" id="inp-mz" value="0" step="0.5" title="Biegemoment Mz [kNm]" />
+                        </div>
+                    </div>
+                    <div class="forces-row-2">
+                        <div class="input-group">
+                            <label for="inp-mt"><span><i>M</i><sub>t</sub></span><span
+                                    class="lbl-unit">[kNm]</span></label>
+                            <input type="number" id="inp-mt" value="0" step="0.5"
+                                title="Torsionsmoment Mt [kNm] — Saint-Venant" />
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btn-calculate" class="btn-calc" disabled>
+                        Spannungen berechnen
+                    </button>
+                    <div class="profile-note">
+                        Der Knopf wertet nur neu aus: die Schnittgr&ouml;&szlig;en gehen nicht in die
+                        FE-Rechnung ein, die Felder stehen nach dem einen Lauf bereit, und
+                        <code>recoverStresses</code> ist rein und synchron.
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Auswertungsmodus des Feldes -->
+    <div class="card" style="padding: 1rem 1.25rem;">
+        <div class="card-header" style="margin-bottom: 0.5rem;">
+            <h2>Auswertung des Feldes</h2>
+            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                <label class="mesh-toggle" for="chk-mesh"
+                    title="Die echten Tri6-Kanten als dünne schwarze Linien über dem Farbfeld">
+                    <input type="checkbox" id="chk-mesh" />
+                    FE-Netz zeigen
+                </label>
+                <div class="qty-toggle" id="eval-toggle">
+                    <button type="button" data-eval="nodes" class="active">Gemittelte Knotenwerte</button>
+                    <button type="button" data-eval="elements">Elementwerte (Schwerpunkte)</button>
+                </div>
+            </div>
+        </div>
+        <div class="diag-hint" id="eval-info" style="margin-top: 0;"></div>
+    </div>
+
+    <!-- Extremwert-Karten -->
+    <div class="stats-grid" id="stats-container"></div>
+
+    <!-- Netz & Diagnose -->
+    <div class="card">
+        <div class="card-header" style="margin-bottom: 0.5rem;">
+            <h2>Netz &amp; Diagnose des Feldes</h2>
+        </div>
+        <div id="mesh-info">Die FE-Rechnung lief noch nicht.</div>
+    </div>
+
+    <!-- Die drei Farbfelder -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Normalspannung &sigma;</h2>
+            <span class="section-badge" id="range-sigma">&ndash;</span>
+        </div>
+        <div class="field-svg" id="svg-sigma"></div>
+        <div class="legend-row">
+            <span class="legend-labels" id="legend-sigma-min"></span>
+            <div class="legend-bar" id="legend-sigma-bar"></div>
+            <span class="legend-labels" id="legend-sigma-max"></span>
+        </div>
+        <div class="diag-hint">
+            Druck blau, Zug rot, symmetrisch um null skaliert. &sigma; ist geschlossen ausgewertet —
+            sie h&auml;ngt nur am Ort und wird nirgends gemittelt; &uuml;ber Elementgrenzen ist sie stetig.
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Schubspannung |&tau;|</h2>
+            <span class="section-badge" id="range-tau">&ndash;</span>
+        </div>
+        <div class="field-svg" id="svg-tau"></div>
+        <div class="legend-row">
+            <span class="legend-labels" id="legend-tau-min"></span>
+            <div class="legend-bar" id="legend-tau-bar"></div>
+            <span class="legend-labels" id="legend-tau-max"></span>
+        </div>
+        <div class="diag-hint">
+            Der Betrag des Schubvektors <code>&radic;(&tau;<sub>y</sub>&sup2; + &tau;<sub>z</sub>&sup2;)</code>:
+            an einem Netzknoten ist &tau; ein VEKTOR ohne ausgezeichnete Richtung (ADR 0061). Die Knotenwerte
+            sind fl&auml;chengewichtet aus den Elementwerten gemittelt — ihre gr&ouml;&szlig;te Gl&auml;ttung
+            steht oben in der Diagnosetabelle, sie wird nicht verschwiegen.
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Vergleichsspannung &sigma;<sub>v</sub></h2>
+            <span class="section-badge" id="range-sigmav">&ndash;</span>
+        </div>
+        <div class="field-svg" id="svg-sigmav"></div>
+        <div class="legend-row">
+            <span class="legend-labels" id="legend-sigmav-min"></span>
+            <div class="legend-bar" id="legend-sigmav-bar"></div>
+            <span class="legend-labels" id="legend-sigmav-max"></span>
+        </div>
+        <div class="diag-hint">
+            von Mises
+            <code>&radic;(&sigma;&sup2; + 3&middot;(&tau;<sub>y</sub>&sup2; + &tau;<sub>z</sub>&sup2;))</code>.
+            Kein Maximum ist ausgezeichnet (ADR 0056) — welche Stelle ma&szlig;gebend ist, h&auml;ngt am Nachweis.
+        </div>
+    </div>
+
+    <!-- Spannungsrelief in 3D -->
+    <div class="card" id="card-relief">
+        <div class="card-header">
+            <h2>Spannungsrelief in 3D</h2>
+            <span class="section-badge">H&ouml;he = Spannung &middot; Farbe wie oben &middot; Ziehen: drehen &middot;
+                Klick: fixieren</span>
+        </div>
+        <div id="relief-host">
+            <!-- Canvas wird hier eingesetzt -->
+        </div>
+        <div id="relief-info" class="diag-hint" style="margin-top: 0.75rem;">
+            Klick auf eine Fl&auml;che fixiert den Wert; Streifen &uuml;ber der Fl&auml;che zeigt ihn als Tooltip.
+            Die drei Fl&auml;chen sind dieselben Felder wie die Karten dar&uuml;ber — nur als H&ouml;he:
+            beim &sigma;-Relief liegt die Nulllinie als Tal zwischen Druck- und Zugberg, und am Stegansatz
+            w&auml;chst der Grat mit jeder Verfeinerung weiter.
+        </div>
+    </div>
+
+    <!-- Formelübersicht -->
+    <div class="formula-card">
+        <h3>Berechnungsgrundlagen</h3>
+        <p style="margin: 0 0 0.5rem;">
+            <strong>Normalspannung</strong> (geschlossen, ohne Drehung, mit <code>A</code>, <code>Iy</code>,
+            <code>Iz</code>, <code>Iyz</code> aus dem Netz): <code
+                class="formula-code">D = Iy&middot;Iz &minus; Iyz&sup2;, &sigma; = N/A &minus; (Mz&middot;Iy + My&middot;Iyz)/D &middot; y + (My&middot;Iz + Mz&middot;Iyz)/D &middot; z</code>
+        </p>
+        <p style="margin: 0 0 0.5rem;">
+            <strong>Schubspannung</strong>: Gradienten der gel&ouml;sten Schubfelder
+            <code>&psi;&#8320;/&psi;&#8321;</code>
+            je Hauptrahmen, zur&uuml;ckgedreht ins Eingabesystem, plus Saint-Venant-Torsion aus der Verw&ouml;bung
+            <code>&omega;</code>. Das Momentengleichgewicht steht auf dem WEBER-Moment des Einheitsfeldes —
+            bei dieser doppelsymmetrischen Figur fallen Trefftz und Weber zusammen.
+        </p>
+        <p style="margin: 0 0 0.5rem;">
+            <strong>Vergleichsspannung:</strong> <code
+                class="formula-code">&sigma;<sub>v</sub> = &radic;(&sigma;&sup2; + 3&middot;(&tau;<sub>y</sub>&sup2; + &tau;<sub>z</sub>&sup2;))</code>
+        </p>
+        <p style="margin: 0;">
+            <strong>&nu; = 0 &rArr; m = &nu;/(1+&nu;) = 0:</strong> der m-Anteil der Schubfelder tr&auml;gt nichts;
+            die Darstellung zeigt genau das Bild, das auch die ν-freien κ-Koeffizienten (ADR 0045) zugrunde legen.
+        </p>
+    </div>
+</body>
+
+</html>

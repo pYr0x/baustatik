@@ -14,6 +14,7 @@ export default defineConfig({
         crossSectionViewer: page('cross-section/cross-section-viewer.html'),
         parametricSections: page('cross-section/parametric-sections.html'),
         stress: page('cross-section/stress.html'),
+        stressFe: page('cross-section/stress-fe.html'),
         midlineSections: page('cross-section/midline-sections.html'),
         mesh2d: page('cross-section/mesh-2d.html'),
         outlineSections: page('cross-section/outline-sections.html'),

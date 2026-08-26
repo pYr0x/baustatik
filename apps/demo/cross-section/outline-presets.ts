@@ -1,5 +1,5 @@
 import type { Ring } from '@baustatik/cross-section';
-import { IPE } from '@baustatik/steel-profiles';
+import { IPE, HEA } from '@baustatik/steel-profiles';
 
 /**
  * Die vorgegebenen Querschnitte der Demo — RINGE, kein Wandgraph.
