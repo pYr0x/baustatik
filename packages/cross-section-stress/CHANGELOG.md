@@ -1,5 +1,12 @@
 # @baustatik/cross-section-stress
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies [68312cf]
+  - @baustatik/cross-section@0.0.10
+
 ## 0.0.1
 
 ### Patch Changes

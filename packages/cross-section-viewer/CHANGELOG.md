@@ -1,5 +1,12 @@
 # @baustatik/cross-section-viewer
 
+## 0.0.11
+
+### Patch Changes
+
+- Updated dependencies [68312cf]
+  - @baustatik/cross-section@0.0.10
+
 ## 0.0.10
 
 ### Patch Changes
