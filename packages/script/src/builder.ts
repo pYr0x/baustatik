@@ -2,6 +2,7 @@ import {
   createSectionGeometry,
   createSectionPolicy,
   type CrossSection,
+  type ReinforcementLayer,
   type SectionPolicy,
 } from '@baustatik/cross-section';
 import { BaustatikError } from '@baustatik/errors';
@@ -241,12 +242,18 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
       case 'profile':
         return { kind: 'profile', id, ...this.requireProfile(input.profile) };
       case 'shape':
-        return { kind: 'shape', id, shape: structuredClone(input.shape) };
+        return {
+          kind: 'shape',
+          id,
+          shape: structuredClone(input.shape),
+          ...reinforcementOf(input),
+        };
       case 'section-geometry':
         return {
           kind: 'section-geometry',
           id,
           geometry: structuredClone(input.geometry),
+          ...reinforcementOf(input),
         };
       case 'section-input':
         // DER EINE ORT, an dem der Bauer mehr tut als kopieren: er leitet den
@@ -260,6 +267,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
             structuredClone(input.input),
             this.#sectionPolicy,
           ),
+          ...reinforcementOf(input),
         };
     }
   }
@@ -357,7 +365,7 @@ class FEMModelBuilderImpl implements FEMModelSnapshotBuilder {
 
   finish(): FEMModelSnapshot {
     return structuredClone({
-      schemaVersion: 14,
+      schemaVersion: 15,
       nodes: this.#nodes,
       beams: this.#beams,
       crossSections: this.#crossSections,
@@ -438,4 +446,23 @@ function loadCaseRecord(handle: LoadCaseHandleImpl): LoadCase {
 
 function toArray<T>(value: T | readonly T[]): readonly T[] {
   return Array.isArray(value) ? value : [value as T];
+}
+
+/**
+ * Die Bewehrungslagen der Eingabe, tief kopiert — oder gar nichts.
+ *
+ * KOPIERT WIE `shape` UND `geometry`: der Satz ist ein Abzug und kein Fenster
+ * auf die Objekte des Autors. Schriebe er nach dem Aufruf in seine Lage, aenderte
+ * er sonst den Snapshot mit.
+ *
+ * ABWESEND BLEIBT ABWESEND, statt zu einem leeren Array zu werden — „keine
+ * Bewehrung" ist der Regelfall jedes Stahl- und Holzquerschnitts, und ein
+ * leeres Array behauptete, jemand haette eine Liste angelegt (ADR 0064).
+ */
+function reinforcementOf(input: {
+  readonly reinforcement?: readonly ReinforcementLayer[];
+}): { reinforcement?: readonly ReinforcementLayer[] } {
+  return input.reinforcement === undefined
+    ? {}
+    : { reinforcement: structuredClone(input.reinforcement) };
 }

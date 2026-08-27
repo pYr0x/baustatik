@@ -124,7 +124,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
     delete (v1 as Record<string, unknown>).crossSections;
     delete (v1 as Record<string, unknown>).materials;
     expect(() => parseFEMModelSnapshot({ ...v1, schemaVersion: 1 })).toThrow(
-      'Snapshot.schemaVersion muss 14 sein.',
+      'Snapshot.schemaVersion muss 15 sein.',
     );
   });
 
@@ -140,7 +140,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
           crossSections: [{ kind: 'profile', id: 'cs-1', profile: 'IPE 300' }],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 14 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 15 sein.');
   });
 
   it('lehnt v4 AB, statt `t-beam` in `t-section` umzuschreiben', () => {
@@ -168,7 +168,7 @@ describe('Der Snapshot traegt die Querschnitte mit', () => {
           ],
         }),
       ),
-    ).toThrow('Snapshot.schemaVersion muss 14 sein.');
+    ).toThrow('Snapshot.schemaVersion muss 15 sein.');
   });
 
   it('kennt `t-beam` auch in einem v6-Satz nicht mehr', () => {

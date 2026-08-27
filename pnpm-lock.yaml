@@ -144,6 +144,49 @@ importers:
         specifier: ^4.1.5
         version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
 
+  packages/concrete-design:
+    dependencies:
+      '@baustatik/cross-section':
+        specifier: workspace:*
+        version: link:../cross-section
+      '@baustatik/cross-section-response':
+        specifier: workspace:*
+        version: link:../cross-section-response
+      '@baustatik/design-core':
+        specifier: workspace:*
+        version: link:../design-core
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/material':
+        specifier: workspace:*
+        version: link:../material
+      '@baustatik/section-forces':
+        specifier: workspace:*
+        version: link:../section-forces
+      '@baustatik/units':
+        specifier: workspace:*
+        version: link:../units
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.11
+        version: 4.1.11(supports-color@10.2.2)(vitest@4.1.11)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.57.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.2.3)(@vitest/coverage-istanbul@4.1.11)(happy-dom@20.6.1)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
+
   packages/core:
     dependencies:
       '@baustatik/errors':
@@ -252,6 +295,43 @@ importers:
         specifier: ^4.0.18
         version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@7.3.1(@types/node@25.2.3)(lightningcss@1.32.0)(terser@5.46.0))
 
+  packages/cross-section-response:
+    dependencies:
+      '@baustatik/core':
+        specifier: workspace:*
+        version: link:../core
+      '@baustatik/cross-section':
+        specifier: workspace:*
+        version: link:../cross-section
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/section-forces':
+        specifier: workspace:*
+        version: link:../section-forces
+      '@baustatik/units':
+        specifier: workspace:*
+        version: link:../units
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.11
+        version: 4.1.11(supports-color@10.2.2)(vitest@4.1.11)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.57.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.2.3)(@vitest/coverage-istanbul@4.1.11)(happy-dom@20.6.1)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
+
   packages/cross-section-stress:
     dependencies:
       '@baustatik/cross-section':
@@ -340,6 +420,77 @@ importers:
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.2.3)(@vitest/browser-playwright@4.0.18)(happy-dom@20.6.1)(lightningcss@1.32.0)(terser@5.46.0)
+
+  packages/design-core:
+    dependencies:
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/section-forces':
+        specifier: workspace:*
+        version: link:../section-forces
+      '@baustatik/units':
+        specifier: workspace:*
+        version: link:../units
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.11
+        version: 4.1.11(supports-color@10.2.2)(vitest@4.1.11)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.57.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.2.3)(@vitest/coverage-istanbul@4.1.11)(happy-dom@20.6.1)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
+
+  packages/design-solver:
+    dependencies:
+      '@baustatik/core':
+        specifier: workspace:*
+        version: link:../core
+      '@baustatik/design-core':
+        specifier: workspace:*
+        version: link:../design-core
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/fem':
+        specifier: workspace:*
+        version: link:../fem
+      '@baustatik/fem-solver':
+        specifier: workspace:*
+        version: link:../fem-solver
+      '@baustatik/section-forces':
+        specifier: workspace:*
+        version: link:../section-forces
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.11
+        version: 4.1.11(supports-color@10.2.2)(vitest@4.1.11)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.57.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.2.3)(@vitest/coverage-istanbul@4.1.11)(happy-dom@20.6.1)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
 
   packages/errors: {}
 
@@ -946,7 +1097,55 @@ importers:
         specifier: ^4.1.5
         version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.4(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
 
+  packages/section-response-wasm: {}
+
   packages/sparse-solver-wasm: {}
+
+  packages/steel-design:
+    dependencies:
+      '@baustatik/cross-section':
+        specifier: workspace:*
+        version: link:../cross-section
+      '@baustatik/cross-section-response':
+        specifier: workspace:*
+        version: link:../cross-section-response
+      '@baustatik/cross-section-stress':
+        specifier: workspace:*
+        version: link:../cross-section-stress
+      '@baustatik/design-core':
+        specifier: workspace:*
+        version: link:../design-core
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/material':
+        specifier: workspace:*
+        version: link:../material
+      '@baustatik/section-forces':
+        specifier: workspace:*
+        version: link:../section-forces
+      '@baustatik/units':
+        specifier: workspace:*
+        version: link:../units
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.11
+        version: 4.1.11(supports-color@10.2.2)(vitest@4.1.11)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.57.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.2.3)(@vitest/coverage-istanbul@4.1.11)(happy-dom@20.6.1)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
 
   packages/steel-profiles:
     devDependencies:
@@ -968,6 +1167,49 @@ importers:
       vitest:
         specifier: ^4.1.5
         version: 4.1.10(@types/node@25.2.3)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-istanbul@4.1.10)(happy-dom@20.6.1)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.27.3)(terser@5.46.0))
+
+  packages/timber-design:
+    dependencies:
+      '@baustatik/cross-section':
+        specifier: workspace:*
+        version: link:../cross-section
+      '@baustatik/cross-section-stress':
+        specifier: workspace:*
+        version: link:../cross-section-stress
+      '@baustatik/design-core':
+        specifier: workspace:*
+        version: link:../design-core
+      '@baustatik/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@baustatik/material':
+        specifier: workspace:*
+        version: link:../material
+      '@baustatik/section-forces':
+        specifier: workspace:*
+        version: link:../section-forces
+      '@baustatik/units':
+        specifier: workspace:*
+        version: link:../units
+    devDependencies:
+      '@vitest/coverage-istanbul':
+        specifier: ^4.1.11
+        version: 4.1.11(supports-color@10.2.2)(vitest@4.1.11)
+      oxfmt:
+        specifier: ^0.58.0
+        version: 0.58.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0)
+      vite-plugin-dts:
+        specifier: ^5.0.3
+        version: 5.0.3(@microsoft/api-extractor@7.56.3(@types/node@25.2.3))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.57.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.2.3)(@vitest/coverage-istanbul@4.1.11)(happy-dom@20.6.1)(vite@8.1.5(@types/node@25.2.3)(esbuild@0.28.1)(terser@5.46.0))
 
   packages/units:
     dependencies:

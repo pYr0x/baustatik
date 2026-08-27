@@ -193,6 +193,18 @@ ins spaetere Bemessungspaket, zusammen mit Querschnittsklasse, `Npl,d`, `Vpl,d`,
 
 Was das Package liefert, ist der **Nenner** solcher Formeln, nie der Zaehler.
 
+**Die Bewehrung aendert daran nichts** ([ADR 0064](../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+Seit sie am `CrossSection` haengt, traegt das Package einen Begriff, den nur die
+Bemessung benutzt — aber er traegt **Geometrie und eine Flaeche, keine
+Festigkeit**: `{ y, z, As, Asmax }` ist dieselbe Kategorie wie `SectionNode.y`
+und `Wall.t`. Kein Material, keine Guete, keine Betonstahlsorte erreicht den
+Satz; die kommen mit dem Gesetz aus `@baustatik/concrete-design` (ADR 0055).
+Die Abnahmebedingung bleibt woertlich dieselbe wie vorher:
+
+```text
+grep -r 'fy|fck|gamma|alphaCC' packages/cross-section/src   →   nichts
+```
+
 ## `SectionProperties` vs. `SectionStiffness`
 
 | | Inhalt | vom Material abhaengig |
@@ -213,6 +225,15 @@ Die Multiplikation leistet `@baustatik/fem-section-resolve` und sonst niemand.
 | `ShapeResult` (intern) | **cm², cm⁴, cm** | dieselbe Sprache wie die Tabellenzeile: `Iy: 8356` liest man, `8.356e-5` nicht |
 | `SectionProperties` (Ausgabe) | **m², m⁴, m** | dahinter multipliziert `fem-section-resolve` mit `E` in kN/m² und will kN bzw. kNm² |
 | `StressPoint` | **mm**, `S` in **cm³** | genau das, was der Ausdruck druckt und was in der Referenz-Fixture steht |
+| `ReinforcementElement` | `y`/`z` in **mm**, `As`/`Asmax` in **cm²** | die Lage folgt der Geometrie daneben, die Flaeche dem Bewehrungsplan und dem Bericht — Eingabeform und Ausgabeform in einem, ohne Faktor dazwischen (ADR 0064) |
+
+Der `ReinforcementElement`-Eintrag mischt zwei Einheiten in **einem** Satz, und
+das ist kein Ausrutscher: `StressPoint` fuehrt seit
+[ADR 0052](../../docs/adr/0052-stress-points-sit-on-the-extreme-fibre.md) mm und
+cm³ nebeneinander, und die gebrandeten Typen aus `@baustatik/units` machen die
+Mischung unverwechselbar. **Umgerechnet wird hier nichts**: cm² → mm² geschieht
+in der Faserherstellung von `@baustatik/cross-section-response` (ADR 0063), an
+genau einer Stelle.
 
 Umgerechnet wird an **einer Eingangsstelle je Quelle und an einem gemeinsamen
 Ausgang**:
@@ -632,10 +653,12 @@ schweigt, ein Kasten `100×100` mit `t = 30` auf `0,43` und meldet sich.
 
 ## Das Gate: es warnt, es verweigert nicht
 
-Zwei Tueren, weil zwei verschiedene Fragen
-([ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md)):
+Drei Tueren, weil drei verschiedene Fragen
+([ADR 0032](../../docs/adr/0032-the-cross-section-gate-warns.md),
+[ADR 0064](../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)):
 `validateSectionGeometry(g, policy)` prueft die gezeichnete Figur,
-`validateSectionProperties(p, policy)` die Zahlen. **Kein `assertValid…`** — der
+`validateSectionProperties(p, policy)` die Zahlen,
+`validateReinforcement(cs, policy)` die Bewehrung. **Kein `assertValid…`** — der
 Querschnitt ist kein Tor vor der Rechenkette; wer ihn nicht rechnen kann, bekommt
 `undefined` und damit einen Modellfehler im Bericht.
 
@@ -675,6 +698,24 @@ Material laeuft mit `signedArea > 0`, ein Loch mit `< 0`.
 | `errors` | `Σ signedArea <= 0` (`NegativeOutlineAreaError`) | sonst gibt Green ein negatives `A` und `fem-section-resolve` daraus eine negative Steifigkeit — die einzige Fehlerrichtung, die den Loeser **still** kaputtmacht |
 | `errors` | ein Ring mit `signedArea === 0` (`DegenerateOutlineRingError`) | entartet; traegt nichts bei und ist nie gewollt |
 | `warnings` | ein Lochring in keinem Materialring (`UnnestedHoleWarning`) | rechenbar und bei zwei getrennten Vollflaechen legitim aussehend — die Lage, fuer die ADR 0032 warnt |
+
+Und mit [ADR 0064](../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)
+kommen **sechs Befunde an der Bewehrung**, an der **dritten** Tuer: sie nimmt
+den `CrossSection` und nicht eine seiner Haelften, weil das Feld eine Ebene
+ueber der `SectionGeometry` sitzt. Den Umriss, gegen den sie die Lage misst,
+**leitet sie selbst ab** — ein uebergebener koennte der falsche sein.
+
+| Kanal | Ausloeser | warum |
+| --- | --- | --- |
+| `errors` | `!isSolid(cs)` (`ReinforcementOnThinWalledSectionError`) | der duennwandige Querschnitt ist ein **Schnittmodell**; ein Stab auf einer Wandmittellinie beantwortet dort keine Frage. **Der eine Befund, der kein Typ werden konnte** — `idealisation` sitzt eine Ebene tiefer als `reinforcement`. Er steht **vorn und kurzt ab** |
+| `errors` | `As <= 0` oder nicht endlich (`NonPositiveReinforcementAreaError`) | eine Iteration, die bei null beginnt, sucht nichts |
+| `errors` | `Asmax < As` (`ReinforcementCeilingBelowAreaError`) | der Anfangswert steht ueber seiner eigenen Schranke; `Asmax === As` ist ausdruecklich in Ordnung — das ist die **eingefrorene** Lage |
+| `errors` | doppelte Lagen-`id` (`DuplicateReinforcementLayerError`) | die `id` ist der Griff der Bemessung |
+| `errors` | doppelte Element-`id` ueber **alle** Lagen (`DuplicateReinforcementElementError`) | der Viewer baut daraus seine Spec-Id |
+| `warnings` | Element nicht in der Betonfigur (`ReinforcementOutsideSectionWarning`) | rechenbar, und die Figur kann mitten in der Bearbeitung sein. Der **Rand gehoert dazu**: Betondeckung 0 ist EN 1992 und Sache von `concrete-design` (ADR 0056) |
+
+**Keine Mindestbewehrung, keine Betondeckung, kein Stababstand.** Alle drei sind
+EN 1992 und gehoeren `@baustatik/concrete-design`.
 
 **Ausdruecklich nicht geprueft:** doppelte aufeinanderfolgende Punkte (tragen
 zur Shoelace-Summe exakt null bei) und die **Selbstdurchdringung** — im
@@ -1346,6 +1387,21 @@ ein Beispiel nicht unbemerkt veraltet. Details in
   indem die Form sich als Umriss ausschreibt und durch dieselbe FE laeuft.
   **Es ist jetzt EINE Maschine.** `calculation/shear.ts` bleibt vollstaendig —
   aber nur noch fuer das WANDMODELL.
+- **Bewehrungslage** (`ReinforcementLayer`) ist die **benannte Gruppe** von
+  Bewehrungselementen — und sie **ist** der **Bewehrungsrang**. Es gibt keine
+  zweite Gruppierung, kein `rank`-Feld und keinen `ReinforcementRank`: zwei
+  Gruppierungen ueber denselben Elementen waeren zwei Dinge, die auseinander
+  laufen koennen, und das zweite existierte nur, um mit dem ersten identisch zu
+  sein ([ADR 0064](../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+  Ihre `id` (`'unten'`, `'oben'`) ist der Griff, an dem die Bemessung sagt
+  „diese erhoehen, jene stehen lassen".
+- **Bewehrungselement** (`ReinforcementElement`) ist der einzelne Punkt: eine
+  Lage in mm, ein `As` in cm², ein optionales `Asmax`. **Nicht `Bar`** — der
+  Punkt steht fuer einen Stab oder fuer mehrere. `Wall`s JSDoc hatte das blosse
+  Wort `Element` fuer das Stabelement reserviert; das Praefix gibt die
+  Reservierung auf das praefixlose Wort zurueck (ADR 0064). `As` ist der
+  **Anfangswert** einer Iteration, nicht die gebaute Bewehrung; `Asmax`
+  abwesend heisst unbegrenzt, `Asmax === As` heisst **eingefroren**.
 - **`FESectionValues`** ist der FE-Anteil des Satzes: `It`, der Schubmittelpunkt
   und κ als Koeffizientenpaar. **KEINE Materialzahl, KEIN ν** —
   `1/κ = d0 + d2·m²` mit `m = ν/(1+ν)`, und ν setzt allein

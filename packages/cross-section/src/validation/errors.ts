@@ -737,6 +737,184 @@ export class MiterLimitExceededWarning extends SectionValidationWarning {
 }
 
 /**
+ * Bewehrung an einer Figur, die kein VOLLQUERSCHNITT ist.
+ *
+ * DER EINE BEFUND, DER KEIN TYP WERDEN KONNTE. `reinforcement` sitzt an den
+ * Varianten `shape` und `section-geometry`, und beide tragen beide
+ * Idealisierungen; `idealisation` steckt eine Ebene tiefer — in `ShapeSpec`
+ * bzw. in `SectionGeometry.midline` —, und ein optionales Feld lässt sich nicht
+ * an einem Wert bedingen, der in einem Geschwisterfeld verschachtelt liegt.
+ * Der Nachbarfall „freier Umriss, aber dünnwandig gerechnet" IST ein
+ * Compilerfehler, und genau der Kontrast ist der Grund, das hier
+ * hinzuschreiben: die Prüfung ist nicht vergessen, sie ist nicht typisierbar
+ * ([ADR 0064](../../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+ *
+ * FEHLER UND KEINE WARNUNG: die dünnwandige Figur ist ein SCHNITTMODELL, ihre
+ * κ, `It` und ihr Schubmittelpunkt kommen aus dem Wandweg (ADR 0040/0041), und
+ * ein Stab auf einer Wandmittellinie beantwortet dort keine Frage. Das ist ein
+ * Modellierfehler und kein Freiheitsgrad.
+ */
+export class ReinforcementOnThinWalledSectionError extends SectionValidationError {
+  /** Die Id des Querschnitts, an dem die Bewehrung steht. */
+  readonly sectionId: string;
+  /** Wie viele Lagen daran hängen — der Umfang des Missverständnisses. */
+  readonly layerCount: number;
+
+  constructor(sectionId: string, layerCount: number) {
+    super(
+      `Querschnitt "${sectionId}": ${layerCount} Bewehrungslage(n) an einer ` +
+        'Figur, die kein Vollquerschnitt ist. Der dünnwandige Querschnitt ist ' +
+        'ein Schnittmodell — ein Stab auf einer Wandmittellinie beantwortet ' +
+        'dort keine Frage.',
+    );
+    this.sectionId = sectionId;
+    this.layerCount = layerCount;
+  }
+}
+
+/**
+ * Eine Bewehrungsfläche, die keine ist — `As <= 0` oder nicht endlich.
+ *
+ * FEHLER, weil damit nichts zu rechnen ist: `As` ist der Anfangswert der
+ * Iteration, und eine Iteration, die bei null oder bei `NaN` beginnt, sucht
+ * nichts. Ein Element ohne Fläche ist kein leeres Element, sondern ein
+ * Tippfehler — wer keine Bewehrung will, lässt das Element weg.
+ */
+export class NonPositiveReinforcementAreaError extends SectionValidationError {
+  readonly layerId: string;
+  readonly elementId: string;
+  /** Der beanstandete Wert [cm²]. */
+  readonly As: number;
+
+  constructor(layerId: string, elementId: string, As: number) {
+    super(
+      `Bewehrungselement "${elementId}" in Lage "${layerId}": As = ${As} cm² ` +
+        'ist nicht größer als 0.',
+    );
+    this.layerId = layerId;
+    this.elementId = elementId;
+    this.As = As;
+  }
+}
+
+/**
+ * `Asmax < As` — der Anfangswert steht über seiner eigenen Schranke.
+ *
+ * FEHLER UND KEINE WARNUNG: die Bemessung müsste dann entweder den
+ * Anfangswert oder die Schranke missachten, und welche von beiden, stünde
+ * nirgends. `Asmax === As` ist ausdrücklich in Ordnung — das ist die
+ * EINGEFRORENE Lage, die Art, „nicht erhöhen" zu sagen (ADR 0064).
+ */
+export class ReinforcementCeilingBelowAreaError extends SectionValidationError {
+  readonly layerId: string;
+  readonly elementId: string;
+  /** Der Anfangswert [cm²]. */
+  readonly As: number;
+  /** Die Schranke [cm²] — kleiner als `As`. */
+  readonly Asmax: number;
+
+  constructor(layerId: string, elementId: string, As: number, Asmax: number) {
+    super(
+      `Bewehrungselement "${elementId}" in Lage "${layerId}": Asmax = ` +
+        `${Asmax} cm² liegt unter dem Anfangswert As = ${As} cm². ` +
+        'Gleich groß heißt „eingefroren", kleiner heißt nichts.',
+    );
+    this.layerId = layerId;
+    this.elementId = elementId;
+    this.As = As;
+    this.Asmax = Asmax;
+  }
+}
+
+/**
+ * Zwei Bewehrungslagen mit derselben Id.
+ *
+ * Dieselbe Frage wie `DuplicateSectionIdError` am Wandgraphen, und derselbe
+ * Grund: die `id` der Lage ist der Griff, an dem die Bemessung sagt „diese
+ * erhöhen" (ADR 0064). Kommt sie zweimal vor, entscheidet die Reihenfolge im
+ * Array, welche gemeint ist — eine Regel, die niemand hingeschrieben hat.
+ */
+export class DuplicateReinforcementLayerError extends SectionValidationError {
+  readonly id: string;
+  readonly count: number;
+
+  constructor(id: string, count: number) {
+    super(
+      `Bewehrungslagen-Id "${id}" kommt ${count}-mal vor — an welcher Lage ` +
+        'die Bemessung dreht, entscheidet sonst die Reihenfolge im Array.',
+    );
+    this.id = id;
+    this.count = count;
+  }
+}
+
+/**
+ * Zwei Bewehrungselemente mit derselben Id — ÜBER ALLE LAGEN, nicht je Lage.
+ *
+ * DIE WEITERE PRUEFUNG IST DIE RICHTIGE, weil der Viewer seine Spec-Id als
+ * `cross-section:rebar:${layer.id}:${element.id}` baut und sein Abgleich sie
+ * eindeutig braucht: zwei gleich benannte Elemente in zwei Lagen ergäben zwar
+ * zwei verschiedene Spec-Ids, aber jede Berichtszeile und jede Auswahl
+ * verlangte dann das Paar. Ein Element ist am Querschnitt eindeutig oder es ist
+ * nicht ansprechbar.
+ */
+export class DuplicateReinforcementElementError extends SectionValidationError {
+  readonly id: string;
+  readonly count: number;
+  /** Die Lagen, in denen die Id vorkommt — in Eingabereihenfolge. */
+  readonly layerIds: readonly string[];
+
+  constructor(id: string, count: number, layerIds: readonly string[]) {
+    super(
+      `Bewehrungselement-Id "${id}" kommt ${count}-mal vor (Lage(n) ` +
+        `${layerIds.map((layerId) => `"${layerId}"`).join(', ')}) — sie muss ` +
+        'über alle Lagen eindeutig sein.',
+    );
+    this.id = id;
+    this.count = count;
+    this.layerIds = layerIds;
+  }
+}
+
+/**
+ * Ein Bewehrungselement liegt nicht in der Betonfigur.
+ *
+ * WARNUNG UND KEIN FEHLER: die Figur kann mitten in der Bearbeitung sein, und
+ * die Koordinate die richtige. Gerechnet werden kann trotzdem — die Faser
+ * bekäme dann eben eine Dehnung aus einer Ebene, die über sie hinweg
+ * extrapoliert.
+ *
+ * SIE TRAEGT DIE ZWISCHENZEIT DER ABSOLUTEN KOORDINATEN. Solange die Elemente
+ * ihr `y`/`z` ausschreiben statt sich auf eine Kante zu beziehen, wächst ein
+ * Querschnitt von seinen Stäben weg, ohne dass irgendwer es sagt; dieser
+ * Befund fängt den groben Fall (ADR 0064).
+ *
+ * GEPRUEFT WIRD GEGEN DEN ABGELEITETEN UMRISS, mit `Polygon.contains` — die
+ * Löcher fallen über den Umlaufsinn heraus (ADR 0034), ein Element im Loch
+ * eines Kastens meldet sich also von selbst. DER RAND GEHOERT DAZU: eine
+ * Bewehrung genau auf der Aussenkante ist Betondeckung 0 und damit eine Frage
+ * von `concrete-design` (ADR 0056), nicht des Gates hier.
+ */
+export class ReinforcementOutsideSectionWarning extends SectionValidationWarning {
+  readonly layerId: string;
+  readonly elementId: string;
+  /** Die Lage des Elements [mm], im Rahmen der Geometrie daneben. */
+  readonly y: number;
+  readonly z: number;
+
+  constructor(layerId: string, elementId: string, y: number, z: number) {
+    super(
+      `Bewehrungselement "${elementId}" in Lage "${layerId}" liegt bei ` +
+        `(${y}, ${z}) mm außerhalb der Betonfigur.`,
+    );
+    this.layerId = layerId;
+    this.elementId = elementId;
+    this.y = y;
+    this.z = z;
+  }
+}
+
+/**
  * Die ERZEUGUNGS-EINSTELLUNG selbst ist unbrauchbar (`src/policy.ts`).
  *
  * ERBT WEDER VON `SectionValidationError` NOCH VON

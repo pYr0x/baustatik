@@ -33,12 +33,13 @@ function viewerWith(
 }
 
 describe('Jeder Pull wird genau einmal je Frame gelesen', () => {
-  it('zieht Geometrie, Policy und die drei Ergebnisse je Zeichnung einmal', () => {
+  it('zieht Geometrie, Policy, Bewehrung und die drei Ergebnisse je Zeichnung einmal', () => {
     // Ein zweiter Aufruf koennte einen anderen Wert liefern, und dann zeigte
     // ein Bild zwei Rechenstaende.
     const counts = {
       geometry: 0,
       policy: 0,
+      reinforcement: 0,
       properties: 0,
       stressPoints: 0,
       mesh: 0,
@@ -51,6 +52,10 @@ describe('Jeder Pull wird genau einmal je Frame gelesen', () => {
       getSectionPolicy: () => {
         counts.policy++;
         return DEFAULT_SECTION_POLICY;
+      },
+      getReinforcement: () => {
+        counts.reinforcement++;
+        return undefined;
       },
       getProperties: () => {
         counts.properties++;
@@ -70,6 +75,7 @@ describe('Jeder Pull wird genau einmal je Frame gelesen', () => {
     expect(counts).toEqual({
       geometry: 1,
       policy: 1,
+      reinforcement: 1,
       properties: 1,
       stressPoints: 1,
       mesh: 1,
@@ -184,5 +190,32 @@ describe('Der Viewer haelt nur den Viewport', () => {
     expect(
       driver.specs.find((s) => s.id === 'cross-section:thin-wall:w1'),
     ).toMatchObject({ strokeWidth: 8 });
+  });
+});
+
+/**
+ * DER VIERTE PULL, und er ist KEIN Ergebnis-Pull
+ * ([ADR 0064](../../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)):
+ * `undefined` heisst hier „keine Bewehrung", nicht „noch nicht gerechnet".
+ */
+describe('Der Bewehrungs-Pull', () => {
+  it('bringt die Bande ins Bild, wenn er Lagen liefert', () => {
+    const { driver, viewer } = viewerWith({
+      getReinforcement: () => [
+        { id: 'unten', elements: [{ id: 'u1', y: 20, z: 80, As: 4.52 }] },
+      ],
+    });
+    viewer.requestRender();
+
+    expect(driver.specs.map((spec) => spec.id)).toContain(
+      'cross-section:rebar',
+    );
+  });
+
+  it('erzeugt bei weggelassenem Pull nichts im Band', () => {
+    const { driver, viewer } = viewerWith();
+    viewer.requestRender();
+
+    expect(driver.specs.some((spec) => spec.layer === 'rebar')).toBe(false);
   });
 });

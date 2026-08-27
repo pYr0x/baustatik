@@ -81,7 +81,16 @@ into a snapshot.
   rather than a reference; a v3 snapshot lacks the copied numbers; a v6 lacks
   the `sectionPolicy` under which its carried outlines were produced; a v7, v8
   or v9 carries that policy with only some of its five fields; a v12 lacks the
-  `analysisPolicy` entirely. **Every snapshot
+  `analysisPolicy` entirely; a v14 has no `reinforcement` on its `shape` or
+  `section-geometry` cross-sections
+  ([ADR 0064](../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+  **The v14 → v15 break is the odd one out**: a v14 file is unchanged in shape
+  *and* unchanged in meaning — it simply has no reinforcement, and a steel or
+  timber section would have none in v15 either. It is still rejected, because
+  `exactKeys` is a whitelist and this repo rejects rather than migrates
+  (ADR 0027); an exception for the one version that "cannot hurt" would be the
+  first migration, and every later one would then have to argue why it is not.
+  A run rewrites the file. **Every snapshot
   that carries a partial policy is the most tempting of all** —
   `DEFAULT_SECTION_POLICY` is sitting right there — and also the worst:
   substituting it would *assert* that the outline was discretised at 0.05 mm

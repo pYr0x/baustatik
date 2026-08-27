@@ -45,7 +45,7 @@ describe('Snapshot v13 — die analysisPolicy ist Pflicht', () => {
     const { analysisPolicy: _fehlt, ...v12 } = snapshot({ schemaVersion: 12 });
 
     expect(() => parseFEMModelSnapshot(v12)).toThrow(
-      'Snapshot.schemaVersion muss 14 sein.',
+      'Snapshot.schemaVersion muss 15 sein.',
     );
   });
 

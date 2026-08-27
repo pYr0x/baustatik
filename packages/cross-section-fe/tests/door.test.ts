@@ -372,3 +372,66 @@ describe('Die parametrische Form laeuft durch dieselbe Tuer', () => {
     expect(kappaZ).toBeLessThan(0.3358);
   });
 });
+
+/**
+ * DER PRUEFSTEIN VON ADR 0064: die Bewehrung erreicht dieses Package NICHT.
+ *
+ * Der Satz trägt seit ADR 0064 ein Feld `reinforcement`; die Tür hier nimmt
+ * eine `SectionGeometry`, EINE EBENE TIEFER, und kann es deshalb gar nicht
+ * gereicht bekommen. „Die Querschnittswerte ändern sich nicht" ist damit kein
+ * Versprechen, sondern der Typ.
+ *
+ * KEIN NEUER CODE IN DIESEM PACKAGE, nur der Beleg. Müsste hier etwas
+ * angefasst werden, säße das Feld falsch — derselbe Prüfstein, an dem sich
+ * schon ADR 0062 gemessen hat.
+ */
+describe('Die Bewehrung laesst die FE unberuehrt (ADR 0064)', () => {
+  const RECHTECK: ShapeSpec = { kind: 'rectangle', b: 300, h: 500 };
+
+  it('liefert denselben Fingerabdruck mit und ohne reinforcement', async () => {
+    const rings = shapeOutline(RECHTECK);
+    if (rings === undefined) throw new Error('shapeOutline lieferte undefined');
+    const geometry = createSectionGeometry(
+      { kind: 'outline', rings },
+      DEFAULT_SECTION_POLICY,
+    );
+
+    // Der bewehrte Satz. Er reicht der Tuer NUR seine `geometry` — mehr nimmt
+    // sie nicht entgegen, und genau das ist die Aussage.
+    const bewehrt: CrossSection = {
+      kind: 'section-geometry',
+      id: 'r-300x500',
+      geometry,
+      reinforcement: [
+        {
+          id: 'unten',
+          elements: [
+            { id: 'u1', y: -100, z: 450, As: 4.52, Asmax: 8.04 },
+            { id: 'u2', y: 0, z: 450, As: 4.52, Asmax: 8.04 },
+            { id: 'u3', y: 100, z: 450, As: 4.52, Asmax: 8.04 },
+          ],
+        },
+      ],
+    };
+
+    const computation = await computeFESectionValues(
+      bewehrt.geometry,
+      DEFAULT_SECTION_POLICY,
+    );
+    expect(computation.kind).toBe('solved');
+    if (computation.kind !== 'solved') return;
+    const { state } = computation;
+    expect(state.status).toBe('computed');
+    if (state.status !== 'computed') return;
+
+    // Der Fingerabdruck ist der der BETONFIGUR, nicht des bewehrten
+    // Querschnitts: `A = 300 · 500 mm² = 0,15 m²`.
+    expect(state.fingerprint.A).toBeCloseTo(0.15, 9);
+
+    const formula = sectionProperties(bewehrt);
+    expect(formula).toBeDefined();
+    if (formula === undefined) return;
+    expect(Math.abs(state.fingerprint.A / formula.A - 1)).toBeLessThan(1e-9);
+    expect(Math.abs(state.fingerprint.Iy / formula.Iy - 1)).toBeLessThan(1e-6);
+  });
+});

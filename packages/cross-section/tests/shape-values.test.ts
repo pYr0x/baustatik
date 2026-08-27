@@ -351,3 +351,49 @@ describe('Unsinnige Abmessungen liefern undefined statt NaN', () => {
     ).toBeUndefined();
   });
 });
+
+/**
+ * DIE BEHAUPTUNG VON ADR 0064, in ein `expect` gestellt.
+ *
+ * > Die Bewehrung ändert die Querschnittswerte nicht.
+ *
+ * NICHT AUS ORDNUNGSLIEBE: das eingegebene `As` ist der ANFANGSWERT einer
+ * Iteration, und es in `A` und `Iy` zu multiplizieren hiesse, mit einer Zahl zu
+ * rechnen, die die Bemessung gerade für falsch erklärt (ADR 0064, „The section
+ * values do not change").
+ *
+ * BITGLEICH UND NICHT NUR NAHE: es wird nicht anders gerechnet, es wird
+ * dasselbe gerechnet. Eine Abweichung in der letzten Stelle wäre schon der
+ * Befund.
+ */
+describe('Die Bewehrung laesst die Querschnittswerte unberuehrt (ADR 0064)', () => {
+  const shape = { kind: 'rectangle', b: 300, h: 500 } as const;
+
+  it('liefert denselben Wertesatz mit und ohne reinforcement', () => {
+    const ohne = values({ kind: 'shape', id: 'r', shape });
+    const mit = values({
+      kind: 'shape',
+      id: 'r',
+      shape,
+      reinforcement: [
+        {
+          id: 'unten',
+          elements: [
+            { id: 'u1', y: -100, z: 450, As: 4.52, Asmax: 8.04 },
+            { id: 'u2', y: 0, z: 450, As: 4.52, Asmax: 8.04 },
+            { id: 'u3', y: 100, z: 450, As: 4.52, Asmax: 8.04 },
+          ],
+        },
+        {
+          id: 'oben',
+          elements: [
+            { id: 'o1', y: -100, z: 50, As: 2.01, Asmax: 2.01 },
+            { id: 'o2', y: 100, z: 50, As: 2.01, Asmax: 2.01 },
+          ],
+        },
+      ],
+    });
+
+    expect(mit).toStrictEqual(ohne);
+  });
+});

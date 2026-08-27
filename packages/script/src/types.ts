@@ -1,5 +1,6 @@
 import type {
   CrossSection,
+  ReinforcementLayer,
   SectionGeometry,
   SectionGeometryInput,
   SectionPolicy,
@@ -46,7 +47,21 @@ export type LoadCaseInput = Omit<LoadCase, 'id' | 'loads'>;
  * ZEILE (`FEMScriptError`) und nicht mehr ein `undefined` im Solver-Bericht.
  */
 export type CrossSectionInput =
-  | { kind: 'shape'; shape: ShapeSpec }
+  /**
+   * SEIT v15 mit optionalen Bewehrungslagen
+   * ([ADR 0064](../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+   *
+   * NUR AM VOLLQUERSCHNITT ZULAESSIG, und das ist keine Frage dieses Typs:
+   * `idealisation` sitzt in `ShapeSpec`, eine Ebene tiefer, und die Regel ist
+   * deshalb ein Gate-Befund (`validateReinforcement`). Der Parser prueft die
+   * GESTALT, das Gate den Sinn — dieselbe Arbeitsteilung wie bei der
+   * gezeichneten Figur.
+   */
+  | {
+      kind: 'shape';
+      shape: ShapeSpec;
+      reinforcement?: readonly ReinforcementLayer[];
+    }
   | { kind: 'profile'; profile: string }
   /**
    * Die freie Geometrie des Editors
@@ -57,7 +72,12 @@ export type CrossSectionInput =
    * Editor. Ob die Figur in sich stimmt, sagt `validateSectionGeometry` — und
    * zwar dort, wo sie GEZEICHNET wird, nicht hier.
    */
-  | { kind: 'section-geometry'; geometry: SectionGeometry }
+  | {
+      kind: 'section-geometry';
+      geometry: SectionGeometry;
+      /** Siehe die `shape`-Variante (ADR 0064). */
+      reinforcement?: readonly ReinforcementLayer[];
+    }
   /**
    * Dieselbe freie Geometrie, aber OHNE ihren Umriss — der Bauer leitet ihn ab
    * ([ADR 0037](../../../docs/adr/0037-the-outline-comes-from-inflating-wall-runs.md)).
@@ -74,7 +94,12 @@ export type CrossSectionInput =
    * trägt seinen Umriss bereits, und ihn hier neu abzuleiten hieße, die
    * gespeicherten Zahlen stillschweigend zu ersetzen.
    */
-  | { kind: 'section-input'; input: SectionGeometryInput };
+  | {
+      kind: 'section-input';
+      input: SectionGeometryInput;
+      /** Siehe die `shape`-Variante (ADR 0064). */
+      reinforcement?: readonly ReinforcementLayer[];
+    };
 /**
  * Ein Material, wie man es hinschreibt — dieselbe Regel wie beim Querschnitt.
  *
@@ -330,7 +355,7 @@ export type FEMModelBuilderConfig = {
  * ablehnen kann.
  */
 export interface FEMModelSnapshot {
-  readonly schemaVersion: 14;
+  readonly schemaVersion: 15;
   readonly nodes: readonly Node[];
   readonly beams: readonly Beam[];
   readonly crossSections: readonly CrossSection[];

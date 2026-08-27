@@ -29,6 +29,11 @@ const MESH: CrossSectionFEMesh = {
   elements: new Uint32Array([0, 1, 2]),
 };
 
+/** Zwei Lagen, damit die Bande in der vollen Szene ueberhaupt vorkommt. */
+const REINFORCEMENT = [
+  { id: 'unten', elements: [{ id: 'u1', y: 20, z: 80, As: 4.52 }] },
+];
+
 const STRESS_POINTS = [
   { nr: 1, wall: 'flange-top-left', y: -10, z: 20, t: 8, Sy: 0, Sz: 0, ty: 1, tz: 0 },
 ];
@@ -36,6 +41,7 @@ const STRESS_POINTS = [
 /** Eine Szene, in der jede Lage genau einmal vorkommt. */
 function fullScene(rest: Record<string, unknown> = {}) {
   return specsOf({
+    reinforcement: REINFORCEMENT,
     properties: PROPERTIES,
     stressPoints: STRESS_POINTS,
     feMesh: MESH,
@@ -119,12 +125,13 @@ describe('Szene und Baender passen zusammen', () => {
     );
   });
 
-  it('haelt die Malreihenfolge fest: Waende, Umriss, Netz, Symbole', () => {
+  it('haelt die Malreihenfolge fest: Waende, Umriss, Bewehrung, Netz, Symbole', () => {
     // Die z-Order garantieren die Baender, nicht diese Reihenfolge — sie macht
     // die Absicht im Array trotzdem lesbar.
     expect(fullScene().map((s) => s.layer)).toEqual([
       'thin-walls',
       'outlines',
+      'rebar',
       'fe',
       'symbols',
     ]);

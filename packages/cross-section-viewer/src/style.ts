@@ -24,6 +24,9 @@
  *   hellocker— das Netz. Es liegt ueber der Figur und muss sie durchscheinen
  *              lassen.
  *   rot/gruen/blau — die drei Ergebnispunkte, untereinander unterscheidbar.
+ *   dunkelgrau — die Bewehrung. EINGABE wie die Wandmittellinien, aber nicht
+ *              deren Schwarz: sie liegt bei einem `solid` gezeichneten
+ *              Wandgraphen ueber ihnen (ADR 0064).
  */
 export interface CrossSectionStyle {
   readonly thinWallColor?: string;
@@ -37,6 +40,8 @@ export interface CrossSectionStyle {
   readonly shearCentreRadiusPx?: number;
   readonly stressPointColor?: string;
   readonly stressPointSizePx?: number;
+  readonly rebarColor?: string;
+  readonly rebarRadiusPx?: number;
 }
 
 export const DEFAULT_STYLE: Required<CrossSectionStyle> = {
@@ -57,4 +62,9 @@ export const DEFAULT_STYLE: Required<CrossSectionStyle> = {
   shearCentreRadiusPx: 3,
   stressPointColor: '#1d4ed8',
   stressPointSizePx: 6,
+  // Bewehrung liegt bei einem `solid` gezeichneten Wandgraphen darueber.
+  rebarColor: '#6f00ff',
+  // Der Radius sagt NICHTS ueber `As` — er ist die Groesse einer Markierung
+  // (`rebar.ts`), zwischen Schwerpunkt (5) und Schubmittelpunkt (3).
+  rebarRadiusPx: 4,
 };

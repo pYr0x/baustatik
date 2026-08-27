@@ -16,6 +16,10 @@
 //   `outlines`   — der daraus ABGELEITETE Umriss. Er liegt darueber, weil eine
 //                  gekappte Miter-Spitze sonst unter der Wand verschwaende, aus
 //                  der sie entstand.
+//   `rebar`      — die Bewehrung. EINGABE und kein Ergebnis, deshalb nicht in
+//                  `symbols` — aber ueber dem Umriss, denn ein Stab, den die
+//                  Betonfigur verdeckt, ist keiner
+//                  ([ADR 0064](../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
 //   `fe`         — das Netz. Es gehoert zu einer Rechnung, nicht zur Figur, und
 //                  liegt deshalb ueber beiden: ein Drahtgitter, das die Wand
 //                  verdeckt, ist richtig herum: man sieht hin, WEIL gerechnet
@@ -27,6 +31,7 @@ export const CROSS_SECTION_LAYERS = [
   'thin-walls',
   'outlines',
   'fe',
+  'rebar',
   'symbols',
 ] as const;
 
