@@ -30,8 +30,8 @@ export const CROSS_SECTION_LAYERS = [
   'grid',
   'thin-walls',
   'outlines',
-  'rebar',
   'fe',
+  'rebar',
   'symbols',
 ] as const;
 

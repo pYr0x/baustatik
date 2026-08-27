@@ -39,4 +39,13 @@ packages/plan*.md
 packages/*.png
 *.xlsx
 
+packages/timber-design
+packages/steel-design
+packages/concrete-design
+packages/cross-section-response
+packages/section-response-wasm
+packages/design-core
+packages/design-solver
+
+
 .idea

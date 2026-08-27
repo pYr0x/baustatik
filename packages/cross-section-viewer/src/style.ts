@@ -62,9 +62,8 @@ export const DEFAULT_STYLE: Required<CrossSectionStyle> = {
   shearCentreRadiusPx: 3,
   stressPointColor: '#1d4ed8',
   stressPointSizePx: 6,
-  // Dunkelgrau statt schwarz: die Wandmittellinien sind schwarz, und die
   // Bewehrung liegt bei einem `solid` gezeichneten Wandgraphen darueber.
-  rebarColor: '#334155',
+  rebarColor: '#6f00ff',
   // Der Radius sagt NICHTS ueber `As` — er ist die Groesse einer Markierung
   // (`rebar.ts`), zwischen Schwerpunkt (5) und Schubmittelpunkt (3).
   rebarRadiusPx: 4,
