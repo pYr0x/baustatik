@@ -21,6 +21,11 @@ export {
   kappaFromCoefficients,
 } from './model/fe-section-values';
 export type { Idealisation } from './model/idealisation';
+export { isSolid, isSolidGeometry } from './model/is-solid';
+export type {
+  ReinforcementElement,
+  ReinforcementLayer,
+} from './model/reinforcement';
 export type {
   Polygon,
   Ring,
@@ -43,6 +48,8 @@ export {
   type BulgeSite,
   DegenerateOutlineRingError,
   DisconnectedWallGraphWarning,
+  DuplicateReinforcementElementError,
+  DuplicateReinforcementLayerError,
   DuplicateSectionIdError,
   EmptyOutlineError,
   InvalidSectionPolicyError,
@@ -50,9 +57,13 @@ export {
   MultipleCellsWarning,
   NegativeOutlineAreaError,
   NonFiniteBulgeError,
+  NonPositiveReinforcementAreaError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
   OutlineDriftWarning,
+  ReinforcementCeilingBelowAreaError,
+  ReinforcementOnThinWalledSectionError,
+  ReinforcementOutsideSectionWarning,
   type SectionElement,
   SectionValidationError,
   SectionValidationWarning,
@@ -68,6 +79,7 @@ export {
 } from './validation/errors';
 export {
   type SectionValidationResult,
+  validateReinforcement,
   validateSectionGeometry,
   validateSectionProperties,
 } from './validation/validate';

@@ -5,9 +5,9 @@
 Maps a stored `SectionGeometry` and results **handed in from outside** to
 render-agnostic `Spec` objects and drives a `RenderDriver` with viewport state.
 Wall centre lines draw as black strokes carrying their physical thickness, the
-derived outline as orange polygons, an optional FE mesh as a light ochre
-wireframe, and centroid, shear centre and stress points as red, green and blue
-symbols on top.
+derived outline as orange polygons, the reinforcement elements as dark grey
+markers, an optional FE mesh as a light ochre wireframe, and centroid, shear
+centre and stress points as red, green and blue symbols on top.
 
 The viewer **derives nothing** — neither an outline, nor a mesh, nor section
 values. Everything it draws was computed by someone else and travelled here.
@@ -27,7 +27,7 @@ values. Everything it draws was computed by someone else and travelled here.
 ## Dependencies
 
 - `@baustatik/cross-section`: `SectionGeometry`, `Wall`, `SectionPolicy`,
-  `SectionProperties`, `StressPoint` — types only.
+  `SectionProperties`, `StressPoint`, `ReinforcementLayer` — types only.
 - `@baustatik/section-geometry`: `Bulge` and `Point` for the arc walls.
 - `@baustatik/units`: `convert` for the one m → mm conversion.
 - `@baustatik/errors`: base `BaustatikError` for `InvalidFEMeshError`.
@@ -44,7 +44,7 @@ in, but this package knows neither worker, PSLG, `boundarySegments` nor markers.
 ## Navigation
 
 The files stay **flat**. Unlike the FEM viewer's model, loads and results, the
-five cross-section bands have no second shared level of abstraction yet; a
+six cross-section bands have no second shared level of abstraction yet; a
 directory per single file would buy no locality.
 
 - [`src/scene.ts`](src/scene.ts): `crossSectionSpecs` — the one pure door.
@@ -55,6 +55,8 @@ directory per single file would buy no locality.
 - [`src/thin-walls.ts`](src/thin-walls.ts): the wall centre lines — the input.
   Straight walls become `line`, curved ones `arcPath`.
 - [`src/outlines.ts`](src/outlines.ts): the carried, derived outline.
+- [`src/rebar.ts`](src/rebar.ts): the reinforcement markers — one circle per
+  element, grouped.
 - [`src/fe.ts`](src/fe.ts): `CrossSectionFEMesh` and the triangle → edge
   reduction, plus the `WeakMap` edge cache.
 - [`src/symbols.ts`](src/symbols.ts): centroid, shear centre, stress points, and
@@ -69,7 +71,7 @@ Tests mirror the layout: one file per mapping under `tests/node/`, plus
 `tests/scene.test.ts` for what only exists once the parts meet (band coverage, ID
 uniqueness across all bands, stability under pan and zoom, one style object
 reaching all four) and `tests/viewer.test.ts` for pull behaviour, driver protocol
-and camera. Fixtures live in `tests/helpers.ts` — one file, because all five
+and camera. Fixtures live in `tests/helpers.ts` — one file, because all six
 bands draw the *same* cross-section.
 
 ## Invariants and conventions
@@ -102,15 +104,32 @@ bands draw the *same* cross-section.
   node or a clipped miter spike has to be able to tell the two layers apart, and
   black on black is exactly where one cannot.
 - **Paint bands guarantee z-order, array order does not**: `CROSS_SECTION_LAYERS`
-  (`['grid','thin-walls','outlines','fe','symbols']`, last = topmost) is passed to
+  (`['grid','thin-walls','outlines','rebar','fe','symbols']`, last = topmost) is passed to
   the driver at construction. Without bands, grid lines climb over the section
   over time: grid IDs are world-indexed, zooming out brings new world positions
   into view, and the renderer appends newly built shapes. The mesh sits above wall
   and outline deliberately — it belongs to a calculation, and one looks at it
   *because* something was computed. Symbols sit above everything: they are points,
   and a hidden point is none.
+- **The reinforcement is a band of its own, and not `symbols`**
+  ([ADR 0064](../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+  `symbols.ts` opens with "DIE ERGEBNISSYMBOLE"; the reinforcement is **input**.
+  It stands in the model record, nobody computes it, and it does not go stale
+  when the geometry changes — it goes *wrong*, and that is what
+  `validateReinforcement` says, not the picture. It sits between `outlines` and
+  `fe`: a bar the concrete figure covers is not a bar. Its pull is optional with
+  a reason of its own — `undefined` here means **"no reinforcement"**, the normal
+  case of every steel and timber section, not "not computed yet" like the three
+  result pulls beneath it.
+- **A reinforcement element draws as a marker, never as a picture of a bar**: the
+  radius is `rebarRadiusPx / vp.scale` and comes **not** from `As`. The marker
+  says *where*, not *how much*; an area-true circle would be untappable at
+  0.5 cm² and would also assert a single bar, while one element may stand for
+  several. And unlike the stress points the band needs no `properties`: the
+  coordinates are absolute, not centroid-relative.
 - **Namespaced spec IDs**: `cross-section:thin-wall:{wallId}`,
-  `cross-section:outline:{ringIndex}`, `cross-section:fe:wireframe`,
+  `cross-section:outline:{ringIndex}`, `cross-section:rebar` with the children
+  `cross-section:rebar:{layerId}:{elementId}`, `cross-section:fe:wireframe`,
   `cross-section:symbols` with the children `…:symbol:centroid`,
   `…:symbol:shear-centre` and `…:symbol:stress-point:{nr}`. `validateSpecs`
   requires uniqueness across all bands, and an editor-assigned wall ID must not be

@@ -3,6 +3,8 @@ import {
   type FESectionState,
   type Idealisation,
   parseSectionPolicy,
+  type ReinforcementElement,
+  type ReinforcementLayer,
   type SectionGeometry,
   type ShapeSpec,
   type Vertex,
@@ -96,8 +98,19 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   // hiesse, dieselbe Datei anders rechnen zu lassen als beim letzten Mal, ohne
   // dass jemand etwas gewaehlt haette. Ein Lauf loest sie auf; die Version
   // sagt, dass er faellig ist.
-  if (snapshot.schemaVersion !== 14) {
-    fail('Snapshot.schemaVersion muss 14 sein.');
+  //
+  // Bei v14 traegt ein `kind: 'shape'` oder `kind: 'section-geometry'` KEINE
+  // `reinforcement` — das Feld gab es dort nicht
+  // ([ADR 0064](../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+  // DIESER SPRUNG UNTERSCHEIDET SICH VON ALLEN BISHERIGEN: eine v14-Datei ist
+  // am Satz UND AN DER BEDEUTUNG unveraendert — sie hat schlicht keine
+  // Bewehrung, und ein Stahl- oder Holzquerschnitt haette auch in v15 keine.
+  // Sie wird trotzdem abgelehnt, weil dieses Repo ABLEHNT STATT ZU MIGRIEREN
+  // (ADR 0027) und `exactKeys` eine Whitelist ist: eine Ausnahme „diese eine
+  // Version darf durch" waere die erste Migration, und ab ihr muesste jede
+  // folgende begruenden, warum sie keine ist. Ein Lauf schreibt die Datei neu.
+  if (snapshot.schemaVersion !== 15) {
+    fail('Snapshot.schemaVersion muss 15 sein.');
   }
 
   const nodes = array(snapshot.nodes, 'Snapshot.nodes').map((value, index) => {
@@ -247,7 +260,7 @@ export function parseFEMModelSnapshot(input: unknown): FEMModelSnapshot {
   }
 
   return {
-    schemaVersion: 14,
+    schemaVersion: 15,
     nodes,
     beams,
     crossSections,
@@ -357,11 +370,12 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
   }
 
   if (kind === 'section-geometry') {
-    exactKeys(value, path, ['kind', 'id', 'geometry']);
+    exactKeys(value, path, ['kind', 'id', 'geometry', 'reinforcement']);
     return {
       kind,
       id,
       geometry: parseSectionGeometry(value.geometry, `${path}.geometry`),
+      ...parseReinforcementField(value, path),
     };
   }
 
@@ -369,16 +383,22 @@ function parseCrossSection(input: unknown, path: string): CrossSection {
   // Typ und denselben Parser wie beide `SectionGeometry`-Varianten. Geprueft
   // wird die GESTALT, nicht die Aufloesbarkeit: ob die Figur zu den Werten
   // passt, sagt das Gate ueber den Fingerabdruck, nicht dieser Parser.
-  exactKeys(value, path, ['kind', 'id', 'shape', 'feValues']);
+  //
+  // UND SEIT v15 BEWEHRUNGSLAGEN (ADR 0064) — an dieser Variante und an
+  // `section-geometry`, NICHT an `profile`: die Katalogzeile traegt keine
+  // Geometrie, und dass sie das Feld nicht kennt, ist drueben ein
+  // Compilerfehler. Hier ist es eine Zeile in der Whitelist.
+  exactKeys(value, path, ['kind', 'id', 'shape', 'feValues', 'reinforcement']);
   const shape = parseShape(value.shape, `${path}.shape`);
-  return value.feValues === undefined
-    ? { kind, id, shape }
-    : {
-        kind,
-        id,
-        shape,
-        feValues: parseFEValues(value.feValues, `${path}.feValues`),
-      };
+  return {
+    kind,
+    id,
+    shape,
+    ...(value.feValues === undefined
+      ? {}
+      : { feValues: parseFEValues(value.feValues, `${path}.feValues`) }),
+    ...parseReinforcementField(value, path),
+  };
 }
 
 /**
@@ -580,6 +600,85 @@ function parseCoefficients(
     fail(`${path} muss genau zwei Koeffizienten [d0, d2] tragen.`);
   }
   return [finite(values[0], `${path}[0]`), finite(values[1], `${path}[1]`)];
+}
+
+/**
+ * Die Bewehrungslagen an der Snapshot-Grenze, wenn das Feld dasteht — SEIT v15
+ * ([ADR 0064](../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+ *
+ * ABWESEND BLEIBT ABWESEND. Ein fehlendes Feld auf `[]` zu setzen behauptete,
+ * jemand habe eine leere Liste angelegt — „keine Bewehrung" ist der Regelfall
+ * jedes Stahl- und Holzquerschnitts, und die beiden Zustaende auseinander zu
+ * halten kostet hier nichts.
+ */
+function parseReinforcementField(
+  value: Record<string, unknown>,
+  path: string,
+): { reinforcement?: readonly ReinforcementLayer[] } {
+  return value.reinforcement === undefined
+    ? {}
+    : {
+        reinforcement: parseReinforcement(
+          value.reinforcement,
+          `${path}.reinforcement`,
+        ),
+      };
+}
+
+/**
+ * WIEDER NUR DIE GESTALT, nicht der Sinn — dieselbe Arbeitsteilung wie bei der
+ * gezeichneten Figur: der Parser sagt „`As` ist keine Zahl", das Gate
+ * (`validateReinforcement` in `@baustatik/cross-section`) sagt „`As = -1` ist
+ * keine Flaeche" und nennt das Element beim Namen.
+ *
+ * DIE GATE-REGELN WERDEN HIER AUSDRUECKLICH NICHT GEDOPPELT: nicht `As > 0`,
+ * nicht `Asmax >= As`, nicht die doppelten Ids und nicht die Zulaessigkeit am
+ * duennwandigen Querschnitt. Zwei Meinungen darueber, was eine brauchbare
+ * Bewehrung ist, waeren eine zu viel (ADR 0030s Regel, hier zum vierten Mal).
+ *
+ * ZWEI EBENEN `exactKeys`, weil die Whitelist sonst nur die aeussere schuetzt:
+ * ein `durchmesser: 24` im Element flaege sonst still durch — und genau den
+ * traegt der Satz bewusst nicht (ADR 0064).
+ */
+function parseReinforcement(
+  input: unknown,
+  path: string,
+): readonly ReinforcementLayer[] {
+  return array(input, path).map((item, index) => {
+    const layerPath = `${path}[${index}]`;
+    const layer = record(item, layerPath);
+    exactKeys(layer, layerPath, ['id', 'elements']);
+    return {
+      id: text(layer.id, `${layerPath}.id`),
+      elements: array(layer.elements, `${layerPath}.elements`).map(
+        (entry, at) =>
+          parseReinforcementElement(entry, `${layerPath}.elements[${at}]`),
+      ),
+    };
+  });
+}
+
+/**
+ * Ein Bewehrungselement: Lage in mm, Flaechen in cm².
+ *
+ * `As` NUR AUF ENDLICH, nicht auf positiv — das Vorzeichen gehoert dem Gate,
+ * das das Element beim Namen nennt. `Asmax` darf fehlen; steht es da, ist es
+ * ebenfalls nur endlich zu sein verpflichtet.
+ */
+function parseReinforcementElement(
+  input: unknown,
+  path: string,
+): ReinforcementElement {
+  const value = record(input, path);
+  exactKeys(value, path, ['id', 'y', 'z', 'As', 'Asmax']);
+  return {
+    id: text(value.id, `${path}.id`),
+    ...parseCoordinates(value, path),
+    As: finite(value.As, `${path}.As`),
+    ...(value.Asmax === undefined
+      ? {}
+      : { Asmax: finite(value.Asmax, `${path}.Asmax`) }),
+  };
 }
 
 /** Ein Umrisspunkt der EINGABE — mit `bulge`, anders als das Ergebnis. */

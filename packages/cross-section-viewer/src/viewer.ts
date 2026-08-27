@@ -1,4 +1,5 @@
 import type {
+  ReinforcementLayer,
   SectionGeometry,
   SectionPolicy,
   SectionProperties,
@@ -42,6 +43,16 @@ interface ViewerConfig {
    * unauffaelliger bestehen.
    */
   getSectionPolicy: () => SectionPolicy;
+  /**
+   * PULL DER BEWEHRUNG, und er ist der VIERTE — aber kein Ergebnis-Pull
+   * ([ADR 0064](../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+   *
+   * OPTIONAL MIT EIGENER BEGRUENDUNG: `undefined` heisst hier nicht „noch
+   * nicht gerechnet" wie bei den drei darunter, sondern KEINE BEWEHRUNG — der
+   * Regelfall jedes Stahl- und Holzquerschnitts. Ein weggelassener Pull ist
+   * dasselbe.
+   */
+  getReinforcement?: () => readonly ReinforcementLayer[] | undefined;
   /**
    * PULLS DER ERGEBNISSE. `undefined` heisst „noch nicht gerechnet", und ein
    * WEGGELASSENER Pull ist derselbe Aus-Zustand — es gibt keinen zusaetzlichen
@@ -91,6 +102,7 @@ export function createCrossSectionViewer(config: ViewerConfig) {
         geometry: getGeometry(),
         sectionPolicy: getSectionPolicy(),
         viewport: vp,
+        reinforcement: config.getReinforcement?.(),
         properties: config.getProperties?.(),
         stressPoints: config.getStressPoints?.(),
         feMesh: config.getFEMesh?.(),

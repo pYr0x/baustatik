@@ -1,12 +1,19 @@
 /**
- * Das Gate des Querschnitts — ZWEI TUEREN, weil zwei verschiedene Fragen
- * ([ADR 0032](../../../../docs/adr/0032-the-cross-section-gate-warns.md)).
+ * Das Gate des Querschnitts — DREI TUEREN, weil drei verschiedene Fragen
+ * ([ADR 0032](../../../../docs/adr/0032-the-cross-section-gate-warns.md),
+ * [ADR 0064](../../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
  *
  *   `validateSectionGeometry`   — ist die GEZEICHNETE FIGUR in sich stimmig?
  *   `validateSectionProperties` — sind die ZAHLEN unter den Annahmen der ebenen
  *                                 Rechnung brauchbar?
+ *   `validateReinforcement`     — sitzt die BEWEHRUNG an einer Figur, die sie
+ *                                 tragen kann, und liegt sie darin?
  *
- * Beide geben `{ errors, warnings }` zurück, den dritten Fehlerkanal des Repos
+ * DIE DRITTE NIMMT DEN SATZ und nicht eine seiner Hälften: die Bewehrung hängt
+ * am `CrossSection`, eine Ebene über der `SectionGeometry`, und genau das ist
+ * die Aussage von ADR 0064.
+ *
+ * Alle drei geben `{ errors, warnings }` zurück, den dritten Fehlerkanal des Repos
  * — der Kanal für die Sammelprüfung hinter einem Prüf-Knopf, der dem
  * Anwender auf einmal zeigen soll, was nicht stimmt. Ein `assertValid…` gibt es
  * hier ABSICHTLICH NICHT: der Querschnitt ist kein Tor vor der Rechenkette. Wer
@@ -28,7 +35,7 @@
  */
 
 import { atOrThrow } from '@baustatik/core';
-import { Bulge, Polygon } from '@baustatik/section-geometry';
+import { Bulge, Line, Polygon } from '@baustatik/section-geometry';
 import { cellCount, componentCount } from '../geometry/wall-graph/branches';
 import {
   buildGraph,
@@ -37,10 +44,18 @@ import {
   outgoingTangent,
 } from '../geometry/wall-graph/graph';
 import { deriveOutline } from '../geometry/outline/derive-outline';
+import { deriveOutlineFromRings } from '../geometry/outline/derive-outline-from-rings';
+import { shapeOutline } from '../geometry/shape-outline';
+import type { PointYZ } from '../geometry/point-yz';
+import type { CrossSection } from '../model/cross-section';
+import { isSolid } from '../model/is-solid';
+import type { ReinforcementLayer } from '../model/reinforcement';
 import { chainedJoints } from '../geometry/outline/miter-joints';
 import {
   type BulgeSite,
   DegenerateOutlineRingError,
+  DuplicateReinforcementElementError,
+  DuplicateReinforcementLayerError,
   DisconnectedWallGraphWarning,
   DuplicateSectionIdError,
   EmptyOutlineError,
@@ -48,9 +63,13 @@ import {
   MultipleCellsWarning,
   NegativeOutlineAreaError,
   NonFiniteBulgeError,
+  NonPositiveReinforcementAreaError,
   NonPositiveWallThicknessError,
   NotPrincipalAxesWarning,
   OutlineDriftWarning,
+  ReinforcementCeilingBelowAreaError,
+  ReinforcementOnThinWalledSectionError,
+  ReinforcementOutsideSectionWarning,
   type SectionElement,
   type SectionValidationError,
   type SectionValidationWarning,
@@ -123,6 +142,222 @@ export function validateSectionGeometry(
   }
 
   return { errors, warnings };
+}
+
+/**
+ * Alle Befunde zur BEWEHRUNG — die dritte Tür (ADR 0064).
+ *
+ * WARUM EINE DRITTE UND KEINE ERWEITERUNG DER BEIDEN ANDEREN: die eine nimmt
+ * eine `SectionGeometry`, die andere eine `SectionProperties`, und die
+ * Bewehrung hängt an keiner von beiden — sie sitzt eine Ebene darüber, am
+ * `CrossSection`. Genau das ist die Aussage von ADR 0064, und sie hier
+ * aufzuweichen hiesse, sie zurückzunehmen.
+ *
+ * SIE LEITET DEN UMRISS SELBST AB und nimmt ihn nicht als zweiten Parameter
+ * entgegen: ein übergebener Umriss kann der falsche sein, ein abgeleiteter
+ * nicht. Für `kind: 'shape'` läuft das über `shapeOutline` + Bogenzerlegung,
+ * für `kind: 'section-geometry'` über `deriveOutline` — dieselben beiden Wege,
+ * die die FE nimmt.
+ *
+ * DIESELBE `{ errors, warnings }`-FORM wie bei den Nachbarn, damit ein
+ * Aufrufer die drei Ergebnisse zusammenlegen kann, ohne zu wissen, welche Tür
+ * welchen Kanal füllt.
+ *
+ * KEINE MINDESTBEWEHRUNG, KEINE BETONDECKUNG, KEIN STABABSTAND. Alle drei sind
+ * EN 1992 und Sache von `@baustatik/concrete-design` (ADR 0056); dieses
+ * Package kennt keine Festigkeit.
+ */
+export function validateReinforcement(
+  cs: CrossSection,
+  policy: SectionPolicy,
+): SectionValidationResult {
+  const errors: SectionValidationError[] = [];
+  const warnings: SectionValidationWarning[] = [];
+
+  // Die Katalogzeile trägt das Feld gar nicht — der Zweig ist ein Typ und
+  // keine Prüfung (ADR 0064).
+  const layers = cs.kind === 'profile' ? undefined : cs.reinforcement;
+  if (layers === undefined || layers.length === 0) return { errors, warnings };
+
+  // B1 — die Zulässigkeit der FIGUR, und sie steht VORNE und kurzt ab: liegt
+  // gar kein Vollquerschnitt vor, ist der abgeleitete Umriss für die
+  // Enthaltensein-Warnung die falsche Figur (beim dünnwandigen Wandgraphen ist
+  // er die Aufweitung der Mittellinien), und fünf Folgebefunde über dieselbe
+  // Ursache sind kein Gewinn.
+  if (!isSolid(cs)) {
+    errors.push(
+      new ReinforcementOnThinWalledSectionError(cs.id, layers.length),
+    );
+    return { errors, warnings };
+  }
+
+  // B2 — doppelte Lagen-Ids. Dieselbe Frage wie G2 am Wandgraphen: die Id ist
+  // der Griff der Bemessung, und zweimal vergeben entscheidet die Reihenfolge
+  // im Array.
+  errors.push(...duplicateLayerIds(layers));
+
+  // B3 — doppelte Element-Ids, ÜBER ALLE LAGEN. Der Viewer baut daraus seine
+  // Spec-Id, und sein Abgleich braucht sie eindeutig.
+  errors.push(...duplicateElementIds(layers));
+
+  // B4/B5 — die Flächen. Je Element, damit die Meldung sagt, WELCHES.
+  for (const layer of layers) {
+    for (const element of layer.elements) {
+      const { As, Asmax } = element;
+      if (!(Number.isFinite(As) && As > 0)) {
+        errors.push(
+          new NonPositiveReinforcementAreaError(layer.id, element.id, As),
+        );
+      }
+      // NEGIERT GESCHRIEBEN, damit ein `NaN` in der Schranke nicht still
+      // durchläuft: `NaN < As` ist falsch, `!(NaN >= As)` ist wahr.
+      if (Asmax !== undefined && !(Asmax >= As)) {
+        errors.push(
+          new ReinforcementCeilingBelowAreaError(
+            layer.id,
+            element.id,
+            As,
+            Asmax,
+          ),
+        );
+      }
+    }
+  }
+
+  // B6 — die Lage in der Betonfigur. WARNUNG, und nur mit einer Figur: liefert
+  // `shapeOutline` bei unsinnigen Abmessungen nichts, sagt das
+  // `sectionProperties` mit seinem `undefined`, und ein zweiter Befund darüber
+  // wäre ein Folgefehler.
+  const outline = reinforcementOutline(cs, policy);
+  if (outline === undefined) return { errors, warnings };
+
+  for (const layer of layers) {
+    for (const element of layer.elements) {
+      const point: PointYZ = { y: element.y, z: element.z };
+      if (insideOutline(outline, point, policy.discretisationTolerance)) {
+        continue;
+      }
+      warnings.push(
+        new ReinforcementOutsideSectionWarning(
+          layer.id,
+          element.id,
+          point.y,
+          point.z,
+        ),
+      );
+    }
+  }
+
+  return { errors, warnings };
+}
+
+/**
+ * Die Betonfigur, gegen die die Lage eines Elements gemessen wird — in
+ * MILLIMETERN, dem Rahmen, in dem `y`/`z` stehen.
+ *
+ * ZWEI WEGE, DIESELBEN ZWEI WIE BEI DER FE (ADR 0062): die parametrische Form
+ * schreibt sich über `shapeOutline` als Ringe aus, die gezeichnete Figur geht
+ * durch `deriveOutline`. `undefined` heisst „diese Form hat keine Figur" —
+ * unsinnige Abmessungen, und die beanstandet `sectionProperties`.
+ */
+function reinforcementOutline(
+  cs: CrossSection,
+  policy: SectionPolicy,
+): readonly OutlinePolygon[] | undefined {
+  if (cs.kind === 'profile') return undefined;
+  if (cs.kind === 'section-geometry') return deriveOutline(cs.geometry, policy);
+
+  const rings = shapeOutline(cs.shape);
+  return rings === undefined
+    ? undefined
+    : deriveOutlineFromRings(rings, policy);
+}
+
+/**
+ * Liegt der Punkt in der Betonfigur?
+ *
+ * DER UMLAUFSINN TRAEGT DIE LOECHER (ADR 0034): drin heisst „in einem
+ * Materialring (`signedArea > 0`) und in keinem Lochring (`< 0`)". Ein Element
+ * im Loch eines Kastens fällt damit von selbst heraus, ohne dass die
+ * Verschachtelung bekannt sein müsste.
+ *
+ * DER RAND GEHOERT DAZU, und deshalb wird er ZUERST gefragt: `Polygon.contains`
+ * ist ein Strahlentest mit Gerade-ungerade-Regel, und der antwortet auf einer
+ * Kante je nach Kante verschieden. Eine Bewehrung genau auf der Aussenkante ist
+ * Betondeckung 0 — eine Frage von `concrete-design` (ADR 0056) und keine des
+ * Gates. Die Bandbreite ist `discretisationTolerance`: dieselbe Zahl, mit der
+ * der Umriss entstanden ist, und damit keine zweite Zahl für dieselbe Frage.
+ */
+function insideOutline(
+  outline: readonly OutlinePolygon[],
+  point: PointYZ,
+  discretisationTolerance: number,
+): boolean {
+  const rings = outline.filter((polygon) => polygon.points.length >= 3);
+
+  if (rings.some((ring) => onBoundary(ring, point, discretisationTolerance))) {
+    return true;
+  }
+
+  let inMaterial = false;
+  for (const ring of rings) {
+    if (!Polygon.contains(ring, point)) continue;
+    if (Polygon.signedArea(ring.points) < 0) return false;
+    inMaterial = true;
+  }
+  return inMaterial;
+}
+
+/** Liegt der Punkt auf einer Kante des Rings — bis auf die Toleranz? */
+function onBoundary(
+  ring: OutlinePolygon,
+  point: PointYZ,
+  discretisationTolerance: number,
+): boolean {
+  const points = ring.points;
+  return points.some((p1, index) => {
+    const p2 = atOrThrow(points, (index + 1) % points.length);
+    return Line.distanceToPoint({ p1, p2 }, point) <= discretisationTolerance;
+  });
+}
+
+/** Ein Befund je mehrfach vergebener Lagen-Id — einer, nicht einer je Duplikat. */
+function duplicateLayerIds(
+  layers: readonly ReinforcementLayer[],
+): DuplicateReinforcementLayerError[] {
+  const counts = new Map<string, number>();
+  for (const layer of layers) {
+    counts.set(layer.id, (counts.get(layer.id) ?? 0) + 1);
+  }
+  return [...counts]
+    .filter(([, count]) => count > 1)
+    .map(([id, count]) => new DuplicateReinforcementLayerError(id, count));
+}
+
+/**
+ * Ein Befund je mehrfach vergebener Element-Id, ÜBER ALLE LAGEN.
+ *
+ * Er nennt die Lagen, in denen die Id steht — das ist die Frage des Lesers
+ * („wo suche ich?"), und bei zwei Vorkommen in derselben Lage steht sie
+ * zweimal da, was genau die richtige Auskunft ist.
+ */
+function duplicateElementIds(
+  layers: readonly ReinforcementLayer[],
+): DuplicateReinforcementElementError[] {
+  const seen = new Map<string, string[]>();
+  for (const layer of layers) {
+    for (const element of layer.elements) {
+      const at = seen.get(element.id);
+      if (at === undefined) seen.set(element.id, [layer.id]);
+      else at.push(layer.id);
+    }
+  }
+  return [...seen]
+    .filter(([, layerIds]) => layerIds.length > 1)
+    .map(
+      ([id, layerIds]) =>
+        new DuplicateReinforcementElementError(id, layerIds.length, layerIds),
+    );
 }
 
 /**

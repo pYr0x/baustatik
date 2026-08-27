@@ -1,4 +1,4 @@
-import type { Ring } from '@baustatik/cross-section';
+import type { ReinforcementLayer, Ring } from '@baustatik/cross-section';
 import { IPE, HEA } from '@baustatik/steel-profiles';
 
 /**
@@ -41,6 +41,20 @@ export type OutlinePreset = {
   /** Was an diesem Satz zu sehen ist — und woher seine Zahlen kommen. */
   readonly note: string;
   readonly rings: readonly Ring[];
+  /**
+   * Die Bewehrungslagen, wo der Satz welche hat
+   * ([ADR 0064](../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+   *
+   * ABWESEND HEISST „KEINE BEWEHRUNG" und nicht „noch nicht eingegeben" — der
+   * Regelfall der Saetze hier, die alle Stahlfiguren sind. Nur der
+   * Stahlbetonbalken traegt welche, und er ist deshalb dabei: ohne ihn haette
+   * die Bande nichts zu zeigen.
+   *
+   * DIE KOORDINATEN SIND ABSOLUT, im Rahmen der `rings` daneben: `y = 0` auf
+   * der Symmetrieachse, `z = 0` an der Oberkante, `z` nach unten (ADR 0031).
+   * `As` und `Asmax` in cm², wie der Bewehrungsplan sie schreibt.
+   */
+  readonly reinforcement?: readonly ReinforcementLayer[];
   /**
    * Die Zahl, gegen die dieser Satz gehalten wird — der eigentliche Zweck der
    * Seite.
@@ -367,6 +381,73 @@ function roundedBox(): Pick<OutlinePreset, 'rings' | 'reference'> {
   };
 }
 
+/**
+ * Stahlbetonbalken 300/500 mit Bewehrung — DER EINE SATZ MIT `reinforcement`
+ * ([ADR 0064](../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+ *
+ * Die Figur ist dieselbe wie beim Rechteck oben: ein Ring, vier Punkte, Green
+ * integriert exakt. DAS IST DER PUNKT — die Bewehrung aendert an `A`, `Iy` und
+ * `Iz` NICHTS, und die Vergleichsspalte gegen `b·h` und `b·h³/12` sagt
+ * „exakt", obwohl fuenf Staebe im Bild stehen. Das eingegebene `As` ist der
+ * ANFANGSWERT einer Bemessung und keine Aussage ueber den fertigen Querschnitt.
+ *
+ * UNTEN DREI Ø24 (`As = π·24²/4 = 452,4 mm²` je Stab), mit `Asmax` auf dem
+ * Doppelten: die Lage darf wachsen. OBEN ZWEI Ø16 mit `Asmax === As` — das ist
+ * die Art, „nicht erhoehen" zu sagen, und es ist kein Flag daneben.
+ *
+ * DIE ACHSABSTAENDE sind 50 mm oben wie unten (`z = 50` und `z = 450`) — eine
+ * runde Zahl fuer die Anschauung, kein Nachweis der Betondeckung. Der gehoert
+ * `@baustatik/concrete-design` (ADR 0056), und das Gate hier prueft ihn
+ * ausdruecklich nicht.
+ */
+function stahlbetonbalken(): Pick<
+  OutlinePreset,
+  'rings' | 'reference' | 'reinforcement'
+> {
+  const b = 300;
+  const h = 500;
+  const y = b / 2;
+  const area = (d: number) => Math.round((Math.PI * d ** 2) / 4) / 100;
+  const As24 = area(24);
+  const As16 = area(16);
+
+  return {
+    rings: [
+      {
+        vertices: [
+          { y: -y, z: 0 },
+          { y, z: 0 },
+          { y, z: h },
+          { y: -y, z: h },
+        ],
+      },
+    ],
+    reinforcement: [
+      {
+        id: 'unten',
+        elements: [
+          { id: 'u1', y: -100, z: 450, As: As24, Asmax: 2 * As24 },
+          { id: 'u2', y: 0, z: 450, As: As24, Asmax: 2 * As24 },
+          { id: 'u3', y: 100, z: 450, As: As24, Asmax: 2 * As24 },
+        ],
+      },
+      {
+        id: 'oben',
+        elements: [
+          { id: 'o1', y: -100, z: 50, As: As16, Asmax: As16 },
+          { id: 'o2', y: 100, z: 50, As: As16, Asmax: As16 },
+        ],
+      },
+    ],
+    reference: {
+      label: 'Handrechnung b·h und b·h³/12 — OHNE die Bewehrung (ADR 0064)',
+      A: (b * h) / 100,
+      Iy: (b * h ** 3) / 12 / 1e4,
+      Iz: (h * b ** 3) / 12 / 1e4,
+    },
+  };
+}
+
 /** Die Auswahl der Seite, in der Reihenfolge, in der sie rechts steht. */
 export const OUTLINE_PRESETS: readonly OutlinePreset[] = Object.freeze([
   {
@@ -379,6 +460,19 @@ export const OUTLINE_PRESETS: readonly OutlinePreset[] = Object.freeze([
       'daran nichts. Ein Vollquerschnitt hat keine Wandstaerke — als Mittellinienmodell ' +
       'ist er nicht darstellbar.',
     ...rectangle(),
+  },
+  {
+    id: 'stahlbetonbalken-300x500',
+    name: 'Stahlbetonbalken mit Bewehrung',
+    dimensions: 'b 300 · h 500 · unten 3 Ø24 · oben 2 Ø16',
+    note:
+      'Der einzige Satz mit reinforcement (ADR 0064). Die Bewehrung ist EINGABE und ' +
+      'keine Rechnung: A, Iy und Iz sind auf die letzte Stelle dieselben wie ohne sie, ' +
+      'und die Vergleichsspalte sagt „exakt". Das eingegebene As ist der Anfangswert ' +
+      'einer Bemessung — es in die Steifigkeit zu multiplizieren hiesse, mit einer Zahl ' +
+      'zu rechnen, die die Bemessung gerade fuer falsch erklaert. Unten Asmax = 2·As ' +
+      '(darf wachsen), oben Asmax = As (eingefroren).',
+    ...stahlbetonbalken(),
   },
   {
     id: 'plattenbalken-2000x200x250x500',

@@ -123,7 +123,7 @@ describe('Der Snapshot trägt die freie Querschnittsgeometrie mit', () => {
     const v5 = { ...buildSnapshot(), schemaVersion: 5 };
     expect(() => parseFEMModelSnapshot(v5)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v5)).toThrow(
-      'Snapshot.schemaVersion muss 14 sein.',
+      'Snapshot.schemaVersion muss 15 sein.',
     );
   });
 
@@ -289,7 +289,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v6)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v6)).toThrow(
-      'Snapshot.schemaVersion muss 14 sein.',
+      'Snapshot.schemaVersion muss 15 sein.',
     );
   });
 
@@ -306,7 +306,7 @@ describe('Der Snapshot trägt die Erzeugungs-Policy auf Projektebene mit', () =>
 
     expect(() => parseFEMModelSnapshot(v7)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v7)).toThrow(
-      'Snapshot.schemaVersion muss 14 sein.',
+      'Snapshot.schemaVersion muss 15 sein.',
     );
   });
 
@@ -458,7 +458,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
 
     expect(() => parseFEMModelSnapshot(v8)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v8)).toThrow(
-      'Snapshot.schemaVersion muss 14 sein.',
+      'Snapshot.schemaVersion muss 15 sein.',
     );
   });
 
@@ -490,7 +490,7 @@ describe('Der Bauer leitet den Umriss des Wandgraphen selbst ab', () => {
 
     expect(() => parseFEMModelSnapshot(v9)).toThrow(SnapshotValidationError);
     expect(() => parseFEMModelSnapshot(v9)).toThrow(
-      'Snapshot.schemaVersion muss 14 sein.',
+      'Snapshot.schemaVersion muss 15 sein.',
     );
   });
 

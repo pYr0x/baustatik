@@ -16,6 +16,7 @@
  */
 
 import type {
+  ReinforcementLayer,
   SectionGeometry,
   SectionPolicy,
   SectionProperties,
@@ -26,6 +27,7 @@ import type { Viewport } from '@baustatik/viewport-2d';
 
 import { type CrossSectionFEMesh, feSpecs } from './fe';
 import { outlineSpecs } from './outlines';
+import { rebarSpecs } from './rebar';
 import { type CrossSectionStyle, DEFAULT_STYLE } from './style';
 import { symbolSpecs } from './symbols';
 import { thinWallSpecs } from './thin-walls';
@@ -46,6 +48,15 @@ export interface CrossSectionSceneOptions {
    */
   readonly sectionPolicy: SectionPolicy;
   readonly viewport: Viewport;
+  /**
+   * Die Bewehrungslagen des Satzes daneben
+   * ([ADR 0064](../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+   *
+   * WEGGELASSEN HEISST HIER „KEINE BEWEHRUNG" und nicht „noch nicht gerechnet"
+   * wie bei den drei Ergebnissen darunter: die Bewehrung ist EINGABE, und
+   * keine zu haben ist der Regelfall jedes Stahl- und Holzquerschnitts.
+   */
+  readonly reinforcement?: readonly ReinforcementLayer[];
   /** Weggelassen = noch nicht gerechnet, und dann steht kein Symbol im Bild. */
   readonly properties?: SectionProperties;
   readonly stressPoints?: readonly StressPoint[];
@@ -60,6 +71,7 @@ export function crossSectionSpecs(
     geometry,
     sectionPolicy,
     viewport: vp,
+    reinforcement,
     properties,
     stressPoints,
     feMesh,
@@ -79,6 +91,7 @@ export function crossSectionSpecs(
       resolved,
     ),
     ...outlineSpecs(geometry, resolved),
+    ...rebarSpecs(reinforcement, vp, resolved),
     ...feSpecs(feMesh, resolved),
     ...symbolSpecs(properties, stressPoints, vp, resolved),
   ];

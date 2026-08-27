@@ -1,3 +1,4 @@
+import { isSolidGeometry } from '../model/is-solid';
 import type { SectionGeometry } from '../model/section-geometry';
 import type { SectionPolicy } from '../policy';
 import { feBlock } from './fe-block';
@@ -37,7 +38,9 @@ export function geometryValues(
     zs: green.zs,
   };
 
-  if (geometry.kind !== 'midline' || geometry.idealisation !== 'thin-walled') {
+  // DIE WEICHE STEHT AN EINER STELLE (ADR 0064) — der Vollquerschnitt holt
+  // seine Schubgrössen aus dem FE-Block, der Wandgraph aus dem Wandweg.
+  if (isSolidGeometry(geometry)) {
     return { ...outline, ...feBlock(geometry.feValues) };
   }
 

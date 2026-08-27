@@ -6,11 +6,13 @@ import {
     type FESectionState,
     InvalidSectionPolicyError,
     kappaFromCoefficients,
+    type ReinforcementLayer,
     type Ring,
     type SectionGeometry,
     type SectionProperties,
     sectionProperties,
     type SectionValidationResult,
+    validateReinforcement,
     validateSectionGeometry,
     validateSectionProperties,
 } from '@baustatik/cross-section';
@@ -72,6 +74,10 @@ const useStore = defineStore('outline-sections', {
         presetId: '',
         rings: [] as Ring[],
         outline: [] as SectionGeometry['outline'],
+        // EINGABE und kein Ergebnis (ADR 0064) — deshalb steht sie im Store
+        // neben den Ringen und nicht bei `result` weiter unten. ABWESEND
+        // heisst "keine Bewehrung", der Regelfall der Stahlfiguren hier.
+        reinforcement: undefined as readonly ReinforcementLayer[] | undefined,
         // Der FE-Block gehoert zum SATZ und nicht zum Ergebnis — anders als das
         // Netz daneben (ADR 0039/0045). ABWESEND heisst „noch nicht gerechnet".
         feValues: undefined as FESectionState | undefined,
@@ -109,6 +115,13 @@ const useStore = defineStore('outline-sections', {
                 vertices: ring.vertices.map((vertex) => ({ ...vertex })),
             }));
             this.outline = [];
+            // Die Bewehrung gehoert zu DIESEN Ringen — sie wandert mit dem
+            // Satz und wird nicht aus dem vorigen uebernommen. Kopiert bis auf
+            // das Element, aus demselben Grund wie die Vertices oben.
+            this.reinforcement = preset.reinforcement?.map((layer) => ({
+                id: layer.id,
+                elements: layer.elements.map((element) => ({ ...element })),
+            }));
             // Der FE-Block gehoert zu DIESEN Ringen. Ihn stehen zu lassen waere
             // eine Behauptung ueber die neue Figur — das Gate meldete ihn beim
             // naechsten Lauf als Drift gegen den Fingerabdruck (ADR 0045).
@@ -222,6 +235,10 @@ const viewer = createCrossSectionViewer({
     // Ob es ZU SEHEN ist, entscheidet die Checkbox darunter — ein `undefined`
     // hier ist der Aus-Zustand desselben Pulls.
     getFEMesh: () => (showMesh ? mesh : undefined),
+    // DER VIERTE PULL, und er ist kein Ergebnis-Pull: `undefined` heisst hier
+    // "keine Bewehrung" (ADR 0064). Die Checkbox schaltet ihn nach demselben
+    // Muster aus wie die Netz-Checkbox darueber.
+    getReinforcement: () => (showRebar ? store.reinforcement : undefined),
     getProperties: () => result?.properties,
     grid: { spacing: 10 }, // Weltkoordinaten in mm
 });
@@ -242,13 +259,14 @@ store.$subscribe(() => viewer.requestRender());
  * Ein Befund mit seiner HERKUNFT und seinem KANAL.
  *
  * `source` sagt, welche Tuer des Gates gesprochen hat — die Figur
- * (`validateSectionGeometry`) oder der Zahlensatz
- * (`validateSectionProperties`). `kind` trennt die beiden Sorten, die ADR 0032
+ * (`validateSectionGeometry`), der Zahlensatz (`validateSectionProperties`)
+ * oder die Bewehrung (`validateReinforcement`, ADR 0064). `kind` trennt die
+ * beiden Sorten, die ADR 0032
  * ausdruecklich auseinanderhaelt: ein Fehler heisst „nicht rechenbar", eine
  * Warnung heisst „rechenbar, aber unter einer Annahme".
  */
 type Finding = {
-    source: 'Figur' | 'Werte';
+    source: 'Figur' | 'Werte' | 'Bewehrung';
     kind: 'error' | 'warning';
     message: string;
 };
@@ -286,6 +304,7 @@ let computing = false;
  * ist genau der Aus-Zustand, den der Viewer kennt.
  */
 let showMesh = true;
+let showRebar = true;
 
 // Druckeinheiten wie im Bericht der Beispiele: das Package liefert SI
 // (ADR 0024), gezeigt werden die Katalogeinheiten, gegen die man eine
@@ -312,6 +331,8 @@ const feElementsField = element<HTMLInputElement>('fe-elements');
 const computeFEButton = element<HTMLButtonElement>('compute-fe');
 const feStatus = element<HTMLDivElement>('fe-status');
 const showMeshToggle = element<HTMLInputElement>('show-mesh');
+const showRebarToggle = element<HTMLInputElement>('show-rebar');
+const reinforcementField = element<HTMLDivElement>('reinforcement');
 
 function element<T extends HTMLElement>(id: string): T {
     const found = document.getElementById(id);
@@ -383,6 +404,11 @@ function calculate(): void {
 computeFEButton.addEventListener('click', () => void runFE());
 
 /** Der Netz-Schalter: umschalten, neu zeichnen — das Ergebnis bleibt stehen. */
+showRebarToggle.addEventListener('change', () => {
+    showRebar = showRebarToggle.checked;
+    viewer.requestRender();
+});
+
 showMeshToggle.addEventListener('change', () => {
     showMesh = showMeshToggle.checked;
     viewer.requestRender();
@@ -476,7 +502,14 @@ function toSceneMesh(mesh: CrossSectionFEMesh): CrossSectionFEMesh {
 /** Die Werte und Befunde neu bilden, ohne den Umriss anzufassen. */
 function recompute(): void {
     const geometry = store.geometry;
-    const section: CrossSection = { kind: 'section-geometry', id: store.presetId, geometry };
+    const section: CrossSection = {
+        kind: 'section-geometry',
+        id: store.presetId,
+        geometry,
+        ...(store.reinforcement === undefined
+            ? {}
+            : { reinforcement: store.reinforcement }),
+    };
     const properties = sectionProperties(section, store.sectionPolicy);
 
     const shape = validateSectionGeometry(geometry, store.sectionPolicy);
@@ -485,10 +518,18 @@ function recompute(): void {
             ? { errors: [], warnings: [] }
             : validateSectionProperties(properties, store.sectionPolicy);
 
+    // DIE DRITTE TUER, und sie nimmt den SATZ und nicht die Geometrie
+    // (ADR 0064): das Feld sitzt eine Ebene ueber `SectionGeometry`.
+    const rebar = validateReinforcement(section, store.sectionPolicy);
+
     result = {
         properties,
         rings: geometry.outline.map((polygon) => polygon.points.length),
-        findings: [...findings('Figur', shape), ...findings('Werte', values)],
+        findings: [
+            ...findings('Figur', shape),
+            ...findings('Werte', values),
+            ...findings('Bewehrung', rebar),
+        ],
     };
 }
 
@@ -624,6 +665,7 @@ function renderPanel(): void {
             'noch nicht erzeugt.';
         propertiesField.innerHTML = '<p class="muted">Noch nicht berechnet.</p>';
         comparisonField.innerHTML = '';
+        reinforcementField.innerHTML = reinforcementTable(store.reinforcement);
         fillFindings([]);
         return;
     }
@@ -644,6 +686,7 @@ function renderPanel(): void {
         preset === undefined || result.properties === undefined
             ? '<p class="muted">Kein Vergleich.</p>'
             : comparisonTable(preset, result.properties);
+    reinforcementField.innerHTML = reinforcementTable(store.reinforcement);
     fillFindings(result.findings);
 }
 
@@ -739,6 +782,62 @@ function percent(delta: number): string {
     return `${delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)} %`;
 }
 
+/**
+ * Eine Tabelle je Lage — `id · y · z · As · Asmax`
+ * ([ADR 0064](../../../docs/adr/0064-the-reinforcement-lives-on-the-cross-section.md)).
+ *
+ * EINGABEEINHEITEN OHNE UMRECHNUNG: die Lage in mm, die Flaechen in cm² — genau
+ * so, wie sie im Satz stehen und wie ein Bewehrungsplan sie schreibt. Zwischen
+ * dem Geschriebenen und dem Gelesenen sitzt damit kein Faktor.
+ *
+ * `Asmax` ABWESEND STEHT ALS "unbegrenzt" DA und nicht als leere Zelle: eine
+ * leere Zelle saehe aus wie eine vergessene Eingabe. Ist sie gleich `As`, sagt
+ * die Zeile "eingefroren" — das ist die Bedeutung, nicht die Zahl.
+ *
+ * EINE LAGE IST DER BEWEHRUNGSRANG, es gibt keine zweite Gruppierung; die
+ * Ueberschrift je Tabelle ist deshalb die `id`, an der die Bemessung dreht.
+ */
+function reinforcementTable(
+    layers: readonly ReinforcementLayer[] | undefined,
+): string {
+    if (layers === undefined || layers.length === 0) {
+        return '<p class="muted">Keine Bewehrung — der Regelfall jedes Stahl- und Holzquerschnitts.</p>';
+    }
+
+    return layers
+        .map((layer) => {
+            const rows = layer.elements
+                .map(
+                    (element) =>
+                        `<tr><th scope="row">${element.id}</th>` +
+                        `<td>${element.y.toFixed(0)}</td>` +
+                        `<td>${element.z.toFixed(0)}</td>` +
+                        `<td>${element.As.toFixed(2)}</td>` +
+                        `<td>${ceiling(element.As, element.Asmax)}</td></tr>`,
+                )
+                .join('');
+            const sum = layer.elements.reduce(
+                (total, element) => total + element.As,
+                0,
+            );
+            return `
+<h3 class="layer">Lage ${layer.id}</h3>
+<table class="values compare">
+  <thead>
+    <tr><th></th><td>y [mm]</td><td>z [mm]</td><td>As [cm²]</td><td>Asmax [cm²]</td></tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>
+<p class="note">Summe As = ${sum.toFixed(2)} cm² — der ANFANGSWERT der Bemessung.</p>`;
+        })
+        .join('');
+}
+
+/** Was in der `Asmax`-Spalte steht: eine Zahl, "unbegrenzt" oder "eingefroren". */
+function ceiling(As: number, Asmax: number | undefined): string {
+    if (Asmax === undefined) return 'unbegrenzt';
+    return Asmax === As ? `${Asmax.toFixed(2)} (eingefroren)` : Asmax.toFixed(2);
+}
 function row(label: string, value: string): string {
     return `<tr><th scope="row">${label}</th><td>${value}</td></tr>`;
 }
@@ -798,6 +897,7 @@ calculate();
 //
 //   store.geometry                       der Satz, wie er gespeichert wuerde
 //   store.rings                          die Ringe mit bulge — die Eingabe
+//   store.reinforcement                  die Bewehrungslagen (ADR 0064)
 //   store.outline                        die Sehnenzuege — das Ergebnis
 //   store.sectionPolicy                  die Einstellung, unter der es entstand
 //   store.setArcTolerance(0.5)           groebere Zerlegung (dann calculate())

@@ -1,6 +1,7 @@
 import { sectionProperties } from '../calculation/section-properties';
 import { tSectionCentroid } from '../calculation/shapes/t-section';
 import type { CrossSection } from '../model/cross-section';
+import { isSolidShape } from '../model/is-solid';
 import { rolledIStressPoints } from './rolled-i';
 import {
   hollowRectangleThinPoints,
@@ -79,11 +80,10 @@ export function stressPoints(
 
   const shape = cs.shape;
   // DIE EINE WEICHE, und sie steht vor der Form: ein Vollquerschnitt trägt kein
-  // Schnittmodell (ADR 0057). Das Vollrechteck trägt gar kein `idealisation` —
-  // es IST der Vollquerschnitt.
-  if (shape.kind === 'rectangle' || shape.idealisation === 'solid') {
-    return undefined;
-  }
+  // Schnittmodell (ADR 0057). Sie steht seit ADR 0064 in `isSolidShape` und
+  // nicht mehr hier ausgeschrieben — dieselbe Regel, die `isSolid` am Satz
+  // beantwortet (ADR 0064).
+  if (isSolidShape(shape)) return undefined;
 
   switch (shape.kind) {
     case 'i-symmetric':
