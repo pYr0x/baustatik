@@ -58,6 +58,7 @@
 import {
   deriveOutline,
   type FESectionState,
+  type ReinforcementLayer,
   type SectionGeometry,
   type SectionPolicy,
 } from '@baustatik/cross-section';
@@ -84,6 +85,10 @@ export {
   type StressAtElement,
   type StressAtNode,
 } from './stress';
+
+export type FESectionOptions = {
+  readonly reinforcement?: readonly ReinforcementLayer[];
+};
 
 /**
  * Was die async Tuer zurueckgibt: der Satz-Anteil und — wenn gerechnet wurde —
@@ -139,9 +144,10 @@ export type FEComputation =
 export async function computeFESectionValues(
   geometry: SectionGeometry,
   policy: SectionPolicy,
+  options?: FESectionOptions,
 ): Promise<FEComputation> {
   const outline = deriveOutline(geometry, policy);
-  const plan = meshPlan(outline, policy.FEElements);
+  const plan = meshPlan(outline, policy.FEElements, options?.reinforcement);
   if (plan.kind === 'refused') {
     return {
       kind: 'refused',
@@ -151,6 +157,7 @@ export async function computeFESectionValues(
 
   const [mesher, solve] = await Promise.all([getMesher(), getSolver()]);
   const mesh = mesher(plan.input);
+  debugger;
   const section = prepareSection(mesh);
   const result = computeFromMesh(section, solve);
 

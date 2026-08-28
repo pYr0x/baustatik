@@ -25,6 +25,8 @@ export type Mesh2DSwitches = {
 
 export type Mesh2DInput = {
   readonly rings: readonly MeshRing2D[];
+  /** Optionale innere Punkte `[x0, y0, x1, y1, …]`, die als feste Netzknoten erhalten bleiben. */
+  readonly internalPoints?: Float64Array;
   readonly element: 'tri3' | 'tri6';
   readonly maxElementArea: number;
   readonly switches?: Mesh2DSwitches;
@@ -199,28 +201,40 @@ function prepare(input: Mesh2DInput): PreparedInput {
     throw new Mesh2DInputError('Mindestens ein Materialring ist erforderlich.');
 
   validateRingRelations(rings, material, holes);
+  const internalPoints = validateInternalPoints(
+    input.internalPoints,
+    material,
+    holes,
+  );
 
-  const pointCount = rings.reduce(
+  const ringPointCount = rings.reduce(
     (count, ring) => count + ring.coordinates.length / 2,
     0,
   );
-  const points = new Float64Array(pointCount * 2);
-  const segments = new Int32Array(pointCount * 2);
-  const segmentMarkers = new Int32Array(pointCount);
+  const internalPointCount =
+    internalPoints === undefined ? 0 : internalPoints.length / 2;
+  const totalPointCount = ringPointCount + internalPointCount;
+
+  const points = new Float64Array(totalPointCount * 2);
+  const segments = new Int32Array(ringPointCount * 2);
+  const segmentMarkers = new Int32Array(ringPointCount);
   let pointOffset = 0;
   for (const ring of rings) {
-    const ringPointCount = ring.coordinates.length / 2;
+    const ringCount = ring.coordinates.length / 2;
     points.set(ring.coordinates, pointOffset * 2);
-    for (let index = 0; index < ringPointCount; index += 1) {
+    for (let index = 0; index < ringCount; index += 1) {
       const segmentOffset = (pointOffset + index) * 2;
       segments[segmentOffset] = pointOffset + index;
-      segments[segmentOffset + 1] =
-        pointOffset + ((index + 1) % ringPointCount);
+      segments[segmentOffset + 1] = pointOffset + ((index + 1) % ringCount);
       // Jede ursprüngliche Ringkante hat einen stabilen Marker. Triangle trägt
       // ihn bei einer Kantenunterteilung auf die daraus entstehenden Teile über.
       segmentMarkers[pointOffset + index] = ring.marker;
     }
-    pointOffset += ringPointCount;
+    pointOffset += ringCount;
+  }
+
+  if (internalPoints !== undefined) {
+    points.set(internalPoints, ringPointCount * 2);
   }
 
   return {
@@ -232,6 +246,48 @@ function prepare(input: Mesh2DInput): PreparedInput {
       holes.flatMap((ring) => [...holePoint(ring.coordinates)]),
     ),
   };
+}
+
+function validateInternalPoints(
+  internalPoints: Float64Array | undefined,
+  material: readonly Ring[],
+  holes: readonly Ring[],
+): Float64Array | undefined {
+  if (internalPoints === undefined || internalPoints.length === 0) {
+    return undefined;
+  }
+  if (internalPoints.length % 2 !== 0) {
+    throw new Mesh2DInputError(
+      'internalPoints muss eine gerade Anzahl an Koordinaten enthalten.',
+    );
+  }
+  const coordinates = new Float64Array(internalPoints);
+  for (const coordinate of coordinates) {
+    if (!Number.isFinite(coordinate)) {
+      throw new Mesh2DInputError(
+        'internalPoints enthält keine endliche Koordinate.',
+      );
+    }
+  }
+  const count = coordinates.length / 2;
+  for (let index = 0; index < count; index += 1) {
+    const [x, y] = pointAt(coordinates, index);
+    const inMaterial = material.some((ring) =>
+      pointInRing(x, y, ring.coordinates),
+    );
+    if (!inMaterial) {
+      throw new Mesh2DInputError(
+        'Ein innerer Punkt liegt außerhalb aller Materialringe.',
+      );
+    }
+    const inHole = holes.some((hole) => pointInRing(x, y, hole.coordinates));
+    if (inHole) {
+      throw new Mesh2DInputError(
+        'Ein innerer Punkt liegt innerhalb eines Lochs.',
+      );
+    }
+  }
+  return coordinates;
 }
 
 function validateRing(input: MeshRing2D, index: number): Ring {

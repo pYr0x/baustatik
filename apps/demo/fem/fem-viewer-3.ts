@@ -400,7 +400,11 @@ async function resolveFESections(): Promise<void> {
     if (feState(cs) !== undefined) continue; // schon gerechnet
     const geometry = feGeometry(cs, store.sectionPolicy);
     if (geometry === undefined) continue;
-    const computation = await computeFESection(geometry, store.sectionPolicy);
+    const computation = await computeFESection(
+      geometry,
+      store.sectionPolicy,
+      cs.kind === 'profile' ? undefined : cs.reinforcement,
+    );
     store.setFEValues(cs.id, computation.state);
     // NARROWT AUF `kind` (ADR 0061): der `'refused'`-Arm traegt kein Netz, und
     // dann steht hier auch keines — transient, nur zum Zeichnen.

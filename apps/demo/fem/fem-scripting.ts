@@ -340,7 +340,11 @@ async function resolveFESections(): Promise<string[]> {
     const geometry = feGeometry(section, store.sectionPolicy);
     if (geometry === undefined) continue;
     try {
-      const { state } = await computeFESection(geometry, store.sectionPolicy);
+      const { state } = await computeFESection(
+        geometry,
+        store.sectionPolicy,
+        section.kind === 'profile' ? undefined : section.reinforcement,
+      );
       store.setFEValues(section.id, state);
       if (state.status === 'unsupported') {
         problems.push(`Querschnitt ${section.id}: FE verweigert (${state.reason}).`);

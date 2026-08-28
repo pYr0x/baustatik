@@ -424,7 +424,11 @@ async function runFE(): Promise<void> {
     viewer.requestRender();
 
     try {
-        const computation = await computeFESection(store.geometry, store.sectionPolicy);
+        const computation = await computeFESection(
+            store.geometry,
+            store.sectionPolicy,
+            store.reinforcement,
+        );
         store.setFEValues(computation.state);
         // NARROWT AUF `kind` (ADR 0061): der `'refused'`-Arm traegt weder Netz
         // noch Felder, und das steht seit ADR 0061 im TYP statt in einem `?`.

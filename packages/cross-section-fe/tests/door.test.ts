@@ -7,6 +7,7 @@
  * und trotzdem plausibel aussieht.
  */
 
+import { atOrThrow } from '@baustatik/core';
 import {
   createSectionGeometry,
   createSectionPolicy,
@@ -433,5 +434,58 @@ describe('Die Bewehrung laesst die FE unberuehrt (ADR 0064)', () => {
     if (formula === undefined) return;
     expect(Math.abs(state.fingerprint.A / formula.A - 1)).toBeLessThan(1e-9);
     expect(Math.abs(state.fingerprint.Iy / formula.Iy - 1)).toBeLessThan(1e-6);
+  });
+
+  it('erzeugt bei uebergebenem reinforcement explizite Netzknoten an den Bewehrungspunkten', async () => {
+    const rings = shapeOutline(RECHTECK);
+    if (rings === undefined) throw new Error('shapeOutline lieferte undefined');
+    const geometry = createSectionGeometry(
+      { kind: 'outline', rings },
+      DEFAULT_SECTION_POLICY,
+    );
+
+    const reinforcement = [
+      {
+        id: 'unten',
+        elements: [
+          { id: 'u1', y: -100, z: 450, As: 4.52, Asmax: 8.04 },
+          { id: 'u2', y: 0, z: 450, As: 4.52, Asmax: 8.04 },
+          { id: 'u3', y: 100, z: 450, As: 4.52, Asmax: 8.04 },
+        ],
+      },
+    ] as const;
+
+    const computation = await computeFESectionValues(
+      geometry,
+      DEFAULT_SECTION_POLICY,
+      { reinforcement },
+    );
+
+    expect(computation.kind).toBe('solved');
+    if (computation.kind !== 'solved') return;
+
+    // Bewehrungskoordinaten in SI-Metern: [-0.1, 0.45], [0, 0.45], [0.1, 0.45]
+    const hasMeshNode = (yM: number, zM: number): boolean => {
+      const count = computation.mesh.points.length / 2;
+      for (let i = 0; i < count; i += 1) {
+        const y = atOrThrow(computation.mesh.points, i * 2);
+        const z = atOrThrow(computation.mesh.points, i * 2 + 1);
+        if (Math.abs(y - yM) < 1e-10 && Math.abs(z - zM) < 1e-10) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    expect(hasMeshNode(-0.1, 0.45)).toBe(true);
+    expect(hasMeshNode(0.0, 0.45)).toBe(true);
+    expect(hasMeshNode(0.1, 0.45)).toBe(true);
+
+    const { state } = computation;
+    expect(state.status).toBe('computed');
+    if (state.status !== 'computed') return;
+
+    // Der Fingerabdruck bleibt unverändert 0,15 m²
+    expect(state.fingerprint.A).toBeCloseTo(0.15, 9);
   });
 });

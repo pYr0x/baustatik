@@ -43,7 +43,11 @@ workerScope.addEventListener(
 
 async function compute(request: CrossSectionFERequest): Promise<void> {
   try {
-    const result = await computeFESectionValues(request.geometry, request.policy);
+    const result = await computeFESectionValues(
+      request.geometry,
+      request.policy,
+      { reinforcement: request.reinforcement },
+    );
     workerScope.postMessage(
       { kind: 'computed', id: request.id, result },
       transferable(result),

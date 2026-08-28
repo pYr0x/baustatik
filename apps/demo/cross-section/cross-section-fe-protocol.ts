@@ -1,4 +1,8 @@
-import type { SectionGeometry, SectionPolicy } from '@baustatik/cross-section';
+import type {
+  ReinforcementLayer,
+  SectionGeometry,
+  SectionPolicy,
+} from '@baustatik/cross-section';
 import type { FEComputation } from '@baustatik/cross-section-fe';
 
 /**
@@ -25,6 +29,7 @@ export type CrossSectionFERequest = {
   readonly id: number;
   readonly geometry: SectionGeometry;
   readonly policy: SectionPolicy;
+  readonly reinforcement?: readonly ReinforcementLayer[];
 };
 
 export type CrossSectionFEResponse =

@@ -12,7 +12,7 @@
  */
 
 import { atOrThrow } from '@baustatik/core';
-import type { Polygon } from '@baustatik/cross-section';
+import type { Polygon, ReinforcementLayer } from '@baustatik/cross-section';
 import type { Mesh2DInput, MeshRing2D } from '@baustatik/mesh-2d-wasm';
 import { MM_TO_M } from './units';
 
@@ -40,6 +40,7 @@ export type MeshPlan =
 export function meshPlan(
   outline: readonly Polygon[],
   elements: number,
+  reinforcement?: readonly ReinforcementLayer[],
 ): MeshPlan {
   const rings: MeshRing2D[] = [];
   let material = 0;
@@ -65,10 +66,13 @@ export function meshPlan(
     return { kind: 'refused', reason: 'disconnected-areas' };
   }
 
+  const internalPoints = extractReinforcementPoints(reinforcement);
+
   return {
     kind: 'mesh',
     input: {
       rings,
+      ...(internalPoints !== undefined ? { internalPoints } : {}),
       element: 'tri6',
       maxElementArea: A / elements,
       // `quality: true` ist Triangles `q20`: kein Innenwinkel unter 20°. Ohne
@@ -77,6 +81,29 @@ export function meshPlan(
       switches: { quality: true },
     },
   };
+}
+
+function extractReinforcementPoints(
+  reinforcement: readonly ReinforcementLayer[] | undefined,
+): Float64Array | undefined {
+  if (reinforcement === undefined || reinforcement.length === 0) {
+    return undefined;
+  }
+  const totalCount = reinforcement.reduce(
+    (count, layer) => count + layer.elements.length,
+    0,
+  );
+  if (totalCount === 0) return undefined;
+  const coordinates = new Float64Array(totalCount * 2);
+  let offset = 0;
+  for (const layer of reinforcement) {
+    for (const element of layer.elements) {
+      coordinates[offset * 2] = element.y * MM_TO_M;
+      coordinates[offset * 2 + 1] = element.z * MM_TO_M;
+      offset += 1;
+    }
+  }
+  return coordinates;
 }
 
 function signedArea(coordinates: Float64Array): number {

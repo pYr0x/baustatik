@@ -151,13 +151,14 @@ function rectangle(): Pick<OutlinePreset, 'rings' | 'reference'> {
  * Gurtunterkante nach innen, dann an der Stegflanke nach `+z` — im
  * Bilduhrzeigersinn, `signedArea > 0`, Material.
  */
-function plattenbalken(): Pick<OutlinePreset, 'rings' | 'reference'> {
-  const bf = 2000;
-  const hf = 200;
-  const bw = 250;
-  const h = 500;
+function plattenbalken(): Pick<OutlinePreset, 'rings' | 'reference' | 'reinforcement'> {
+  const bf = 2580;
+  const hf = 180;
+  const bw = 300;
+  const h = 650;
   const yFlange = bf / 2;
   const yWeb = bw / 2;
+  const area = (d: number) => Math.round((Math.PI * d ** 2) / 4) / 100;
 
   return {
     rings: [
@@ -173,6 +174,14 @@ function plattenbalken(): Pick<OutlinePreset, 'rings' | 'reference'> {
           { y: -yFlange, z: hf },
         ],
       },
+    ],
+    reinforcement: [
+      {
+        id: 'unten',
+        elements: [
+          { id: 'u0', y: 0, z: 600, As: area(8) }
+        ],
+      }
     ],
     reference: {
       label: 'Parametrische Form t-section, solid (Seite „Parametrische Querschnitte")',

@@ -175,6 +175,85 @@ describe('der 2D-Mesher', () => {
     ).toThrow(Mesh2DInputError);
   });
 
+  it('erhält feste innere Punkte als Netzknoten für Tri3 und Tri6', async () => {
+    const mesher = await createMesher2D();
+    const internalPoints = new Float64Array([2.5, 3.5, 7.2, 8.1]);
+
+    for (const element of ['tri3', 'tri6'] as const) {
+      const result = mesher.generate({
+        rings: [{ kind: 'material', coordinates: square }],
+        internalPoints,
+        element,
+        maxElementArea: 10,
+      });
+
+      expect(area(result)).toBeCloseTo(100, 10);
+      expect(positiveOrientation(result)).toBe(true);
+
+      const hasPoint = (x: number, y: number): boolean => {
+        const count = result.points.length / 2;
+        for (let i = 0; i < count; i += 1) {
+          const px = atOrThrow(result.points, i * 2);
+          const py = atOrThrow(result.points, i * 2 + 1);
+          if (Math.abs(px - x) < 1e-10 && Math.abs(py - y) < 1e-10) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      expect(hasPoint(2.5, 3.5)).toBe(true);
+      expect(hasPoint(7.2, 8.1)).toBe(true);
+    }
+  });
+
+  it('weist ungültige innere Punkte vor Triangle zurück', async () => {
+    const mesher = await createMesher2D();
+    const rings: readonly MeshRing2D[] = [
+      { kind: 'material', coordinates: square },
+      {
+        kind: 'hole',
+        coordinates: new Float64Array([4, 4, 6, 4, 6, 6, 4, 6]),
+      },
+    ];
+
+    expect(() =>
+      mesher.generate({
+        rings,
+        internalPoints: new Float64Array([12, 12]),
+        element: 'tri3',
+        maxElementArea: 10,
+      }),
+    ).toThrow(Mesh2DInputError);
+
+    expect(() =>
+      mesher.generate({
+        rings,
+        internalPoints: new Float64Array([5, 5]),
+        element: 'tri3',
+        maxElementArea: 10,
+      }),
+    ).toThrow(Mesh2DInputError);
+
+    expect(() =>
+      mesher.generate({
+        rings,
+        internalPoints: new Float64Array([2, 2, 3]),
+        element: 'tri3',
+        maxElementArea: 10,
+      }),
+    ).toThrow(Mesh2DInputError);
+
+    expect(() =>
+      mesher.generate({
+        rings,
+        internalPoints: new Float64Array([Number.NaN, 2]),
+        element: 'tri3',
+        maxElementArea: 10,
+      }),
+    ).toThrow(Mesh2DInputError);
+  });
+
   it('gibt über viele Aufrufe unabhängige Ergebnisse ohne Heap-Wachstum zurück', async () => {
     const mesher = await createMesher2D();
     mesher.generate({

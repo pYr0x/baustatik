@@ -212,7 +212,11 @@ async function calculate() {
       try {
         const geometry = feGeometry(section.cs, SECTION_POLICY);
         if (geometry === undefined) continue;
-        const { state } = await computeFESection(geometry, SECTION_POLICY);
+        const { state } = await computeFESection(
+          geometry,
+          SECTION_POLICY,
+          section.cs.reinforcement,
+        );
         // DER BLOCK GEHT IN DEN SATZ, nicht in eine Nebenablage — er ist ein
         // Feld von `CrossSection` (ADR 0062) und zugleich der Waechter gegen
         // einen zweiten Lauf.

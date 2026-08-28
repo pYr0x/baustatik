@@ -1,4 +1,8 @@
-import type { SectionGeometry, SectionPolicy } from '@baustatik/cross-section';
+import type {
+  ReinforcementLayer,
+  SectionGeometry,
+  SectionPolicy,
+} from '@baustatik/cross-section';
 import type { FEComputation } from '@baustatik/cross-section-fe';
 import type {
   CrossSectionFERequest,
@@ -24,6 +28,7 @@ const pendingRequests = new Map<number, Pending>();
 export function computeFESection(
   geometry: SectionGeometry,
   policy: SectionPolicy,
+  reinforcement?: readonly ReinforcementLayer[],
 ): Promise<FEComputation> {
   const id = nextRequestId++;
   const feWorker = getWorker();
@@ -34,6 +39,9 @@ export function computeFESection(
     // ueberlebt `postMessage` nicht.
     geometry: structuredClone(toPlain(geometry)),
     policy: { ...policy },
+    ...(reinforcement !== undefined
+      ? { reinforcement: structuredClone(toPlain(reinforcement)) }
+      : {}),
   };
 
   return new Promise((resolve, reject) => {
@@ -43,8 +51,8 @@ export function computeFESection(
 }
 
 /** Ein Pinia-Proxy ist nicht klonbar; JSON macht daraus reine Daten. */
-function toPlain(geometry: SectionGeometry): SectionGeometry {
-  return JSON.parse(JSON.stringify(geometry)) as SectionGeometry;
+function toPlain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function getWorker(): Worker {
